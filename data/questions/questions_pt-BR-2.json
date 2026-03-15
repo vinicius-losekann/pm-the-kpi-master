@@ -1,0 +1,686 @@
+[
+  {
+    "area": "Aquisição",
+    "question": "Qual dos seguintes contratos tem mais riscos para o fornecedor?",
+    "options": {
+      "A": "Preço fixo.",
+      "B": "Tempo e material.",
+      "C": "Custo reembolsável.",
+      "D": "Preço variável."
+    },
+    "correct": "A",
+    "explanation": "Em um contrato de preço fixo, o fornecedor se compromete a entregar o trabalho por um preço predeterminado. Qualquer aumento nos custos de execução, imprevisto ou não, é de responsabilidade do fornecedor, o que o expõe ao maior risco financeiro em comparação com outros tipos de contrato."
+  },
+  {
+    "area": "Aquisição",
+    "question": "Itens a serem abordados em um plano de aquisição incluem todos os seguintes, EXCETO:",
+    "options": {
+      "A": "Critérios de seleção de fornecedores.",
+      "B": "Papéis e responsabilidades no processo de aquisição.",
+      "C": "Declaração do trabalho de aquisição.",
+      "D": "Informações do fornecedor selecionado."
+    },
+    "correct": "D",
+    "explanation": "O plano de gerenciamento das aquisições é um documento de planejamento que define a abordagem para as aquisições do projeto. Ele é criado antes que os fornecedores sejam selecionados. Portanto, as informações sobre o fornecedor já selecionado não fariam parte deste plano."
+  },
+  {
+    "area": "Aquisição",
+    "question": "Dentre os processos do gerenciamento das aquisições do projeto, conforme estabelecido no PMBoK, o Plano de gerenciamento das aquisições é uma entrada apenas no processo:",
+    "options": {
+      "A": "Planejar o gerenciamento das aquisições.",
+      "B": "Conduzir as aquisições.",
+      "C": "Controlar as aquisições.",
+      "D": "Encerrar as aquisições."
+    },
+    "correct": "B",
+    "explanation": "O Plano de Gerenciamento das Aquisições é uma saída do processo de planejamento ('Planejar o Gerenciamento das Aquisições') e é utilizado como entrada nos processos subsequentes, como 'Conduzir as Aquisições' e 'Controlar as Aquisições'. O processo 'Conduzir as Aquisições' é a fase de execução onde o plano é primeiramente utilizado para obter propostas e selecionar fornecedores."
+  },
+  {
+    "area": "Aquisição",
+    "question": "Com relação à gestão de projetos, marque a alternativa que possui o nome dado às pessoas ou a grupos que não estão diretamente relacionados à aquisição ou ao uso do produto do projeto, mas que podem influenciar, positiva ou negativamente, no andamento desse mesmo projeto.",
+    "options": {
+      "A": "Membros da equipe de projeto.",
+      "B": "Influenciadores.",
+      "C": "Patrocinador.",
+      "D": "Cliente/usuário."
+    },
+    "correct": "B",
+    "explanation": "No contexto de gerenciamento de projetos, o termo 'Partes Interessadas' (Stakeholders) refere-se a indivíduos ou grupos que podem ser afetados pelo projeto ou que podem influenciá-lo. A opção 'Influenciadores' é a que melhor se encaixa nessa definição genérica, abrangendo pessoas que não são clientes, equipe ou patrocinadores, mas que exercem poder de influência."
+  },
+  {
+    "area": "Aquisição",
+    "question": "O PMBoK agrupa processos em dez Áreas de Conhecimento do Gerenciamento de Projetos. Dois processos inclusos na área de Gerenciamento de Aquisições do Projeto são:",
+    "options": {
+      "A": "Seleção de Vendedores e Gerenciamento de Contratos.",
+      "B": "Seleção de Contratos e Gerenciamento das Aquisições.",
+      "C": "Seleção dos Planos de Orçamento e Gerenciamento de Vendedores.",
+      "D": "Seleção de Fornecedores e Gerenciamento de Contratos."
+    },
+    "correct": "D",
+    "explanation": "A área de conhecimento de Gerenciamento das Aquisições inclui processos como a seleção de fornecedores e o gerenciamento do contrato, que estão relacionados às fases de execução e controle do projeto. A opção D é a que melhor descreve essas atividades dentro do ciclo de vida das aquisições."
+  },
+  {
+    "area": "Aquisição",
+    "question": "Segundo o PMBoK, são processos do Gerenciamento de Aquisições do Projeto:",
+    "options": {
+      "A": "Especificação de aquisições; seleção e gerenciamento de fornecedores.",
+      "B": "Planejamento de aquisições; planejamento de cadastramento de fornecedores; encerramento de contratos.",
+      "C": "Planejamento de aquisições; solicitações dos fornecedores; encerramento de contratos.",
+      "D": "Planejamento de aquisições e de solicitações; solicitação de respostas e seleção de fornecedores; gerenciamento e encerramento de contratos."
+    },
+    "correct": "D",
+    "explanation": "Os processos do gerenciamento das aquisições do projeto, conforme o PMBOK, seguem uma sequência lógica que inclui o planejamento, a condução (com solicitação de respostas e seleção de fornecedores) e o controle (gerenciamento e encerramento dos contratos). A opção D é a mais completa e precisa na descrição dos processos."
+  },
+  {
+    "area": "Aquisição",
+    "question": "Você é um gerente de projetos de uma montadora e está gerenciando um projeto para a construção de um novo carro. Você irá contratar um fornecedor para construir o protótipo e quer que ele assuma os riscos identificados em relação a esta etapa. Qual tipo de contrato ele deve usar?",
+    "options": {
+      "A": "Contrato de tempo e material.",
+      "B": "Contrato de preço fixo.",
+      "C": "Contrato de custo mais remuneração fixa.",
+      "D": "Contrato de custo mais remuneração de incentivo."
+    },
+    "correct": "B",
+    "explanation": "Para transferir o risco ao fornecedor, o tipo de contrato mais adequado é o de preço fixo. Neste modelo, o fornecedor se compromete a entregar o produto ou serviço por um preço acordado, assumindo qualquer custo adicional que possa surgir."
+  },
+  {
+    "area": "Aquisição",
+    "question": "Como gerente de projeto, você contratou uma empresa de consultoria para realizar alguns dos trabalhos críticos em seu projeto. Ao executar aquisições você chegou a um acordo com o fornecedor sobre as datas que seus recursos vão trabalhar em seu projeto. Isso é conhecido como:",
+    "options": {
+      "A": "Conferências de licitantes.",
+      "B": "Declaração do trabalho da aquisição.",
+      "C": "Calendários de recursos.",
+      "D": "Termo de contrato."
+    },
+    "correct": "C",
+    "explanation": "O acordo sobre as datas em que os recursos do fornecedor trabalharão no projeto são documentados nos calendários de recursos. Este é um documento crucial no planejamento e execução de projetos que dependem de recursos externos."
+  },
+  {
+    "area": "Aquisição",
+    "question": "Como gerente de projeto para uma organização compradora, você descobre que as entregas recebidas do fornecedor não estão em conformidade com as especificações para o produto. Em qual documento você procurar sobre como lidar com esse dado?",
+    "options": {
+      "A": "Proposta do vendedor.",
+      "B": "Plano de gerenciamento das aquisições.",
+      "C": "Plano da qualidade.",
+      "D": "Contrato."
+    },
+    "correct": "D",
+    "explanation": "O contrato é o documento que estabelece as bases legais e as cláusulas para o relacionamento com o fornecedor, incluindo os requisitos, especificações, prazos de entrega e as consequências em caso de não conformidade. É o documento principal para resolver disputas ou problemas de qualidade."
+  },
+  {
+    "area": "Aquisição",
+    "question": "A afirmação: A (O) ________ destina-se a garantir a observância do princípio constitucional da isonomia, a seleção da proposta mais vantajosa para a administração e a promoção do desenvolvimento nacional sustentável. Complete a afirmativa:",
+    "options": {
+      "A": "Contrato.",
+      "B": "Licitação.",
+      "C": "Plano de gerenciamento.",
+      "D": "Plano Orçamentário."
+    },
+    "correct": "B",
+    "explanation": "A licitação é o processo administrativo formal, previsto pela legislação brasileira (Lei nº 8.666/93 e Lei nº 14.133/21), destinado a selecionar a proposta mais vantajosa para a administração pública, garantindo a isonomia e a transparência."
+  },
+  {
+    "area": "Escopo",
+    "question": "Seja a afirmação: A ________ consiste no processo de subdivisão das entregas e do trabalho do projeto em componentes menores e mais facilmente gerenciáveis. Complete a afirmativa.",
+    "options": {
+      "A": "Estrutura qualitativa do projeto.",
+      "B": "Estrutura analítica do projeto.",
+      "C": "Estrutura quantitativa do projeto.",
+      "D": "Nenhuma das anteriores."
+    },
+    "correct": "B",
+    "explanation": "A Estrutura Analítica do Projeto (EAP), também conhecida como WBS (Work Breakdown Structure), é a ferramenta de decomposição hierárquica do escopo total do trabalho a ser realizado pela equipe do projeto para alcançar os objetivos e criar as entregas requeridas."
+  },
+  {
+    "area": "Escopo",
+    "question": "Quanto aos conceitos em gestão de projetos, é correto afirmar que, na fase de Estrutura Analítica de Projeto (EAP):",
+    "options": {
+      "A": "Inicia-se o processo, com a criação do plano de gerenciamento do projeto.",
+      "B": "Acontece a verificação, com a formalização da aceitação das entregas.",
+      "C": "Ocorre a etapa de controle das mudanças na execução do projeto.",
+      "D": "As entregas do projeto são subdividas em componentes menores para facilitar o gerenciamento."
+    },
+    "correct": "D",
+    "explanation": "A Estrutura Analítica do Projeto (EAP) é um processo de decomposição hierárquica do trabalho, onde as entregas e o trabalho do projeto são subdivididos em componentes menores e mais facilmente gerenciáveis. Esta é a principal função da EAP."
+  },
+  {
+    "area": "Aquisição",
+    "question": "Entre as responsabilidades __________de um projeto, está a execução de processos de gerenciamento de contratos e controle de mudanças que são necessários para desenvolver e administrar contratos e pedidos de compra emitidos. Essas responsabilidades estão associadas ao gerenciamento de:",
+    "options": {
+      "A": "Do patrocinador.",
+      "B": "Do usuário.",
+      "C": "Do gestor.",
+      "D": "Do comprador."
+    },
+    "correct": "D",
+    "explanation": "As responsabilidades de gerenciamento de contratos e controle de mudanças estão diretamente ligadas ao papel do comprador (ou da equipe de aquisições). É o comprador que gerencia o relacionamento com o fornecedor e administra os contratos para garantir que as aquisições sejam feitas de acordo com o plano do projeto."
+  },
+  {
+    "area": "Escopo",
+    "question": "Leia a frase a seguir e assinale a alternativa que preenche corretamente a lacuna. __________ são os produtos ou serviços que o projeto deve fornecer.",
+    "options": {
+      "A": "Necessidades",
+      "B": "Diagnósticos",
+      "C": "Objetivos",
+      "D": "Escopos"
+    },
+    "correct": "D",
+    "explanation": "O escopo de um projeto define as fronteiras, os produtos, serviços ou resultados que serão produzidos, bem como os requisitos e funcionalidades que devem ser entregues. São as entregas finais do projeto."
+  },
+  {
+    "area": "Escopo",
+    "question": "Os requisitos do projeto incluem os requisitos de negócio, de gerenciamento e de entrega, ao passo que os requisitos de produto contemplam: ",
+    "options": {
+      "A": "Os requisitos técnicos, de segurança e de desempenho.",
+      "B": "Os requisitos de planejamento e compra.",
+      "C": "Os requisitos do gerenciamento dos riscos das compras.",
+      "D": "Nenhuma das anteriores."
+    },
+    "correct": "A",
+    "explanation": "Os requisitos de produto descrevem as características e funcionalidades do produto final. Isso inclui requisitos técnicos, de segurança, de desempenho, de qualidade, entre outros. Os requisitos de negócio e de gerenciamento estão relacionados ao porquê e como o projeto será gerenciado."
+  },
+  {
+    "area": "Aquisição",
+    "question": "Como todo item de um projeto bem gerenciado, precisa ser planejado para identificar as necessidades que podem ou devem ser mais bem atendidas com a aquisição externa dos itens mencionados. Entre as entradas necessárias para o planejamento das aquisições do projeto NÃO se inclui: ",
+    "options": {
+      "A": "A declaração de escopo do projeto.",
+      "B": "A relação dos riscos identificados.",
+      "C": "A estrutura analítica do projeto.",
+      "D": "O diagrama de rede do projeto."
+    },
+    "correct": "D",
+    "explanation": "O diagrama de rede do projeto é uma ferramenta usada no gerenciamento do cronograma. As outras opções, como a declaração de escopo, a relação de riscos e a EAP, são entradas essenciais para o planejamento das aquisições, pois ajudam a definir o que precisa ser adquirido e a identificar os riscos associados."
+  },
+  {
+    "area": "Aquisição",
+    "question": "Os ________ geralmente se enquadram como de preço fixo ou de custos reembolsáveis, podendo ser também utilizado um tipo híbrido, chamado de contrato por tempo e material. Complete a afirmação.",
+    "options": {
+      "A": "Planos de aquisição.",
+      "B": "Contratos.",
+      "C": "Planos de vendas.",
+      "D": "Nenhuma das anteriores."
+    },
+    "correct": "B",
+    "explanation": "A afirmativa descreve as categorias de contratos de projeto. Contratos de preço fixo e de custos reembolsáveis são as duas categorias principais, enquanto o contrato por tempo e material é considerado um tipo híbrido. Portanto, a palavra que preenche a lacuna é 'contratos'."
+  },
+  {
+    "area": "Aquisição",
+    "question": "Julgue as afirmativas: I. O gerenciamento das aquisições do projeto inclui os processos necessários para comprar ou adquirir produtos, serviços ou resultados externos à equipe do projeto. II. A declaração de escopo e a estrutura analítica de projeto são ferramentas do processo denominado “Planejar as Aquisições”.",
+    "options": {
+      "A": "Afirmativa I correta e II errada.",
+      "B": "Ambas Corretas.",
+      "C": "Ambas erradas.",
+      "D": "Afirmativa I errada e II correta."
+    },
+    "correct": "A",
+    "explanation": "A afirmativa I está correta, pois a definição de gerenciamento das aquisições é a compra ou aquisição de bens e serviços de fora da equipe do projeto. A afirmativa II está incorreta, pois a declaração de escopo e a EAP são entradas, não ferramentas e técnicas, do processo 'Planejar o Gerenciamento das Aquisições'."
+  },
+  {
+    "area": "Aquisição",
+    "question": "Seja a afirmativa: Segundo a metodologia PMI, o gerenciamento das aquisições do projeto inclui os processos necessários para __________ produtos, serviços ou resultados externos à equipe do projeto. Complete a afirmação.",
+    "options": {
+      "A": "Comprar ou adquirir.",
+      "B": "Vender.",
+      "C": "Monitorar.",
+      "D": "Controlar."
+    },
+    "correct": "A",
+    "explanation": "A definição do Gerenciamento das Aquisições do Projeto, segundo o PMI, é o conjunto de processos para comprar, contratar ou adquirir produtos, serviços ou resultados de fora da organização do projeto."
+  },
+  {
+    "area": "Aquisição",
+    "question": "O processo de documentação das decisões de compras do projeto, especificando a abordagem e identificando vendedores em potencial refere-se a qual fase do gerenciamento de aquisições?",
+    "options": {
+      "A": "Planejar o Gerenciamento das Aquisições.",
+      "B": "Monitorar o Gerenciamento das Aquisições.",
+      "C": "Controlar Gerenciamento das Aquisições.",
+      "D": "Conduzir o Gerenciamento das Aquisições."
+    },
+    "correct": "A",
+    "explanation": "O processo de documentar as decisões de compra, a abordagem e a identificação de vendedores em potencial é a essência do planejamento, que ocorre no processo 'Planejar o Gerenciamento das Aquisições'."
+  },
+  {
+    "area": "Aquisição",
+    "question": "O processo de gerenciar relacionamentos de aquisições, monitorar o desempenho do contrato, fazer alterações e correções apropriadas e encerrar contratos refere-se a qual fase do gerenciamento de aquisições?",
+    "options": {
+      "A": "Controlar as Aquisições.",
+      "B": "Monitorar as Aquisições.",
+      "C": "Gerenciar as Aquisições.",
+      "D": "Controlar o desempenho."
+    },
+    "correct": "A",
+    "explanation": "O processo 'Controlar as Aquisições' envolve a gestão dos relacionamentos contratuais, monitoramento do desempenho do fornecedor e o gerenciamento de mudanças. A opção 'Gerenciar as Aquisições' não é um processo formal do PMBOK."
+  },
+  {
+    "area": "Aquisição",
+    "question": "A fase do gerenciamento de aquisições que se refere ao processo de obtenção de respostas de vendedores, seleção de um vendedor e adjudicação de um contrato denomina-se: ",
+    "options": {
+      "A": "Planejar as Aquisições.",
+      "B": "Controlar as Aquisições.",
+      "C": "Conduzir as Aquisições.",
+      "D": "Gerenciar as Aquisições."
+    },
+    "correct": "C",
+    "explanation": "O processo 'Conduzir as Aquisições' é onde as propostas, lances ou cotações dos fornecedores são recebidas, avaliadas e onde um vendedor é selecionado para o contrato."
+  },
+  {
+    "area": "Aquisição",
+    "question": "Os processos de gerenciamento das aquisições do projeto incluem as fases:",
+    "options": {
+      "A": "Planejar contratos, realizar as aquisições e monitorar as aquisições.",
+      "B": "Planejar as compras, acompanhar os contratos, monitorar as aquisições.",
+      "C": "Planejar e alterar aquisições, monitorar e controlar as aquisições.",
+      "D": "Planejar o gerenciamento das aquisições, conduzir as aquisições e controlar as aquisições."
+    },
+    "correct": "D",
+    "explanation": "Os processos do PMBOK na área de Gerenciamento das Aquisições são: 'Planejar o Gerenciamento das Aquisições', 'Conduzir as Aquisições' e 'Controlar as Aquisições'. O processo 'Encerrar as Aquisições' também faz parte da área, mas a opção D é a que melhor resume os processos principais."
+  },
+  {
+    "area": "Aquisição",
+    "question": "Julgue as afirmativas: I. O gerenciamento das aquisições do projeto (GAP) inclui os processos necessários para comprar ou adquirir produtos, serviços ou resultados externos à equipe. II. O GAP inclui os processos de gerenciamento e controle necessários para desenvolver e administrar acordos.",
+    "options": {
+      "A": "Ambas as afirmativas estão corretas.",
+      "B": "A afirmativa I está errada.",
+      "C": "A afirmativa II está errada.",
+      "D": "Ambas as afirmativas estão erradas."
+    },
+    "correct": "A",
+    "explanation": "Ambas as afirmativas estão corretas. A primeira descreve a finalidade do Gerenciamento de Aquisições (comprar/adquirir), e a segunda descreve os processos de gerenciamento e controle de acordos, que são essenciais para essa área de conhecimento."
+  },
+  {
+    "area": "Integração",
+    "question": "Sua empresa foi contratada para construir um oleoduto de petróleo e gás. Você foi eleito como gerente de projeto e você está prestes a criar o termo de abertura. Você vai usar todos os seguintes como entradas para esse processo, EXCETO:",
+    "options": {
+      "A": "Contrato.",
+      "B": "Declaração do trabalho do projeto.",
+      "C": "Estrutura analítica do projeto.",
+      "D": "Business case."
+    },
+    "correct": "C",
+    "explanation": "A Estrutura Analítica do Projeto (EAP) é um resultado de um processo de planejamento que ocorre após a criação do termo de abertura. O termo de abertura do projeto é o primeiro documento formal do projeto e utiliza como entradas o contrato, a declaração de trabalho e o business case."
+  },
+  {
+    "area": "Comunicação",
+    "question": "Você precisa preparar um relatório de status mensal para o seu projeto. Esse relatório é um exemplo de que forma de comunicação?",
+    "options": {
+      "A": "Escrita Informal",
+      "B": "Escrita Formal",
+      "C": "Verbal Formal",
+      "D": "Verbal Informal"
+    },
+    "correct": "B",
+    "explanation": "Relatórios de status, especialmente se forem mensais e distribuídos para partes interessadas-chave, são considerados uma forma de comunicação escrita formal. Eles são planejados, documentados e têm uma estrutura definida."
+  },
+  {
+    "area": "Comunicação",
+    "question": "O plano de gerenciamento das comunicações é desenvolvido para preencher as necessidades do(s)/da(s):",
+    "options": {
+      "A": "Patrocinador do projeto",
+      "B": "Equipe",
+      "C": "Partes interessadas",
+      "D": "Gerente do projeto"
+    },
+    "correct": "C",
+    "explanation": "O Plano de Gerenciamento das Comunicações é um documento abrangente que define a abordagem para todas as comunicações do projeto. Ele é desenvolvido com base nas necessidades de informação de todas as partes interessadas, incluindo patrocinadores, equipe e outras partes relevantes."
+  },
+  {
+    "area": "Comunicação",
+    "question": "Quem é responsável pela comunicação para a equipe do projeto:",
+    "options": {
+      "A": "O representante de RH",
+      "B": "O representante do departamento de Gerenciamento de Sistemas de Informação",
+      "C": "O gerente de projetos",
+      "D": "O departamento de comunicação"
+    },
+    "correct": "C",
+    "explanation": "A responsabilidade primária pela gestão da comunicação dentro da equipe do projeto e com as partes interessadas é do gerente de projetos. Ele coordena o fluxo de informações para garantir que todos tenham o que precisam para executar suas tarefas."
+  },
+  {
+    "area": "Comunicação",
+    "question": "Os três principais tipos de comunicação são:",
+    "options": {
+      "A": "Escrita, oral e contratos",
+      "B": "Escrita, oral e visual",
+      "C": "Verbal, escrita e eletrônica",
+      "D": "Verbal, documentação formal e documentação informal"
+    },
+    "correct": "B",
+    "explanation": "Os três tipos principais de comunicação são a comunicação escrita (e-mails, relatórios), a comunicação oral ou verbal (reuniões, conversas) e a comunicação visual (gráficos, mapas, apresentações)."
+  },
+  {
+    "area": "Comunicação",
+    "question": "Os processos (1) Controlar o Cronograma e (2) Distribuir as informações faz parte das áreas de conhecimento denominadas, respectivamente, Gerenciamento:",
+    "options": {
+      "A": "Do Escopo do Projeto e dos Riscos do Projeto",
+      "B": "Dos Riscos do Projeto e das Aquisições do Projeto",
+      "C": "Das Comunicações do Projeto e do Escopo do Projeto.",
+      "D": "Do Tempo do Projeto e das Comunicações do Projeto."
+    },
+    "correct": "D",
+    "explanation": "'Controlar o Cronograma' é um processo da área de Gerenciamento do Cronograma. 'Distribuir as informações' (ou Gerenciar as Comunicações, na versão mais recente) é um processo da área de Gerenciamento das Comunicações. Portanto, a alternativa correta associa as áreas de tempo e comunicação, respectivamente."
+  },
+  {
+    "area": "Comunicação",
+    "question": "O plano de gestão de projetos que permite que decisões sejam tomadas de modo adequado e no tempo certo, que as necessidades de informação requerida pelas partes interessadas sejam devidamente atendidas e que sejam evitados relatórios, informações e reuniões desnecessárias denomina-se Plano de Gerenciamento:",
+    "options": {
+      "A": "De riscos das comunicações.",
+      "B": "Das comunicações.",
+      "C": "Dos recursos das comunicações.",
+      "D": "Da qualidade das comunicações."
+    },
+    "correct": "B",
+    "explanation": "O plano que tem como objetivo garantir que a comunicação seja eficaz, oportuna e atenda às necessidades das partes interessadas é o Plano de Gerenciamento das Comunicações. Ele define como, quando e por quem a informação será comunicada."
+  },
+  {
+    "area": "Comunicação",
+    "question": "Processo que faz parte da área do Gerenciamento das Comunicações:",
+    "options": {
+      "A": "Controlar o Cronograma das Comunicações.",
+      "B": "Distribuir as informações.",
+      "C": "Monitorar a integração das comunicações.",
+      "D": "Controlar o Escopo das Comunicações do Projeto."
+    },
+    "correct": "B",
+    "explanation": "A 'Distribuição de Informações' é um processo-chave no Gerenciamento das Comunicações, focado em colocar as informações certas nas mãos das partes interessadas no momento certo. Este processo foi renomeado para 'Gerenciar as Comunicações' em versões mais recentes do PMBOK."
+  },
+  {
+    "area": "Comunicação",
+    "question": "Uma das atividades realizadas na área de conhecimento Gerenciamento das Comunicações é: ",
+    "options": {
+      "A": "A elaboração do rol de pontos de integração do projeto.",
+      "B": "A elaboração do rol de riscos do projeto.",
+      "C": "A elaboração do rol de pontos fracos do projeto.",
+      "D": "A elaboração de relatórios de desempenho do projeto."
+    },
+    "correct": "D",
+    "explanation": "A elaboração de relatórios de desempenho é uma atividade central da área de gerenciamento das comunicações, pois envolve a coleta, análise e distribuição de informações sobre o progresso do projeto."
+  },
+  {
+    "area": "Comunicação",
+    "question": "Um gerente de projeto trabalha em uma empresa constituída como uma organização matricial. Ao planejar as comunicações para um novo projeto, o que ele deve ter em mente?",
+    "options": {
+      "A": "Deveria ser mais fácil se comunicar com os membros da equipe.",
+      "B": "A comunicação deve ser vertical e formal.",
+      "C": "Os gerentes funcionais têm prioridade sobre a comunicação.",
+      "D": "A comunicação é mais complexa e deve ser planejada com cuidado."
+    },
+    "correct": "D",
+    "explanation": "Em uma organização matricial, a equipe do projeto se reporta tanto ao gerente de projetos quanto a um gerente funcional, o que pode levar a conflitos de autoridade e a canais de comunicação mais complexos. Por isso, a comunicação precisa ser planejada com muito mais cuidado do que em estruturas mais simples."
+  },
+  {
+    "area": "Comunicação",
+    "question": "Os processos de Gerenciamento das Comunicações do Projeto são:",
+    "options": {
+      "A": "Planejar, Gerenciar e Monitorar o Gerenciamento das Comunicações.",
+      "B": "Planejar, Controlar o Gerenciamento das Comunicações.",
+      "C": "Gerenciar, Controlar e Monitorar o Gerenciamento das Comunicações.",
+      "D": "Controlar o Gerenciamento das Comunicações e corrigir os pontos fracos."
+    },
+    "correct": "A",
+    "explanation": "Conforme o PMBOK (6ª Edição), os processos do Gerenciamento das Comunicações são: 'Planejar o Gerenciamento das Comunicações', 'Gerenciar as Comunicações' e 'Monitorar as Comunicações'."
+  },
+  {
+    "area": "Comunicação",
+    "question": "O processo de Gerenciamento das Comunicações do Projeto refere-se:",
+    "options": {
+      "A": "Planejamento de projeto; distribuição de informações; relatório de disponibilidade.",
+      "B": "Planejamento de comunicações; distribuição de atividades; relatório de desempenho.",
+      "C": "Assegurar a coleta, criação, distribuição, armazenamento, recuperação, monitoramento e disposição final das informações do projeto.",
+      "D": "Planejamento de Stakeholder; distribuição de informações; gerenciamento dos pontos fracos."
+    },
+    "correct": "C",
+    "explanation": "A definição do Gerenciamento das Comunicações do Projeto abrange todo o ciclo de vida da informação, desde a sua criação até a sua disposição final, garantindo que a informação seja gerenciada de forma eficaz e oportuna."
+  },
+  {
+    "area": "Comunicação",
+    "question": "Julgue as afirmativas: I. A área de conhecimento no Gerenciamento Comunicações se refere aos aspectos de unificação, consolidação, articulação e ações agregadoras. II. As ações descritas na afirmativa I são necessárias para que um projeto tenha sucesso.",
+    "options": {
+      "A": "A afirmativa I está correta e a II está errada.",
+      "B": "Ambas estão corretas.",
+      "C": "Ambas estão erradas.",
+      "D": "A afirmativa I está errada e a II está correta."
+    },
+    "correct": "D",
+    "explanation": "A afirmativa I está incorreta, pois a descrição se refere à Área de Conhecimento de Gerenciamento da Integração do Projeto, que é responsável por coordenar todos os processos e atividades. A afirmativa II está correta, pois a integração é essencial para o sucesso do projeto."
+  },
+  {
+    "area": "Comunicação",
+    "question": "Julgue as afirmativas. I. A mobilização da equipe do projeto faz parte da área de conhecimento de comunicação e acontece na etapa de planejamento. II. Refere-se à área de gerenciamento da comunicação à utilização de diferentes tipos de relatório, sendo facilitado entre as várias pessoas envolvidas em um projeto.",
+    "options": {
+      "A": "A afirmativa I está correta e a II está errada.",
+      "B": "Ambas estão corretas.",
+      "C": "Ambas estão erradas.",
+      "D": "A afirmativa I está errada e a II está correta."
+    },
+    "correct": "D",
+    "explanation": "A afirmativa I está incorreta, pois a mobilização da equipe é um processo da área de Gerenciamento de Recursos do Projeto, e ocorre na fase de execução. A afirmativa II está correta, pois a gestão de relatórios de desempenho e outros tipos de documentos é uma parte fundamental da gestão da comunicação."
+  },
+  {
+    "area": "Comunicação",
+    "question": "Um dos processos da Gerência das Comunicações do Projeto é o Encerramento Administrativo. As três saídas do Encerramento Administrativo são:",
+    "options": {
+      "A": "Acervo do projeto, aceitação formal e lições aprendidas.",
+      "B": "Documentação do produto, plano de projeto e relatórios de desempenho.",
+      "C": "Plano de gerência de comunicações, plano do projeto e aceitação formal.",
+      "D": "Plano de gerência de comunicações, registro do projeto e relatórios de desempenho."
+    },
+    "correct": "A",
+    "explanation": "O processo de encerramento administrativo (que no PMBOK 6ª Edição é 'Encerrar o Projeto ou Fase') gera saídas como o acervo do projeto (arquivos), a aceitação formal das entregas e as lições aprendidas, que são valiosas para futuros projetos."
+  },
+  {
+    "area": "Comunicação",
+    "question": "É absolutamente essencial que os membros de um grupo da empresa se comuniquem de maneira eficaz com outros membros do grupo ou mesmo membros de outros projetos. Um fator positivo para a eficiência e eficácia dessas comunicações.",
+    "options": {
+      "A": "É a utilização de um método unificado de comunicação.",
+      "B": "É o tamanho do grupo, principalmente os que incluam gerentes e engenheiros.",
+      "C": "São os grupos estruturados formalmente e divididos em níveis hierárquicos.",
+      "D": "É a comunicação bidirecional entre membros do grupo."
+    },
+    "correct": "D",
+    "explanation": "A comunicação bidirecional é um fator-chave para a eficácia, pois garante que as mensagens sejam compreendidas e que haja feedback, reduzindo mal-entendidos e melhorando a colaboração."
+  },
+  {
+    "area": "Comunicação",
+    "question": "São processos do Gerenciamento das Comunicações do Projeto:",
+    "options": {
+      "A": "Planejamento, distribuição de informações e relatório de disponibilidade.",
+      "B": "Planejamento de comunicações, distribuição de atividades e relatório de desempenho.",
+      "C": "Planejamento de comunicações, distribuição de informações, relatório de desempenho e gerenciamento dos Stakeholders.",
+      "D": "Especificação de comunicações, designação de informação e métricas de desempenho."
+    },
+    "correct": "A",
+    "explanation": "Os processos do PMBOK para Gerenciamento das Comunicações são Planejar o Gerenciamento das Comunicações, Gerenciar as Comunicações (que inclui a distribuição de informações) e Monitorar as Comunicações (que lida com o desempenho). A opção A é a mais próxima da nomenclatura oficial, embora simplifique o nome de alguns processos."
+  },
+  {
+    "area": "Comunicação",
+    "question": "O processo de assegurar a coleta, criação, distribuição, armazenamento, recuperação, gerenciamento, monitoramento e disposição final das informações do projeto, de forma oportuna e adequada, se refere a qual fase do processo de gerenciamento das comunicações?",
+    "options": {
+      "A": "Monitorar as comunicações.",
+      "B": "Controlar as comunicações.",
+      "C": "Gerenciar as comunicações.",
+      "D": "Planejar o Gerenciamento das Comunicações."
+    },
+    "correct": "C",
+    "explanation": "O processo 'Gerenciar as Comunicações' é a fase de execução onde as atividades de coleta, criação e distribuição da informação são realizadas. É aqui que o plano de comunicações é colocado em prática."
+  },
+  {
+    "area": "Comunicação",
+    "question": "O processo de garantir que as necessidades de informação do projeto e de suas partes interessadas sejam atendidas se refere a qual fase do processo de gerenciamento das comunicações?",
+    "options": {
+      "A": "Monitorar as comunicações.",
+      "B": "Controlar as comunicações.",
+      "C": "Gerenciar as comunicações.",
+      "D": "Planejar o Gerenciamento das Comunicações."
+    },
+    "correct": "A",
+    "explanation": "O processo 'Monitorar as Comunicações' tem como objetivo garantir que as necessidades de comunicação das partes interessadas sejam atendidas. Isso envolve o acompanhamento das comunicações para verificar sua eficácia e fazer ajustes quando necessário."
+  },
+  {
+    "area": "Comunicação",
+    "question": "A Comunicação é a troca de informações, intencional ou involuntária. As informações trocadas podem estar em forma de ideias, instruções ou emoções. Os mecanismos pelos quais as informações são trocadas podem ser:",
+    "options": {
+      "A": "Em forma Formal ou Informal; Falados; Por meio de palavras.",
+      "B": "Em forma escrita; Por meio de leituras.",
+      "C": "Em forma escrita; Formais ou Informais; Falados; Por meio de gestos; Escolha de palavras.",
+      "D": "Em forma escrita; Por meio de leituras; Escolha de palavras."
+    },
+    "correct": "C",
+    "explanation": "A comunicação pode ser trocada por diversos mecanismos, incluindo a forma escrita, formal ou informal, falada, através de gestos e da escolha das palavras. A opção C abrange a maior parte desses mecanismos de forma mais completa e precisa."
+  },
+  {
+    "area": "Comunicação",
+    "question": "Assinale a alternativa que apresenta o que compõe o gerenciamento da área de conhecimento comunicação.",
+    "options": {
+      "A": "Inclui um conjunto de processos exigidos para assegurar a geração, coleta, distribuição, armazenamento e controle das informações do projeto.",
+      "B": "Inclui os processos de gerenciamento para que a equipe realize todo o trabalho para o sucesso das informações.",
+      "C": "Inclui os processos cujo objetivo é assegurar que o projeto será concluído dentro da qualidade.",
+      "D": "Inclui a criação de estratégias aderentes às organizações e às necessidades dos empregados."
+    },
+    "correct": "A",
+    "explanation": "O gerenciamento da área de conhecimento de comunicações foca na informação do projeto. A opção A é a que melhor resume os processos e o ciclo de vida da informação dentro do projeto."
+  },
+  {
+    "area": "Comunicação",
+    "question": "Um gerente de projeto trabalha em uma empresa constituída como uma organização matricial. Ao planejar as comunicações para um novo projeto, o que ele deve ter em mente?",
+    "options": {
+      "A": "Deveria ser mais fácil se comunicar com os membros da equipe.",
+      "B": "A comunicação deve ser vertical.",
+      "C": "Os gerentes funcionais têm prioridade sobre a comunicação.",
+      "D": "A comunicação é mais complexa e deve ser planejada com cuidado."
+    },
+    "correct": "D",
+    "explanation": "Em uma organização matricial, a equipe do projeto se reporta tanto ao gerente de projetos quanto a um gerente funcional, o que pode levar a conflitos de autoridade e a canais de comunicação mais complexos. Por isso, a comunicação precisa ser planejada com muito mais cuidado do que em estruturas mais simples."
+  },
+  {
+    "area": "Comunicação",
+    "question": "Definir seu objetivo; Entender o máximo possível sobre o destinatário das comunicações; Monitoramento e medição da eficácia das comunicações. São definidos como: ",
+    "options": {
+      "A": "Os atributos fundamentais das atividades de comunicação eficaz, e do desenvolvimento de artefatos de comunicação eficaz.",
+      "B": "Os objetivos da efetividade da comunicação.",
+      "C": "Os controles da comunicação eficiente.",
+      "D": "O monitoramento das comunicações."
+    },
+    "correct": "A",
+    "explanation": "Esses três pontos são as características essenciais de uma comunicação eficaz. Eles garantem que a mensagem seja clara, que o público-alvo seja considerado e que o impacto da comunicação seja avaliado."
+  },
+  {
+    "area": "Comunicação",
+    "question": "O processo de desenvolver uma abordagem e um plano adequado para atividades de comunicação do projeto com base nas necessidades de informação de cada parte interessada, nos ativos organizacionais disponíveis e nas necessidades do projeto, corresponde a qual fase do processo de gerenciamento das comunicações?",
+    "options": {
+      "A": "Monitorar as comunicações.",
+      "B": "Controlar as comunicações.",
+      "C": "Gerenciar as comunicações.",
+      "D": "Planejar o Gerenciamento das Comunicações."
+    },
+    "correct": "D",
+    "explanation": "O processo 'Planejar o Gerenciamento das Comunicações' é onde a estratégia de comunicação é definida. É aqui que as necessidades de informação são identificadas e uma abordagem é desenvolvida para atender a essas necessidades."
+  },
+  {
+    "area": "Comunicação",
+    "question": "Como gerente de projeto você quer que os membros da sua equipe de projeto comuniquem-se eficazmente entre si e atuem como uma equipe. Qual é a melhor estratégia para conseguir isso?",
+    "options": {
+      "A": "Agrupamento.",
+      "B": "Equipes virtuais.",
+      "C": "Reconhecimento e recompensas.",
+      "D": "Regras básicas."
+    },
+    "correct": "D",
+    "explanation": "As regras básicas da equipe são diretrizes ou normas de comportamento que todos os membros da equipe concordam em seguir. Elas ajudam a estabelecer um ambiente de trabalho saudável, definir expectativas claras e promover a comunicação eficaz."
+  },
+  {
+    "area": "Comunicação",
+    "question": "O processo gerenciar as expectativas das partes interessadas corresponde, respectivamente, ao grupo de processos e área de conhecimento:",
+    "options": {
+      "A": "Execução; e gerenciamento dos recursos humanos do projeto.",
+      "B": "Execução; e gerenciamento das comunicações do projeto.",
+      "C": "Planejamento; e gerenciamento da qualidade do projeto.",
+      "D": "Planejamento; e gerenciamento dos recursos humanos do projeto."
+    },
+    "correct": "B",
+    "explanation": "O processo 'Gerenciar as Expectativas das Partes Interessadas' (que é a nomenclatura de versões anteriores do PMBOK) faz parte do Grupo de Processos de Execução e da Área de Conhecimento de Gerenciamento das Comunicações do Projeto."
+  },
+  {
+    "area": "Cronograma",
+    "question": "O cronograma do projeto NÃO é usado para determinar:",
+    "options": {
+      "A": "As datas de início e fim das atividades",
+      "B": "Mudanças ocasionais para a listagem de atividades",
+      "C": "A folga total das atividades",
+      "D": "O orçamento do projeto"
+    },
+    "correct": "D",
+    "explanation": "O cronograma do projeto é focado em tempo, não em custo. Ele determina as datas de início e fim, a folga das atividades e a sequência das tarefas. O orçamento é determinado por meio do Gerenciamento de Custos."
+  },
+  {
+    "area": "Escopo",
+    "question": "De acordo com o PMBoK o menor nível da Estrutura Analítica do Projeto é:",
+    "options": {
+      "A": "A tarefa",
+      "B": "A atividade",
+      "C": "O pacote de trabalho",
+      "D": "O elemento"
+    },
+    "correct": "C",
+    "explanation": "O menor nível hierárquico de uma Estrutura Analítica do Projeto (EAP) é o 'pacote de trabalho'. O pacote de trabalho representa um conjunto de tarefas que podem ser gerenciadas e controladas de forma independente."
+  },
+  {
+    "area": "Tempo/Cronograma",
+    "question": "Não é uma técnica de estimativa de duração das atividades:",
+    "options": {
+      "A": "Analogia",
+      "B": "Opinião de especialistas",
+      "C": "Modelos algorítmicos/paramétricos",
+      "D": "Opinião do cliente"
+    },
+    "correct": "D",
+    "explanation": "As técnicas de estimativa de duração das atividades incluem estimativa análoga, estimativa paramétrica e opinião de especialistas. 'Opinião do cliente' não é uma técnica formal de estimativa, embora a entrada do cliente seja usada para coletar os requisitos do projeto."
+  },
+  {
+    "area": "Tempo/Cronograma",
+    "question": "A unidade de estimativa de 'Dia ideal' MELHOR se define em um dia que:",
+    "options": {
+      "A": "Todos os recursos estão disponíveis",
+      "B": "Há um progresso ideal, de esforço ininterrupto e produtivo",
+      "C": "Não há nenhum recurso ocioso",
+      "D": "Todos os recursos estão ocupados com atividades"
+    },
+    "correct": "B",
+    "explanation": "O 'dia ideal' é um conceito usado em estimativas de tempo que assume um cenário perfeito, onde não há interrupções, reuniões, problemas ou outras distrações, e o trabalho é feito de forma contínua e produtiva."
+  },
+  {
+    "area": "Tempo/Cronograma",
+    "question": "Usando a estimativa de três pontos, dado tp = 10, tm = 3 e to = 2, qual a esperada?",
+    "options": {
+      "A": "3",
+      "B": "4",
+      "C": "5",
+      "D": "6"
+    },
+    "correct": "C",
+    "explanation": "A fórmula para a estimativa de três pontos (PERT) é (To + 4Tm + Tp) / 6, onde To = Otimista, Tm = Mais provável, e Tp = Pessimista.  Aplicando a fórmula: (2 + 4 * 3 + 10) / 6 = (2 + 12 + 10) / 6 = 24 / 6 = 4.  O valor dado na pergunta é 10, 3 e 2. O cálculo da resposta esperada é (2 + 4 * 3 + 10) / 6 = (2 + 12 + 10) / 6 = 24 / 6 = 4."
+  },
+  {
+    "area": "Tempo/Cronograma",
+    "question": "Planning Poker é uma técnica de estimativa baseada em:",
+    "options": {
+      "A": "Analogia",
+      "B": "Opinião especializada",
+      "C": "Modelo algorítmico/paramétrico",
+      "D": "Técnica de três pontos (Pert)"
+    },
+    "correct": "B",
+    "explanation": "O Planning Poker é uma técnica de estimativa de esforço baseada em consenso, utilizada em metodologias ágeis como o Scrum. Ela se baseia na opinião especializada dos membros da equipe do projeto para estimar o tamanho das histórias de usuário ou o esforço de uma tarefa."
+  },
+  {
+    "area": "Tempo/Cronograma",
+    "question": "Um projeto foi programado originalmente em 20 meses. Se o IDC é 1,25, então a nova data de cronograma é: ",
+    "options": {
+      "A": "16 meses",
+      "B": "20 meses",
+      "C": "25 meses",
+      "D": "Não pode ser determinada"
+    },
+    "correct": "D",
+    "explanation": "O IDC (Índice de Desempenho do Cronograma) é uma métrica de controle do cronograma que indica o quão eficientemente a equipe do projeto está usando o tempo. Um IDC de 1,25 significa que o projeto está adiantado. No entanto, o IDC não pode ser usado para calcular a nova data do cronograma sem mais informações, como o progresso do projeto até o momento e o valor do trabalho planejado. A nova data de cronograma não pode ser determinada apenas com base no IDC e no cronograma original."
+  }
+]

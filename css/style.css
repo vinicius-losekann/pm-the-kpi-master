@@ -1,0 +1,163 @@
+/* Estilos personalizados que complementam o Tailwind */
+body {
+    font-family: "Inter", sans-serif; /* Usando a fonte Inter */
+    background-color: #f0f9ff; /* Um azul muito claro para o fundo */
+    display: flex;
+    flex-direction: column; /* Adicionado para game.html para empilhar elementos */
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh; /* Garante que o corpo ocupa a altura total da viewport */
+    margin: 0;
+    color: #333;
+    background-image: linear-gradient(to top, #cfd9ed 0%, #e2e8f0 100%); /* Gradiente sutil */
+}
+/* Estilos para o contêiner principal na index.html para evitar o FOUC */
+#main-content-container {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.5s ease-in-out, visibility 0.5s ease-in-out;
+}
+/* Estilos para os botões com um efeito visual agradável */
+.game-button {
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+.game-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+}
+.game-button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+/* Estilos para o campo de input */
+.game-input {
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e0; /* light gray */
+    width: 100%;
+    max-width: 200px;
+    text-align: center;
+    font-size: 1.1rem;
+    transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+.game-input:focus {
+    outline: none;
+    border-color: #38b2ac; /* teal */
+    box-shadow: 0 0 0 3px rgba(56, 178, 172, 0.4); /* teal focus ring */
+}
+.language-button {
+    transition: all 0.2s ease-in-out;
+    border: 1px solid transparent;
+}
+.language-button.selected {
+    border-color: #38b2ac; /* teal */
+    box-shadow: 0 0 0 2px rgba(56, 178, 172, 0.4);
+    background-color: #e6fffa; /* light teal */
+}
+.session-info {
+    background-color: #f0fdf4; /* green-50 */
+    border: 1px solid #a7f3d0; /* green-200 */
+    color: #065f46; /* green-800 */
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-top: 1rem;
+    font-weight: 600;
+}
+
+/* Estilos específicos do game.html, movidos para cá */
+.game-area-selector {
+    background-color: #ffffff;
+    border-radius: 1rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    padding: 1.5rem; /* Padding reduzido */
+    max-width: 24rem; /* Definido explicitamente para max-w-sm */
+    margin: 1.5rem auto 0 auto; /* Centraliza e mantém o espaçamento superior */
+    width: 100%; /* Permite ocupar a largura total em telas menores que max-width */
+    text-align: center;
+}
+.card {
+    background-color: #ffffff;
+    border-radius: 1.5rem; /* Mais arredondado */
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); /* Sombra mais pronunciada */
+    padding: 2rem; /* p-8 */
+    max-width: 2xl; /* Ligeiramente mais estreito para parecer mais com uma carta */
+    width: 100%;
+    margin-top: 1.5rem;
+    text-align: center;
+    border: 4px solid #14b8a6; /* Borda teal para destacar */
+    position: relative;
+    overflow: hidden; /* Para o pseudo-elemento */
+}
+/* Pseudo-elemento para um efeito visual de jogo na carta */
+.card::before {
+    content: '';
+    position: absolute;
+    top: -50px;
+    left: -50px;
+    width: 150px;
+    height: 150px;
+    background: radial-gradient(circle, rgba(20,184,166,0.3) 0%, rgba(20,184,166,0) 70%);
+    transform: rotate(45deg);
+    z-index: 0;
+    opacity: 0.7;
+}
+.card-content {
+    position: relative;
+    z-index: 1; /* Garante que o conteúdo fique acima do pseudo-elemento */
+}
+.option-button {
+    transition: all 0.2s ease-in-out;
+    background-color: #f0f4f8; /* Um cinza claro sutil */
+    border: 1px solid #cbd5e0;
+    border-radius: 0.75rem; /* rounded-lg */
+}
+.option-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    background-color: #e2e8f0;
+}
+.option-button.selected {
+    border: 2px solid #10b981; /* green-500 */
+    background-color: #ecfdf5; /* green-50 */
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3); /* Anel de foco verde */
+}
+.feedback {
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-top: 1rem;
+    font-weight: 600; /* Mais negrito */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+.feedback.correct {
+    background-color: #d1fae5; /* green-100 */
+    color: #065f46; /* green-800 */
+    border: 1px solid #34d399; /* green-300 */
+}
+.feedback.incorrect {
+    background-color: #fee2e2; /* red-100 */
+    color: #991b1b; /* red-800 */
+    border: 1px solid #f87171; /* red-300 */
+}
+.explanation {
+    margin-top: 1rem; /* Mais espaço */
+    font-style: italic;
+    color: #4a5568; /* gray-700 */
+    line-height: 1.6; /* Melhor legibilidade */
+    text-align: left; /* Alinhar à esquerda para explicação */
+}
+.area-select-button {
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    border-radius: 0.5rem;
+}
+.area-select-button:hover {
+    background-color: #0e9f80; /* Um verde um pouco mais escuro ao passar o mouse */
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+.area-select-button:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+/* language-button styles are shared, no need for specific game.html rules here */
