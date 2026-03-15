@@ -1,0 +1,13 @@
+# Pastas de dependências (nunca devem ir ao GitHub)
+node_modules/
+vendor/
+
+# Arquivos do Sistema e Google Drive
+.DS_Store
+Thumbs.db
+desktop.ini
+Icon?
+
+# Arquivos temporários do Windows
+*.tmp
+*.log
