@@ -1,181 +1,244 @@
-// js/index.js
+// ============================================
+// PM: The KPI Master - Index Script
+// ============================================
 
-// Idioma padrão lido do arquivo de configuração
-let currentLanguage = AppConfig.defaultLanguage; 
-let pageTranslations = {}; // Objeto para armazenar as traduções carregadas
+console.log('[INDEX] Inicializando...');
+console.log('[INDEX] PeerJS disponível:', typeof Peer !== 'undefined');
+console.log('[INDEX] CONFIG:', CONFIG);
 
-const newGameButton = document.getElementById('newGameButton');
-const accessGameButton = document.getElementById('accessGameButton');
-const sessionIdInput = document.getElementById('sessionIdInput');
-const errorMessage = document.getElementById('errorMessage');
-const sessionInfo = document.getElementById('sessionInfo'); // Novo elemento
+const PREFIX = CONFIG.ROOM_PREFIX;
 
-// Adicionado: Referência ao contêiner principal para controlar a visibilidade
-const mainContentContainer = document.getElementById('main-content-container');
+// --- Telas ---
+const screenChoose = document.getElementById('screenChoose');
+const screenCreate = document.getElementById('screenCreate');
+const screenCreated = document.getElementById('screenCreated');
+const screenJoin = document.getElementById('screenJoin');
 
-// Log para verificar se o elemento foi encontrado
-console.log('mainContentContainer encontrado:', mainContentContainer);
+// --- Criar Sala ---
+const createPlayerName = document.getElementById('createPlayerName');
+const createRoomId = document.getElementById('createRoomId');
+const btnCreateRoom = document.getElementById('btnCreateRoom');
+const btnBackFromCreate = document.getElementById('btnBackFromCreate');
+const createFeedback = document.getElementById('createFeedback');
 
-// Estas variáveis serão atribuídas dentro de DOMContentLoaded
-let langPtBrButton;
-let langEnUsButton;
-let langEsEsButton;
+// --- Sala Criada ---
+const createdRoomIdDisplay = document.getElementById('createdRoomIdDisplay');
+const btnCopyCreatedId = document.getElementById('btnCopyCreatedId');
+const btnEnterCreatedRoom = document.getElementById('btnEnterCreatedRoom');
+const btnBackFromCreated = document.getElementById('btnBackFromCreated');
+const createdFeedback = document.getElementById('createdFeedback');
 
-// Função para carregar as traduções do arquivo JSON
-async function loadTranslations(lang) {
-    let success = false;
-    try {
-        const response = await fetch('index_translations.json');
-        if (!response.ok) {
-            throw new Error(`Erro de rede ou arquivo não encontrado: ${response.status} ${response.statusText}`);
-        }
-        const allTranslations = await response.json();
-        
-        if (!allTranslations[lang]) {
-            throw new Error(`Idioma '${lang}' não encontrado no arquivo de traduções.`);
-        }
+// --- Entrar ---
+const joinPlayerName = document.getElementById('joinPlayerName');
+const joinRoomSuffix = document.getElementById('joinRoomSuffix');
+const btnJoinRoom = document.getElementById('btnJoinRoom');
+const btnBackFromJoin = document.getElementById('btnBackFromJoin');
+const joinFeedback = document.getElementById('joinFeedback');
 
-        pageTranslations = allTranslations[lang];
-        console.log('Traduções carregadas para', lang, ':', pageTranslations);
-        updateUITexts();
-        success = true;
-    } catch (error) {
-        console.error('Falha ao carregar ou processar as traduções:', error);
-        pageTranslations = {
-            main_title: "Jogo de Gerenciamento de Projetos (Erro de Carga)",
-            main_page_title: "Jogo de Gerenciamento de Projetos (Erro de Carga)", // Fallback para o título da página
-            description_text: "Ocorreu um erro ao carregar o conteúdo. Por favor, recarregue a página.",
-            button_new_game: "Erro",
-            access_game_title: "Erro",
-            input_session_placeholder: "Erro",
-            button_access_game: "Erro",
-            error_invalid_session_id: "Erro: ID inválido.",
-            language_select_title: "Idioma (Erro)",
-            session_created_message: "Erro ao criar sessão: ",
-            session_id_prompt: "Tente novamente."
-        };
-        updateUITexts();
-    } finally {
-        newGameButton.disabled = !success;
-        accessGameButton.disabled = !success;
-        console.log('Botões de Ação re-habilitados após loadTranslations (Sucesso:', success, ')');
-        
-        // MOSTRA o contêiner principal com opacity e visibility
-        if (mainContentContainer) {
-            mainContentContainer.style.opacity = '1';
-            mainContentContainer.style.visibility = 'visible';
-            console.log('mainContentContainer definido para opacity: 1; visibility: visible;'); // Log de confirmação
-        }
-    }
+// --- Estado ---
+let createdRoomFullId = '';
+let createdPlayerNameValue = '';
+
+// --- Navegação ---
+function showScreen(screen) {
+    [screenChoose, screenCreate, screenCreated, screenJoin].forEach(s => s.style.display = 'none');
+    screen.style.display = 'block';
+    screen.style.animation = 'none';
+    screen.offsetHeight;
+    screen.style.animation = 'slideUp 0.4s ease';
 }
 
-// Função para atualizar os textos da UI com base no idioma carregado
-function updateUITexts() {
-    const isTranslationsLoaded = Object.keys(pageTranslations).length > 0 && pageTranslations.main_title;
-
-    console.log('updateUITexts chamado. Estado de pageTranslations:', pageTranslations);
-    console.log('isTranslationsLoaded:', isTranslationsLoaded);
-
-    document.getElementById('mainTitle').textContent = isTranslationsLoaded ? pageTranslations.main_title : "Jogo de Gerenciamento de Projetos";
-    document.getElementById('descriptionText').innerHTML = isTranslationsLoaded ? pageTranslations.description_text : "Domine as habilidades essenciais de gerenciamento de projetos neste jogo interativo! Aprenda sobre **planejamento**, **execução**, **monitoramento de progresso** e **resolução de desafios** em cenários simulados para se tornar um gestor de projetos de sucesso. Cada decisão importa! ";
-    document.querySelector('#newGameButton [data-lang-key="button_new_game"]').textContent = isTranslationsLoaded ? pageTranslations.button_new_game : "Iniciar Novo Jogo";
-    document.getElementById('accessGameTitle').textContent = isTranslationsLoaded ? pageTranslations.access_game_title : "Acessar Jogo Existente";
-    sessionIdInput.placeholder = isTranslationsLoaded ? pageTranslations.input_session_placeholder : "Digite o ID da Sessão";
-    document.querySelector('#accessGameButton [data-lang-key="button_access_game"]').textContent = isTranslationsLoaded ? pageTranslations.button_access_game : "Acessar Jogo";
-    document.getElementById('languageSelectTitle').textContent = isTranslationsLoaded ? pageTranslations.language_select_title : "Idioma";
-    
-    // Define o título da página
-    document.title = isTranslationsLoaded ? pageTranslations.main_page_title : "Jogo de Gerenciamento de Projetos";
-    
-    if (!errorMessage.classList.contains('hidden')) {
-        errorMessage.textContent = isTranslationsLoaded ? pageTranslations.error_invalid_session_id : "Por favor, digite um ID de sessão válido (4 dígitos numéricos).";
-    }
-    
-    if (!sessionInfo.classList.contains('hidden')) {
-        const currentSessionId = sessionInfo.getAttribute('data-session-id');
-        console.log('sessionInfo está visível. currentSessionId:', currentSessionId);
-
-        if (isTranslationsLoaded && pageTranslations.session_created_message && pageTranslations.session_id_prompt) {
-            console.log('Usando traduções para sessionInfo.');
-            sessionInfo.innerHTML = `${pageTranslations.session_created_message} <span class="font-bold text-teal-700">${currentSessionId}</span>.<br>${pageTranslations.session_id_prompt}`;
-        } else {
-            console.log('Usando fallback para sessionInfo.');
-            sessionInfo.innerHTML = `Sessão criada! Seu ID é: <span class="font-bold text-teal-700">${currentSessionId}</span>.<br>Insira este ID para acessar seu jogo.`;
-        }
-    } else {
-        console.log('sessionInfo está oculto. Não será atualizado.');
-    }
+function showFeedback(el, message, type) {
+    console.log('[INDEX]', type + ':', message);
+    el.textContent = message;
+    el.className = `form-feedback feedback-${type}`;
+    el.style.display = 'block';
+    el.style.animation = 'none';
+    el.offsetHeight;
+    el.style.animation = 'slideIn 0.3s ease';
 }
 
-// Função para gerar um ID de sessão de 4 dígitos
-function generateSessionId() {
-    return Math.floor(Math.random() * 9000) + 1000;
+function hideFeedback(el) {
+    el.style.display = 'none';
 }
 
-// Event listener para o botão "Iniciar Novo Jogo"
-newGameButton.addEventListener('click', () => {
-    const sessionId = generateSessionId();
-    sessionIdInput.value = sessionId;
-    sessionInfo.setAttribute('data-session-id', sessionId);
-    
-    sessionInfo.classList.remove('hidden');
-    errorMessage.classList.add('hidden');
-    
-    updateUITexts();
-    console.log('Botão "Iniciar Novo Jogo" clicado. ID da sessão:', sessionId);
+// --- Botões: Escolher Modo ---
+document.getElementById('btnChooseCreate').addEventListener('click', () => {
+    console.log('[INDEX] Modo: CRIAR SALA');
+    showScreen(screenCreate);
+    createPlayerName.focus();
 });
 
-// Event listener para o botão "Acessar Jogo"
-accessGameButton.addEventListener('click', () => {
-    const inputId = sessionIdInput.value.trim();
-    if (/^\d{4}$/.test(inputId)) {
-        errorMessage.classList.add('hidden');
-        window.location.href = `game.html?session=${inputId}&lang=${currentLanguage}`;
-    } else {
-        errorMessage.textContent = pageTranslations.error_invalid_session_id || "Por favor, digite um ID de sessão válido (4 dígitos numéricos).";
-        errorMessage.classList.remove('hidden');
-        sessionInfo.classList.add('hidden');
-    }
+document.getElementById('btnChooseJoin').addEventListener('click', () => {
+    console.log('[INDEX] Modo: ENTRAR');
+    showScreen(screenJoin);
+    joinPlayerName.focus();
 });
 
-// Função para definir o idioma
-async function setLanguage(lang) {
-    currentLanguage = lang;
-    
-    document.querySelectorAll('.language-button').forEach(btn => {
-        btn.classList.remove('selected');
+// --- Botões: Criar Sala ---
+btnBackFromCreate.addEventListener('click', () => {
+    showScreen(screenChoose);
+    hideFeedback(createFeedback);
+});
+
+btnCreateRoom.addEventListener('click', () => {
+    const playerName = createPlayerName.value.trim();
+    const roomSuffix = createRoomId.value.trim();
+    hideFeedback(createFeedback);
+
+    if (!playerName || playerName.length < 3 || playerName.length > 20) {
+        showFeedback(createFeedback, '⚠️ Nome deve ter entre 3 e 20 caracteres', 'warning');
+        createPlayerName.focus();
+        return;
+    }
+    if (!roomSuffix || roomSuffix.length < 1 || roomSuffix.length > 20) {
+        showFeedback(createFeedback, '⚠️ Escolha um código para a sala (1-20 caracteres)', 'warning');
+        createRoomId.focus();
+        return;
+    }
+    if (!/^[a-zA-Z0-9_-]+$/.test(roomSuffix)) {
+        showFeedback(createFeedback, '⚠️ Use apenas letras, números, hífens e underscores', 'warning');
+        createRoomId.focus();
+        return;
+    }
+
+    createdRoomFullId = PREFIX + roomSuffix;
+    createdPlayerNameValue = playerName;
+    console.log('[INDEX] Criando sala:', createdRoomFullId);
+    showFeedback(createFeedback, '🔄 Verificando disponibilidade...', 'info');
+
+    const testPeer = new Peer(createdRoomFullId, { debug: 0 });
+
+    testPeer.on('open', (id) => {
+        console.log('[INDEX] Peer ID confirmado:', id);
+        testPeer.destroy();
+        createdRoomIdDisplay.textContent = createdRoomFullId;
+        showScreen(screenCreated);
+        hideFeedback(createFeedback);
     });
 
-    let selectedButtonElement = null;
-    if (lang === 'pt-BR') selectedButtonElement = langPtBrButton;
-    else if (lang === 'en-US') selectedButtonElement = langEnUsButton;
-    else if (lang === 'es-ES') selectedButtonElement = langEsEsButton;
-    
-    if (selectedButtonElement) {
-        selectedButtonElement.classList.add('selected');
-        console.log('Botão de idioma selecionado:', selectedButtonElement.id);
-    } else {
-        console.error(`Elemento para idioma '${lang}' não encontrado. Não foi possível adicionar a classe 'selected'.`);
-    }
-    
-    newGameButton.disabled = true;
-    accessGameButton.disabled = true;
-
-    await loadTranslations(currentLanguage);
-}
-
-// Ao carregar a página: define o idioma padrão e carrega as traduções
-document.addEventListener('DOMContentLoaded', () => {
-    document.documentElement.lang = currentLanguage;
-
-    langPtBrButton = document.getElementById('langPtBrButton');
-    langEnUsButton = document.getElementById('langEnUsButton');
-    langEsEsButton = document.getElementById('langEsEsButton');
-
-    if (langPtBrButton) langPtBrButton.addEventListener('click', () => setLanguage('pt-BR'));
-    if (langEnUsButton) langEnUsButton.addEventListener('click', () => setLanguage('en-US'));
-    if (langEsEsButton) langEsEsButton.addEventListener('click', () => setLanguage('es-ES'));
-
-    setLanguage(AppConfig.defaultLanguage); 
-    console.log('Página carregada. setLanguage() inicial chamado com o idioma padrão do config.');
+    testPeer.on('error', (err) => {
+        console.error('[INDEX] Erro:', err);
+        if (err.type === 'unavailable-id') {
+            showFeedback(createFeedback, '⚠️ Este código já está em uso. Escolha outro.', 'error');
+        } else {
+            showFeedback(createFeedback, '⚠️ Erro de conexão. Verifique sua internet.', 'error');
+        }
+        if (testPeer) testPeer.destroy();
+    });
 });
+
+// --- Botões: Sala Criada ---
+btnCopyCreatedId.addEventListener('click', () => {
+    navigator.clipboard.writeText(createdRoomFullId).then(() => {
+        btnCopyCreatedId.textContent = '✅ Copiado!';
+        setTimeout(() => { btnCopyCreatedId.textContent = '📋 Copiar'; }, 2000);
+    }).catch(() => {
+        const range = document.createRange();
+        range.selectNode(createdRoomIdDisplay);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+        document.execCommand('copy');
+        window.getSelection().removeAllRanges();
+        btnCopyCreatedId.textContent = '✅ Copiado!';
+        setTimeout(() => { btnCopyCreatedId.textContent = '📋 Copiar'; }, 2000);
+    });
+});
+
+btnEnterCreatedRoom.addEventListener('click', () => {
+    console.log('[INDEX] Host entrando:', createdRoomFullId);
+    const params = new URLSearchParams({
+        host: 'true',
+        room: createdRoomFullId,
+        playerName: createdPlayerNameValue,
+        peerId: createdRoomFullId
+    });
+    showFeedback(createdFeedback, '🔄 Entrando na sala...', 'info');
+    setTimeout(() => { window.location.href = `game.html?${params.toString()}`; }, 500);
+});
+
+btnBackFromCreated.addEventListener('click', () => {
+    createdRoomFullId = '';
+    createdPlayerNameValue = '';
+    showScreen(screenCreate);
+    hideFeedback(createdFeedback);
+});
+
+// --- Botões: Entrar em Sala ---
+btnBackFromJoin.addEventListener('click', () => {
+    showScreen(screenChoose);
+    hideFeedback(joinFeedback);
+});
+
+btnJoinRoom.addEventListener('click', () => {
+    const playerName = joinPlayerName.value.trim();
+    const roomSuffix = joinRoomSuffix.value.trim();
+    hideFeedback(joinFeedback);
+
+    if (!playerName || playerName.length < 3 || playerName.length > 20) {
+        showFeedback(joinFeedback, '⚠️ Nome deve ter entre 3 e 20 caracteres', 'warning');
+        joinPlayerName.focus();
+        return;
+    }
+    if (!roomSuffix) {
+        showFeedback(joinFeedback, '⚠️ Informe o código da sala', 'warning');
+        joinRoomSuffix.focus();
+        return;
+    }
+
+    const roomId = PREFIX + roomSuffix;
+    console.log('[INDEX] Tentando entrar:', roomId);
+    showFeedback(joinFeedback, '🔄 Procurando sala...', 'info');
+
+    const testPeer = new Peer({ debug: 0 });
+
+    testPeer.on('open', (myTestId) => {
+        console.log('[INDEX] Peer teste:', myTestId);
+        const conn = testPeer.connect(roomId, { reliable: true });
+        let resolved = false;
+
+        conn.on('open', () => {
+            if (resolved) return;
+            resolved = true;
+            console.log('[INDEX] Sala encontrada!');
+            conn.close();
+            testPeer.destroy();
+
+            const params = new URLSearchParams({
+                host: 'false',
+                room: roomId,
+                playerName: playerName,
+                peerId: roomId
+            });
+            showFeedback(joinFeedback, '✅ Sala encontrada! Entrando...', 'success');
+            setTimeout(() => { window.location.href = `game.html?${params.toString()}`; }, 800);
+        });
+
+        conn.on('error', (err) => {
+            if (resolved) return;
+            resolved = true;
+            console.error('[INDEX] Erro:', err);
+            testPeer.destroy();
+            showFeedback(joinFeedback, '⚠️ Sala não encontrada. Verifique o código.', 'error');
+        });
+
+        setTimeout(() => {
+            if (!resolved) {
+                resolved = true;
+                console.log('[INDEX] Timeout');
+                testPeer.destroy();
+                showFeedback(joinFeedback, '⚠️ Sala não respondeu. O host está online?', 'error');
+            }
+        }, 5000);
+    });
+
+    testPeer.on('error', (err) => {
+        console.error('[INDEX] Erro peer:', err);
+        if (testPeer) testPeer.destroy();
+        showFeedback(joinFeedback, '⚠️ Erro de conexão. Verifique sua internet.', 'error');
+    });
+});
+
+// --- Inicialização ---
+showScreen(screenChoose);
+console.log('[INDEX] Pronto!');

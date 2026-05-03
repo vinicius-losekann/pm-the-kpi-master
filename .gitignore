@@ -1,13 +1,20 @@
-# Pastas de dependências (nunca devem ir ao GitHub)
-node_modules/
-vendor/
+# ============================================
+# PM: The KPI Master - .gitignore
+# ============================================
 
-# Arquivos do Sistema e Google Drive
+# --- Desenvolvimento (NÃO comitar) ---
+data/questions-fallback.js
+js/game-debug.js
+README-PESSOAL.md
+
+# --- Sistema ---
 .DS_Store
 Thumbs.db
 desktop.ini
-Icon?
 
-# Arquivos temporários do Windows
-*.tmp
-*.log
+# --- Editor ---
+.vscode/
+.idea/
+
+# --- Futuro ---
+node_modules/

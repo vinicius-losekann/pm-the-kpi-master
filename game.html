@@ -3,501 +3,245 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jogo de Gerenciamento de Projetos</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f0f2f5;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            color: #333;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-        .container {
-            background-color: #ffffff;
-            padding: 2.5rem;
-            border-radius: 1rem;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            max-width: 900px;
-            width: 100%;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-        }
-        h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 1.5rem;
-            color: #2c3e50;
-        }
-        h2 {
-            font-size: 1.75rem;
-            font-weight: 600;
-            color: #34495e;
-            margin-bottom: 1rem;
-        }
-        p {
-            font-size: 1.1rem;
-            line-height: 1.6;
-            margin-bottom: 1rem;
-        }
-        .player-info, .session-info {
-            background-color: #e9ecef;
-            padding: 1rem;
-            border-radius: 0.75rem;
-            margin-bottom: 1rem;
-            text-align: left;
-            font-size: 0.95rem;
-            color: #495057;
-            border: 1px solid #ced4da;
-        }
-        .player-list {
-            list-style: none;
-            padding: 0;
-            max-height: 150px;
-            overflow-y: auto;
-            border: 1px solid #dee2e6;
-            border-radius: 0.5rem;
-            background-color: #f8f9fa;
-        }
-        .player-list li {
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid #e9ecef;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .player-list li:last-child {
-            border-bottom: none;
-        }
-        .player-list li span {
-            font-weight: 500;
-            color: #212529;
-        }
-        .game-section {
-            background-color: #f8f9fa;
-            padding: 1.5rem;
-            border-radius: 0.75rem;
-            border: 1px solid #dee2e6;
-            text-align: left;
-        }
-        .message-box {
-            background-color: #e0f2f7;
-            border: 1px solid #a7d9ed;
-            color: #0056b3;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-top: 1.5rem;
-            text-align: center;
-            font-weight: 500;
-            margin-left: auto;
-            margin-right: auto;
-            width: fit-content;
-        }
-        .message-box.error {
-            background-color: #f8d7da;
-            border-color: #f5c6cb;
-            color: #721c24;
-        }
-        .message-box.success {
-            background-color: #d4edda;
-            border-color: #c3e6cb;
-            color: #155724;
-        }
-        .button {
-            background-color: #28a745;
-            color: white;
-            padding: 0.85rem 1.5rem;
-            border: none;
-            border-radius: 0.5rem;
-            font-size: 1.1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.3s ease, transform 0.2s ease;
-            margin-top: 1.5rem;
-            box-shadow: 0 4px 10px rgba(40, 167, 69, 0.2);
-        }
-        .button:hover {
-            background-color: #218838;
-            transform: translateY(-2px);
-        }
-        .button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-        .version {
-            position: fixed;
-            bottom: 10px;
-            right: 10px;
-            font-size: 0.8em;
-            color: #777;
-        }
-        /* Estilos para as opções de resposta */
-        .options-container {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-            margin-top: 1rem;
-        }
-        .option-item {
-            display: flex;
-            align-items: center;
-            background-color: #f0f0f0;
-            padding: 0.75rem 1rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
-            border: 1px solid #e0e0e0;
-        }
-        .option-item:hover {
-            background-color: #e5e5e5;
-        }
-        .option-item input[type="radio"] {
-            margin-right: 0.75rem;
-            transform: scale(1.2); /* Aumenta o tamanho do radio button */
-        }
-        .option-item label {
-            flex-grow: 1;
-            cursor: pointer;
-            font-size: 1rem;
-            color: #333;
-        }
-    </style>
+    <title>PM: The KPI Master</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
-    <div class="container">
-        <h1>Bem-vindo ao Jogo!</h1>
-        <div class="session-info">
-            <p><strong>ID da Sessão:</strong> <span id="displaySessionId">Carregando...</span></p>
-            <p><strong>Idioma da Sessão:</strong> <span id="displayLanguage">Carregando...</span></p>
-        </div>
+<body class="page-game">
 
-        <div class="player-info">
-            <p><strong>Seu ID de Usuário:</strong> <span id="currentUserIdDisplay">Carregando...</span></p>
-            <h2>Jogadores na Sessão:</h2>
-            <ul id="playerList" class="player-list">
-                <li>Nenhum jogador ainda...</li>
-            </ul>
-        </div>
+    <!-- ============================================ -->
+    <!-- LOBBY -->
+    <!-- ============================================ -->
+    <div id="screenLobby" class="screen active">
+        <div class="game-container">
+            
+            <header class="game-header">
+                <h1 class="header-title"><span class="title-pm">PM</span>: The KPI Master</h1>
+                <div class="header-room">
+                    <span class="room-icon">🏠</span>
+                    <span id="lobbyRoomName" class="room-name">Sala</span>
+                </div>
+            </header>
 
-        <div class="game-section">
-            <h2>Próxima Pergunta:</h2>
-            <p id="currentQuestionDisplay">Aguardando a próxima pergunta...</p>
-            <div id="optionsContainer" class="options-container">
-                <!-- As opções serão inseridas aqui via JavaScript -->
+            <div class="lobby-card glass-card">
+                
+                <div class="lobby-status">
+                    <div class="status-indicator" id="connectionStatus">
+                        <span class="status-dot status-connecting"></span>
+                        <span id="statusText">Conectando...</span>
+                    </div>
+                    <div class="player-count">
+                        <span id="playerCount">0</span>/6 <span class="player-label">jogadores</span>
+                    </div>
+                </div>
+
+                <div class="room-id-section" id="hostRoomIdSection" style="display:none;">
+                    <label class="room-id-label">ID da Sala:</label>
+                    <div class="room-id-box">
+                        <code id="roomPeerId">---</code>
+                        <button id="btnCopyId" class="btn btn-sm btn-glass">📋 Copiar</button>
+                    </div>
+                </div>
+
+                <div class="players-section">
+                    <h3 class="section-title"><span>👥</span> Jogadores na Sala</h3>
+                    <div id="playersList" class="players-list">
+                        <div class="player-empty">
+                            <span class="empty-icon">🎯</span>
+                            <p>Aguardando jogadores...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Host controls -->
+                <div id="hostControls" class="host-controls" style="display:none;">
+                    <button id="btnStartGame" class="btn btn-primary btn-lg btn-block" disabled>
+                        <span>⚡</span> Iniciar Partida
+                    </button>
+                    <p class="host-hint" id="startHint">Mínimo de 2 jogadores</p>
+                </div>
+
+                <!-- Player waiting -->
+                <div id="playerWaiting" class="player-waiting" style="display:none;">
+                    <div class="waiting-animation">
+                        <span class="waiting-dot"></span><span class="waiting-dot"></span><span class="waiting-dot"></span>
+                    </div>
+                    <p>Aguardando o host iniciar a partida...</p>
+                </div>
+
+                <!-- Ações -->
+                <div class="lobby-actions" style="margin-top:16px; display:flex; gap:10px; justify-content:center;">
+                    <button id="btnEndSession" class="btn btn-glass btn-sm" style="display:none; color:#ff4757; border-color:rgba(255,71,87,0.3);">⛔ Encerrar Sessão</button>
+                    <button id="btnLeaveSession" class="btn btn-glass btn-sm">🚪 Sair da Sessão</button>
+                </div>
             </div>
-            <button id="answerButton" class="button" disabled>Responder Pergunta</button>
+
+            <footer class="game-footer">
+                <p>🔗 Conexão P2P via PeerJS | ⏱️ Sessão de 120 min</p>
+            </footer>
         </div>
-
-        <div id="messageBox" class="message-box hidden"></div>
     </div>
-    <div class="version">Versão: 1.0.0</div>
 
-    <!-- Inclua o arquivo de configuração PRIMEIRO -->
-    <script src="config.js"></script>
+    <!-- ============================================ -->
+    <!-- JOGO -->
+    <!-- ============================================ -->
+    <div id="screenGame" class="screen">
+        <div class="game-container game-layout">
+            
+            <aside class="sidebar sidebar-left">
+                <div class="player-card glass-card">
+                    <div class="player-avatar" id="myAvatar">?</div>
+                    <h3 class="player-name" id="myName">Jogador</h3>
+                    <div class="kpi-display">
+                        <span class="kpi-icon">⭐</span>
+                        <span class="kpi-value" id="myKPI">0</span>
+                        <span class="kpi-label">KPI</span>
+                    </div>
+                    <div class="phase-indicator">
+                        <span class="phase-icon" id="myPhaseIcon">🚀</span>
+                        <span class="phase-name" id="myPhaseName">Iniciação</span>
+                    </div>
+                    <div class="activity-progress">
+                        <div class="progress-text">Atividade <span id="myActivity">0</span>/<span id="myActivityTotal">2</span></div>
+                        <div class="progress-bar"><div class="progress-fill" id="myProgressFill" style="width:0%;"></div></div>
+                    </div>
+                </div>
 
-    <!-- Firebase SDKs -->
-    <script type="module">
-        // Importa as funções Firebase necessárias
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, updateDoc, arrayUnion, arrayRemove, serverTimestamp, onSnapshot, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+                <div class="phases-card glass-card">
+                    <h4>📊 Fases</h4>
+                    <div class="phases-list" id="phasesList"></div>
+                </div>
 
-        // Estas variáveis serão preenchidas por config.js
-        let app;
-        let auth;
-        let db;
-        let firestore;
-        let currentUserId = null;
-        let currentSessionId = null;
-        let currentSessionLanguage = null;
-        let availableQuestions = []; // Array para armazenar perguntas carregadas
-        let currentQuestionIndex = 0; // Índice da pergunta atual
-        let currentQuestionData = null; // Armazena os dados da pergunta atual para fácil acesso
+                <button id="btnEndMatch" class="btn btn-glass btn-sm btn-block" style="display:none; color:#ffa502; border-color:rgba(255,165,2,0.3);">🏁 Encerrar Partida</button>
+                <button id="btnLeaveMatch" class="btn btn-glass btn-sm btn-block" style="margin-top:4px;">🚶 Sair da Partida</button>
+            </aside>
 
-        // Promessa para garantir que o Firebase está inicializado e autenticado
-        window.firebaseInitializedPromise = new Promise(async (resolve) => {
-            try {
-                // As variáveis window.appId, window.firebaseConfig, window.initialAuthToken
-                // já devem estar disponíveis aqui, carregadas por config.js
-                if (window.firebaseConfig && Object.keys(window.firebaseConfig).length > 0) {
-                    app = initializeApp(window.firebaseConfig);
-                    auth = getAuth(app);
-                    db = getFirestore(app);
-                    firestore = {
-                        doc: doc,
-                        setDoc: setDoc,
-                        getDoc: getDoc,
-                        collection: collection,
-                        updateDoc: updateDoc,
-                        arrayUnion: arrayUnion,
-                        arrayRemove: arrayRemove,
-                        serverTimestamp: serverTimestamp,
-                        onSnapshot: onSnapshot,
-                        query: query,
-                        where: where,
-                        getDocs: getDocs
-                    };
+            <main class="main-area">
+                
+                <div class="top-bar">
+                    <div class="timer-card glass-card" id="timerCard">
+                        <span class="timer-icon">⏱️</span>
+                        <span class="timer-value" id="timerDisplay">120:00</span>
+                    </div>
+                    <div class="event-card glass-card" id="eventCard" style="display:none;">
+                        <span class="event-icon">📋</span>
+                        <div class="event-info">
+                            <strong id="eventTitle">Evento</strong>
+                            <span id="eventDesc">Descrição</span>
+                        </div>
+                    </div>
+                </div>
 
-                    window.db = db;
-                    window.firestore = firestore;
+                <div class="question-area glass-card" id="questionArea" style="display:none;">
+                    
+                    <div class="round-info" id="roundInfo">
+                        <span class="round-label">Rodada:</span>
+                        <span class="round-detail">🗣️ <strong id="perguntadorName">---</strong> pergunta para</span>
+                        <span class="round-detail">🎯 <strong id="respondedorName">---</strong></span>
+                    </div>
 
-                    if (window.initialAuthToken) {
-                        await signInWithCustomToken(auth, window.initialAuthToken);
-                        console.log("Firebase (game.html): Autenticado com token personalizado.");
-                    } else {
-                        await signInAnonymously(auth);
-                        console.log("Firebase (game.html): Autenticado anonimamente.");
-                    }
+                    <div class="question-badges">
+                        <span class="badge badge-area" id="badgeArea">Área</span>
+                        <span class="badge badge-group" id="badgeGrupo">Grupo</span>
+                    </div>
 
-                    currentUserId = auth.currentUser.uid;
-                    window.currentUserId = currentUserId;
-                    document.getElementById('currentUserIdDisplay').textContent = currentUserId;
-                    console.log(`Firebase (game.html): App inicializado e autenticado. ID do Usuário: ${currentUserId}`);
-                    resolve();
-                } else {
-                    console.error("Firebase Configuração não encontrada ou inválida em game.html. Pulando a inicialização do Firebase.");
-                    showMessage('Erro: Configuração do Firebase não encontrada. O jogo pode não funcionar corretamente.', 'error');
-                    resolve();
-                }
-            } catch (error) {
-                console.error("Erro na inicialização ou autenticação do Firebase em game.html:", error);
-                showMessage(`Erro na inicialização do Firebase: ${error.message}`, 'error');
-                resolve();
-            }
-        });
+                    <h3 class="question-text" id="questionText">Pergunta aqui...</h3>
 
-        const displaySessionId = document.getElementById('displaySessionId');
-        const displayLanguage = document.getElementById('displayLanguage');
-        const playerList = document.getElementById('playerList');
-        const currentQuestionDisplay = document.getElementById('currentQuestionDisplay');
-        const optionsContainer = document.getElementById('optionsContainer'); // Novo elemento para as opções
-        const answerButton = document.getElementById('answerButton');
-        const messageBox = document.getElementById('messageBox');
+                    <!-- Respondedor -->
+                    <div class="alternatives-grid" id="alternativesGrid" style="display:none;">
+                        <button class="alternative-btn" data-alt="a"><span class="alt-letter">A</span><span class="alt-text" id="altA">---</span></button>
+                        <button class="alternative-btn" data-alt="b"><span class="alt-letter">B</span><span class="alt-text" id="altB">---</span></button>
+                        <button class="alternative-btn" data-alt="c"><span class="alt-letter">C</span><span class="alt-text" id="altC">---</span></button>
+                        <button class="alternative-btn" data-alt="d"><span class="alt-letter">D</span><span class="alt-text" id="altD">---</span></button>
+                    </div>
 
-        // Função para mostrar mensagens temporárias
-        function showMessage(message, type = 'info') {
-            messageBox.textContent = message;
-            messageBox.className = `message-box ${type}`; // Adiciona classes para estilo (info, error, success)
-            messageBox.classList.remove('hidden');
-            setTimeout(() => {
-                messageBox.classList.add('hidden');
-                messageBox.textContent = '';
-            }, 5000); // Esconde após 5 segundos
-        }
+                    <!-- Perguntador (todas alternativas com destaque) -->
+                    <div class="all-alternatives" id="allAlternativesArea" style="display:none;">
+                        <h4 style="margin-bottom:12px; color:#a0a0b8;">📋 Alternativas:</h4>
+                        <div id="allAlternativesList" style="display:flex; flex-direction:column; gap:8px;"></div>
+                    </div>
 
-        // Obtém o ID da sessão e o idioma da URL
-        const urlParams = new URLSearchParams(window.location.search);
-        currentSessionId = urlParams.get('session');
-        currentSessionLanguage = urlParams.get('lang') || 'pt-BR'; // Define pt-BR como padrão se não houver
+                    <div class="role-notice" id="roleNotice" style="display:none;"></div>
+                </div>
 
-        displaySessionId.textContent = currentSessionId;
-        displayLanguage.textContent = currentSessionLanguage;
+                <div class="spectator-area glass-card" id="spectatorArea">
+                    <div class="spectator-content">
+                        <span class="spectator-icon">⏳</span>
+                        <p id="spectatorMessage">Aguardando início da rodada...</p>
+                    </div>
+                </div>
 
-        // Função para carregar perguntas do Firestore
-        async function loadQuestions() {
-            try {
-                const questionsColRef = firestore.collection(db, `artifacts/${window.appId}/public/data/questions`);
-                const q = firestore.query(questionsColRef, firestore.where('language', '==', currentSessionLanguage));
-                const querySnapshot = await firestore.getDocs(q);
+            </main>
 
-                availableQuestions = []; // Limpa perguntas anteriores
-                querySnapshot.forEach((doc) => {
-                    availableQuestions.push(doc.data());
-                });
+            <aside class="sidebar sidebar-right">
+                <div class="ranking-card glass-card">
+                    <h4>🏆 Ranking</h4>
+                    <div id="rankingList" class="ranking-list"></div>
+                </div>
+                <div class="players-online glass-card">
+                    <h4>👥 Jogadores</h4>
+                    <div id="playersOnlineList"></div>
+                </div>
+            </aside>
+        </div>
+    </div>
 
-                if (availableQuestions.length > 0) {
-                    currentQuestionIndex = 0; // Começa da primeira pergunta
-                    displayQuestion(availableQuestions[currentQuestionIndex]);
-                    answerButton.disabled = false;
-                    showMessage('Perguntas carregadas com sucesso!', 'success');
-                } else {
-                    currentQuestionDisplay.textContent = 'Nenhuma pergunta disponível para este idioma.';
-                    answerButton.disabled = true;
-                    showMessage('Nenhuma pergunta encontrada. Por favor, adicione perguntas ao Firestore.', 'info');
-                }
-            } catch (error) {
-                console.error("Erro ao carregar perguntas:", error);
-                showMessage(`Erro ao carregar perguntas: ${error.message}`, 'error');
-                currentQuestionDisplay.textContent = 'Erro ao carregar perguntas.';
-                answerButton.disabled = true;
-            }
-        }
+    <!-- ============================================ -->
+    <!-- FIM DE JOGO -->
+    <!-- ============================================ -->
+    <div id="screenGameOver" class="screen">
+        <div class="game-container">
+            <div class="gameover-card glass-card text-center">
+                <h2 class="gameover-title">🏆 Fim de Partida!</h2>
+                <div id="finalRanking" class="final-ranking"></div>
+                <button id="btnBackToLobby" class="btn btn-primary btn-lg">🔙 Voltar ao Lobby</button>
+                <button id="btnExitGameOver" class="btn btn-secondary" style="margin-left:8px;">🚪 Sair</button>
+            </div>
+        </div>
+    </div>
 
-        // Função para exibir uma pergunta e suas opções
-        function displayQuestion(question) {
-            currentQuestionData = question; // Armazena a pergunta atual
-            currentQuestionDisplay.textContent = question.question; // Altera para 'question' que é o campo do texto principal
-            optionsContainer.innerHTML = ''; // Limpa as opções anteriores
+    <!-- ============================================ -->
+    <!-- MODAL RESULTADO -->
+    <!-- ============================================ -->
+    <div id="modalResult" class="modal" style="display:none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-card glass-card">
+            <h2 id="resultTitle" class="result-title">✅ Acertou!</h2>
+            <p id="resultMessage" class="result-message">+10 KPI</p>
+            <button id="btnCloseResult" class="btn btn-primary">OK</button>
+        </div>
+    </div>
 
-            if (question.options) {
-                // Converte o objeto de opções em um array de [chave, valor] para iterar e ordenar
-                const optionEntries = Object.entries(question.options).sort(); // Garante ordem A, B, C, D
+    <!-- ============================================ -->
+    <!-- SCRIPTS (ordem importa!) -->
+    <!-- ============================================ -->
+    
+    <!-- 1. Dependências externas -->
+    <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
+    
+    <!-- 2. Configuração -->
+    <script src="config/game-config.js"></script>
+    
+    <!-- 3. Dados - Fallback para teste local 
+    <script src="data/questions-fallback.js"></script> -->
+    
+    <!-- 4. Módulos do jogo -->
+    <script src="js/game-state.js"></script>      <!-- Estado + helpers -->
+    <script src="js/game-network.js"></script>     <!-- PeerJS + mensagens -->
+    <script src="js/game-core.js"></script>        <!-- Regras do jogo -->
+    <script src="js/game-ui.js"></script>          <!-- Interface -->
+    
+    <!-- 5. Debug (comentar no GitHub) 
+    <script src="js/game-debug.js"></script> -->
+    
+    <!-- 6. Orquestrador (sempre por último) -->
+    <script src="js/game-main.js"></script>
 
-                optionEntries.forEach(([key, value]) => {
-                    const optionDiv = document.createElement('div');
-                    optionDiv.className = 'option-item';
-
-                    const input = document.createElement('input');
-                    input.type = 'radio';
-                    input.name = 'answer'; // Mesmo nome para que apenas um possa ser selecionado
-                    input.id = `option-${key}`;
-                    input.value = key; // O valor será 'A', 'B', 'C', 'D'
-
-                    const label = document.createElement('label');
-                    label.htmlFor = `option-${key}`;
-                    label.textContent = `${key}) ${value}`;
-
-                    optionDiv.appendChild(input);
-                    optionDiv.appendChild(label);
-                    optionsContainer.appendChild(optionDiv);
-                });
-            }
-        }
-
-        // Função para obter a resposta selecionada pelo usuário
-        function getSelectedAnswer() {
-            const selectedOption = document.querySelector('input[name="answer"]:checked');
-            return selectedOption ? selectedOption.value : null;
-        }
-
-        // Função principal para iniciar o jogo após o Firebase estar pronto
-        async function startGame() {
-            await window.firebaseInitializedPromise;
-
-            if (!db || !auth.currentUser || !currentSessionId) {
-                showMessage('Não foi possível iniciar o jogo: Firebase ou ID da sessão não estão prontos.', 'error');
-                return;
-            }
-
-            // Referência ao documento da sessão
-            const sessionDocRef = firestore.doc(db, `artifacts/${window.appId}/public/data/sessions`, currentSessionId);
-
-            // Listener para as mudanças na sessão em tempo real
-            onSnapshot(sessionDocRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    const sessionData = docSnap.data();
-                    console.log("Dados da sessão atualizados:", sessionData);
-
-                    // Atualiza a lista de jogadores
-                    const players = sessionData.currentPlayers || [];
-                    playerList.innerHTML = ''; // Limpa a lista existente
-                    if (players.length > 0) {
-                        players.forEach(player => {
-                            const li = document.createElement('li');
-                            // player.joinedAt é um objeto Timestamp do Firestore, então .toDate() o converte
-                            // para um objeto Date JavaScript, que tem toLocaleString().
-                            const joinedDate = player.joinedAt ? new Date(player.joinedAt.seconds * 1000).toLocaleString() : 'N/A';
-                            li.textContent = `ID: ${player.userId} (Conectado em: ${joinedDate})`;
-                            playerList.appendChild(li);
-                        });
-                    } else {
-                        const li = document.createElement('li');
-                        li.textContent = 'Nenhum jogador ainda...';
-                        playerList.appendChild(li);
-                    }
-                } else {
-                    showMessage('Sessão não encontrada ou encerrada.', 'error');
-                    console.error("Sessão não encontrada no Firestore.");
-                }
-            }, (error) => {
-                console.error("Erro ao ouvir a sessão:", error);
-                showMessage(`Erro ao carregar dados da sessão: ${error.message}`, 'error');
-            });
-
-            // Adiciona o jogador atual à sessão, se ainda não estiver lá
-            const addPlayerToSession = async () => {
-                const docSnap = await firestore.getDoc(sessionDocRef);
-                if (docSnap.exists()) {
-                    const sessionData = docSnap.data();
-                    const players = sessionData.currentPlayers || [];
-                    const playerExists = players.some(player => player.userId === currentUserId);
-
-                    if (!playerExists) {
-                        await firestore.updateDoc(sessionDocRef, {
-                            currentPlayers: firestore.arrayUnion({
-                                userId: currentUserId,
-                                joinedAt: new Date(),
-                                score: 0
-                            })
-                        });
-                        console.log(`Usuário ${currentUserId} adicionado à sessão.`);
-                    } else {
-                        console.log(`Usuário ${currentUserId} já está na sessão.`);
-                    }
-                }
-            };
-
-            await addPlayerToSession();
-
-            // Carrega as perguntas assim que o jogo inicia e o Firebase estiver pronto
-            await loadQuestions();
-
-
-            // Adiciona um listener para o botão de resposta
-            answerButton.addEventListener('click', () => {
-                const selectedAnswer = getSelectedAnswer();
-                if (!selectedAnswer) {
-                    showMessage('Por favor, selecione uma opção antes de responder.', 'info');
-                    return;
-                }
-
-                if (currentQuestionData && selectedAnswer === currentQuestionData.correct) {
-                    showMessage('Resposta CORRETA! 🎉', 'success');
-                    // Aqui você pode adicionar lógica para aumentar a pontuação do jogador
-                } else {
-                    showMessage(`Resposta INCORRETA. A resposta correta era: ${currentQuestionData.correct}) ${currentQuestionData.options[currentQuestionData.correct]}`, 'error');
-                    // Aqui você pode adicionar lógica para diminuir a pontuação ou registrar erros
-                }
-
-                // Carrega a próxima pergunta após um pequeno atraso
-                setTimeout(() => {
-                    if (availableQuestions.length > 0) {
-                        currentQuestionIndex = (currentQuestionIndex + 1) % availableQuestions.length;
-                        displayQuestion(availableQuestions[currentQuestionIndex]);
-                    } else {
-                        showMessage('Não há mais perguntas para responder.', 'info');
-                        answerButton.disabled = true;
-                    }
-                }, 1500); // 1.5 segundos de atraso para o usuário ver a mensagem
-            });
-        }
-
-        // Inicia o jogo
-        startGame();
-
-        // Opcional: Lidar com o usuário saindo (por exemplo, fechando a aba)
-        window.addEventListener('beforeunload', async () => {
-            if (currentSessionId && currentUserId && db) {
-                const sessionDocRef = firestore.doc(db, `artifacts/${window.appId}/public/data/sessions`, currentSessionId);
-                try {
-                    const docSnap = await firestore.getDoc(sessionDocRef);
-                    if (docSnap.exists()) {
-                        const sessionData = docSnap.data();
-                        const players = sessionData.currentPlayers || [];
-                        const playerToRemove = players.find(player => player.userId === currentUserId);
-
-                        if (playerToRemove) {
-                            await firestore.updateDoc(sessionDocRef, {
-                                currentPlayers: firestore.arrayRemove(playerToRemove)
-                            });
-                            console.log(`Usuário ${currentUserId} removido da sessão.`);
-                        }
-                    }
-                } catch (error) {
-                    console.error("Erro ao remover usuário da sessão:", error);
-                }
-            }
-        });
-    </script>
 </body>
 </html>
