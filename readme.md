@@ -1,4 +1,3 @@
-```markdown
 # 🎯 PM: The KPI Master
 
 > **Quiz multiplayer P2P sobre as 10 Áreas de Conhecimento do PMBOK**
