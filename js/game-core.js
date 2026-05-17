@@ -10,12 +10,13 @@
 //   - Controle de sessão (encerrar, sair)
 //
 // Regras V2:
-//   - Recursos iniciais: 5 por jogador
+//   - Recursos iniciais: 10 por jogador
 //   - Responder gasta 1 recurso (acertando ou errando)
 //   - Atividade só ganha se acertar
 //   - KPI fixo: 10 por atividade completada
 //   - Eventos afetam recursos (não KPI)
-//   - KPI Final = KPI atividades + (recursos restantes × 5)
+//   - KPI Final = KPI acertos + KPI vendas - KPI compras + (recursos restantes × 5)
+//   - Atualização de UI: após evento, após venda, após resposta
 //
 // Dependências:
 //   - Game.state (game-state.js)
@@ -41,6 +42,17 @@ function startNewRound() {
     // V2: Aplica efeitos do evento nos recursos
     aplicarEfeitosEvento(evento);
 
+    // 🔧 V2: Atualiza UI imediatamente após o evento (Momento 1)
+    Game.ui.updatePlayersOnlineList();
+    Game.ui.updateRankingList();
+    
+    // Atualiza recursos e KPI do próprio jogador na tela
+    const me = Game.getPlayerByName(state.playerName);
+    if (me) {
+        document.getElementById('myRecursos').textContent = me.recursos;
+        document.getElementById('myKPI').textContent = me.kpi;
+    }
+
     pickNewPair(evento);
 }
 
@@ -52,6 +64,15 @@ function pickNewPair(evento = null) {
         if (eventos.length === 0) return;
         evento = eventos[Math.floor(Math.random() * eventos.length)];
         aplicarEfeitosEvento(evento);
+        
+        // Atualiza UI se o evento foi aplicado aqui também
+        Game.ui.updatePlayersOnlineList();
+        Game.ui.updateRankingList();
+        const me = Game.getPlayerByName(state.playerName);
+        if (me) {
+            document.getElementById('myRecursos').textContent = me.recursos;
+            document.getElementById('myKPI').textContent = me.kpi;
+        }
     }
 
     // V2: Mostra modal do evento para todos
@@ -281,6 +302,7 @@ function handleAnswer(msg) {
     const seguroMsg = !gastaRecurso ? ' (seguro)' : '';
     console.log('📊 ' + (acertou ? '✅ Acertou' : '❌ Errou') + ' | Recursos: ' + respondedor.recursos + seguroMsg + ' | KPI: ' + respondedor.kpi);
 
+    // 🔧 V2: Atualiza UI após resposta (Momento 3)
     Game.network.broadcastAll({
         type: 'kpi-update',
         playerName: respondedorName,
@@ -340,6 +362,7 @@ function updatePlayerKPI(msg) {
         if (msg.recursos !== undefined) player.recursos = msg.recursos;
     }
 
+    // 🔧 V2: Atualiza UI do próprio jogador
     if (msg.playerName === state.playerName) {
         document.getElementById('myKPI').textContent = msg.kpi;
         if (msg.recursos !== undefined) {
@@ -442,10 +465,6 @@ function handleMatchEnded(msg) {
 // VENDA DE RECURSOS (V3)
 // ============================================
 
-/**
- * Inicia uma venda de recurso
- * @param {string} compradorName - Nome do comprador
- */
 function venderRecurso(compradorName) {
     const state = Game.state;
     const vendedor = Game.getPlayerByName(state.playerName);
@@ -456,7 +475,6 @@ function venderRecurso(compradorName) {
         return false;
     }
 
-    // Validações
     if (vendedor.recursos < 1) {
         alert('⚠️ Você não tem recursos para vender.');
         return false;
@@ -480,14 +498,17 @@ function venderRecurso(compradorName) {
 
     console.log('💰 Venda:', vendedor.name, 'vendeu 1📦 para', comprador.name, 'por', CONFIG.KPI.VALOR_VENDA_RECURSO, 'KPI');
 
-    // Atualiza UI
+    // 🔧 V2: Atualiza UI após venda (Momento 2)
     Game.ui.updatePlayersOnlineList();
     Game.ui.updateRankingList();
 
     // Atualiza UI do próprio jogador
-    if (state.playerName === vendedor.name) {
-        document.getElementById('myKPI').textContent = vendedor.kpi;
-        document.getElementById('myRecursos').textContent = vendedor.recursos;
+    if (state.playerName === vendedor.name || state.playerName === comprador.name) {
+        const me = Game.getPlayerByName(state.playerName);
+        if (me) {
+            document.getElementById('myKPI').textContent = me.kpi;
+            document.getElementById('myRecursos').textContent = me.recursos;
+        }
     }
 
     // Broadcast para todos
@@ -506,18 +527,15 @@ function venderRecurso(compradorName) {
     return true;
 }
 
-/**
- * Obtém lista de possíveis compradores
- * @returns {array} Jogadores que podem comprar
- */
 function getCompradores() {
     const state = Game.state;
     return state.players.filter(p =>
-        p.name !== state.playerName &&  // Não é você
-        !p.waitingInLobby &&            // Não está no lobby
-        p.kpi >= CONFIG.KPI.VALOR_VENDA_RECURSO  // Tem KPI suficiente
+        p.name !== state.playerName &&
+        !p.waitingInLobby &&
+        p.kpi >= CONFIG.KPI.VALOR_VENDA_RECURSO
     );
 }
+
 // ============================================
 // CONTROLE DE SESSÃO
 // ============================================
@@ -555,7 +573,7 @@ function leaveSession() {
 }
 
 // ============================================
-// RANKING (V2 - KPI = atividades + recursos)
+// RANKING (V2 - KPI = acertos + vendas - compras + recursos)
 // ============================================
 
 function buildRanking() {
@@ -598,5 +616,4 @@ window.Game.core = {
     buildRanking,
     venderRecurso,
     getCompradores
-
 };
