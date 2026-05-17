@@ -14,7 +14,7 @@
 | **KPI** | 10 × evento | **10 fixo** por acerto |
 | **Eventos** | Modificavam KPI | Modificam **recursos** |
 | **Sem recursos** | Não se aplicava | **Pula a vez** |
-| **KPI Final** | Só acertos | Acertos + (recursos × 5) |
+| **KPI Final** | Só acertos | Acertos + Vendas + (recursos × 5) |
 | **Modal de Evento** | Não existia | Pop-up no início de cada rodada |
 | **Venda de Recursos** | Não existia | 1📦 por 15 KPI entre jogadores |
 | **Debug mode** | Simulação básica | Progressão individual, travas de segurança |
@@ -51,10 +51,12 @@
 | ❌ Errou | 0 | 0 | -1📦 |
 | ❌ Errou com 🛡️ Seguro | 0 | 0 | 0 |
 | ⚠️ Sem recursos | - | - | Pula vez |
+| 💰 Vendeu recurso | +15 | - | -1📦 |
+| 💰 Comprou recurso | -15 | - | +1📦 |
 
 ### KPI Final
 ```
-KPI Total = KPI de acertos + KPI de Vendas de Recursos + (Recursos restantes × 5)
+KPI Total = KPI de acertos + KPI de vendas - KPI de compras + (Recursos restantes × 5)
 ```
 
 ---
