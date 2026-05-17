@@ -6,6 +6,7 @@
 //   - Enviar/receber mensagens entre jogadores
 //   - Broadcast, unicast, reconexão
 //   - Host migration (queda involuntária)
+//   - Atualização de UI para guests (eventos, vendas)
 //
 // Dependências:
 //   - PeerJS (CDN carregado no HTML)
@@ -23,11 +24,6 @@ let connections = {};        // peerId -> DataConnection
 // INICIALIZAÇÃO PEERJS
 // ============================================
 
-/**
- * Inicializa a conexão PeerJS
- * Host: usa o ID da sala como peerId
- * Jogador: conecta ao host existente
- */
 async function initPeer() {
     return new Promise((resolve, reject) => {
         const state = Game.state;
@@ -71,18 +67,11 @@ async function initPeer() {
 // CONEXÕES
 // ============================================
 
-/**
- * Jogador se conecta ao host
- */
 function connectToHost() {
     const conn = myPeer.connect(Game.state.hostPeerId, { reliable: true });
     handleConnection(conn);
 }
 
-/**
- * Configura callbacks de uma conexão (host ou jogador)
- * @param {DataConnection} conn - Conexão PeerJS
- */
 function handleConnection(conn) {
     const state = Game.state;
 
@@ -90,7 +79,6 @@ function handleConnection(conn) {
         connections[conn.peer] = conn;
         console.log('🔗 Conectado a:', conn.peer);
 
-        // Jogador avisa o host que entrou
         if (!state.isHost) {
             sendToHost({
                 type: 'player-join',
@@ -108,12 +96,10 @@ function handleConnection(conn) {
         console.warn('⚠️ Conexão fechada:', conn.peer);
         delete connections[conn.peer];
 
-        // Jogador detecta que host caiu
         if (!state.isHost && conn.peer === state.hostPeerId) {
             Game.network.handleHostDisconnect();
         }
 
-        // Host detecta que jogador caiu
         if (state.isHost) {
             Game.network.removePlayerByPeerId(conn.peer);
         }
@@ -128,19 +114,11 @@ function handleConnection(conn) {
 // ENVIO DE MENSAGENS
 // ============================================
 
-/**
- * Envia mensagem para o host
- */
 function sendToHost(data) {
     const conn = connections[Game.state.hostPeerId];
     if (conn && conn.open) conn.send(data);
 }
 
-/**
- * Envia mensagem para todos os jogadores conectados
- * @param {object} data - Dados a enviar
- * @param {array} exclude - Lista de peerIds para excluir
- */
 function broadcast(data, exclude = []) {
     for (const [peerId, conn] of Object.entries(connections)) {
         if (!exclude.includes(peerId) && conn.open) {
@@ -149,21 +127,13 @@ function broadcast(data, exclude = []) {
     }
 }
 
-/**
- * Envia para todos (atalho)
- */
 function broadcastAll(data) {
     broadcast(data, []);
 }
 
-/**
- * Envia para um jogador específico
- * Se for o próprio host, processa localmente
- */
 function sendToPlayer(peerId, data) {
     const state = Game.state;
     if (peerId === state.peerId && state.isHost) {
-        // Host enviando para si mesmo -> processa local
         Game.network.handleMessage(data, state.peerId);
         return;
     }
@@ -175,10 +145,6 @@ function sendToPlayer(peerId, data) {
 // RECEBIMENTO DE MENSAGENS
 // ============================================
 
-/**
- * Roteador central de mensagens
- * Toda mensagem recebida passa por aqui
- */
 function handleMessage(msg, fromPeerId) {
     console.log('📨 Mensagem recebida:', msg.type);
     const state = Game.state;
@@ -257,11 +223,22 @@ function handleMessage(msg, fromPeerId) {
             state.timer = msg.remaining;
             Game.ui.updateTimerDisplay();
             break;
+
+        // --- EVENTO (V2) ---
         case 'show-evento':
             Game.ui.showEventoModal(msg.evento);
+            // 🔧 Atualiza UI do guest após evento
+            Game.ui.updatePlayersOnlineList();
+            Game.ui.updateRankingList();
+            const me = Game.getPlayerByName(state.playerName);
+            if (me) {
+                document.getElementById('myRecursos').textContent = me.recursos;
+                document.getElementById('myKPI').textContent = me.kpi;
+            }
             break;
+
+        // --- VENDA (V3) ---
         case 'venda-confirmed':
-            // Atualiza dados da venda nos jogadores
             const vendedor = Game.getPlayerByName(msg.vendedor);
             const comprador = Game.getPlayerByName(msg.comprador);
             if (vendedor) {
@@ -274,6 +251,12 @@ function handleMessage(msg, fromPeerId) {
             }
             Game.ui.updatePlayersOnlineList();
             Game.ui.updateRankingList();
+            // 🔧 Atualiza UI do próprio jogador se envolvido na venda
+            const me2 = Game.getPlayerByName(state.playerName);
+            if (me2) {
+                document.getElementById('myRecursos').textContent = me2.recursos;
+                document.getElementById('myKPI').textContent = me2.kpi;
+            }
             console.log('💰 Venda confirmada:', msg.vendedor, '→', msg.comprador);
             break;
     }
@@ -292,7 +275,6 @@ function addPlayer(msg, fromPeerId) {
         return;
     }
 
-    // Verifica se é reconexão
     const existing = state.players.findIndex(p => p.name === msg.playerName);
     if (existing >= 0) {
         state.players[existing].peerId = fromPeerId;
@@ -308,7 +290,6 @@ function addPlayer(msg, fromPeerId) {
             waitingInLobby: false
         });
 
-        // Define backup host (2º jogador)
         if (state.players.length === 2 && !state.backupPeerId) {
             state.backupPeerId = fromPeerId;
         }
@@ -318,7 +299,6 @@ function addPlayer(msg, fromPeerId) {
     Game.ui.updatePlayersList();
     Game.ui.checkStartCondition();
 
-    // Envia estado completo para o novo jogador
     const conn = connections[fromPeerId];
     if (conn && conn.open) {
         conn.send({
@@ -374,15 +354,11 @@ function restoreState(fullState) {
     Game.saveState();
 }
 
-/**
- * Detecta que o host caiu (conexão fechada inesperadamente)
- * Aguarda 5s e assume se for o backup
- */
 function handleHostDisconnect() {
     console.warn('⚠️ Host desconectado! Aguardando...');
 
     setTimeout(() => {
-        if (Game.state.isHost) return; // Já sou host agora
+        if (Game.state.isHost) return;
 
         const sorted = [...Game.state.players].sort((a, b) => {
             if (a.isHost) return -1;
@@ -443,9 +419,6 @@ function reconnectToNewHost(newHostPeerId) {
     handleConnection(conn);
 }
 
-/**
- * Limpa tudo ao sair
- */
 function cleanup() {
     clearInterval(Game.state.timerInterval);
     if (myPeer && !myPeer.destroyed) myPeer.destroy();
