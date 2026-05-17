@@ -2,8 +2,6 @@
 
 > **Quiz multiplayer P2P sobre as 10 Áreas de Conhecimento do PMBOK**
 >
-> V2: Gestão de Recursos - cada resposta custa recurso, cada acerto completa atividade.
-
 ---
 
 ## 🆕 O que mudou na V2
@@ -56,7 +54,7 @@
 
 ### KPI Final
 ```
-KPI Total = KPI de acertos + (Recursos restantes × 5)
+KPI Total = KPI de acertos + KPI de Vendas de Recursos + (Recursos restantes × 5)
 ```
 
 ---
