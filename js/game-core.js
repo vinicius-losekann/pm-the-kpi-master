@@ -1,22 +1,26 @@
 // ============================================
-// PM: The KPI Master - NÚCLEO DO JOGO
+// PM: The KPI Master - NÚCLEO DO JOGO (V2)
 // ============================================
 // Responsabilidades:
 //   - Lógica de rodadas (sorteio de pares, perguntas)
 //   - Controle de baralho (evitar repetição)
 //   - Cálculo de KPI e progressão de fases
+//   - Sistema de recursos (V2)
 //   - Controle de partida (iniciar, encerrar)
 //   - Controle de sessão (encerrar, sair)
 //
-// Regra de fim de jogo:
-//   - Quando o PRIMEIRO jogador completa a 2ª atividade do Encerramento
-//   - OU quando o timer zera (120 min)
-//   - OU quando o host encerra manualmente
+// Regras V2:
+//   - Recursos iniciais: 5 por jogador
+//   - Responder gasta 1 recurso (acertando ou errando)
+//   - Atividade só ganha se acertar
+//   - KPI fixo: 10 por atividade completada
+//   - Eventos afetam recursos (não KPI)
+//   - KPI Final = KPI atividades + (recursos restantes × 5)
 //
 // Dependências:
 //   - Game.state (game-state.js)
-//   - Game.network (game-network.js) para broadcast
-//   - Game.ui (game-ui.js) para atualizar tela
+//   - Game.network (game-network.js)
+//   - Game.ui (game-ui.js)
 //
 // Namespace: Game.core
 // ============================================
@@ -25,9 +29,6 @@
 // RODADA - SORTEIO E PERGUNTAS
 // ============================================
 
-/**
- * Inicia uma nova rodada sorteando um evento
- */
 function startNewRound() {
     const state = Game.state;
     const eventos = state.questionsData?.eventos || [];
@@ -36,13 +37,13 @@ function startNewRound() {
         return;
     }
     const evento = eventos[Math.floor(Math.random() * eventos.length)];
+
+    // V2: Aplica efeitos do evento nos recursos
+    aplicarEfeitosEvento(evento);
+
     pickNewPair(evento);
 }
 
-/**
- * Sorteia um par perguntador-respondedor e envia a pergunta
- * @param {object} evento - Evento da rodada (modificador de KPI)
- */
 function pickNewPair(evento = null) {
     const state = Game.state;
 
@@ -50,14 +51,18 @@ function pickNewPair(evento = null) {
         const eventos = state.questionsData?.eventos || [];
         if (eventos.length === 0) return;
         evento = eventos[Math.floor(Math.random() * eventos.length)];
+        aplicarEfeitosEvento(evento);
     }
+
+    // V2: Mostra modal do evento para todos
+    Game.network.broadcastAll({ type: 'show-evento', evento: evento });
+    Game.ui.showEventoModal(evento);
 
     const activePlayers = Game.getActivePlayers();
     const available = activePlayers.filter(p =>
         !state.usedRespondedorThisRound.includes(p.name)
     );
 
-    // Se todos já responderam, reseta a lista
     if (available.length === 0) {
         state.usedRespondedorThisRound = [];
         return pickNewPair(evento);
@@ -75,7 +80,6 @@ function pickNewPair(evento = null) {
         return;
     }
 
-    // Atualiza estado da rodada
     state.currentRound = {
         evento,
         perguntador: perguntador.name,
@@ -84,9 +88,9 @@ function pickNewPair(evento = null) {
         respondeu: false
     };
 
-    console.log('🎯 [CORE] Nova dupla:', perguntador.name, 'pergunta para', respondedor.name);
+    console.log('🎯 Nova dupla:', perguntador.name, 'pergunta para', respondedor.name);
+    console.log('📋 Evento:', evento.titulo);
 
-    // Avisa todos
     Game.network.broadcastAll({
         type: 'round-start',
         evento,
@@ -94,7 +98,6 @@ function pickNewPair(evento = null) {
         respondedor: respondedor.name
     });
 
-    // Prepara dados da pergunta
     const areaNome = state.questionsData.areas[pergunta.area_key]?.nome || pergunta.area_key;
     const grupoNome = Game.getFaseById(respondedor.phase).nome;
 
@@ -108,19 +111,14 @@ function pickNewPair(evento = null) {
         id: pergunta.id
     };
 
-    // Perguntador recebe com resposta correta
     Game.network.sendToPlayer(perguntador.peerId, { ...perguntaData, isPerguntador: true });
 
-    // Respondedor: host mantém correta, jogador remoto recebe sem correta
     if (respondedor.peerId === state.peerId && state.isHost) {
-        // Host é o respondedor - mantém a resposta correta no estado
         Game.network.sendToPlayer(respondedor.peerId, { ...perguntaData, isRespondedor: true });
     } else {
-        // Jogador remoto - esconde a resposta correta
         Game.network.sendToPlayer(respondedor.peerId, { ...perguntaData, isRespondedor: true, correta: undefined });
     }
 
-    // Espectadores veem mensagem de espera
     if (state.playerName !== perguntador.name && state.playerName !== respondedor.name) {
         Game.ui.displaySpectatorView(perguntador.name, respondedor.name);
     }
@@ -129,23 +127,16 @@ function pickNewPair(evento = null) {
     Game.saveState();
 }
 
-/**
- * Sorteia uma pergunta não usada da fase do jogador
- * @param {string} grupoProcesso - Fase atual do respondedor
- * @returns {object|null} Pergunta sorteada ou null
- */
 function sortearPergunta(grupoProcesso) {
     const state = Game.state;
     let areasDisponiveis = [];
 
-    // Filtra áreas do grupo com perguntas disponíveis
     for (const [key, area] of Object.entries(state.questionsData?.areas || {})) {
         if (area.grupos.includes(grupoProcesso) && state.baralhos[key]?.disponiveis > 0) {
             areasDisponiveis.push(key);
         }
     }
 
-    // Se zerou, reseta baralhos desta fase
     if (areasDisponiveis.length === 0) {
         for (const [key, area] of Object.entries(state.questionsData?.areas || {})) {
             if (area.grupos.includes(grupoProcesso)) {
@@ -171,9 +162,6 @@ function sortearPergunta(grupoProcesso) {
     return { ...pergunta, area_key: areaSorteada };
 }
 
-/**
- * Reseta o baralho de uma área (todas voltam a ficar disponíveis)
- */
 function resetBaralho(areaKey) {
     const baralho = Game.state.baralhos[areaKey];
     if (baralho) {
@@ -183,18 +171,61 @@ function resetBaralho(areaKey) {
 }
 
 // ============================================
-// RESPOSTA E KPI
+// EFEITOS DOS EVENTOS (V2)
 // ============================================
 
-/**
- * Processa a resposta do jogador (chamado pelo host)
- * @param {object} msg - { alternativa: 'a', playerName: '...' }
- */
+function aplicarEfeitosEvento(evento) {
+    const state = Game.state;
+    if (!evento) return;
+
+    // e1: +1 recurso para todos
+    if (evento.recursos_todos > 0) {
+        state.players.forEach(p => p.recursos += evento.recursos_todos);
+        console.log('🟢 Evento: +' + evento.recursos_todos + ' recurso(s) para todos');
+    }
+
+    // e2: -1 recurso de todos (mínimo 0)
+    if (evento.recursos_todos < 0) {
+        state.players.forEach(p => {
+            p.recursos = Math.max(0, p.recursos + evento.recursos_todos);
+        });
+        console.log('🔴 Evento: ' + evento.recursos_todos + ' recurso(s) de todos');
+    }
+
+    // e3: +2 recursos para quem tem menos
+    if (evento.recursos_menos) {
+        const minRecursos = Math.min(...state.players.map(p => p.recursos));
+        const beneficiados = state.players.filter(p => p.recursos === minRecursos);
+        beneficiados.forEach(p => p.recursos += evento.recursos_menos);
+        console.log('🎁 Evento: +' + evento.recursos_menos + ' recursos para ' + beneficiados.map(p => p.name).join(', '));
+    }
+
+    // e5: mais rico dá 1 para mais pobre
+    if (evento.troca_recursos) {
+        const maxRecursos = Math.max(...state.players.map(p => p.recursos));
+        const minRecursos = Math.min(...state.players.map(p => p.recursos));
+
+        if (maxRecursos > minRecursos) {
+            const rico = state.players.find(p => p.recursos === maxRecursos);
+            const pobre = state.players.find(p => p.recursos === minRecursos);
+            if (rico && pobre && rico !== pobre) {
+                rico.recursos--;
+                pobre.recursos++;
+                console.log('🔄 Evento: ' + rico.name + ' deu 1 recurso para ' + pobre.name);
+            }
+        }
+    }
+}
+
+// ============================================
+// RESPOSTA E KPI (V2 - COM RECURSOS)
+// ============================================
+
 function handleAnswer(msg) {
     const state = Game.state;
 
     if (state.currentRound.respondeu) {
-        console.warn('⚠️ [CORE] Rodada já foi respondida! Ignorando...');
+        console.warn('⚠️ Rodada já foi respondida!');
         return;
     }
 
@@ -202,78 +233,89 @@ function handleAnswer(msg) {
 
     const { pergunta, evento, respondedor: respondedorName } = state.currentRound;
     const acertou = msg.alternativa === pergunta.correta;
+    const respondedor = Game.getPlayerByName(respondedorName);
 
-    console.log('📊 [CORE] Resposta:', msg.alternativa, '| Correta:', pergunta.correta, '| Acertou?', acertou);
+    if (!respondedor) return;
 
-    // Calcula KPI (usa constantes do CONFIG)
-    const KPI_ACERTO = CONFIG.KPI.ACERTO_BASE;
-    let kpiGanho = acertou ? (KPI_ACERTO * evento.modificador) + (evento.bonus || 0) : 0;
-
-    // Bônus para todos (evento "Lições Aprendidas")
-    if (evento.todos_ganham) {
-        state.players.forEach(p => p.kpi += evento.todos_ganham);
+    // Verifica se tem recursos para responder
+    if (respondedor.recursos <= 0) {
+        console.warn('⚠️ ' + respondedorName + ' sem recursos! Pulando vez.');
+        Game.network.broadcastAll({
+            type: 'kpi-update',
+            playerName: respondedorName,
+            kpi: respondedor.kpi,
+            phase: respondedor.phase,
+            activities: respondedor.activities,
+            recursos: respondedor.recursos,
+            acertou: false,
+            kpiGanho: 0,
+            semRecursos: true
+        });
+        state.usedRespondedorThisRound.push(respondedorName);
+        setTimeout(() => nextTurn(), 2000);
+        Game.saveState();
+        return;
     }
 
-    // Atualiza o respondedor
-    const respondedor = Game.getPlayerByName(respondedorName);
-    let jogoFinalizado = false;
+    // Evento e4: Seguro de Projeto - não gasta recurso se errar
+    const temSeguro = evento?.seguro_erro === true;
+    const gastaRecurso = acertou ? true : !temSeguro;
 
-    if (respondedor) {
+    if (gastaRecurso) {
+        respondedor.recursos--;
+    }
+
+    let kpiGanho = 0;
+    if (acertou) {
+        kpiGanho = CONFIG.KPI.ACERTO_BASE;
         respondedor.kpi += kpiGanho;
         respondedor.activities++;
 
-        // Verifica progressão de fase
         const faseIdx = Game.getFaseIndex(respondedor.phase);
-        
-        if (respondedor.activities >= CONFIG.JOGO.ACTIVITIES_PER_PHASE) {
-            if (faseIdx < CONFIG.FASES.length - 1) {
-                // Avança para próxima fase
-                respondedor.phase = CONFIG.FASES[faseIdx + 1].id;
-                respondedor.activities = 0;
-                console.log('📊 [CORE] Jogador avançou para:', respondedor.phase);
-            } else {
-                // 🏁 ÚLTIMA FASE CONCLUÍDA → FIM DE JOGO!
-                console.log('🏁 [CORE] Jogador completou o Encerramento! Fim de jogo!');
-                jogoFinalizado = true;
-            }
+        if (respondedor.activities >= CONFIG.JOGO.ACTIVITIES_PER_PHASE && faseIdx < CONFIG.FASES.length - 1) {
+            respondedor.phase = CONFIG.FASES[faseIdx + 1].id;
+            respondedor.activities = 0;
         }
     }
 
-    // Broadcast do resultado
-    const kpiUpdateMsg = {
+    const seguroMsg = !gastaRecurso ? ' (seguro)' : '';
+    console.log('📊 ' + (acertou ? '✅ Acertou' : '❌ Errou') + ' | Recursos: ' + respondedor.recursos + seguroMsg + ' | KPI: ' + respondedor.kpi);
+
+    Game.network.broadcastAll({
         type: 'kpi-update',
         playerName: respondedorName,
-        kpi: respondedor?.kpi || 0,
-        phase: respondedor?.phase || CONFIG.FASES[0].id,
-        activities: respondedor?.activities || 0,
+        kpi: respondedor.kpi,
+        phase: respondedor.phase,
+        activities: respondedor.activities,
+        recursos: respondedor.recursos,
         acertou,
-        kpiGanho,
-        todosGanham: evento.todos_ganham || 0
-    };
+        kpiGanho
+    });
 
-    Game.network.broadcastAll(kpiUpdateMsg);
-
-    // Se o host for o respondedor, atualiza UI localmente também
     if (state.isHost && respondedorName === state.playerName) {
-        updatePlayerKPI(kpiUpdateMsg);
+        updatePlayerKPI({
+            playerName: respondedorName,
+            kpi: respondedor.kpi,
+            phase: respondedor.phase,
+            activities: respondedor.activities,
+            recursos: respondedor.recursos,
+            acertou,
+            kpiGanho
+        });
     }
 
     state.usedRespondedorThisRound.push(respondedorName);
-    console.log('📊 [CORE] Respondedores na rodada:', state.usedRespondedorThisRound);
 
-    // Se alguém completou o Encerramento, termina o jogo
-    if (jogoFinalizado) {
+    const faseIdx = Game.getFaseIndex(respondedor.phase);
+    if (faseIdx === CONFIG.FASES.length - 1 && respondedor.activities >= CONFIG.JOGO.ACTIVITIES_PER_PHASE) {
         setTimeout(() => endGame(buildRanking()), 3000);
     } else {
         setTimeout(() => nextTurn(), 3000);
     }
-    
+
     Game.saveState();
 }
 
-/**
- * Avança para o próximo par ou nova rodada
- */
 function nextTurn() {
     const state = Game.state;
     const activePlayers = Game.getActivePlayers();
@@ -287,9 +329,6 @@ function nextTurn() {
     }
 }
 
-/**
- * Atualiza KPI de um jogador na UI
- */
 function updatePlayerKPI(msg) {
     const state = Game.state;
     const player = Game.getPlayerByName(msg.playerName);
@@ -298,11 +337,14 @@ function updatePlayerKPI(msg) {
         player.kpi = msg.kpi;
         player.phase = msg.phase;
         player.activities = msg.activities;
+        if (msg.recursos !== undefined) player.recursos = msg.recursos;
     }
 
-    // Atualiza UI do próprio jogador
     if (msg.playerName === state.playerName) {
         document.getElementById('myKPI').textContent = msg.kpi;
+        if (msg.recursos !== undefined) {
+            document.getElementById('myRecursos').textContent = msg.recursos;
+        }
         const fase = Game.getFaseById(msg.phase);
         document.getElementById('myPhaseName').textContent = fase.nome;
         document.getElementById('myPhaseIcon').textContent = fase.emoji;
@@ -311,7 +353,7 @@ function updatePlayerKPI(msg) {
             (msg.activities / CONFIG.JOGO.ACTIVITIES_PER_PHASE * 100) + '%';
 
         if (msg.acertou !== undefined) {
-            Game.ui.showResultModal(msg.acertou, msg.kpiGanho, msg.todosGanham);
+            Game.ui.showResultModal(msg.acertou, msg.kpiGanho, msg.recursos);
         }
     }
 
@@ -323,15 +365,16 @@ function updatePlayerKPI(msg) {
 // CONTROLE DE PARTIDA
 // ============================================
 
-/**
- * Inicia uma nova partida
- */
 function startGame() {
     const state = Game.state;
     state.gameStarted = true;
     state.usedRespondedorThisRound = [];
 
-    // Inicia timer
+    // V2: Inicializa recursos
+    state.players.forEach(p => {
+        p.recursos = CONFIG.RECURSOS_INICIAIS;
+    });
+
     state.timerInterval = setInterval(() => {
         state.timer--;
         Game.ui.updateTimerDisplay();
@@ -354,9 +397,6 @@ function startGame() {
     Game.saveState();
 }
 
-/**
- * Encerra a partida (fim de jogo)
- */
 function endGame(ranking) {
     const state = Game.state;
     state.gameOver = true;
@@ -371,9 +411,6 @@ function endGame(ranking) {
     Game.saveState();
 }
 
-/**
- * Host encerra a partida (todos voltam ao lobby)
- */
 function endMatch() {
     if (!Game.state.isHost) return;
     if (!confirm('🏁 Encerrar a partida? Todos voltarão ao lobby com KPI zerado.')) return;
@@ -390,9 +427,6 @@ function endMatch() {
     Game.saveState();
 }
 
-/**
- * Jogador recebe que a partida foi encerrada pelo host
- */
 function handleMatchEnded(msg) {
     Game.state.players = msg.players;
     Game.resetAllPlayers();
@@ -405,12 +439,89 @@ function handleMatchEnded(msg) {
 }
 
 // ============================================
-// CONTROLE DE SESSÃO
+// VENDA DE RECURSOS (V3)
 // ============================================
 
 /**
- * Host encerra a sessão (destrói sala, todos saem)
+ * Inicia uma venda de recurso
+ * @param {string} compradorName - Nome do comprador
  */
+function venderRecurso(compradorName) {
+    const state = Game.state;
+    const vendedor = Game.getPlayerByName(state.playerName);
+    const comprador = Game.getPlayerByName(compradorName);
+
+    if (!vendedor || !comprador) {
+        console.warn('⚠️ Vendedor ou comprador não encontrado');
+        return false;
+    }
+
+    // Validações
+    if (vendedor.recursos < 1) {
+        alert('⚠️ Você não tem recursos para vender.');
+        return false;
+    }
+
+    if (comprador.kpi < CONFIG.KPI.VALOR_VENDA_RECURSO) {
+        alert('⚠️ Comprador não tem KPI suficiente (precisa de ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ').');
+        return false;
+    }
+
+    if (vendedor.name === comprador.name) {
+        alert('⚠️ Você não pode vender para si mesmo.');
+        return false;
+    }
+
+    // Executa a venda
+    vendedor.recursos--;
+    vendedor.kpi += CONFIG.KPI.VALOR_VENDA_RECURSO;
+    comprador.recursos++;
+    comprador.kpi -= CONFIG.KPI.VALOR_VENDA_RECURSO;
+
+    console.log('💰 Venda:', vendedor.name, 'vendeu 1📦 para', comprador.name, 'por', CONFIG.KPI.VALOR_VENDA_RECURSO, 'KPI');
+
+    // Atualiza UI
+    Game.ui.updatePlayersOnlineList();
+    Game.ui.updateRankingList();
+
+    // Atualiza UI do próprio jogador
+    if (state.playerName === vendedor.name) {
+        document.getElementById('myKPI').textContent = vendedor.kpi;
+        document.getElementById('myRecursos').textContent = vendedor.recursos;
+    }
+
+    // Broadcast para todos
+    Game.network.broadcastAll({
+        type: 'venda-confirmed',
+        vendedor: vendedor.name,
+        comprador: comprador.name,
+        valor: CONFIG.KPI.VALOR_VENDA_RECURSO,
+        vendedorKPI: vendedor.kpi,
+        vendedorRecursos: vendedor.recursos,
+        compradorKPI: comprador.kpi,
+        compradorRecursos: comprador.recursos
+    });
+
+    Game.saveState();
+    return true;
+}
+
+/**
+ * Obtém lista de possíveis compradores
+ * @returns {array} Jogadores que podem comprar
+ */
+function getCompradores() {
+    const state = Game.state;
+    return state.players.filter(p =>
+        p.name !== state.playerName &&  // Não é você
+        !p.waitingInLobby &&            // Não está no lobby
+        p.kpi >= CONFIG.KPI.VALOR_VENDA_RECURSO  // Tem KPI suficiente
+    );
+}
+// ============================================
+// CONTROLE DE SESSÃO
+// ============================================
+
 function endSession() {
     if (!Game.state.isHost) return;
     if (!confirm('⛔ Encerrar a sessão? Todos os jogadores serão desconectados e a sala destruída.')) return;
@@ -420,9 +531,6 @@ function endSession() {
     window.location.href = 'index.html';
 }
 
-/**
- * Jogador sai da partida (vai pro lobby aguardar)
- */
 function leaveMatch() {
     if (Game.state.isHost) return;
     if (!confirm('🚶 Sair da partida? Você aguardará no lobby até a próxima partida.')) return;
@@ -435,9 +543,6 @@ function leaveMatch() {
     Game.saveState();
 }
 
-/**
- * Jogador sai da sessão (volta ao index)
- */
 function leaveSession() {
     if (Game.state.isHost) {
         endSession();
@@ -450,17 +555,24 @@ function leaveSession() {
 }
 
 // ============================================
-// RANKING
+// RANKING (V2 - KPI = atividades + recursos)
 // ============================================
 
 function buildRanking() {
     return [...Game.state.players]
-        .sort((a, b) => b.kpi - a.kpi)
-        .map((p, i) => ({
-            posicao: i + 1,
+        .map(p => ({
             name: p.name,
             kpi: p.kpi,
-            phase: p.phase
+            recursos: p.recursos,
+            kpiFinal: p.kpi + (p.recursos * CONFIG.KPI.VALOR_RECURSO_FINAL),
+            phase: p.phase,
+            activities: p.activities,
+            isHost: p.isHost
+        }))
+        .sort((a, b) => b.kpiFinal - a.kpiFinal)
+        .map((p, i) => ({
+            posicao: i + 1,
+            ...p
         }));
 }
 
@@ -472,6 +584,7 @@ window.Game.core = {
     startNewRound,
     pickNewPair,
     sortearPergunta,
+    aplicarEfeitosEvento,
     handleAnswer,
     updatePlayerKPI,
     nextTurn,
@@ -482,5 +595,8 @@ window.Game.core = {
     endSession,
     leaveMatch,
     leaveSession,
-    buildRanking
+    buildRanking,
+    venderRecurso,
+    getCompradores
+
 };

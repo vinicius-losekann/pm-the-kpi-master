@@ -1,8 +1,23 @@
-# 🎯 PM: The KPI Master
+# 🎯 PM: The KPI Master - V2
 
 > **Quiz multiplayer P2P sobre as 10 Áreas de Conhecimento do PMBOK**
 >
-> Domine o gerenciamento de projetos enquanto compete com amigos em tempo real!
+> V2: Gestão de Recursos - cada resposta custa recurso, cada acerto completa atividade.
+
+---
+
+## 🆕 O que mudou na V2
+
+| Aspecto | V1 | V2 |
+|---|---|---|
+| **Recursos** | Não existia | 10 iniciais por jogador |
+| **Gasto ao responder** | Grátis | -1📦 (acertando ou errando) |
+| **Atividade** | Sempre ganhava | Só ganha se **acertar** |
+| **KPI** | 10 × evento | **10 fixo** por acerto |
+| **Eventos** | Modificavam KPI | Modificam **recursos** |
+| **Sem recursos** | Não se aplicava | **Pula a vez** |
+| **KPI Final** | Só acertos | Acertos + (recursos × 5) |
+| **Modal de Evento** | Não existia | Pop-up no início de cada rodada |
 
 ---
 
@@ -10,27 +25,51 @@
 
 ### Fluxo do Jogo
 
-1. **Host** acessa o site e cria uma sala (ex: `pm-the-kpi-master-001`)
-2. **Jogadores** (2-6) entram na sala usando o código
+1. **Host** cria uma sala e compartilha o código
+2. **Jogadores** (2-6) entram na sala
 3. Host inicia a partida (120 minutos)
-4. A cada rodada, um jogador **pergunta** e outro **responde**
-5. Acertos geram **KPI** (pontuação)
-6. **Eventos** modificam a pontuação da rodada
-7. Complete as **5 fases** dos grupos de processo
-8. O jogo termina quando o primeiro jogador completa o **Encerramento**
-9. Vence quem tiver o **maior KPI** no ranking final
+4. A cada rodada:
+   - Um **evento** é sorteado (afeta recursos)
+   - Um jogador **pergunta** (vê a resposta)
+   - Outro jogador **responde** (escolhe entre 4 alternativas)
+5. **Acertar** = +10 KPI + 1 atividade
+6. **Errar** = 0 KPI + 0 atividade
+7. **Toda resposta gasta 1 recurso** (exceto com Seguro de Projeto)
+8. **Sem recursos** = pula a vez
+9. O jogo termina quando o primeiro completa o **Encerramento**
+10. Vence quem tiver o **maior KPI Final**
 
-### Fases (Grupos de Processo PMBOK)
+---
 
-| Fase | Ícone | O que é |
+## ⭐ Sistema de KPI
+
+| Situação | KPI | Atividade | Recurso |
+|---|---|---|---|
+| ✅ Acertou | +10 | +1 | -1📦 |
+| ❌ Errou | 0 | 0 | -1📦 |
+| ❌ Errou com 🛡️ Seguro | 0 | 0 | 0 |
+| ⚠️ Sem recursos | - | - | Pula vez |
+
+### KPI Final
+```
+KPI Total = KPI de acertos + (Recursos restantes × 5)
+```
+
+---
+
+## 🃏 Eventos
+
+| # | Evento | Efeito |
 |---|---|---|
-| **Iniciação** | 🚀 | Começo do projeto |
-| **Planejamento** | 📋 | Definição do plano |
-| **Execução** | ⚙️ | Trabalho em andamento |
-| **Monitoramento e Controle** | 📊 | Acompanhamento |
-| **Encerramento** | 🏁 | Finalização |
+| e1 | 🟢 **Apoio da Alta Gestão** | +1 recurso para todos |
+| e2 | 🔴 **Corte de Orçamento** | -1 recurso de todos |
+| e3 | 🎁 **Patrocinador Generoso** | +2 recursos para quem tem menos |
+| e4 | 🛡️ **Seguro de Projeto** | Não gasta recurso se errar |
+| e5 | 🔄 **Reestruturação** | Mais rico dá 1 para mais pobre |
 
-### Papéis na Rodada
+---
+
+## 👥 Papéis na Rodada
 
 | Papel | O que vê | O que faz |
 |---|---|---|
@@ -40,49 +79,13 @@
 
 ---
 
-## ⭐ Sistema de KPI (Pontuação)
-
-| Situação | Pontuação |
-|---|---|
-| Acerto base | **10 pontos** |
-| Evento: Apoio da Alta Gestão | KPI **dobrado** (×2) |
-| Evento: Corte de Orçamento | KPI pela **metade** (×0.5) |
-| Evento: Stakeholder Engagement | KPI normal + **bônus de 5** |
-| Evento: Lições Aprendidas | **Todos** ganham 3 pontos |
-
-### Fórmula
-```
-KPI da rodada = (10 × modificador do evento) + bônus do evento
-```
-
----
-
-## 📚 Áreas de Conhecimento (PMBOK 6ª Edição)
-
-| # | Área | Foco |
-|---|---|---|
-| 1 | **Integração** | Coordenação do projeto |
-| 2 | **Escopo** | O que será entregue |
-| 3 | **Cronograma** | Prazos e sequenciamento |
-| 4 | **Custos** | Orçamento e controle financeiro |
-| 5 | **Qualidade** | Padrões e conformidade |
-| 6 | **Recursos** | Equipe e materiais |
-| 7 | **Comunicações** | Fluxo de informações |
-| 8 | **Riscos** | Incertezas do projeto |
-| 9 | **Aquisições** | Contratos e fornecedores |
-| 10 | **Partes Interessadas** | Stakeholders |
-
-**100 perguntas no total** (10 por área), distribuídas entre os 5 grupos de processo.
-
----
-
 ## 🏗️ Tecnologias
 
 | Tecnologia | Uso |
 |---|---|
-| **PeerJS (WebRTC)** | Comunicação P2P direta entre jogadores |
-| **Vanilla JavaScript** | Sem frameworks, JS puro (ES6+) |
-| **CSS3** | Glassmorphism, animações, responsivo |
+| **PeerJS (WebRTC)** | Comunicação P2P |
+| **Vanilla JavaScript** | Sem frameworks |
+| **CSS3** | Glassmorphism, animações |
 | **GitHub Pages** | Hospedagem gratuita |
 
 ---
@@ -91,104 +94,64 @@ KPI da rodada = (10 × modificador do evento) + bônus do evento
 
 ```
 📁 pm-the-kpi-master/
-│
-├── 📄 index.html              ← Tela de entrada
-├── 📄 game.html               ← Tela do jogo
-├── 📄 README.md
-│
-├── 📁 css/
-│   └── 🎨 style.css           ← Tema gamificado
-│
-├── 📁 config/
-│   └── ⚙️ game-config.js      ← Constantes (KPI, fases, timer)
-│
-├── 📁 data/
-│   └── 📚 questions.json      ← 100 perguntas + 5 eventos
-│
+├── 📄 index.html
+├── 📄 game.html
+├── 📁 css/style.css
+├── 📁 config/game-config.js
+├── 📁 data/questions.json
 └── 📁 js/
-    ├── 📄 index.js            ← Lógica da tela de entrada
-    ├── 📄 game-state.js       ← Estado central + helpers
-    ├── 📄 game-network.js     ← PeerJS + conexões + mensagens
-    ├── 📄 game-core.js        ← Regras do jogo
-    ├── 📄 game-ui.js          ← Interface do usuário
-    └── 📄 game-main.js        ← Orquestrador principal
+    ├── index.js
+    ├── game-state.js
+    ├── game-network.js
+    ├── game-core.js
+    ├── game-ui.js
+    ├── game-debug.js
+    └── game-main.js
 ```
 
 ---
 
 ## 🚀 Como Executar
 
-### Produção (Jogar)
-Acesse: **`https://[seu-usuario].github.io/pm-the-kpi-master/`**
+### Produção
+`https://[seu-usuario].github.io/pm-the-kpi-master/`
 
-1. Host: cria uma sala e compartilha o código
-2. Jogadores: entram com o código
-3. Divirtam-se!
-
-### Desenvolvimento Local
+### Desenvolvimento
 ```bash
-# Clone o repositório
-git clone https://github.com/[seu-usuario]/pm-the-kpi-master.git
-
-# Sirva com qualquer servidor HTTP
 python -m http.server 8080
-# ou
-npx serve .
-
-# Acesse http://localhost:8080
+# http://localhost:8080
 ```
-
-> ⚠️ Não funciona abrindo o arquivo diretamente (`file://`). Use um servidor HTTP.
 
 ---
 
-## 🎯 Funcionalidades da V1
+## 🎯 Funcionalidades
 
-| Funcionalidade | Descrição |
+| V1 | V2 |
 |---|---|
-| 🔗 **Conexão P2P** | PeerJS com criação/entrada em salas |
-| 👥 **2-6 jogadores** | Host + guests |
-| 📚 **100 perguntas** | 10 áreas de conhecimento × 10 perguntas |
-| 🎯 **5 fases** | Iniciação → Planejamento → Execução → M&C → Encerramento |
-| 🃏 **Baralho inteligente** | Não repete perguntas até esgotar a área |
-| ⭐ **KPI** | 10 pontos base por acerto |
-| 📋 **Eventos** | 5 cartas que modificam KPI |
-| 🔄 **Turnos** | Perguntador e respondedor aleatórios |
-| 👀 **Papéis** | Perguntador vê resposta, respondedor clica |
-| ⏱️ **Timer** | 120 minutos com alertas visuais |
-| 🏆 **Ranking** | Ordenado por KPI ao fim da partida |
-| 🏁 **Fim de jogo** | Quando o primeiro completa Encerramento |
-| 🚪 **Sair/Encerrar** | Host encerra sessão, jogador sai sozinho |
-| 👑 **Host migration** | Se host cai, backup assume |
-| 💾 **localStorage** | Estado persiste entre recargas |
-| 📱 **Responsivo** | Funciona em desktop e mobile |
-| 🎨 **Tema gamificado** | Dark mode, glassmorphism, animações |
+| 🔗 Conexão P2P | ✅ |
+| 👥 2-6 jogadores | ✅ |
+| 📚 100 perguntas | ✅ |
+| 🎯 5 fases | ✅ |
+| ⭐ KPI | ✅ (agora fixo) |
+| 📋 Eventos | ✅ (agora afetam recursos) |
+| ⏱️ Timer 120min | ✅ |
+| 🏆 Ranking | ✅ (com KPI Final) |
+| 🚪 Sair/Encerrar | ✅ |
+| 👑 Host migration | ✅ |
+| 📦 Recursos | 🆕 |
+| 🪟 Modal de Evento | 🆕 |
+| 🐛 Debug mode | 🆕 (com travas) |
 
 ---
 
-## 🔮 Próximas Versões
+## 🔮 V3 (Futuro)
 
-### V2 (Em breve)
-- 🃏 Cartas recurso e sistema de venda
-- 🤝 Consultoria entre jogadores
-- 🔥 Streaks de acertos e penalidades
-- ❌ Atividades só contam com acerto
-- 📋 Novos eventos
-
-### V3 (Futuro)
-- 🗺️ Tabuleiro visual de progresso
-- 💎 Power-ups e itens
+- 💰 Venda de Recursos entre jogadores
+- 🤝 Consultoria (KPI para o consultor)
 - 🔊 Efeitos sonoros
-- 🕐 Modo rápido (30 min)
-- 🏅 Sistema de conquistas
+- 🎨 Animações
+- 📱 QR Code da sala
 
 ---
 
-## 📄 Licença
-
-MIT - Livre para usar, modificar e distribuir.
-
----
-
-**🎯 Domine o PMBOK, um KPI por vez!**
-```
+**🎯 Domine o PMBOK, gerencie seus recursos!**

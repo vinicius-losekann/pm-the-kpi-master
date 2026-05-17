@@ -1,43 +1,34 @@
 // ============================================
-// PM: The KPI Master - INTERFACE DO USUÁRIO
+// PM: The KPI Master - INTERFACE DO USUÁRIO (V2)
 // ============================================
 // Responsabilidades:
 //   - Configurar event listeners (setupUI)
 //   - Navegar entre telas (lobby, jogo, gameover)
 //   - Renderizar perguntas, alternativas, ranking
 //   - Atualizar timer, lista de jogadores, KPI
+//   - Mostrar recursos (V2)
+//   - Modal de evento (V2)
 //   - Exibir modais e mensagens
-//
-// Dependências:
-//   - Game.state (game-state.js)
-//   - Game.core (game-core.js) para callbacks
-//   - Game.network (game-network.js) para enviar respostas
 //
 // Namespace: Game.ui
 // ============================================
 
-// Cache de elementos DOM frequentes
 const DOM = {
     screenLobby: document.getElementById('screenLobby'),
     screenGame: document.getElementById('screenGame'),
     screenGameOver: document.getElementById('screenGameOver'),
     modalResult: document.getElementById('modalResult'),
+    modalEvento: document.getElementById('modalEvento'),
 };
 
 // ============================================
 // SETUP INICIAL
 // ============================================
 
-/**
- * Configura toda a interface: botões, eventos, visibilidade
- * Chamado uma vez na inicialização e após host migration
- */
 function setupUI() {
     const state = Game.state;
 
-    // --- Visibilidade dos botões conforme papel ---
     if (state.isHost) {
-        // Host vê controles de host
         document.getElementById('hostControls').style.display = 'block';
         document.getElementById('playerWaiting').style.display = 'none';
         document.getElementById('hostRoomIdSection').style.display = 'block';
@@ -47,7 +38,6 @@ function setupUI() {
         document.getElementById('btnLeaveSession').style.display = 'none';
         document.getElementById('btnLeaveMatch').style.display = 'none';
 
-        // Adiciona host à lista se não estiver
         if (!state.players.find(p => p.isHost)) {
             state.players.unshift({
                 name: state.playerName,
@@ -56,27 +46,25 @@ function setupUI() {
                 phase: CONFIG.FASES[0].id,
                 activities: 0,
                 isHost: true,
-                waitingInLobby: false
+                waitingInLobby: false,
+                recursos: CONFIG.RECURSOS_INICIAIS
             });
         }
         updatePlayersList();
 
-        // Evento: Iniciar Partida
         document.getElementById('btnStartGame').addEventListener('click', () => {
             Game.network.broadcastAll({ type: 'game-start', timer: state.timer });
             Game.core.startGame();
         });
 
-        // Evento: Copiar ID
         document.getElementById('btnCopyId').addEventListener('click', () => {
             navigator.clipboard.writeText(state.peerId).then(() => {
                 const btn = document.getElementById('btnCopyId');
                 btn.textContent = '✅ Copiado!';
                 setTimeout(() => { btn.textContent = '📋 Copiar'; }, 2000);
-            }).catch(() => {});
+            }).catch(() => { });
         });
     } else {
-        // Jogador comum
         document.getElementById('hostControls').style.display = 'none';
         document.getElementById('playerWaiting').style.display = 'block';
         document.getElementById('hostRoomIdSection').style.display = 'none';
@@ -86,7 +74,7 @@ function setupUI() {
         document.getElementById('btnLeaveMatch').style.display = 'block';
     }
 
-    // --- Event listeners comuns ---
+    // Botões de sessão/partida
     document.getElementById('btnEndSession').addEventListener('click', Game.core.endSession);
     document.getElementById('btnEndMatch').addEventListener('click', Game.core.endMatch);
     document.getElementById('btnLeaveSession').addEventListener('click', Game.core.leaveSession);
@@ -105,37 +93,54 @@ function setupUI() {
         DOM.modalResult.style.display = 'none';
     });
 
-    // --- Alternativas clicáveis ---
+    // Modal de evento (V2)
+    document.getElementById('btnFecharEvento').addEventListener('click', () => {
+        DOM.modalEvento.style.display = 'none';
+    });
+
+    // Alternativas clicáveis
     document.querySelectorAll('.alternative-btn').forEach(btn => {
         btn.addEventListener('click', function () {
             handleAlternativeClick(this.getAttribute('data-alt'), this);
         });
     });
+    // Venda de recurso (V3)
+    document.getElementById('btnVenderRecurso').addEventListener('click', () => {
+        Game.ui.showVendaModal();
+    });
+    document.getElementById('btnFecharVenda').addEventListener('click', () => {
+        Game.ui.fecharVendaModal();
+    });
+}
+
+// ============================================
+// MODAL DE EVENTO (V2)
+// ============================================
+
+/**
+ * Exibe o modal de evento para todos os jogadores
+ * @param {object} evento - Dados do evento sorteado
+ */
+function showEventoModal(evento) {
+    if (!evento) return;
+    document.getElementById('eventoModalTitulo').textContent = evento.titulo;
+    document.getElementById('eventoModalDesc').textContent = evento.descricao;
+    DOM.modalEvento.style.display = 'flex';
 }
 
 // ============================================
 // NAVEGAÇÃO ENTRE TELAS
 // ============================================
 
-/**
- * Mostra uma tela específica
- * @param {string} screen - 'lobby' | 'game' | 'gameover'
- */
 function showScreen(screen) {
     DOM.screenLobby.classList.remove('active');
     DOM.screenGame.classList.remove('active');
     DOM.screenGameOver.classList.remove('active');
 
     switch (screen) {
-        case 'lobby':
-            DOM.screenLobby.classList.add('active');
-            break;
-        case 'game':
-            DOM.screenGame.classList.add('active');
-            break;
-        case 'gameover':
-            DOM.screenGameOver.classList.add('active');
-            break;
+        case 'lobby': DOM.screenLobby.classList.add('active'); break;
+        case 'game': DOM.screenGame.classList.add('active'); break;
+        case 'gameover': DOM.screenGameOver.classList.add('active'); break;
     }
 }
 
@@ -158,9 +163,6 @@ function showLobbyNormal() {
     updatePlayersList();
 }
 
-/**
- * Mostra lobby em modo "partida em andamento" (jogador que saiu)
- */
 function showLobbyWaitingView() {
     document.getElementById('hostControls').style.display = 'none';
     document.getElementById('playerWaiting').style.display = 'block';
@@ -173,20 +175,12 @@ function showLobbyWaitingView() {
     document.getElementById('playerWaiting').innerHTML = `
         <span style="font-size:2rem;">⚠️</span>
         <p><strong>Partida em andamento</strong></p>
-        <p style="color:#a0a0b8; font-size:0.85rem;">
-            Você saiu da partida. Aguarde o host encerrar para participar da próxima.
-        </p>
+        <p style="color:#a0a0b8; font-size:0.85rem;">Você saiu da partida. Aguarde o host encerrar.</p>
     `;
 
     document.getElementById('playersList').innerHTML = `
-        <div style="margin-bottom:8px;">
-            <strong>👥 Em jogo (${playing.length})</strong>
-            ${playing.map(p => `<div style="padding:4px 0; color:#e0e0e0;">• ${p.name} ${p.isHost ? '(HOST)' : ''}</div>`).join('')}
-        </div>
-        <div>
-            <strong>👤 Aguardando (${waiting.length})</strong>
-            ${waiting.map(p => `<div style="padding:4px 0; color:#6a6a80;">• ${p.name}</div>`).join('')}
-        </div>
+        <div style="margin-bottom:8px;"><strong>👥 Em jogo (${playing.length})</strong>${playing.map(p => `<div>• ${p.name}</div>`).join('')}</div>
+        <div><strong>👤 Aguardando (${waiting.length})</strong>${waiting.map(p => `<div>• ${p.name}</div>`).join('')}</div>
     `;
 }
 
@@ -217,11 +211,9 @@ function updatePlayersList() {
 function checkStartCondition() {
     const state = Game.state;
     if (!state.isHost) return;
-
     const btnStart = document.getElementById('btnStartGame');
     const hint = document.getElementById('startHint');
     const activeCount = Game.getActivePlayers().length;
-
     if (activeCount >= CONFIG.JOGO.MIN_PLAYERS) {
         btnStart.disabled = false;
         hint.textContent = `${activeCount} jogadores ativos - pronto!`;
@@ -244,8 +236,6 @@ function updateTimerDisplay() {
     const m = Math.floor(state.timer / 60);
     const s = state.timer % 60;
     display.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-
-    // Cores conforme tempo restante
     card.className = 'timer-card glass-card';
     if (state.timer <= CONFIG.TIMER.CRITICAL) card.classList.add('timer-critical');
     else if (state.timer <= CONFIG.TIMER.DANGER) card.classList.add('timer-danger');
@@ -255,12 +245,10 @@ function updateTimerDisplay() {
 function displayRoundStart() {
     const round = Game.state.currentRound;
     if (!round) return;
-
     document.getElementById('questionArea').style.display = 'block';
     document.getElementById('spectatorArea').style.display = 'none';
     document.getElementById('perguntadorName').textContent = round.perguntador;
     document.getElementById('respondedorName').textContent = round.respondedor;
-
     if (round.evento) {
         document.getElementById('eventCard').style.display = 'flex';
         document.getElementById('eventTitle').textContent = round.evento.titulo;
@@ -268,59 +256,34 @@ function displayRoundStart() {
     }
 }
 
-/**
- * Exibe a pergunta conforme o papel do jogador
- * - Respondedor: botões clicáveis
- * - Perguntador: todas alternativas com destaque na correta
- */
 function displayQuestion(q) {
     const isPerg = Game.state.playerName === Game.state.currentRound?.perguntador;
     const isResp = Game.state.playerName === Game.state.currentRound?.respondedor;
-
     document.getElementById('questionText').textContent = q.pergunta;
     document.getElementById('badgeArea').textContent = q.area;
     document.getElementById('badgeGrupo').textContent = q.grupo;
 
     if (isResp && q.isRespondedor !== false) {
-        // --- RESPONDEDOR: botões clicáveis ---
         document.getElementById('alternativesGrid').style.display = 'grid';
         document.getElementById('allAlternativesArea').style.display = 'none';
         document.getElementById('roleNotice').style.display = 'block';
         document.getElementById('roleNotice').innerHTML = '🎯 <strong>Você está respondendo!</strong> Escolha uma alternativa.';
         document.getElementById('roleNotice').className = 'role-notice role-respondedor';
-
         document.getElementById('altA').textContent = q.alternativas[0];
         document.getElementById('altB').textContent = q.alternativas[1];
         document.getElementById('altC').textContent = q.alternativas[2];
         document.getElementById('altD').textContent = q.alternativas[3];
-
-        document.querySelectorAll('.alternative-btn').forEach(b => {
-            b.disabled = false;
-            b.className = 'alternative-btn';
-        });
+        document.querySelectorAll('.alternative-btn').forEach(b => { b.disabled = false; b.className = 'alternative-btn'; });
     } else if (isPerg || q.isPerguntador) {
-        // --- PERGUNTADOR: todas alternativas com destaque na correta ---
         document.getElementById('alternativesGrid').style.display = 'none';
         document.getElementById('allAlternativesArea').style.display = 'block';
         document.getElementById('roleNotice').style.display = 'block';
         document.getElementById('roleNotice').innerHTML = '👀 <strong>Você está perguntando!</strong> Tela somente leitura.';
         document.getElementById('roleNotice').className = 'role-notice role-perguntador';
-
         document.getElementById('allAlternativesList').innerHTML = q.alternativas.map(alt => {
             const letter = alt.charAt(0).toLowerCase();
             const isCorrect = letter === q.correta;
-            return `
-                <div style="
-                    padding:12px 16px;
-                    background:${isCorrect ? 'rgba(0,255,136,0.12)' : 'rgba(255,255,255,0.03)'};
-                    border:2px solid ${isCorrect ? 'rgba(0,255,136,0.4)' : 'rgba(255,255,255,0.08)'};
-                    border-radius:10px;
-                    color:${isCorrect ? '#00ff88' : '#e0e0e0'};
-                    font-size:0.9rem;
-                    ${isCorrect ? 'font-weight:600;' : ''}
-                ">
-                    ${isCorrect ? '✅ ' : ''}${alt}
-                </div>`;
+            return `<div style="padding:12px 16px; background:${isCorrect ? 'rgba(0,255,136,0.12)' : 'rgba(255,255,255,0.03)'}; border:2px solid ${isCorrect ? 'rgba(0,255,136,0.4)' : 'rgba(255,255,255,0.08)'}; border-radius:10px; color:${isCorrect ? '#00ff88' : '#e0e0e0'}; font-size:0.9rem; ${isCorrect ? 'font-weight:600;' : ''}">${isCorrect ? '✅ ' : ''}${alt}</div>`;
         }).join('');
     }
 }
@@ -328,87 +291,44 @@ function displayQuestion(q) {
 function displaySpectatorView(perguntador, respondedor) {
     document.getElementById('questionArea').style.display = 'none';
     document.getElementById('spectatorArea').style.display = 'block';
-    document.getElementById('spectatorMessage').textContent =
-        `⏳ ${perguntador} pergunta para ${respondedor}...`;
+    document.getElementById('spectatorMessage').textContent = `⏳ ${perguntador} pergunta para ${respondedor}...`;
 }
 
-/**
- * Clique em uma alternativa (apenas respondedor)
- */
 function handleAlternativeClick(alt, btn) {
     const state = Game.state;
-    
-    console.log('🖱️ [UI] Clique na alternativa:', alt);
-    console.log('🖱️ [UI] Jogador:', state.playerName);
-    console.log('🖱️ [UI] É host?', state.isHost);
-    console.log('🖱️ [UI] currentRound:', state.currentRound);
-    console.log('🖱️ [UI] respondedor esperado:', state.currentRound?.respondedor);
-    console.log('🖱️ [UI] já respondeu?', state.currentRound?.respondeu);
-    
-    if (!state.currentRound) {
-        console.warn('⚠️ [UI] Sem rodada atual!');
-        return;
-    }
-    
-    if (state.currentRound.respondeu) {
-        console.warn('⚠️ [UI] Já respondeu esta rodada!');
-        return;
-    }
-    
-    if (state.playerName !== state.currentRound.respondedor) {
-        console.warn('⚠️ [UI] Não é sua vez de responder! Você é', state.playerName, 'mas o respondedor é', state.currentRound.respondedor);
-        return;
-    }
-
-    // Desabilita todos os botões
+    if (!state.currentRound || state.currentRound.respondeu) return;
+    if (state.playerName !== state.currentRound.respondedor) return;
     document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = true);
     btn.classList.add('selected');
-
-    // Se for o host respondendo, processa localmente
     if (state.isHost) {
-        console.log('🖱️ [UI] Host respondendo localmente...');
         Game.core.handleAnswer({ alternativa: alt, playerName: state.playerName });
     } else {
-        console.log('🖱️ [UI] Enviando resposta para o host...');
-        Game.network.sendToHost({
-            type: 'answer',
-            alternativa: alt,
-            playerName: state.playerName
-        });
+        Game.network.sendToHost({ type: 'answer', alternativa: alt, playerName: state.playerName });
     }
-
     state.currentRound.respondeu = true;
-    console.log('🖱️ [UI] Resposta processada!');
 }
 
 // ============================================
-// MODAL DE RESULTADO
+// MODAL DE RESULTADO (V2)
 // ============================================
 
-function showResultModal(acertou, kpiGanho, todosGanham) {
+function showResultModal(acertou, kpiGanho, recursosRestantes) {
     document.getElementById('resultTitle').textContent = acertou ? '✅ Acertou!' : '❌ Errou!';
-    document.getElementById('resultTitle').className = 'result-title ' +
-        (acertou ? 'result-success' : 'result-error');
-
+    document.getElementById('resultTitle').className = 'result-title ' + (acertou ? 'result-success' : 'result-error');
     let msg = acertou ? `+${kpiGanho} KPI` : '0 KPI';
-    if (todosGanham > 0) msg += ` | Todos +${todosGanham}`;
-
+    if (recursosRestantes !== undefined) msg += ` | 📦 ${recursosRestantes} recursos`;
     document.getElementById('resultMessage').textContent = msg;
     DOM.modalResult.style.display = 'flex';
 }
 
 // ============================================
-// RANKING
+// RANKING (V2)
 // ============================================
 
 function updatePlayersOnlineList() {
     document.getElementById('playersOnlineList').innerHTML = Game.getActivePlayers().map(p => {
         const fase = Game.getFaseById(p.phase);
-        return `<div class="online-player">
-            <div class="player-avatar-xs">${p.name.charAt(0)}</div>
-            <span>${p.name}</span>
-            <span class="mini-phase">${fase.emoji}</span>
-        </div>`;
+        return `<div class="online-player"><div class="player-avatar-xs">${p.name.charAt(0)}</div><span>${p.name}</span><span style="font-size:0.7rem; color:#ffd700;">📦${p.recursos || 0}</span><span class="mini-phase">${fase.emoji}</span></div>`;
     }).join('') || '<div style="color:#6a6a80; font-size:0.8rem;">Nenhum jogador ativo</div>';
 }
 
@@ -416,46 +336,91 @@ function updateRankingList() {
     const ranking = Game.core.buildRanking();
     const medalhas = ['🥇', '🥈', '🥉'];
     document.getElementById('rankingList').innerHTML = ranking.map((p, i) => `
-        <div class="rank-item">
-            <span class="rank-pos">${medalhas[i] || '#' + p.posicao}</span>
-            <span class="rank-name">${p.name}</span>
-            <span class="rank-kpi">${p.kpi} ⭐</span>
-        </div>
+        <div class="rank-item"><span class="rank-pos">${medalhas[i] || '#' + p.posicao}</span><span class="rank-name">${p.name}</span><span class="rank-kpi">${p.kpiFinal} ⭐</span></div>
     `).join('');
 }
 
 function displayFinalRanking(ranking) {
     const medalhas = ['🥇', '🥈', '🥉'];
     document.getElementById('finalRanking').innerHTML = ranking.map((p, i) => {
-        const fase = Game.getFaseById(p.phase);
+        const kpiRecursos = p.recursos * CONFIG.KPI.VALOR_RECURSO_FINAL;
         return `<div class="final-rank-item ${i < 3 ? 'top-' + (i + 1) : ''}">
             <span class="final-rank-pos">${medalhas[i] || '#' + p.posicao}</span>
             <span class="final-rank-name">${p.name}</span>
-            <span class="final-rank-kpi">${p.kpi} ⭐</span>
-            <span class="final-rank-phase">${fase.emoji} ${fase.nome}</span>
+            <span class="final-rank-kpi">${p.kpiFinal} ⭐</span>
+            <div class="final-rank-detail" style="font-size:0.75rem; color:#a0a0b8; margin-top:4px;">Atividades: ${p.kpi} KPI | Recursos: ${p.recursos}📦 × ${CONFIG.KPI.VALOR_RECURSO_FINAL} = ${kpiRecursos} KPI</div>
         </div>`;
     }).join('');
 }
+// ============================================
+// VENDA DE RECURSOS (V3)
+// ============================================
 
+/**
+ * Abre o modal de venda de recursos
+ */
+function showVendaModal() {
+    const state = Game.state;
+    const me = Game.getPlayerByName(state.playerName);
+
+    if (!me || me.recursos < 1) {
+        alert('⚠️ Você não tem recursos para vender.');
+        return;
+    }
+
+    const compradores = Game.core.getCompradores();
+
+    if (compradores.length === 0) {
+        alert('⚠️ Nenhum jogador disponível para comprar (precisa ter pelo menos ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI).');
+        return;
+    }
+
+    // Atualiza informações
+    document.getElementById('vendaSeusRecursos').textContent =
+        'Seus recursos: 📦 ' + me.recursos;
+
+    // Lista de compradores
+    document.getElementById('vendaCompradores').innerHTML = compradores.map(c => `
+        <button class="btn btn-glass" onclick="Game.ui.confirmarVenda('${c.name}')" 
+                style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px;">
+            <span>${c.name}</span>
+            <span style="color:#ffd700; font-size:0.8rem;">⭐${c.kpi} KPI</span>
+        </button>
+    `).join('');
+
+    document.getElementById('modalVenda').style.display = 'flex';
+}
+
+/**
+ * Confirma a venda para um comprador
+ */
+function confirmarVenda(compradorName) {
+    if (confirm('Vender 1📦 para ' + compradorName + ' por ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI?')) {
+        const sucesso = Game.core.venderRecurso(compradorName);
+        if (sucesso) {
+            document.getElementById('modalVenda').style.display = 'none';
+        }
+    }
+}
+
+/**
+ * Fecha o modal de venda
+ */
+function fecharVendaModal() {
+    document.getElementById('modalVenda').style.display = 'none';
+}
 // ============================================
 // EXPORTAÇÃO
 // ============================================
 window.Game = window.Game || {};
 window.Game.ui = {
-    setupUI,
-    showScreen,
-    showLobbyNormal,
-    showLobbyWaitingView,
-    updateConnectionStatus,
-    updatePlayersList,
-    checkStartCondition,
-    updateTimerDisplay,
-    displayRoundStart,
-    displayQuestion,
-    displaySpectatorView,
-    showResultModal,
-    updatePlayersOnlineList,
-    updateRankingList,
-    displayFinalRanking,
-    handleAlternativeClick
+    setupUI, showScreen, showLobbyNormal, showLobbyWaitingView,
+    updateConnectionStatus, updatePlayersList, checkStartCondition,
+    updateTimerDisplay, displayRoundStart, displayQuestion, displaySpectatorView,
+    showResultModal, showEventoModal,
+    updatePlayersOnlineList, updateRankingList, displayFinalRanking,
+    handleAlternativeClick,
+    showVendaModal,
+    confirmarVenda,
+    fecharVendaModal
 };

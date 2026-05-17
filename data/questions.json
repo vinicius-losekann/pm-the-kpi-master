@@ -1165,35 +1165,32 @@
     {
       "id": "e1",
       "titulo": "Apoio da Alta Gestão",
-      "descricao": "A alta gestão está apoiando o projeto! KPI dobrado nesta rodada.",
-      "modificador": 2
+      "descricao": "Mais verba aprovada! Todos ganham +1 recurso.",
+      "recursos_todos": 1
     },
     {
       "id": "e2",
       "titulo": "Corte de Orçamento",
-      "descricao": "O orçamento foi cortado. KPI reduzido pela metade.",
-      "modificador": 0.5
+      "descricao": "Verba reduzida! Todos perdem 1 recurso.",
+      "recursos_todos": -1
     },
     {
       "id": "e3",
-      "titulo": "Stakeholder Engagement",
-      "descricao": "Partes interessadas engajadas! KPI normal + bônus de 5 pontos.",
-      "modificador": 1,
-      "bonus": 5
+      "titulo": "Patrocinador Generoso",
+      "descricao": "Patrocinador injetou capital! Quem tem menos recursos ganha +2.",
+      "recursos_menos": 2
     },
     {
       "id": "e4",
-      "titulo": "Mudança de Escopo",
-      "descricao": "Mudança aprovada! Escolha uma área de conhecimento diferente.",
-      "modificador": 1,
-      "obriga_nova_area": true
+      "titulo": "Seguro de Projeto",
+      "descricao": "Seguro cobriu os custos! Respondedor não gasta recurso se errar.",
+      "seguro_erro": true
     },
     {
       "id": "e5",
-      "titulo": "Lições Aprendidas",
-      "descricao": "Conhecimento compartilhado! Todos ganham 3 pontos de KPI.",
-      "modificador": 0,
-      "todos_ganham": 3
+      "titulo": "Reestruturação",
+      "descricao": "Equipe reorganizada! Quem tem mais dá 1 recurso para quem tem menos.",
+      "troca_recursos": true
     }
   ]
 }

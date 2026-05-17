@@ -257,6 +257,25 @@ function handleMessage(msg, fromPeerId) {
             state.timer = msg.remaining;
             Game.ui.updateTimerDisplay();
             break;
+        case 'show-evento':
+            Game.ui.showEventoModal(msg.evento);
+            break;
+        case 'venda-confirmed':
+            // Atualiza dados da venda nos jogadores
+            const vendedor = Game.getPlayerByName(msg.vendedor);
+            const comprador = Game.getPlayerByName(msg.comprador);
+            if (vendedor) {
+                vendedor.kpi = msg.vendedorKPI;
+                vendedor.recursos = msg.vendedorRecursos;
+            }
+            if (comprador) {
+                comprador.kpi = msg.compradorKPI;
+                comprador.recursos = msg.compradorRecursos;
+            }
+            Game.ui.updatePlayersOnlineList();
+            Game.ui.updateRankingList();
+            console.log('💰 Venda confirmada:', msg.vendedor, '→', msg.comprador);
+            break;
     }
 }
 

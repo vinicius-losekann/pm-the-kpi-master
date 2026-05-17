@@ -1,5 +1,5 @@
 // ============================================
-// PM: The KPI Master - CONFIGURAÇÕES GLOBAIS
+// PM: The KPI Master - CONFIGURAÇÕES GLOBAIS (V2)
 // ============================================
 // Centraliza todas as constantes do jogo.
 // Para ajustar pontuação, fases ou timer, edite apenas este arquivo.
@@ -8,12 +8,14 @@
 const CONFIG = {
 
     // --- PONTUAÇÃO (KPI) ---
-    // Altere aqui para balancear o jogo
     KPI: {
-        ACERTO_BASE: 10,           // Pontos por acertar uma pergunta
-        VENDA_CARTA_RECURSO: 10,   // (V2) Pontos por venda de carta recurso
-        CONSULTORIA: 10,           // (V2) Pontos de consultoria
+        ACERTO_BASE: 10,           // KPI por atividade completada
+        VALOR_RECURSO_FINAL: 5,    // KPI por recurso restante no fim do jogo
+        VALOR_VENDA_RECURSO: 15,   // KPI por venda de recurso
     },
+
+    // --- RECURSOS ---
+    RECURSOS_INICIAIS: 10,          // Recursos que cada jogador recebe no início
 
     // --- REGRAS DO JOGO ---
     JOGO: {
@@ -25,7 +27,6 @@ const CONFIG = {
     },
 
     // --- FASES (Grupos de Processo PMBOK) ---
-    // Ordem define progressão: iniciacao → planejamento → execucao → m&c → encerramento
     FASES: [
         { id: 'iniciacao',              nome: 'Iniciação',                   emoji: '🚀' },
         { id: 'planejamento',           nome: 'Planejamento',                emoji: '📋' },
@@ -35,16 +36,15 @@ const CONFIG = {
     ],
 
     // --- SALA ---
-    ROOM_PREFIX: 'pm-the-kpi-master-',   // Prefixo do ID da sala
+    ROOM_PREFIX: 'pm-the-kpi-master-',
 
     // --- TIMER ---
-    // Limiares para mudança de cor do timer
     TIMER: {
-        WARNING: 1800,   // 30 min - fica amarelo
-        DANGER: 600,     // 10 min - fica vermelho
-        CRITICAL: 300,   // 5 min  - fica piscando
+        WARNING: 1800,   // 30 min - amarelo
+        DANGER: 600,     // 10 min - vermelho
+        CRITICAL: 300,   // 5 min  - piscando
     },
 };
 
-// Expõe globalmente para todos os módulos
 window.CONFIG = CONFIG;
+

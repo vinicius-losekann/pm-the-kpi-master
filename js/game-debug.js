@@ -1,12 +1,11 @@
 // ============================================
-// PM: The KPI Master - FERRAMENTAS DE DEBUG
+// PM: The KPI Master - FERRAMENTAS DE DEBUG (V3)
 // ============================================
 // Responsabilidades:
 //   - Simular jogadores e partidas para teste
 //   - Testar funções de core sem precisar de 2 pessoas
 //   - Expor estado e funções no console (F12)
-//
-// Uso: Carregue o jogo, abra F12, use Game.debug.*
+//   - V3: Venda de recursos
 //
 // ⚠️ APENAS PARA DESENVOLVIMENTO
 // Comente a linha no game.html para produção
@@ -18,7 +17,6 @@ window.Game.debug = {
 
     /**
      * Cria jogadores falsos para testar sem precisar conectar
-     * @param {number} count - Quantos jogadores (padrão 3)
      */
     fakePlayers(count = 3) {
         const state = Game.state;
@@ -33,11 +31,11 @@ window.Game.debug = {
                 phase: CONFIG.FASES[0].id,
                 activities: 0,
                 isHost: i === 0,
-                waitingInLobby: false
+                waitingInLobby: false,
+                recursos: CONFIG.RECURSOS_INICIAIS
             });
         }
 
-        // Ajusta para debug local
         state.isHost = true;
         state.playerName = names[0];
         state.peerId = 'fake-peer-0';
@@ -46,13 +44,13 @@ window.Game.debug = {
         console.log(`✅ ${count} jogadores falsos criados:`, state.players.map(p => p.name).join(', '));
         console.log('👑 Host:', names[0]);
         console.log('👤 Guests:', state.players.filter(p => !p.isHost).map(p => p.name).join(', '));
-        console.log('💡 Agora use Game.debug.fakeStartGame() para simular partida');
+        console.log('📦 Recursos iniciais:', CONFIG.RECURSOS_INICIAIS, 'por jogador');
         Game.ui.updatePlayersList();
         Game.ui.checkStartCondition();
     },
 
     /**
-     * Simula início de partida (sem precisar de PeerJS)
+     * Simula início de partida
      */
     fakeStartGame() {
         const state = Game.state;
@@ -63,34 +61,29 @@ window.Game.debug = {
         }
 
         if (!state.questionsData || Object.keys(state.questionsData.areas || {}).length === 0) {
-            console.warn('⚠️ Perguntas não carregadas. Execute Game.debug.loadFallback() primeiro.');
+            console.warn('⚠️ Perguntas não carregadas.');
             return;
         }
 
         state.gameStarted = true;
         state.usedRespondedorThisRound = [];
         state.timer = CONFIG.JOGO.SESSION_DURATION;
+
+        state.players.forEach(p => p.recursos = CONFIG.RECURSOS_INICIAIS);
+
         Game.ui.showScreen('game');
         Game.ui.updateTimerDisplay();
         Game.ui.updatePlayersOnlineList();
         Game.ui.updateRankingList();
         console.log('✅ Partida simulada iniciada!');
-        console.log('💡 Use Game.debug.simularPartidaCompleta() para uma partida inteira');
-        console.log('💡 Use Game.debug.testKPI(5) para simular algumas respostas');
     },
 
     /**
-     * Testa o sorteio de perguntas (executa N vezes e mostra distribuição)
-     * @param {number} times - Quantas vezes sortear
-     * @param {string} fase - Fase para testar (padrão: 'planejamento')
+     * Testa o sorteio de perguntas
      */
     testSortear(times = 20, fase = 'planejamento') {
         const state = Game.state;
-
-        if (!state.questionsData) {
-            console.warn('⚠️ Perguntas não carregadas.');
-            return;
-        }
+        if (!state.questionsData) { console.warn('⚠️ Perguntas não carregadas.'); return; }
 
         console.log(`📊 Testando sortearPergunta('${fase}') ${times}x...`);
         const contagem = {};
@@ -106,112 +99,77 @@ window.Game.debug = {
 
         console.log('📊 Distribuição por área:');
         for (const [area, count] of Object.entries(contagem)) {
-            const bar = '█'.repeat(Math.max(1, count));
-            console.log(`   ${area}: ${count}x ${bar}`);
+            console.log(`   ${area}: ${count}x ${'█'.repeat(Math.max(1, count))}`);
         }
 
         const unicas = new Set(perguntasSorteadas);
-        if (unicas.size === perguntasSorteadas.length) {
-            console.log('✅ Nenhuma pergunta repetida!');
-        } else {
-            console.warn(`⚠️ Houve repetição! ${perguntasSorteadas.length - unicas.size} perguntas repetidas.`);
-        }
+        console.log(unicas.size === perguntasSorteadas.length ? '✅ Nenhuma repetida!' : `⚠️ ${perguntasSorteadas.length - unicas.size} repetidas.`);
     },
 
     /**
-     * Simula N respostas e mostra evolução do KPI
-     * @param {number} count - Quantas respostas simular
-     * @param {string} playerName - Nome do jogador (padrão: você mesmo)
+     * Simula N respostas para um jogador (V2: com recursos)
      */
     testKPI(count = 5, playerName = null) {
         const state = Game.state;
         const name = playerName || state.playerName;
 
-        if (!state.gameStarted) {
-            console.warn('⚠️ Inicie a partida primeiro: Game.debug.fakeStartGame()');
-            return;
-        }
+        if (!state.gameStarted) { console.warn('⚠️ Inicie a partida primeiro.'); return; }
 
         const player = Game.getPlayerByName(name);
-        if (!player) {
-            console.warn(`⚠️ Jogador "${name}" não encontrado.`);
-            console.log('💡 Jogadores disponíveis:', state.players.map(p => p.name).join(', '));
-            return;
-        }
+        if (!player) { console.warn(`⚠️ Jogador "${name}" não encontrado.`); return; }
 
         console.log(`🎯 Simulando ${count} respostas para ${name}...`);
-        console.log(`   Fase inicial: ${Game.getFaseById(player.phase).emoji} ${Game.getFaseById(player.phase).nome} | KPI: ${player.kpi}`);
+        console.log(`   Recursos: ${player.recursos} | Fase: ${Game.getFaseById(player.phase).emoji} | KPI: ${player.kpi}`);
 
         for (let i = 0; i < count; i++) {
+            if (player.recursos <= 0) { console.log(`   ⚠️ Sem recursos! Pulando...`); continue; }
+
             const pergunta = Game.core.sortearPergunta(player.phase);
-            if (!pergunta) {
-                console.error('❌ Sem perguntas disponíveis para a fase:', player.phase);
-                break;
-            }
+            if (!pergunta) break;
 
-            const acertou = Math.random() > 0.3;
+            const acertou = Math.random() < 0.5;
             const evento = (state.questionsData?.eventos || [])[Math.floor(Math.random() * 5)];
-            const alternativa = acertou ? pergunta.correta : 'x';
+            const temSeguro = evento?.seguro_erro === true;
+            const gastaRecurso = acertou ? true : !temSeguro;
+            if (gastaRecurso) player.recursos--;
 
-            state.currentRound = {
-                evento,
-                respondedor: name,
-                pergunta,
-                respondeu: false
-            };
-
-            const kpiGanho = acertou
-                ? (CONFIG.KPI.ACERTO_BASE * evento.modificador) + (evento.bonus || 0)
-                : 0;
-
-            player.kpi += kpiGanho;
-            player.activities++;
-
-            const faseIdx = Game.getFaseIndex(player.phase);
-            if (player.activities >= CONFIG.JOGO.ACTIVITIES_PER_PHASE && faseIdx < CONFIG.FASES.length - 1) {
-                player.phase = CONFIG.FASES[faseIdx + 1].id;
-                player.activities = 0;
+            let kpiGanho = 0;
+            if (acertou) {
+                kpiGanho = CONFIG.KPI.ACERTO_BASE;
+                player.kpi += kpiGanho;
+                player.activities++;
+                const faseIdx = Game.getFaseIndex(player.phase);
+                if (player.activities >= CONFIG.JOGO.ACTIVITIES_PER_PHASE && faseIdx < CONFIG.FASES.length - 1) {
+                    player.phase = CONFIG.FASES[faseIdx + 1].id;
+                    player.activities = 0;
+                }
             }
 
             const status = acertou ? '✅' : '❌';
             const fase = Game.getFaseById(player.phase);
-            console.log(`   ${i + 1}. ${status} → +${kpiGanho} KPI | ${fase.emoji} ${fase.nome} | Total: ${player.kpi}`);
+            const gastoMsg = gastaRecurso ? '-1📦' : '📦🛡️';
+            console.log(`   ${i + 1}. ${status} → +${kpiGanho} KPI | ${gastoMsg} | ${fase.emoji} | Recursos: ${player.recursos} | Total: ${player.kpi}`);
         }
 
         Game.ui.updatePlayersOnlineList();
         Game.ui.updateRankingList();
-        
+
         if (name === state.playerName) {
             document.getElementById('myKPI').textContent = player.kpi;
-            const fase = Game.getFaseById(player.phase);
-            document.getElementById('myPhaseName').textContent = fase.nome;
-            document.getElementById('myPhaseIcon').textContent = fase.emoji;
-            document.getElementById('myActivity').textContent = player.activities;
-            document.getElementById('myProgressFill').style.width = (player.activities / CONFIG.JOGO.ACTIVITIES_PER_PHASE * 100) + '%';
+            document.getElementById('myRecursos').textContent = player.recursos;
         }
-        
+
         console.log('✅ Teste concluído!');
     },
 
     /**
      * Força um jogador a pular para uma fase específica
-     * @param {string} phaseId - 'iniciacao' | 'planejamento' | 'execucao' | 'monitoramento_controle' | 'encerramento'
-     * @param {string} playerName - Nome do jogador (padrão: você mesmo)
      */
     skipToPhase(phaseId, playerName) {
         const name = playerName || Game.state.playerName;
         const player = Game.getPlayerByName(name);
-
-        if (!player) {
-            console.warn(`⚠️ Jogador "${name}" não encontrado.`);
-            console.log('💡 Jogadores disponíveis:', Game.state.players.map(p => p.name).join(', '));
-            return;
-        }
-
-        if (!CONFIG.FASES.find(f => f.id === phaseId)) {
-            console.warn(`⚠️ Fase "${phaseId}" inválida. Use: ${CONFIG.FASES.map(f => f.id).join(', ')}`);
-            return;
-        }
+        if (!player) { console.warn(`⚠️ Jogador "${name}" não encontrado.`); return; }
+        if (!CONFIG.FASES.find(f => f.id === phaseId)) { console.warn(`⚠️ Fase inválida.`); return; }
 
         player.phase = phaseId;
         player.activities = 0;
@@ -220,116 +178,270 @@ window.Game.debug = {
         Game.ui.updatePlayersOnlineList();
     },
 
+    // ============================================
+    // V3: VENDA DE RECURSOS
+    // ============================================
+
     /**
-     * Simula uma partida completa com progressão INDIVIDUAL (igual ao jogo real)
+     * Simula uma venda de recurso entre dois jogadores
+     */
+    testVenda(vendedorName, compradorName) {
+        const vendedor = Game.getPlayerByName(vendedorName);
+        const comprador = Game.getPlayerByName(compradorName);
+
+        if (!vendedor || !comprador) {
+            console.warn('⚠️ Jogador não encontrado.');
+            console.log('💡 Jogadores disponíveis:', Game.state.players.map(p => p.name).join(', '));
+            return;
+        }
+
+        console.log('💰 Simulando venda...');
+        console.log('   ANTES:');
+        console.log('   ' + vendedor.name + ': ⭐' + vendedor.kpi + ' | 📦' + vendedor.recursos);
+        console.log('   ' + comprador.name + ': ⭐' + comprador.kpi + ' | 📦' + comprador.recursos);
+
+        if (vendedor.recursos < 1) { console.warn('⚠️ Vendedor sem recursos!'); return; }
+        if (comprador.kpi < CONFIG.KPI.VALOR_VENDA_RECURSO) {
+            console.warn('⚠️ Comprador sem KPI suficiente! (precisa de ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ')');
+            return;
+        }
+
+        vendedor.recursos--;
+        vendedor.kpi += CONFIG.KPI.VALOR_VENDA_RECURSO;
+        comprador.recursos++;
+        comprador.kpi -= CONFIG.KPI.VALOR_VENDA_RECURSO;
+
+        console.log('   DEPOIS:');
+        console.log('   ' + vendedor.name + ': ⭐' + vendedor.kpi + ' | 📦' + vendedor.recursos + ' (+' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI)');
+        console.log('   ' + comprador.name + ': ⭐' + comprador.kpi + ' | 📦' + comprador.recursos + ' (+1📦)');
+        console.log('✅ Venda simulada com sucesso!');
+
+        Game.ui.updatePlayersOnlineList();
+        Game.ui.updateRankingList();
+    },
+
+    /**
+     * Simula várias vendas automáticas
+     */
+    testVendasAutomaticas(quantidade = 3) {
+        const state = Game.state;
+        if (!state.gameStarted) { console.warn('⚠️ Inicie a partida primeiro.'); return; }
+
+        console.log('💰 Simulando ' + quantidade + ' vendas automáticas...\n');
+
+        for (let i = 0; i < quantidade; i++) {
+            const vendedores = [...state.players]
+                .filter(p => p.recursos > 1 && !p.waitingInLobby)
+                .sort((a, b) => b.recursos - a.recursos);
+
+            const compradores = [...state.players]
+                .filter(p => p.kpi >= CONFIG.KPI.VALOR_VENDA_RECURSO && !p.waitingInLobby)
+                .sort((a, b) => b.kpi - a.kpi);
+
+            if (vendedores.length === 0 || compradores.length === 0) {
+                console.warn('⚠️ Sem vendedores ou compradores disponíveis.');
+                break;
+            }
+
+            const vendedor = vendedores[0];
+            const comprador = compradores.find(c => c.name !== vendedor.name) || compradores[0];
+
+            if (vendedor.name === comprador.name) { console.warn('⚠️ Apenas um jogador.'); break; }
+
+            vendedor.recursos--;
+            vendedor.kpi += CONFIG.KPI.VALOR_VENDA_RECURSO;
+            comprador.recursos++;
+            comprador.kpi -= CONFIG.KPI.VALOR_VENDA_RECURSO;
+
+            console.log('   💰 ' + vendedor.name + ' → ' + comprador.name + ' | +' + CONFIG.KPI.VALOR_VENDA_RECURSO + '⭐ / +1📦');
+        }
+
+        console.log('\n📊 Estado após vendas:');
+        state.players.forEach(p => console.log('   ' + p.name + ': ⭐' + p.kpi + ' | 📦' + p.recursos));
+
+        Game.ui.updatePlayersOnlineList();
+        Game.ui.updateRankingList();
+        console.log('✅ Vendas automáticas concluídas!');
+    },
+
+    // ============================================
+    // SIMULAÇÃO COMPLETA (V3 - Com Vendas)
+    // ============================================
+
+    /**
+     * Simula uma partida completa com vendas automáticas
      * Cada jogador avança no seu próprio ritmo
-     * Termina quando o PRIMEIRO jogador completa o Encerramento
-     * 
-     * @param {number} numJogadores - Quantos jogadores (padrão: 3)
-     * @param {number} chanceAcerto - Probabilidade de acerto 0-1 (padrão: 0.5)
+     * Inclui vendas aleatórias durante a partida
      */
     async simularPartidaCompleta(numJogadores = 3, chanceAcerto = 0.5) {
-        console.log('🚀 Iniciando simulação de partida completa...');
+        const MAX_RODADAS = 500;
+        const MAX_SEM_RECURSOS = 10;
+
+        console.log('🚀 Iniciando simulação de partida completa (V3)...');
         console.log(`👥 Jogadores: ${numJogadores} | 🎯 Chance de acerto: ${Math.round(chanceAcerto * 100)}%`);
-        console.log('📋 Regra: Progressão INDIVIDUAL (igual ao jogo real)');
+        console.log(`📦 Recursos iniciais: ${CONFIG.RECURSOS_INICIAIS} | ⭐ KPI por acerto: ${CONFIG.KPI.ACERTO_BASE}`);
+        console.log(`💰 Valor de venda: ${CONFIG.KPI.VALOR_VENDA_RECURSO} KPI por recurso`);
+        console.log('📋 Regras V3: Venda de recursos entre jogadores');
         console.log('🛑 Termina quando o PRIMEIRO completar o Encerramento\n');
-        
-        // Garante que temos jogadores e partida iniciada
+
         if (Game.state.players.length < 2) {
             console.log('💡 Criando jogadores automaticamente...');
             this.fakePlayers(numJogadores);
         }
-        
+
         if (!Game.state.gameStarted) {
             console.log('💡 Iniciando partida automaticamente...');
             this.fakeStartGame();
         }
-        
+
         const jogadores = Game.state.players.filter(p => !p.waitingInLobby);
         let rodada = 0;
         let jogoFinalizado = false;
         let vencedor = null;
-        
-        // Loop principal: continua até alguém completar o Encerramento
+        let rodadasSemNinguemResponder = 0;
+        let interrompidoPorTrava = false;
+        let totalVendas = 0;
+
         while (!jogoFinalizado) {
             rodada++;
-            console.log(`\n🔄 RODADA ${rodada}`);
-            console.log('─'.repeat(40));
-            
-            // Embaralha jogadores para ordem aleatória
-            const ordem = [...jogadores].sort(() => Math.random() - 0.5);
-            
-            for (const jogador of ordem) {
-                if (jogoFinalizado) break; // Outro jogador já finalizou
+
+            if (rodada > MAX_RODADAS) {
+                console.error(`\n🛑 TRAVA: ${MAX_RODADAS} rodadas!`);
+                interrompidoPorTrava = true;
+                break;
+            }
+
+            const evento = Game.state.questionsData.eventos[Math.floor(Math.random() * 5)];
+            Game.core.aplicarEfeitosEvento(evento);
+
+            // V3: Chance de venda automática a cada rodada (15%)
+            if (Math.random() < 0.15 && rodada > 3) {
+                const vendedores = jogadores.filter(p => p.recursos > 1);
+                const compradores = jogadores.filter(p => p.kpi >= CONFIG.KPI.VALOR_VENDA_RECURSO);
                 
-                const faseAtual = Game.getFaseById(jogador.phase);
-                
-                // Sorteia pergunta da fase atual do jogador
-                const pergunta = Game.core.sortearPergunta(jogador.phase);
-                if (!pergunta) {
-                    console.warn(`⚠️ ${jogador.name}: sem perguntas para ${faseAtual.nome}`);
-                    continue;
-                }
-                
-                const acertou = Math.random() < chanceAcerto;
-                const evento = Game.state.questionsData.eventos[Math.floor(Math.random() * 5)];
-                
-                const kpiGanho = acertou 
-                    ? (CONFIG.KPI.ACERTO_BASE * evento.modificador) + (evento.bonus || 0) 
-                    : 0;
-                
-                jogador.kpi += kpiGanho;
-                jogador.activities++;
-                
-                const status = acertou ? '✅' : '❌';
-                
-                // Verifica progressão
-                if (jogador.activities >= CONFIG.JOGO.ACTIVITIES_PER_PHASE) {
-                    const faseIdx = Game.getFaseIndex(jogador.phase);
+                if (vendedores.length > 0 && compradores.length > 0) {
+                    const vendedor = vendedores[Math.floor(Math.random() * vendedores.length)];
+                    const comprador = compradores.filter(c => c.name !== vendedor.name)[0];
                     
-                    if (faseIdx < CONFIG.FASES.length - 1) {
-                        // Avança para próxima fase
-                        const faseAntiga = Game.getFaseById(jogador.phase);
-                        jogador.phase = CONFIG.FASES[faseIdx + 1].id;
-                        jogador.activities = 0;
-                        const faseNova = Game.getFaseById(jogador.phase);
-                        console.log(`   ${status} ${jogador.name}: +${kpiGanho} KPI | ${faseAntiga.emoji} → ${faseNova.emoji} AVANÇOU! | Total: ${jogador.kpi}`);
-                    } else {
-                        // 🏁 COMPLETOU O ENCERRAMENTO!
-                        console.log(`   ${status} ${jogador.name}: +${kpiGanho} KPI | 🏁 COMPLETOU O ENCERRAMENTO! | Total: ${jogador.kpi}`);
-                        console.log(`\n🏁 ${jogador.name} COMPLETOU O ENCERRAMENTO! FIM DE JOGO!`);
-                        jogoFinalizado = true;
-                        vencedor = jogador.name;
-                        break;
+                    if (comprador) {
+                        vendedor.recursos--;
+                        vendedor.kpi += CONFIG.KPI.VALOR_VENDA_RECURSO;
+                        comprador.recursos++;
+                        comprador.kpi -= CONFIG.KPI.VALOR_VENDA_RECURSO;
+                        totalVendas++;
                     }
-                } else {
-                    const faseAtual = Game.getFaseById(jogador.phase);
-                    console.log(`   ${status} ${jogador.name}: +${kpiGanho} KPI | ${faseAtual.emoji} ${faseAtual.nome} (${jogador.activities}/${CONFIG.JOGO.ACTIVITIES_PER_PHASE}) | Total: ${jogador.kpi}`);
                 }
             }
+
+            console.log(`\n🔄 RODADA ${rodada} | 📋 ${evento.titulo}: ${evento.descricao}`);
+            console.log('─'.repeat(50));
+
+            const ordem = [...jogadores].sort(() => Math.random() - 0.5);
+            let alguemRespondeu = false;
+
+            for (const jogador of ordem) {
+                if (jogoFinalizado) break;
+
+                if (jogador.recursos <= 0) {
+                    console.log(`   ⚠️ ${jogador.name}: SEM RECURSOS! Pulou a vez.`);
+                    continue;
+                }
+
+                alguemRespondeu = true;
+
+                const faseAtual = Game.getFaseById(jogador.phase);
+                const pergunta = Game.core.sortearPergunta(jogador.phase);
+
+                if (!pergunta) { continue; }
+
+                const acertou = Math.random() < chanceAcerto;
+                const temSeguro = evento?.seguro_erro === true;
+                const gastaRecurso = acertou ? true : !temSeguro;
+                if (gastaRecurso) jogador.recursos--;
+
+                let kpiGanho = 0;
+                if (acertou) {
+                    kpiGanho = CONFIG.KPI.ACERTO_BASE;
+                    jogador.kpi += kpiGanho;
+                    jogador.activities++;
+
+                    const faseIdx = Game.getFaseIndex(jogador.phase);
+                    if (jogador.activities >= CONFIG.JOGO.ACTIVITIES_PER_PHASE) {
+                        if (faseIdx < CONFIG.FASES.length - 1) {
+                            const faseAntiga = Game.getFaseById(jogador.phase);
+                            jogador.phase = CONFIG.FASES[faseIdx + 1].id;
+                            jogador.activities = 0;
+                            const faseNova = Game.getFaseById(jogador.phase);
+                            const gastoMsg = gastaRecurso ? '-1📦' : '📦🛡️';
+                            console.log(`   ✅ ${jogador.name}: +${kpiGanho} KPI | ${gastoMsg} | ${faseAntiga.emoji} → ${faseNova.emoji} AVANÇOU! | 📦${jogador.recursos} | ⭐${jogador.kpi}`);
+                        } else {
+                            const gastoMsg = gastaRecurso ? '-1📦' : '📦🛡️';
+                            console.log(`   ✅ ${jogador.name}: +${kpiGanho} KPI | ${gastoMsg} | 🏁 COMPLETOU! | 📦${jogador.recursos} | ⭐${jogador.kpi}`);
+                            jogoFinalizado = true;
+                            vencedor = jogador.name;
+                            break;
+                        }
+                    } else {
+                        const gastoMsg = gastaRecurso ? '-1📦' : '📦🛡️';
+                        console.log(`   ✅ ${jogador.name}: +${kpiGanho} KPI | ${gastoMsg} | ${faseAtual.emoji} (${jogador.activities}/${CONFIG.JOGO.ACTIVITIES_PER_PHASE}) | 📦${jogador.recursos} | ⭐${jogador.kpi}`);
+                    }
+                } else {
+                    const gastoMsg = gastaRecurso ? '-1📦' : '📦🛡️';
+                    console.log(`   ❌ ${jogador.name}: +0 KPI | ${gastoMsg} | ${faseAtual.emoji} (${jogador.activities}/${CONFIG.JOGO.ACTIVITIES_PER_PHASE}) | 📦${jogador.recursos} | ⭐${jogador.kpi}`);
+                }
+            }
+
+            if (!alguemRespondeu) {
+                rodadasSemNinguemResponder++;
+                if (rodadasSemNinguemResponder >= MAX_SEM_RECURSOS) {
+                    console.error(`\n🛑 TRAVA: ${MAX_SEM_RECURSOS} rodadas sem resposta!`);
+                    interrompidoPorTrava = true;
+                    break;
+                }
+            } else {
+                rodadasSemNinguemResponder = 0;
+            }
         }
-        
-        // Mostra estado final de cada jogador
+
+        // Resultado
+        if (interrompidoPorTrava) {
+            console.log('\n⚠️ SIMULAÇÃO INTERROMPIDA - ESTADO PARCIAL:');
+            jogadores.forEach(p => {
+                const fase = Game.getFaseById(p.phase);
+                const kpiFinal = p.kpi + (p.recursos * CONFIG.KPI.VALOR_RECURSO_FINAL);
+                console.log(`   ${p.name}: ⭐${p.kpi} + 📦${p.recursos}×${CONFIG.KPI.VALOR_RECURSO_FINAL} = ${kpiFinal} KPI | ${fase.emoji} ${fase.nome}`);
+            });
+            return;
+        }
+
         console.log('\n📊 ESTADO FINAL DE CADA JOGADOR:');
-        console.log('═'.repeat(50));
+        console.log('═'.repeat(55));
         jogadores.forEach(p => {
             const fase = Game.getFaseById(p.phase);
+            const kpiFinal = p.kpi + (p.recursos * CONFIG.KPI.VALOR_RECURSO_FINAL);
             const completou = p.name === vencedor ? ' ✅ COMPLETOU!' : '';
-            console.log(`   ${p.name}: ${p.kpi} KPI | ${fase.emoji} ${fase.nome} (${p.activities}/${CONFIG.JOGO.ACTIVITIES_PER_PHASE})${completou}`);
+            console.log(`   ${p.name}: ⭐${p.kpi} + 📦${p.recursos}×${CONFIG.KPI.VALOR_RECURSO_FINAL} = ${kpiFinal} KPI | ${fase.emoji} ${fase.nome} (${p.activities}/${CONFIG.JOGO.ACTIVITIES_PER_PHASE})${completou}`);
         });
-        
-        // Ranking final
-        console.log('\n🏆 RESULTADO FINAL:');
-        console.log('═'.repeat(50));
-        
-        const ranking = [...Game.state.players].sort((a, b) => b.kpi - a.kpi);
+
+        const ranking = [...Game.state.players]
+            .map(p => ({
+                name: p.name,
+                kpi: p.kpi,
+                recursos: p.recursos,
+                kpiFinal: p.kpi + (p.recursos * CONFIG.KPI.VALOR_RECURSO_FINAL),
+                phase: p.phase,
+                activities: p.activities
+            }))
+            .sort((a, b) => b.kpiFinal - a.kpiFinal);
+
+        console.log('\n🏆 RESULTADO FINAL (KPI = atividades + recursos×' + CONFIG.KPI.VALOR_RECURSO_FINAL + '):');
+        console.log('═'.repeat(55));
         ranking.forEach((p, i) => {
-            const medalha = ['🥇', '🥈', '🥉'][i] || `#${i+1}`;
+            const medalha = ['🥇', '🥈', '🥉'][i] || `#${i + 1}`;
             const fase = Game.getFaseById(p.phase);
-            console.log(`${medalha} ${p.name}: ${p.kpi} KPI | ${fase.emoji} ${fase.nome} (${p.activities}/${CONFIG.JOGO.ACTIVITIES_PER_PHASE})`);
+            console.log(`${medalha} ${p.name}: ⭐${p.kpi} + 📦${p.recursos}×${CONFIG.KPI.VALOR_RECURSO_FINAL} = ${p.kpiFinal} KPI Final | ${fase.emoji} ${fase.nome}`);
         });
-        
-        // Atualiza UI
+
         Game.ui.updatePlayersOnlineList();
         Game.ui.updateRankingList();
         Game.ui.showScreen('gameover');
@@ -337,64 +449,16 @@ window.Game.debug = {
             posicao: i + 1,
             name: p.name,
             kpi: p.kpi,
+            recursos: p.recursos,
+            kpiFinal: p.kpiFinal,
             phase: p.phase
         })));
-        
-        console.log(`\n🎯 Quem disparou o fim: ${vencedor}`);
-        console.log(`🏆 Vencedor (maior KPI): ${ranking[0].name}`);
+
+        console.log(`\n💰 Total de vendas realizadas: ${totalVendas}`);
+        console.log(`🎯 Quem disparou o fim: ${vencedor}`);
+        console.log(`🏆 Vencedor (maior KPI final): ${ranking[0].name} (${ranking[0].kpiFinal} KPI)`);
         console.log(`🔄 Total de rodadas: ${rodada}`);
-        console.log('✅ Simulação concluída!');
-    },
-
-    /**
-     * Testa KPI de todos os jogadores (simula respostas para cada um)
-     * @param {number} rounds - Quantas rodadas simular
-     */
-    testAllPlayers(rounds = 2) {
-        const state = Game.state;
-
-        if (!state.gameStarted) {
-            console.warn('⚠️ Inicie a partida primeiro: Game.debug.fakeStartGame()');
-            return;
-        }
-
-        console.log(`🎯 Simulando ${rounds} rodadas para todos os jogadores...`);
-
-        for (let r = 0; r < rounds; r++) {
-            console.log(`\n--- Rodada ${r + 1} ---`);
-            state.players.forEach(player => {
-                if (player.waitingInLobby) return;
-                
-                const pergunta = Game.core.sortearPergunta(player.phase);
-                if (!pergunta) return;
-
-                const acertou = Math.random() > 0.3;
-                const evento = (state.questionsData?.eventos || [])[Math.floor(Math.random() * 5)];
-                const kpiGanho = acertou ? (CONFIG.KPI.ACERTO_BASE * evento.modificador) + (evento.bonus || 0) : 0;
-
-                player.kpi += kpiGanho;
-                player.activities++;
-                const faseIdx = Game.getFaseIndex(player.phase);
-                if (player.activities >= CONFIG.JOGO.ACTIVITIES_PER_PHASE && faseIdx < CONFIG.FASES.length - 1) {
-                    player.phase = CONFIG.FASES[faseIdx + 1].id;
-                    player.activities = 0;
-                }
-
-                const status = acertou ? '✅' : '❌';
-                const fase = Game.getFaseById(player.phase);
-                console.log(`   ${status} ${player.name}: +${kpiGanho} KPI | ${fase.emoji} | Total: ${player.kpi}`);
-            });
-        }
-
-        console.log('\n📊 Resultado Final:');
-        const ranking = Game.core.buildRanking();
-        ranking.forEach((p, i) => {
-            const medalha = ['🥇', '🥈', '🥉'][i] || `#${i+1}`;
-            console.log(`   ${medalha} ${p.name}: ${p.kpi} KPI`);
-        });
-
-        Game.ui.updatePlayersOnlineList();
-        Game.ui.updateRankingList();
+        console.log('✅ Simulação V3 concluída!');
     },
 
     /**
@@ -402,50 +466,23 @@ window.Game.debug = {
      */
     dumpState() {
         const state = Game.state;
-        console.log('══════════════ STATE DUMP ══════════════');
+        console.log('══════════════ STATE DUMP (V3) ══════════════');
         console.log('👑 isHost:', state.isHost);
         console.log('👤 playerName:', state.playerName);
-        console.log('🏠 roomName:', state.roomName);
-        console.log('🔗 peerId:', state.peerId);
         console.log('🎮 gameStarted:', state.gameStarted);
         console.log('⏱️ timer:', Math.floor(state.timer / 60), 'min');
         console.log('👥 players:', state.players.length);
         state.players.forEach(p => {
             const fase = Game.getFaseById(p.phase);
             const hostBadge = p.isHost ? '👑' : '  ';
-            const waitingBadge = p.waitingInLobby ? ' [AGUARDANDO]' : '';
-            console.log(`   ${hostBadge} ${p.name} | KPI: ${p.kpi} | ${fase.emoji} ${fase.nome} | Atv: ${p.activities}/${CONFIG.JOGO.ACTIVITIES_PER_PHASE}${waitingBadge}`);
+            const kpiFinal = p.kpi + (p.recursos * CONFIG.KPI.VALOR_RECURSO_FINAL);
+            console.log(`   ${hostBadge} ${p.name} | ⭐${p.kpi} | 📦${p.recursos} | KPI Final: ${kpiFinal} | ${fase.emoji} ${fase.nome} | Atv: ${p.activities}/${CONFIG.JOGO.ACTIVITIES_PER_PHASE}`);
         });
-        console.log('📚 Áreas carregadas:', Object.keys(state.questionsData?.areas || {}).length);
-        console.log('🃏 Baralhos:', Object.keys(state.baralhos).length);
-        if (state.currentRound) {
-            console.log('🎯 Rodada atual:', state.currentRound.perguntador, '→', state.currentRound.respondedor);
-        }
-        console.log('════════════════════════════════════════');
+        console.log('═══════════════════════════════════════════════');
     },
 
     /**
-     * Tenta carregar o fallback de perguntas (se disponível)
-     */
-    loadFallback() {
-        if (typeof FALLBACK_QUESTIONS !== 'undefined') {
-            Game.state.questionsData = FALLBACK_QUESTIONS;
-            Game.state.baralhos = {};
-            for (const [key, area] of Object.entries(FALLBACK_QUESTIONS.areas)) {
-                Game.state.baralhos[key] = {
-                    perguntas: area.perguntas.map(p => ({ ...p, usada: false })),
-                    disponiveis: area.perguntas.length,
-                    total: area.perguntas.length
-                };
-            }
-            console.log('✅ Fallback carregado:', Object.keys(FALLBACK_QUESTIONS.areas).length, 'áreas');
-        } else {
-            console.warn('⚠️ FALLBACK_QUESTIONS não disponível. Inclua questions-fallback.js no HTML.');
-        }
-    },
-
-    /**
-     * Reseta completamente o estado (volta ao lobby vazio)
+     * Reseta completamente o estado
      */
     resetAll() {
         Game.resetAllPlayers();
@@ -459,16 +496,13 @@ window.Game.debug = {
     }
 };
 
-console.log('🔍 Game Debug carregado! Use Game.debug.* no console (F12)');
+console.log('🔍 Game Debug V3 carregado! Use Game.debug.* no console (F12)');
 console.log('💡 Comandos principais:');
-console.log('   simularPartidaCompleta()  - Partida realista (progressão individual) ⭐');
-console.log('   simularPartidaCompleta(4) - Com 4 jogadores');
-console.log('   simularPartidaCompleta(3, 0.3) - 3 jogadores, 30% acerto');
-console.log('   fakePlayers(3)            - Cria Host_Debug + Guests');
-console.log('   fakeStartGame()           - Inicia partida simulada');
-console.log('   testKPI(5)                - Simula 5 respostas para você');
-console.log('   testAllPlayers(2)         - Simula 2 rodadas para todos');
-console.log('   testSortear()             - Testa distribuição de sorteio');
-console.log('   skipToPhase("execucao")   - Pula para Execução');
-console.log('   dumpState()               - Mostra estado completo');
-console.log('   resetAll()                - Reseta tudo');
+console.log('   simularPartidaCompleta()     - Partida completa V3 (com vendas) ⭐');
+console.log('   simularPartidaCompleta(4, 0.3) - 4 jogadores, 30% acerto');
+console.log('   testVenda("Host_Debug", "Guest1_Debug") - Testa venda 💰');
+console.log('   testVendasAutomaticas(3)    - Simula 3 vendas 💰');
+console.log('   fakePlayers(3)              - Cria jogadores (📦10 recursos)');
+console.log('   dumpState()                 - Estado completo');
+console.log('   resetAll()                  - Reseta tudo');
+console.log('🔒 Travas: 500 rodadas máx | 10 rodadas sem resposta');

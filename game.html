@@ -1,18 +1,26 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PM: The KPI Master</title>
-    
+
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
-    
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Favicon (emoji como ícone) -->
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+
     <!-- CSS -->
     <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body class="page-game">
 
     <!-- ============================================ -->
@@ -20,7 +28,7 @@
     <!-- ============================================ -->
     <div id="screenLobby" class="screen active">
         <div class="game-container">
-            
+
             <header class="game-header">
                 <h1 class="header-title"><span class="title-pm">PM</span>: The KPI Master</h1>
                 <div class="header-room">
@@ -30,7 +38,7 @@
             </header>
 
             <div class="lobby-card glass-card">
-                
+
                 <div class="lobby-status">
                     <div class="status-indicator" id="connectionStatus">
                         <span class="status-dot status-connecting"></span>
@@ -70,20 +78,23 @@
                 <!-- Player waiting -->
                 <div id="playerWaiting" class="player-waiting" style="display:none;">
                     <div class="waiting-animation">
-                        <span class="waiting-dot"></span><span class="waiting-dot"></span><span class="waiting-dot"></span>
+                        <span class="waiting-dot"></span><span class="waiting-dot"></span><span
+                            class="waiting-dot"></span>
                     </div>
                     <p>Aguardando o host iniciar a partida...</p>
                 </div>
 
                 <!-- Ações -->
                 <div class="lobby-actions" style="margin-top:16px; display:flex; gap:10px; justify-content:center;">
-                    <button id="btnEndSession" class="btn btn-glass btn-sm" style="display:none; color:#ff4757; border-color:rgba(255,71,87,0.3);">⛔ Encerrar Sessão</button>
+                    <button id="btnEndSession" class="btn btn-glass btn-sm"
+                        style="display:none; color:#ff4757; border-color:rgba(255,71,87,0.3);">⛔ Encerrar
+                        Sessão</button>
                     <button id="btnLeaveSession" class="btn btn-glass btn-sm">🚪 Sair da Sessão</button>
                 </div>
             </div>
 
             <footer class="game-footer">
-                <p>🔗 Conexão P2P via PeerJS | ⏱️ Sessão de 120 min</p>
+                <p>🔗 Conexão P2P via PeerJS | ⏱️ Sessão de 120 min | 📦 Recursos</p>
             </footer>
         </div>
     </div>
@@ -93,23 +104,42 @@
     <!-- ============================================ -->
     <div id="screenGame" class="screen">
         <div class="game-container game-layout">
-            
+
             <aside class="sidebar sidebar-left">
                 <div class="player-card glass-card">
                     <div class="player-avatar" id="myAvatar">?</div>
                     <h3 class="player-name" id="myName">Jogador</h3>
+
+                    <!-- KPI -->
                     <div class="kpi-display">
                         <span class="kpi-icon">⭐</span>
                         <span class="kpi-value" id="myKPI">0</span>
                         <span class="kpi-label">KPI</span>
                     </div>
+
+                    <!-- Recursos (V2) -->
+                    <div class="recursos-display"
+                        style="display:flex; align-items:center; justify-content:center; gap:6px; margin-bottom:12px;">
+                        <span style="font-size:1.2rem;">📦</span>
+                        <span id="myRecursos"
+                            style="font-family:'Poppins',sans-serif; font-size:1.5rem; font-weight:800; color:#ffd700;">10</span>
+                        <span
+                            style="font-size:0.75rem; color:#a0a0b8; text-transform:uppercase; letter-spacing:1px;">Recursos</span>
+                    </div>
+
+                    <!-- Fase -->
                     <div class="phase-indicator">
                         <span class="phase-icon" id="myPhaseIcon">🚀</span>
                         <span class="phase-name" id="myPhaseName">Iniciação</span>
                     </div>
+
+                    <!-- Progresso -->
                     <div class="activity-progress">
-                        <div class="progress-text">Atividade <span id="myActivity">0</span>/<span id="myActivityTotal">2</span></div>
-                        <div class="progress-bar"><div class="progress-fill" id="myProgressFill" style="width:0%;"></div></div>
+                        <div class="progress-text">Atividade <span id="myActivity">0</span>/<span
+                                id="myActivityTotal">2</span></div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="myProgressFill" style="width:0%;"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -118,12 +148,19 @@
                     <div class="phases-list" id="phasesList"></div>
                 </div>
 
-                <button id="btnEndMatch" class="btn btn-glass btn-sm btn-block" style="display:none; color:#ffa502; border-color:rgba(255,165,2,0.3);">🏁 Encerrar Partida</button>
-                <button id="btnLeaveMatch" class="btn btn-glass btn-sm btn-block" style="margin-top:4px;">🚶 Sair da Partida</button>
+                <button id="btnEndMatch" class="btn btn-glass btn-sm btn-block"
+                    style="display:none; color:#ffa502; border-color:rgba(255,165,2,0.3);">🏁 Encerrar Partida</button>
+                <button id="btnLeaveMatch" class="btn btn-glass btn-sm btn-block" style="margin-top:4px;">🚶 Sair da
+                    Partida</button>
+                <!-- Venda de Recurso (V3) -->
+                <button id="btnVenderRecurso" class="btn btn-glass btn-sm btn-block"
+                    style="margin-top:4px; color:#ffd700; border-color:rgba(255,215,0,0.3);">
+                    💰 Vender Recurso
+                </button>
             </aside>
 
             <main class="main-area">
-                
+
                 <div class="top-bar">
                     <div class="timer-card glass-card" id="timerCard">
                         <span class="timer-icon">⏱️</span>
@@ -139,7 +176,7 @@
                 </div>
 
                 <div class="question-area glass-card" id="questionArea" style="display:none;">
-                    
+
                     <div class="round-info" id="roundInfo">
                         <span class="round-label">Rodada:</span>
                         <span class="round-detail">🗣️ <strong id="perguntadorName">---</strong> pergunta para</span>
@@ -155,13 +192,17 @@
 
                     <!-- Respondedor -->
                     <div class="alternatives-grid" id="alternativesGrid" style="display:none;">
-                        <button class="alternative-btn" data-alt="a"><span class="alt-letter">A</span><span class="alt-text" id="altA">---</span></button>
-                        <button class="alternative-btn" data-alt="b"><span class="alt-letter">B</span><span class="alt-text" id="altB">---</span></button>
-                        <button class="alternative-btn" data-alt="c"><span class="alt-letter">C</span><span class="alt-text" id="altC">---</span></button>
-                        <button class="alternative-btn" data-alt="d"><span class="alt-letter">D</span><span class="alt-text" id="altD">---</span></button>
+                        <button class="alternative-btn" data-alt="a"><span class="alt-letter">A</span><span
+                                class="alt-text" id="altA">---</span></button>
+                        <button class="alternative-btn" data-alt="b"><span class="alt-letter">B</span><span
+                                class="alt-text" id="altB">---</span></button>
+                        <button class="alternative-btn" data-alt="c"><span class="alt-letter">C</span><span
+                                class="alt-text" id="altC">---</span></button>
+                        <button class="alternative-btn" data-alt="d"><span class="alt-letter">D</span><span
+                                class="alt-text" id="altD">---</span></button>
                     </div>
 
-                    <!-- Perguntador (todas alternativas com destaque) -->
+                    <!-- Perguntador -->
                     <div class="all-alternatives" id="allAlternativesArea" style="display:none;">
                         <h4 style="margin-bottom:12px; color:#a0a0b8;">📋 Alternativas:</h4>
                         <div id="allAlternativesList" style="display:flex; flex-direction:column; gap:8px;"></div>
@@ -199,6 +240,8 @@
         <div class="game-container">
             <div class="gameover-card glass-card text-center">
                 <h2 class="gameover-title">🏆 Fim de Partida!</h2>
+                <p style="color:#a0a0b8; margin-bottom:16px;">KPI Total = Atividades concluídas + (Recursos restantes ×
+                    5)</p>
                 <div id="finalRanking" class="final-ranking"></div>
                 <button id="btnBackToLobby" class="btn btn-primary btn-lg">🔙 Voltar ao Lobby</button>
                 <button id="btnExitGameOver" class="btn btn-secondary" style="margin-left:8px;">🚪 Sair</button>
@@ -206,6 +249,38 @@
         </div>
     </div>
 
+    <!-- ============================================ -->
+    <!-- MODAL EVENTO (V2) -->
+    <!-- ============================================ -->
+    <div id="modalEvento" class="modal" style="display:none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-card glass-card"
+            style="text-align:center; border-color: #ffd700; box-shadow: 0 0 40px rgba(255,215,0,0.4); max-width: 420px;">
+            <span style="font-size:3rem; display:block; margin-bottom:8px;">📋</span>
+            <h2 id="eventoModalTitulo" style="color:#ffd700; margin:8px 0; font-size:1.3rem;">Evento</h2>
+            <p id="eventoModalDesc" style="color:#e0e0e0; font-size:1rem; margin-bottom:20px; line-height:1.5;">
+                Descrição do evento</p>
+            <button id="btnFecharEvento" class="btn btn-primary btn-lg" style="min-width:140px;">✕ Fechar</button>
+        </div>
+    </div>
+    <!-- MODAL VENDA (V3) -->
+    <div id="modalVenda" class="modal" style="display:none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-card glass-card" style="max-width:420px; text-align:center;">
+            <span style="font-size:2rem;">💰</span>
+            <h2 style="color:#ffd700; margin:8px 0;">Vender Recurso</h2>
+            <p style="color:#a0a0b8; margin-bottom:8px;">
+                Vender 1📦 por <strong style="color:#ffd700;">15 KPI</strong>
+            </p>
+            <p style="color:#e0e0e0; margin-bottom:12px;" id="vendaSeusRecursos">
+                Seus recursos: 📦 10
+            </p>
+            <div id="vendaCompradores" style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+                <!-- Lista de compradores preenchida dinamicamente -->
+            </div>
+            <button id="btnFecharVenda" class="btn btn-glass">✕ Cancelar</button>
+        </div>
+    </div>
     <!-- ============================================ -->
     <!-- MODAL RESULTADO -->
     <!-- ============================================ -->
@@ -221,25 +296,25 @@
     <!-- ============================================ -->
     <!-- SCRIPTS (ordem importa!) -->
     <!-- ============================================ -->
-    
+
     <!-- 1. Dependências externas -->
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
-    
+
     <!-- 2. Configuração -->
     <script src="config/game-config.js"></script>
-    
-  
+
     <!-- 3. Módulos do jogo -->
-    <script src="js/game-state.js"></script>      <!-- Estado + helpers -->
-    <script src="js/game-network.js"></script>     <!-- PeerJS + mensagens -->
-    <script src="js/game-core.js"></script>        <!-- Regras do jogo -->
-    <script src="js/game-ui.js"></script>          <!-- Interface -->
-    
-    <!-- 4. Debug (comentar no GitHub) 
-    <script src="js/game-debug.js"></script> -->
-    
+    <script src="js/game-state.js"></script>
+    <script src="js/game-network.js"></script>
+    <script src="js/game-core.js"></script>
+    <script src="js/game-ui.js"></script>
+
+    <!-- 4. Debug (comentar no GitHub) -->
+    <!-- <script src="js/game-debug.js"></script> -->
+
     <!-- 5. Orquestrador (sempre por último) -->
     <script src="js/game-main.js"></script>
 
 </body>
+
 </html>
