@@ -237,7 +237,7 @@ function handleMessage(msg, fromPeerId) {
             }
             break;
 
-        // --- VENDA (V3) ---
+        // --- VENDA (V2) ---
         case 'venda-confirmed':
             const vendedor = Game.getPlayerByName(msg.vendedor);
             const comprador = Game.getPlayerByName(msg.comprador);
@@ -258,6 +258,17 @@ function handleMessage(msg, fromPeerId) {
                 document.getElementById('myKPI').textContent = me2.kpi;
             }
             console.log('💰 Venda confirmada:', msg.vendedor, '→', msg.comprador);
+            break;
+        // --- ATUALIZAÇÃO DE JOGADORES (V2) ---
+        case 'players-update':
+            state.players = msg.players;
+            Game.ui.updatePlayersOnlineList();
+            Game.ui.updateRankingList();
+            const me = Game.getPlayerByName(state.playerName);
+            if (me) {
+                document.getElementById('myRecursos').textContent = me.recursos;
+                document.getElementById('myKPI').textContent = me.kpi;
+            }
             break;
     }
 }

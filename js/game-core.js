@@ -42,16 +42,20 @@ function startNewRound() {
     // V2: Aplica efeitos do evento nos recursos
     aplicarEfeitosEvento(evento);
 
-    // 🔧 V2: Atualiza UI imediatamente após o evento (Momento 1)
+    // Atualiza UI local (host)
     Game.ui.updatePlayersOnlineList();
     Game.ui.updateRankingList();
-    
-    // Atualiza recursos e KPI do próprio jogador na tela
     const me = Game.getPlayerByName(state.playerName);
     if (me) {
         document.getElementById('myRecursos').textContent = me.recursos;
         document.getElementById('myKPI').textContent = me.kpi;
     }
+
+    // 🔧 Envia estado atualizado para todos os guests
+    Game.network.broadcastAll({
+        type: 'players-update',
+        players: state.players
+    });
 
     pickNewPair(evento);
 }
@@ -64,7 +68,7 @@ function pickNewPair(evento = null) {
         if (eventos.length === 0) return;
         evento = eventos[Math.floor(Math.random() * eventos.length)];
         aplicarEfeitosEvento(evento);
-        
+
         // Atualiza UI se o evento foi aplicado aqui também
         Game.ui.updatePlayersOnlineList();
         Game.ui.updateRankingList();
