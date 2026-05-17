@@ -18,6 +18,8 @@
 | **Sem recursos** | Não se aplicava | **Pula a vez** |
 | **KPI Final** | Só acertos | Acertos + (recursos × 5) |
 | **Modal de Evento** | Não existia | Pop-up no início de cada rodada |
+| **Venda de Recursos** | Não existia | 1📦 por 15 KPI entre jogadores |
+| **Debug mode** | Simulação básica | Progressão individual, travas de segurança |
 
 ---
 
@@ -30,14 +32,16 @@
 3. Host inicia a partida (120 minutos)
 4. A cada rodada:
    - Um **evento** é sorteado (afeta recursos)
+   - Um **modal** mostra o evento para todos
    - Um jogador **pergunta** (vê a resposta)
    - Outro jogador **responde** (escolhe entre 4 alternativas)
 5. **Acertar** = +10 KPI + 1 atividade
 6. **Errar** = 0 KPI + 0 atividade
-7. **Toda resposta gasta 1 recurso** (exceto com Seguro de Projeto)
+7. **Toda resposta gasta 1 recurso** (exceto com 🛡️ Seguro de Projeto)
 8. **Sem recursos** = pula a vez
-9. O jogo termina quando o primeiro completa o **Encerramento**
-10. Vence quem tiver o **maior KPI Final**
+9. **Vender recurso**: 1📦 por 15 KPI para outro jogador
+10. O jogo termina quando o primeiro completa o **Encerramento**
+11. Vence quem tiver o **maior KPI Final**
 
 ---
 
@@ -66,6 +70,19 @@ KPI Total = KPI de acertos + (Recursos restantes × 5)
 | e3 | 🎁 **Patrocinador Generoso** | +2 recursos para quem tem menos |
 | e4 | 🛡️ **Seguro de Projeto** | Não gasta recurso se errar |
 | e5 | 🔄 **Reestruturação** | Mais rico dá 1 para mais pobre |
+
+---
+
+## 💰 Venda de Recursos
+
+| Ação | Vendedor | Comprador |
+|---|---|---|
+| 📦 Recurso | -1 | +1 |
+| ⭐ KPI | +15 | -15 |
+
+- Disponível a qualquer momento durante a partida
+- Comprador precisa ter pelo menos 15 KPI
+- Vendedor precisa ter pelo menos 1 recurso
 
 ---
 
@@ -126,31 +143,22 @@ python -m http.server 8080
 
 ## 🎯 Funcionalidades
 
-| V1 | V2 |
+| Funcionalidade | Status |
 |---|---|
 | 🔗 Conexão P2P | ✅ |
 | 👥 2-6 jogadores | ✅ |
-| 📚 100 perguntas | ✅ |
-| 🎯 5 fases | ✅ |
-| ⭐ KPI | ✅ (agora fixo) |
-| 📋 Eventos | ✅ (agora afetam recursos) |
+| 📚 100 perguntas (10 áreas) | ✅ |
+| 🎯 5 fases PMBOK | ✅ |
+| ⭐ KPI fixo (10 por acerto) | ✅ |
+| 📋 5 eventos | ✅ |
+| 🪟 Modal de evento | ✅ |
+| 📦 Sistema de recursos | 🆕 |
+| 💰 Venda de recursos | 🆕 |
 | ⏱️ Timer 120min | ✅ |
-| 🏆 Ranking | ✅ (com KPI Final) |
+| 🏆 Ranking com KPI Final | ✅ |
 | 🚪 Sair/Encerrar | ✅ |
 | 👑 Host migration | ✅ |
-| 📦 Recursos | 🆕 |
-| 🪟 Modal de Evento | 🆕 |
-| 🐛 Debug mode | 🆕 (com travas) |
-
----
-
-## 🔮 V3 (Futuro)
-
-- 💰 Venda de Recursos entre jogadores
-- 🤝 Consultoria (KPI para o consultor)
-- 🔊 Efeitos sonoros
-- 🎨 Animações
-- 📱 QR Code da sala
+| 🐛 Debug mode | ✅ |
 
 ---
 
