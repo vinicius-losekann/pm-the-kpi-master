@@ -1,0 +1,306 @@
+<!--
+V1 - 09/06/2026: Criação do layout inicial do tabuleiro PMBOK, com os cards e as setas principais.
+-->
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tabuleiro PMBOK - Rádios Dentro dos Cards</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0a0a1a 0%, #0f0f1f 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', 'Roboto', 'Courier New', monospace;
+            padding: 20px;
+        }
+
+        .diagram {
+            position: relative;
+            width: 1600px;
+            height: 950px;
+            background: transparent;
+        }
+
+        /* ============ ESTILO DOS CARDS ============ */
+        .card {
+            position: absolute;
+            background: linear-gradient(145deg, #0f3460 0%, #0a1a3a 100%);
+            border: 3px solid #e94560;
+            border-radius: 16px;
+            padding: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(233, 69, 96, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+            z-index: 20;
+        }
+
+        .card:hover {
+            transform: scale(1.02);
+            box-shadow: 0 0 35px rgba(233, 69, 96, 0.5);
+        }
+
+        /* LINHA DOS RÁDIOS ACIMA DO TÍTULO */
+        .radio-row {
+            text-align: center;
+            font-family: monospace;
+            font-size: 14px;
+            letter-spacing: 6px;
+            color: #00d4ff;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px dashed rgba(0, 212, 255, 0.3);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #fff;
+            text-align: center;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 3px solid #e94560;
+            letter-spacing: 2px;
+        }
+
+        /* ACTIVITY - TÍTULO EM CIMA, CHECKBOXES EM BAIXO */
+        .activity {
+            margin: 12px 0;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 8px 12px;
+            border-radius: 10px;
+        }
+
+        .activity-name {
+            font-weight: bold;
+            color: #fff;
+            font-size: 12px;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        /* CHECKBOXES TAMANHO NORMAL */
+        .checkboxes {
+            font-family: monospace;
+            font-size: 14px;
+            letter-spacing: 4px;
+            color: #00d4ff;
+            display: block;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 4px 8px;
+            border-radius: 8px;
+        }
+
+        /* POSIÇÃO DOS CARDS */
+        .card-iniciacao { 
+            left: 40px; 
+            top: 380px; 
+            width: 320px; 
+        }
+        .card-planejamento { 
+            left: 620px; 
+            top: 40px; 
+            width: 360px; 
+        }
+        .card-execucao { 
+            left: 600px; 
+            top: 680px; 
+            width: 400px; 
+        }
+        .card-encerramento { 
+            left: 1280px; 
+            top: 380px; 
+            width: 300px; 
+        }
+        .card-monitoramento {
+            left: 640px;
+            top: 370px;
+            width: 360px;
+            background: linear-gradient(145deg, #1a1a3e 0%, #0a0a2e 100%);
+            border: 3px solid #00d4ff;
+            z-index: 25;
+        }
+        .card-monitoramento .card-title {
+            border-bottom-color: #00d4ff;
+            color: #00d4ff;
+        }
+
+        /* ============ SVG DAS FLECHAS ============ */
+        .svg-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .arrow-line {
+            stroke: #00d4ff;
+            stroke-width: 3;
+            fill: none;
+            filter: drop-shadow(0 0 4px #00d4ff);
+        }
+
+        .dashed-line {
+            stroke: #ffaa44;
+            stroke-width: 2.5;
+            stroke-dasharray: 8, 6;
+            fill: none;
+            opacity: 0.9;
+            filter: drop-shadow(0 0 4px #ffaa44);
+        }
+    </style>
+</head>
+<body>
+<div class="diagram">
+
+    <!-- SVG DAS FLECHAS (sem textos) -->
+    <div class="svg-container">
+        <svg viewBox="0 0 1600 950">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#00d4ff" />
+                </marker>
+                <marker id="arrowhead-start" markerWidth="10" markerHeight="7" refX="1" refY="3.5" orient="auto">
+                    <polygon points="10 0, 0 3.5, 10 7" fill="#00d4ff" />
+                </marker>
+                <marker id="arrowhead-dashed" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#ffaa44" />
+                </marker>
+                <marker id="arrowhead-start-dashed" markerWidth="10" markerHeight="7" refX="1" refY="3.5" orient="auto">
+                    <polygon points="10 0, 0 3.5, 10 7" fill="#ffaa44" />
+                </marker>
+            </defs>
+
+            <!-- 1. INICIAÇÃO → PLANEJAMENTO -->
+            <path d="M 360 400 Q 450 280 540 200 Q 590 170 620 170" 
+                  class="arrow-line" marker-end="url(#arrowhead)" />
+
+            <!-- 2. PLANEJAMENTO → EXECUÇÃO (lado DIREITO) -->
+            <path d="M 980 180 Q 1100 350 1030 550 Q 1000 640 980 680" 
+                  class="arrow-line" marker-end="url(#arrowhead)" />
+
+            <!-- 3. EXECUÇÃO → PLANEJAMENTO (lado ESQUERDO - LOOP) -->
+            <path d="M 600 680 Q 480 520 540 320 Q 570 220 620 180" 
+                  class="arrow-line" marker-end="url(#arrowhead)" />
+
+            <!-- INICIAÇÃO ↔ MONITORAMENTO -->
+            <path d="M 360 450 L 620 450" 
+                  class="dashed-line" marker-end="url(#arrowhead-dashed)" marker-start="url(#arrowhead-start-dashed)" />
+
+            <!-- PLANEJAMENTO ↔ MONITORAMENTO -->
+            <path d="M 820 370 L 820 230" 
+                  class="dashed-line" marker-end="url(#arrowhead-dashed)" marker-start="url(#arrowhead-start-dashed)" />
+
+            <!-- MONITORAMENTO ↔ ENCERRAMENTO -->
+            <path d="M 1000 450 L 1260 450" 
+                  class="dashed-line" marker-end="url(#arrowhead-dashed)" marker-start="url(#arrowhead-start-dashed)" />
+
+            <!-- MONITORAMENTO ↔ EXECUÇÃO -->
+            <path d="M 820 650 L 820 590" 
+                  class="dashed-line" marker-end="url(#arrowhead-dashed)" marker-start="url(#arrowhead-start-dashed)" />
+
+        </svg>
+    </div>
+
+    <!-- CARD INICIAÇÃO -->
+    <div class="card card-iniciacao">
+        <div class="radio-row">◉ ◉ ◉ ◉ ◉ ◉</div>
+        <div class="card-title">📌 INICIAÇÃO</div>
+        <div class="activity">
+            <div class="activity-name">AI1: Desenvolver o TAP (Termo de Abertura)</div>
+            <div class="checkboxes">□ □ □ □ □ □</div>
+        </div>
+        <div class="activity">
+            <div class="activity-name">AI2: Identificar Partes Interessadas</div>
+            <div class="checkboxes">□ □ □ □ □ □</div>
+        </div>
+    </div>
+
+    <!-- CARD PLANEJAMENTO -->
+    <div class="card card-planejamento">
+        <div class="radio-row">◉ ◉ ◉ ◉ ◉ ◉</div>
+        <div class="card-title">📊 PLANEJAMENTO</div>
+        <div class="activity">
+            <div class="activity-name">APL1: Desenvolver o Orçamento</div>
+            <div class="checkboxes">□ □ □ □ □ □</div>
+        </div>
+        <div class="activity">
+            <div class="activity-name">APL2: Desenvolver o PGP (Plano de Gerenciamento)</div>
+            <div class="checkboxes">□ □ □ □ □ □</div>
+        </div>
+    </div>
+
+    <!-- CARD EXECUÇÃO -->
+    <div class="card card-execucao">
+        <div class="radio-row">◉ ◉ ◉ ◉ ◉ ◉</div>
+        <div class="card-title">⚡ EXECUÇÃO</div>
+        <div class="activity">
+            <div class="activity-name">AEX1: Planejamento e Análise de Requisitos</div>
+            <div class="checkboxes">□ □ □ □ □ □</div>
+        </div>
+        <div class="activity">
+            <div class="activity-name">AEX2: Design e Arquitetura</div>
+            <div class="checkboxes">□ □ □ □ □ □</div>
+        </div>
+        <div class="activity">
+            <div class="activity-name">AEX3: Implementação e Testes</div>
+            <div class="checkboxes">□ □ □ □ □ □</div>
+        </div>
+        <div class="activity">
+            <div class="activity-name">AEX4: Implantação e Manutenção</div>
+            <div class="checkboxes">□ □ □ □ □ □</div>
+        </div>
+        <div class="activity">
+            <div class="activity-name">AEX5: Gerenciar o Engajamento</div>
+            <div class="checkboxes">□ □ □ □ □ □</div>
+        </div>
+    </div>
+
+    <!-- CARD ENCERRAMENTO -->
+    <div class="card card-encerramento">
+        <div class="radio-row">◉ ◉ ◉ ◉ ◉ ◉</div>
+        <div class="card-title">🏁 ENCERRAMENTO</div>
+        <div class="activity">
+            <div class="activity-name">AEN1: Obter Aceitação Formal</div>
+            <div class="checkboxes">□ □ □ □ □ □</div>
+        </div>
+        <div class="activity">
+            <div class="activity-name">AEN2: Arquivar Lições Aprendidas</div>
+            <div class="checkboxes">□ □ □ □ □ □</div>
+        </div>
+    </div>
+
+    <!-- CARD MONITORAMENTO E CONTROLE (CENTRO) -->
+    <div class="card card-monitoramento">
+        <div class="radio-row">◉ ◉ ◉ ◉ ◉ ◉</div>
+        <div class="card-title">⚙️ MONITORAMENTO E CONTROLE</div>
+        <div class="activity">
+            <div class="activity-name">AMC1: Controle Integrado de Mudanças</div>
+            <div class="checkboxes">□ □ □ □ □ □</div>
+        </div>
+        <div class="activity">
+            <div class="activity-name">AMC2: Gerenciar Riscos</div>
+            <div class="checkboxes">□ □ □ □ □ □</div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>
