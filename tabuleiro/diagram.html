@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Tabuleiro PMBOK - Finalizado</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="diagram">
+
+    <div class="svg-container">
+        <svg viewBox="0 0 1800 1100">
+            <defs>
+                <marker id="headB" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#00d4ff" />
+                </marker>
+                <marker id="headY" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#ffaa44" />
+                </marker>
+                <marker id="headYRev" markerWidth="10" markerHeight="7" refX="1" refY="3.5" orient="auto">
+                    <polygon points="10 0, 0 3.5, 10 7" fill="#ffaa44" />
+                </marker>
+            </defs>
+
+            <path d="M 520 440 Q 600 200 675 130" class="arrow-line blue" marker-end="url(#headB)" />
+            <path d="M 1175 130 Q 1320 400 1175 730" class="arrow-line blue" marker-end="url(#headB)" />
+            <path d="M 675 800 Q 550 500 675 180" class="arrow-line blue" marker-end="url(#headB)" />
+
+            <path d="M 925 240 L 925 397" class="arrow-line yellow" marker-start="url(#headYRev)" marker-end="url(#headY)" />
+            
+            <path d="M 925 607 L 925 727" class="arrow-line yellow" marker-start="url(#headYRev)" marker-end="url(#headY)" />
+
+            <path d="M 523 500 L 672 500" class="arrow-line yellow" marker-start="url(#headYRev)" marker-end="url(#headY)" />
+            <path d="M 1178 500 L 1297 500" class="arrow-line yellow" marker-start="url(#headYRev)" marker-end="url(#headY)" />
+        </svg>
+    </div>
+
+    <div class="card card-iniciacao">
+        <div class="process-info">
+            <span class="card-title">📌 INICIAÇÃO</span>
+            <div class="radio-group">◉ ◉ ◉ ◉ ◉ ◉</div>
+        </div>
+        <div class="activities-grid">
+            <div class="activity"><span class="activity-name">AI1: Desenvolver o Termo de Abertura do Projeto</span><span class="checkboxes">□ □ □ □ □ □</span></div>
+            <div class="activity"><span class="activity-name">AI2: Identificar as Partes Interessadas</span><span class="checkboxes">□ □ □ □ □ □</span></div>
+        </div>
+    </div>
+
+    <div class="card card-planejamento">
+        <div class="process-info">
+            <span class="card-title">📊 PLANEJAMENTO</span>
+            <div class="radio-group">◉ ◉ ◉ ◉ ◉ ◉</div>
+        </div>
+        <div class="activities-grid">
+            <div class="activity"><span class="activity-name">APL1: Desenvolver o Orçamento do Projeto</span><span class="checkboxes">□ □ □ □ □ □</span></div>
+            <div class="activity"><span class="activity-name">APL2: Desenvolver o Plano de Gerenciamento do Projeto</span><span class="checkboxes">□ □ □ □ □ □</span></div>
+        </div>
+    </div>
+
+    <div class="card card-monitoramento">
+        <div class="process-info">
+            <span class="card-title">⚙️ MONITORAMENTO E CONTROLE</span>
+            <div class="radio-group">◉ ◉ ◉ ◉ ◉ ◉</div>
+        </div>
+        <div class="activities-grid">
+            <div class="activity"><span class="activity-name">AMC1: Realizar o Controle Integrado de Mudanças</span><span class="checkboxes">□ □ □ □ □ □</span></div>
+            <div class="activity"><span class="activity-name">AMC2: Monitorar e Gerenciar os Riscos</span><span class="checkboxes">□ □ □ □ □ □</span></div>
+        </div>
+    </div>
+
+    <div class="card card-execucao">
+        <div class="process-info">
+            <span class="card-title">⚡ EXECUÇÃO</span>
+            <div class="radio-group">◉ ◉ ◉ ◉ ◉ ◉</div>
+        </div>
+        <div class="activities-grid">
+            <div class="activity"><span class="activity-name">AEX1: Planejamento e Análise de Requisitos</span><span class="checkboxes">□ □ □ □ □ □</span></div>
+            <div class="activity"><span class="activity-name">AEX2: Design e Arquitetura da Solução</span><span class="checkboxes">□ □ □ □ □ □</span></div>
+            <div class="activity"><span class="activity-name">AEX3: Implementação e Testes de Qualidade</span><span class="checkboxes">□ □ □ □ □ □</span></div>
+            <div class="activity"><span class="activity-name">AEX4: Implantação e Manutenção do Sistema</span><span class="checkboxes">□ □ □ □ □ □</span></div>
+            <div class="activity"><span class="activity-name">AEX5: Gerenciar o Engajamento das Partes Interessadas</span><span class="checkboxes">□ □ □ □ □ □</span></div>
+        </div>
+    </div>
+
+    <div class="card card-encerramento">
+        <div class="process-info">
+            <span class="card-title">🏁 ENCERRAMENTO</span>
+            <div class="radio-group">◉ ◉ ◉ ◉ ◉ ◉</div>
+        </div>
+        <div class="activities-grid">
+            <div class="activity"><span class="activity-name">AEN1: Obter a Aceitação Formal das Entregas</span><span class="checkboxes">□ □ □ □ □ □</span></div>
+            <div class="activity"><span class="activity-name">AEN2: Arquivar Documentos e Lições Aprendidas</span><span class="checkboxes">□ □ □ □ □ □</span></div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>
