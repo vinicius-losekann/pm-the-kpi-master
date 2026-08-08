@@ -296,7 +296,7 @@ function displayQuestion(q) {
         const semAssessorDisponivel = Game.getActivePlayers().length < 3;
         const assessoriaArea = document.getElementById('assessoriaArea');
         if (assessoriaArea) {
-            if (emEncerramento) {
+            if (emEncerramento || semAssessorDisponivel) {
                 assessoriaArea.style.display = 'none';
             } else {
                 assessoriaArea.style.display = 'block';

@@ -130,9 +130,7 @@ window.Game.debug = {
             const acertou = Math.random() < 0.5;
             const evento = (state.questionsData?.eventos || [])[Math.floor(Math.random() * state.questionsData.eventos.length)];
             const temSeguro = evento?.reserva_contingencia === true;
-            //const gastaRecurso = !temReserva;
             const gastaRecurso = !temSeguro; 
-            //const gastaRecurso = acertou ? true : !temSeguro;
             if (gastaRecurso) player.recursos--;
 
             let kpiGanho = 0;
