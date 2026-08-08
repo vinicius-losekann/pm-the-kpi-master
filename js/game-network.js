@@ -210,7 +210,11 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'answer':
-            if (state.isHost && !state.currentRound.respondeu) {
+            if (
+                state.isHost &&
+                !state.currentRound.respondeu &&
+                msg.playerName === state.currentRound.respondedor
+            ) {
                 Game.core.handleAnswer(msg);
             }
             break;
@@ -226,16 +230,21 @@ function handleMessage(msg, fromPeerId) {
 
         // --- EVENTO ---
         case 'show-evento':
+            if (msg.players) {
+                state.players = msg.players;
+            }
+
             Game.ui.showEventoModal(msg.evento);
-            // 🔧 Atualiza UI do guest após evento
             Game.ui.updatePlayersOnlineList();
             Game.ui.updateRankingList();
+
             const me = Game.getPlayerByName(state.playerName);
             if (me) {
                 document.getElementById('myRecursos').textContent = me.recursos;
                 document.getElementById('myKPI').textContent = me.kpi;
             }
             break;
+
         case 'assessoria-request':
             if (state.isHost) Game.core.handleAssessoriaRequest(msg);
             break;
@@ -255,7 +264,7 @@ function handleMessage(msg, fromPeerId) {
         case 'assessoria-result':
             Game.ui.showAssessoriaResult(msg);
             break;
-                
+
         // --- VENDA ---
         case 'venda-confirmed':
             const vendedor = Game.getPlayerByName(msg.vendedor);

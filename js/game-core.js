@@ -43,7 +43,7 @@ function startNewRound() {
     // Atualiza UI imediatamente após o evento (Momento 1)
     Game.ui.updatePlayersOnlineList();
     Game.ui.updateRankingList();
-    
+
     // Atualiza recursos e KPI do próprio jogador na tela
     const me = Game.getPlayerByName(state.playerName);
     if (me) {
@@ -62,7 +62,7 @@ function pickNewPair(evento = null) {
         if (eventos.length === 0) return;
         evento = eventos[Math.floor(Math.random() * eventos.length)];
         aplicarEfeitosEvento(evento);
-        
+
         // Atualiza UI se o evento foi aplicado aqui também
         Game.ui.updatePlayersOnlineList();
         Game.ui.updateRankingList();
@@ -74,7 +74,7 @@ function pickNewPair(evento = null) {
     }
 
     // Mostra modal do evento para todos
-    Game.network.broadcastAll({ type: 'show-evento', evento: evento });
+    Game.network.broadcastAll({ type: 'show-evento', evento: evento, players: state.players });
     Game.ui.showEventoModal(evento);
 
     const activePlayers = Game.getActivePlayers();
@@ -241,6 +241,13 @@ function aplicarEfeitosEvento(evento) {
 // ============================================
 
 function handleAnswer(msg) {
+    const { respondedor: respondedorName } = state.currentRound;
+
+    if (msg.playerName && msg.playerName !== respondedorName) {
+        console.warn('⚠️ Resposta ignorada: jogador não é o respondedor da rodada.');
+        return;
+    }
+
     const state = Game.state;
 
     if (state.currentRound.respondeu) {
