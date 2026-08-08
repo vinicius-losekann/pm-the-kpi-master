@@ -161,7 +161,7 @@ async function init() {
         `<div class="phase-item" data-phase="${f.id}">${f.emoji} ${f.nome}</div>`
     ).join('');
 
-    // 3. Tenta restaurar estado (não usado nesta versão, preparado para V2)
+    // Tenta restaurar estado
     tryRestoreState();
 
     // 4. Carrega perguntas

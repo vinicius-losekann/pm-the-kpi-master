@@ -107,7 +107,7 @@ window.Game.debug = {
     },
 
     /**
-     * Simula N respostas para um jogador (V2: com recursos)
+     * Simula N respostas para um jogador (com recursos)
      */
     testKPI(count = 5, playerName = null) {
         const state = Game.state;
@@ -130,7 +130,9 @@ window.Game.debug = {
             const acertou = Math.random() < 0.5;
             const evento = (state.questionsData?.eventos || [])[Math.floor(Math.random() * state.questionsData.eventos.length)];
             const temSeguro = evento?.reserva_contingencia === true;
-            const gastaRecurso = acertou ? true : !temSeguro;
+            //const gastaRecurso = !temReserva;
+            const gastaRecurso = !temSeguro; 
+            //const gastaRecurso = acertou ? true : !temSeguro;
             if (gastaRecurso) player.recursos--;
 
             let kpiGanho = 0;
@@ -355,8 +357,8 @@ window.Game.debug = {
                 if (!pergunta) { continue; }
 
                 const acertou = Math.random() < chanceAcerto;
-                const temSeguro = evento?.reserva_contingencia === true;
-                const gastaRecurso = acertou ? true : !temSeguro;
+                const temReserva = evento?.reserva_contingencia === true;
+                const gastaRecurso = !temReserva;
                 if (gastaRecurso) jogador.recursos--;
 
                 let kpiGanho = 0;
