@@ -293,6 +293,7 @@ function displayQuestion(q) {
         // Botão de Assessoria — oculto na fase de Encerramento
         const me = Game.getPlayerByName(Game.state.playerName);
         const emEncerramento = me && Game.getFaseIndex(me.phase) === CONFIG.FASES.length - 1;
+        const semAssessorDisponivel = Game.getActivePlayers().length < 3;
         const assessoriaArea = document.getElementById('assessoriaArea');
         if (assessoriaArea) {
             if (emEncerramento) {
