@@ -1,5 +1,5 @@
 // ============================================
-// PM: The KPI Master - ESTADO DO JOGO (V2)
+// PM: The KPI Master - ESTADO DO JOGO
 // ============================================
 // Responsabilidades:
 //   - Define o objeto gameState (fonte da verdade)

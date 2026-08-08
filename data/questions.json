@@ -1181,12 +1181,12 @@
       "recursos_menos": 2
     },
     {
-      "id": "e4",
-      "titulo": "Seguro de Projeto",
-      "descricao": "Seguro cobriu os custos! Respondedor não gasta recurso se errar.",
-      "seguro_erro": true
-    },
-    {
+       "id": "e4",
+       "titulo": "Reserva de Contingência",
+       "descricao": "Reserva de contingência ativada! O Respondedor não gasta recurso nesta rodada, acertando ou errando.",
+       "reserva_contingencia": true
+   },    
+   {
       "id": "e5",
       "titulo": "Reestruturação",
       "descricao": "Equipe reorganizada! Quem tem mais dá 1 recurso para quem tem menos.",

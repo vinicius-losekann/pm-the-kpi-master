@@ -1,32 +1,23 @@
-// ============================================
-// PM: The KPI Master - CONFIGURAÇÕES GLOBAIS (V2)
-// ============================================
-// Centraliza todas as constantes do jogo.
-// Para ajustar pontuação, fases ou timer, edite apenas este arquivo.
-// ============================================
-
 const CONFIG = {
 
-    // --- PONTUAÇÃO (KPI) ---
     KPI: {
-        ACERTO_BASE: 10,           // KPI por atividade completada
-        VALOR_RECURSO_FINAL: 5,    // KPI por recurso restante no fim do jogo
-        VALOR_VENDA_RECURSO: 15,   // KPI por venda de recurso
+        ACERTO_BASE: 10,
+        VALOR_RECURSO_FINAL: 5,
+        VALOR_VENDA_RECURSO: 10,   // era 15 — README pede 10
+        ASSESSORIA_ACERTO: 5,     // NOVO — bônus do assessor quando acerta
     },
 
-    // --- RECURSOS ---
-    RECURSOS_INICIAIS: 10,          // Recursos que cada jogador recebe no início
+    RECURSOS_INICIAIS: 10,
 
-    // --- REGRAS DO JOGO ---
     JOGO: {
-        MAX_PLAYERS: 6,            // Máximo de jogadores na sala
-        MIN_PLAYERS: 2,            // Mínimo para iniciar partida
-        SESSION_DURATION: 7200,    // 120 minutos (em segundos)
-        ACTIVITIES_PER_PHASE: 2,   // Atividades para avançar de fase
-        HOST_TIMEOUT: 30000,       // 30s para detectar host offline
+        MAX_PLAYERS: 6,
+        MIN_PLAYERS: 2,
+        SESSION_DURATION: 5400,    // era 7200 — README pede 90 minutos
+        ACTIVITIES_PER_PHASE: 2,
+        HOST_TIMEOUT: 30000,
+        ASSESSORIA_TIMEOUT: 20000, // NOVO — 20s para o assessor responder
     },
 
-    // --- FASES (Grupos de Processo PMBOK) ---
     FASES: [
         { id: 'iniciacao',              nome: 'Iniciação',                   emoji: '🚀' },
         { id: 'planejamento',           nome: 'Planejamento',                emoji: '📋' },
@@ -35,16 +26,13 @@ const CONFIG = {
         { id: 'encerramento',           nome: 'Encerramento',                emoji: '🏁' },
     ],
 
-    // --- SALA ---
     ROOM_PREFIX: 'pm-the-kpi-master-',
 
-    // --- TIMER ---
     TIMER: {
-        WARNING: 1800,   // 30 min - amarelo
-        DANGER: 600,     // 10 min - vermelho
-        CRITICAL: 300,   // 5 min  - piscando
+        WARNING: 1800,
+        DANGER: 600,
+        CRITICAL: 300,
     },
 };
 
 window.CONFIG = CONFIG;
-

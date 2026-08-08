@@ -224,7 +224,7 @@ function handleMessage(msg, fromPeerId) {
             Game.ui.updateTimerDisplay();
             break;
 
-        // --- EVENTO (V2) ---
+        // --- EVENTO ---
         case 'show-evento':
             Game.ui.showEventoModal(msg.evento);
             // 🔧 Atualiza UI do guest após evento
@@ -236,8 +236,27 @@ function handleMessage(msg, fromPeerId) {
                 document.getElementById('myKPI').textContent = me.kpi;
             }
             break;
+        case 'assessoria-request':
+            if (state.isHost) Game.core.handleAssessoriaRequest(msg);
+            break;
 
-        // --- VENDA (V3) ---
+        case 'assessoria-started':
+            Game.ui.showAssessoriaStarted(msg);
+            break;
+
+        case 'assessoria-question':
+            Game.ui.showAssessoriaQuestionModal(msg);
+            break;
+
+        case 'assessoria-answer':
+            if (state.isHost) Game.core.handleAssessoriaAnswer(msg);
+            break;
+
+        case 'assessoria-result':
+            Game.ui.showAssessoriaResult(msg);
+            break;
+                
+        // --- VENDA ---
         case 'venda-confirmed':
             const vendedor = Game.getPlayerByName(msg.vendedor);
             const comprador = Game.getPlayerByName(msg.comprador);

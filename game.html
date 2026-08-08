@@ -94,7 +94,7 @@
             </div>
 
             <footer class="game-footer">
-                <p>🔗 Conexão P2P via PeerJS | ⏱️ Sessão de 120 min | 📦 Recursos</p>
+                <p>🔗 Conexão P2P via PeerJS | ⏱️ Sessão de 90 min | 📦 Recursos</p>
             </footer>
         </div>
     </div>
@@ -164,7 +164,7 @@
                 <div class="top-bar">
                     <div class="timer-card glass-card" id="timerCard">
                         <span class="timer-icon">⏱️</span>
-                        <span class="timer-value" id="timerDisplay">120:00</span>
+                        <span class="timer-value" id="timerDisplay">90:00</span>
                     </div>
                     <div class="event-card glass-card" id="eventCard" style="display:none;">
                         <span class="event-icon">📋</span>
@@ -209,6 +209,11 @@
                     </div>
 
                     <div class="role-notice" id="roleNotice" style="display:none;"></div>
+                    <div class="assessoria-area" id="assessoriaArea"
+                        style="display:none; margin-top:16px; text-align:center;">
+                        <button id="btnPedirAssessoria" class="btn btn-glass btn-sm">📞 Pedir Assessoria</button>
+                        <div id="assessoriaStatus" style="margin-top:8px; font-size:0.85rem; color:#a0a0b8;"></div>
+                    </div>
                 </div>
 
                 <div class="spectator-area glass-card" id="spectatorArea">
@@ -250,7 +255,7 @@
     </div>
 
     <!-- ============================================ -->
-    <!-- MODAL EVENTO (V2) -->
+    <!-- MODAL EVENTO
     <!-- ============================================ -->
     <div id="modalEvento" class="modal" style="display:none;">
         <div class="modal-overlay"></div>
@@ -263,7 +268,7 @@
             <button id="btnFecharEvento" class="btn btn-primary btn-lg" style="min-width:140px;">✕ Fechar</button>
         </div>
     </div>
-    <!-- MODAL VENDA (V3) -->
+    <!-- MODAL VENDA -->
     <div id="modalVenda" class="modal" style="display:none;">
         <div class="modal-overlay"></div>
         <div class="modal-card glass-card" style="max-width:420px; text-align:center;">
@@ -292,7 +297,33 @@
             <button id="btnCloseResult" class="btn btn-primary">OK</button>
         </div>
     </div>
+    <!-- MODAL SELEÇÃO DE ASSESSOR -->
+    <div id="modalAssessoriaSelect" class="modal" style="display:none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-card glass-card" style="max-width:420px; text-align:center;">
+            <span style="font-size:2rem;">📞</span>
+            <h2 style="color:#00d9ff; margin:8px 0;">Pedir Assessoria</h2>
+            <p style="color:#a0a0b8; margin-bottom:12px;">Escolha um jogador para consultar:</p>
+            <div id="assessoriaJogadoresList" style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+            </div>
+            <button id="btnFecharAssessoriaSelect" class="btn btn-glass">✕ Cancelar</button>
+        </div>
+    </div>
 
+    <!-- MODAL PERGUNTA DE ASSESSORIA -->
+    <div id="modalAssessoriaQuestion" class="modal" style="display:none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-card glass-card" style="max-width:480px; text-align:center;">
+            <span style="font-size:2rem;">🧭</span>
+            <h2 style="color:#6c63ff; margin:8px 0;">Pedido de Assessoria</h2>
+            <p style="color:#a0a0b8; margin-bottom:8px;" id="assessoriaTimerText">⏱️ 20s</p>
+            <p style="color:#e0e0e0; margin-bottom:16px;" id="assessoriaQuestionText">Pergunta...</p>
+            <div id="assessoriaAlternativesList"
+                style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;"></div>
+            <button id="btnRecusarAssessoria" class="btn btn-glass"
+                style="color:#ff4757; border-color:rgba(255,71,87,0.3);">❌ Recusar</button>
+        </div>
+    </div>
     <!-- ============================================ -->
     <!-- SCRIPTS (ordem importa!) -->
     <!-- ============================================ -->

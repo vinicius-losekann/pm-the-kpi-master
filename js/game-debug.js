@@ -1,11 +1,11 @@
 // ============================================
-// PM: The KPI Master - FERRAMENTAS DE DEBUG (V3)
+// PM: The KPI Master - FERRAMENTAS DE DEBUG
 // ============================================
 // Responsabilidades:
 //   - Simular jogadores e partidas para teste
 //   - Testar funções de core sem precisar de 2 pessoas
 //   - Expor estado e funções no console (F12)
-//   - V3: Venda de recursos
+//   - Venda de recursos
 //
 // ⚠️ APENAS PARA DESENVOLVIMENTO
 // Comente a linha no game.html para produção
@@ -128,8 +128,8 @@ window.Game.debug = {
             if (!pergunta) break;
 
             const acertou = Math.random() < 0.5;
-            const evento = (state.questionsData?.eventos || [])[Math.floor(Math.random() * 5)];
-            const temSeguro = evento?.seguro_erro === true;
+            const evento = (state.questionsData?.eventos || [])[Math.floor(Math.random() * state.questionsData.eventos.length)];
+            const temSeguro = evento?.reserva_contingencia === true;
             const gastaRecurso = acertou ? true : !temSeguro;
             if (gastaRecurso) player.recursos--;
 
@@ -179,7 +179,7 @@ window.Game.debug = {
     },
 
     // ============================================
-    // V3: VENDA DE RECURSOS
+    // VENDA DE RECURSOS
     // ============================================
 
     /**
@@ -265,7 +265,7 @@ window.Game.debug = {
     },
 
     // ============================================
-    // SIMULAÇÃO COMPLETA (V3 - Com Vendas)
+    // SIMULAÇÃO COMPLETA (Com Vendas)
     // ============================================
 
     /**
@@ -277,11 +277,11 @@ window.Game.debug = {
         const MAX_RODADAS = 500;
         const MAX_SEM_RECURSOS = 10;
 
-        console.log('🚀 Iniciando simulação de partida completa (V3)...');
+        console.log('🚀 Iniciando simulação de partida completa...');
         console.log(`👥 Jogadores: ${numJogadores} | 🎯 Chance de acerto: ${Math.round(chanceAcerto * 100)}%`);
         console.log(`📦 Recursos iniciais: ${CONFIG.RECURSOS_INICIAIS} | ⭐ KPI por acerto: ${CONFIG.KPI.ACERTO_BASE}`);
         console.log(`💰 Valor de venda: ${CONFIG.KPI.VALOR_VENDA_RECURSO} KPI por recurso`);
-        console.log('📋 Regras V3: Venda de recursos entre jogadores');
+        console.log('📋 Regras: Venda de recursos entre jogadores');
         console.log('🛑 Termina quando o PRIMEIRO completar o Encerramento\n');
 
         if (Game.state.players.length < 2) {
@@ -311,10 +311,10 @@ window.Game.debug = {
                 break;
             }
 
-            const evento = Game.state.questionsData.eventos[Math.floor(Math.random() * 5)];
+            const evento = Game.state.questionsData.eventos[Math.floor(Math.random() * Game.state.questionsData.eventos.length)];
             Game.core.aplicarEfeitosEvento(evento);
 
-            // V3: Chance de venda automática a cada rodada (15%)
+            // Chance de venda automática a cada rodada (15%)
             if (Math.random() < 0.15 && rodada > 3) {
                 const vendedores = jogadores.filter(p => p.recursos > 1);
                 const compradores = jogadores.filter(p => p.kpi >= CONFIG.KPI.VALOR_VENDA_RECURSO);
@@ -355,7 +355,7 @@ window.Game.debug = {
                 if (!pergunta) { continue; }
 
                 const acertou = Math.random() < chanceAcerto;
-                const temSeguro = evento?.seguro_erro === true;
+                const temSeguro = evento?.reserva_contingencia === true;
                 const gastaRecurso = acertou ? true : !temSeguro;
                 if (gastaRecurso) jogador.recursos--;
 
@@ -458,7 +458,7 @@ window.Game.debug = {
         console.log(`🎯 Quem disparou o fim: ${vencedor}`);
         console.log(`🏆 Vencedor (maior KPI final): ${ranking[0].name} (${ranking[0].kpiFinal} KPI)`);
         console.log(`🔄 Total de rodadas: ${rodada}`);
-        console.log('✅ Simulação V3 concluída!');
+        console.log('✅ Simulação concluída!');
     },
 
     /**
@@ -466,7 +466,7 @@ window.Game.debug = {
      */
     dumpState() {
         const state = Game.state;
-        console.log('══════════════ STATE DUMP (V3) ══════════════');
+        console.log('══════════════ STATE DUMP ══════════════');
         console.log('👑 isHost:', state.isHost);
         console.log('👤 playerName:', state.playerName);
         console.log('🎮 gameStarted:', state.gameStarted);
@@ -496,9 +496,9 @@ window.Game.debug = {
     }
 };
 
-console.log('🔍 Game Debug V3 carregado! Use Game.debug.* no console (F12)');
+console.log('🔍 Game Debug carregado! Use Game.debug.* no console (F12)');
 console.log('💡 Comandos principais:');
-console.log('   simularPartidaCompleta()     - Partida completa V3 (com vendas) ⭐');
+console.log('   simularPartidaCompleta()     - Partida completa (com vendas) ⭐');
 console.log('   simularPartidaCompleta(4, 0.3) - 4 jogadores, 30% acerto');
 console.log('   testVenda("Host_Debug", "Guest1_Debug") - Testa venda 💰');
 console.log('   testVendasAutomaticas(3)    - Simula 3 vendas 💰');

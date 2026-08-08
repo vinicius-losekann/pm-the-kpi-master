@@ -1,15 +1,13 @@
 // ============================================
-// PM: The KPI Master - NÚCLEO DO JOGO (V2)
+// PM: The KPI Master - NÚCLEO DO JOGO
 // ============================================
 // Responsabilidades:
 //   - Lógica de rodadas (sorteio de pares, perguntas)
 //   - Controle de baralho (evitar repetição)
 //   - Cálculo de KPI e progressão de fases
-//   - Sistema de recursos (V2)
+//   - Sistema de recursos 
 //   - Controle de partida (iniciar, encerrar)
-//   - Controle de sessão (encerrar, sair)
-//
-// Regras V2:
+//   - Controle de sessão (encerrar, sair) 
 //   - Recursos iniciais: 10 por jogador
 //   - Responder gasta 1 recurso (acertando ou errando)
 //   - Atividade só ganha se acertar
@@ -39,10 +37,10 @@ function startNewRound() {
     }
     const evento = eventos[Math.floor(Math.random() * eventos.length)];
 
-    // V2: Aplica efeitos do evento nos recursos
+    // Aplica efeitos do evento nos recursos
     aplicarEfeitosEvento(evento);
 
-    // 🔧 V2: Atualiza UI imediatamente após o evento (Momento 1)
+    // Atualiza UI imediatamente após o evento (Momento 1)
     Game.ui.updatePlayersOnlineList();
     Game.ui.updateRankingList();
     
@@ -75,7 +73,7 @@ function pickNewPair(evento = null) {
         }
     }
 
-    // V2: Mostra modal do evento para todos
+    // Mostra modal do evento para todos
     Game.network.broadcastAll({ type: 'show-evento', evento: evento });
     Game.ui.showEventoModal(evento);
 
@@ -192,7 +190,7 @@ function resetBaralho(areaKey) {
 }
 
 // ============================================
-// EFEITOS DOS EVENTOS (V2)
+// EFEITOS DOS EVENTOS
 // ============================================
 
 function aplicarEfeitosEvento(evento) {
@@ -239,7 +237,7 @@ function aplicarEfeitosEvento(evento) {
 }
 
 // ============================================
-// RESPOSTA E KPI (V2 - COM RECURSOS)
+// RESPOSTA E KPI (COM RECURSOS)
 // ============================================
 
 function handleAnswer(msg) {
@@ -258,7 +256,6 @@ function handleAnswer(msg) {
 
     if (!respondedor) return;
 
-    // Verifica se tem recursos para responder
     if (respondedor.recursos <= 0) {
         console.warn('⚠️ ' + respondedorName + ' sem recursos! Pulando vez.');
         Game.network.broadcastAll({
@@ -278,9 +275,9 @@ function handleAnswer(msg) {
         return;
     }
 
-    // Evento e4: Seguro de Projeto - não gasta recurso se errar
-    const temSeguro = evento?.seguro_erro === true;
-    const gastaRecurso = acertou ? true : !temSeguro;
+    // Reserva de Contingência (e4) — não gasta recurso, acertando ou errando
+    const temReserva = evento?.reserva_contingencia === true;
+    const gastaRecurso = !temReserva;
 
     if (gastaRecurso) {
         respondedor.recursos--;
@@ -299,10 +296,9 @@ function handleAnswer(msg) {
         }
     }
 
-    const seguroMsg = !gastaRecurso ? ' (seguro)' : '';
+    const seguroMsg = temReserva ? ' (reserva de contingência)' : '';
     console.log('📊 ' + (acertou ? '✅ Acertou' : '❌ Errou') + ' | Recursos: ' + respondedor.recursos + seguroMsg + ' | KPI: ' + respondedor.kpi);
 
-    // 🔧 V2: Atualiza UI após resposta (Momento 3)
     Game.network.broadcastAll({
         type: 'kpi-update',
         playerName: respondedorName,
@@ -324,6 +320,37 @@ function handleAnswer(msg) {
             acertou,
             kpiGanho
         });
+    }
+
+    // Bônus de Assessoria — assessor ganha +5 KPI se a sugestão foi seguida e estava correta
+    const assessoria = state.currentRound.assessoria;
+    if (assessoria && assessoria.status === 'accepted' && assessoria.sugestao === msg.alternativa && acertou) {
+        const assessor = Game.getPlayerByName(assessoria.assessorName);
+        if (assessor) {
+            assessor.kpi += CONFIG.KPI.ASSESSORIA_ACERTO;
+            console.log('🧭 Assessoria: ' + assessor.name + ' +' + CONFIG.KPI.ASSESSORIA_ACERTO + ' KPI');
+
+            Game.network.broadcastAll({
+                type: 'kpi-update',
+                playerName: assessor.name,
+                kpi: assessor.kpi,
+                phase: assessor.phase,
+                activities: assessor.activities,
+                recursos: assessor.recursos,
+                assessoriaBonus: CONFIG.KPI.ASSESSORIA_ACERTO
+            });
+
+            if (state.isHost && assessor.name === state.playerName) {
+                updatePlayerKPI({
+                    playerName: assessor.name,
+                    kpi: assessor.kpi,
+                    phase: assessor.phase,
+                    activities: assessor.activities,
+                    recursos: assessor.recursos,
+                    assessoriaBonus: CONFIG.KPI.ASSESSORIA_ACERTO
+                });
+            }
+        }
     }
 
     state.usedRespondedorThisRound.push(respondedorName);
@@ -362,7 +389,6 @@ function updatePlayerKPI(msg) {
         if (msg.recursos !== undefined) player.recursos = msg.recursos;
     }
 
-    // 🔧 V2: Atualiza UI do próprio jogador
     if (msg.playerName === state.playerName) {
         document.getElementById('myKPI').textContent = msg.kpi;
         if (msg.recursos !== undefined) {
@@ -377,6 +403,8 @@ function updatePlayerKPI(msg) {
 
         if (msg.acertou !== undefined) {
             Game.ui.showResultModal(msg.acertou, msg.kpiGanho, msg.recursos);
+        } else if (msg.assessoriaBonus) {
+            Game.ui.showAssessoriaBonusModal(msg.assessoriaBonus);
         }
     }
 
@@ -384,6 +412,101 @@ function updatePlayerKPI(msg) {
     Game.ui.updateRankingList();
 }
 
+// ============================================
+// SISTEMA DE ASSESSORIA
+// ============================================
+
+/**
+ * Chamado pelo cliente do Respondedor ao escolher um assessor.
+ */
+function requestAssessoria(assessorName) {
+    const state = Game.state;
+
+    if (!state.currentRound || state.currentRound.assessoria) {
+        console.warn('⚠️ Já existe um pedido de assessoria nesta rodada.');
+        return false;
+    }
+
+    const me = Game.getPlayerByName(state.playerName);
+    if (me && Game.getFaseIndex(me.phase) === CONFIG.FASES.length - 1) {
+        alert('⚠️ Jogadores na fase de Encerramento não podem pedir assessoria.');
+        return false;
+    }
+
+    if (state.isHost) {
+        handleAssessoriaRequest({ assessorName, requesterName: state.playerName });
+    } else {
+        Game.network.sendToHost({ type: 'assessoria-request', assessorName, requesterName: state.playerName });
+    }
+    return true;
+}
+
+/**
+ * HOST: processa o pedido de assessoria e envia a pergunta ao assessor escolhido.
+ */
+function handleAssessoriaRequest(msg) {
+    const state = Game.state;
+    if (!state.isHost || !state.currentRound || state.currentRound.assessoria) return;
+    if (msg.requesterName !== state.currentRound.respondedor) return;
+
+    const assessor = Game.getPlayerByName(msg.assessorName);
+    if (!assessor || assessor.waitingInLobby) return;
+    if (msg.assessorName === state.currentRound.perguntador) return;
+    if (msg.assessorName === state.currentRound.respondedor) return;
+
+    state.currentRound.assessoria = {
+        assessorName: msg.assessorName,
+        status: 'pending',
+        sugestao: null
+    };
+
+    Game.network.broadcastAll({
+        type: 'assessoria-started',
+        assessorName: msg.assessorName,
+        requesterName: msg.requesterName
+    });
+
+    const pergunta = state.currentRound.pergunta;
+    const areaNome = state.questionsData.areas[pergunta.area_key]?.nome || pergunta.area_key;
+
+    Game.network.sendToPlayer(assessor.peerId, {
+        type: 'assessoria-question',
+        pergunta: pergunta.pergunta,
+        area: areaNome,
+        alternativas: pergunta.alternativas,
+        id: pergunta.id
+    });
+
+    if (state.assessoriaTimeout) clearTimeout(state.assessoriaTimeout);
+    state.assessoriaTimeout = setTimeout(() => {
+        handleAssessoriaAnswer({ alternativa: null, recusado: true, timeout: true });
+    }, CONFIG.JOGO.ASSESSORIA_TIMEOUT);
+}
+
+/**
+ * HOST: processa a resposta (ou recusa/timeout) do assessor.
+ */
+function handleAssessoriaAnswer(msg) {
+    const state = Game.state;
+    if (!state.isHost || !state.currentRound || !state.currentRound.assessoria) return;
+    if (state.currentRound.assessoria.status !== 'pending') return;
+
+    if (state.assessoriaTimeout) {
+        clearTimeout(state.assessoriaTimeout);
+        state.assessoriaTimeout = null;
+    }
+
+    state.currentRound.assessoria.status = msg.recusado ? 'declined' : 'accepted';
+    state.currentRound.assessoria.sugestao = msg.recusado ? null : msg.alternativa;
+
+    Game.network.broadcastAll({
+        type: 'assessoria-result',
+        assessorName: state.currentRound.assessoria.assessorName,
+        sugestao: state.currentRound.assessoria.sugestao,
+        recusado: !!msg.recusado,
+        timeout: !!msg.timeout
+    });
+}
 // ============================================
 // CONTROLE DE PARTIDA
 // ============================================
@@ -393,7 +516,7 @@ function startGame() {
     state.gameStarted = true;
     state.usedRespondedorThisRound = [];
 
-    // V2: Inicializa recursos
+    // Inicializa recursos
     state.players.forEach(p => {
         p.recursos = CONFIG.RECURSOS_INICIAIS;
     });
@@ -462,7 +585,7 @@ function handleMatchEnded(msg) {
 }
 
 // ============================================
-// VENDA DE RECURSOS (V3)
+// VENDA DE RECURSOS
 // ============================================
 
 function venderRecurso(compradorName) {
@@ -498,7 +621,7 @@ function venderRecurso(compradorName) {
 
     console.log('💰 Venda:', vendedor.name, 'vendeu 1📦 para', comprador.name, 'por', CONFIG.KPI.VALOR_VENDA_RECURSO, 'KPI');
 
-    // 🔧 V2: Atualiza UI após venda (Momento 2)
+    // 🔧 Atualiza UI após venda (Momento 2)
     Game.ui.updatePlayersOnlineList();
     Game.ui.updateRankingList();
 
@@ -573,7 +696,7 @@ function leaveSession() {
 }
 
 // ============================================
-// RANKING (V2 - KPI = acertos + vendas - compras + recursos)
+// RANKING (KPI = acertos + vendas - compras + recursos)
 // ============================================
 
 function buildRanking() {
@@ -615,5 +738,8 @@ window.Game.core = {
     leaveSession,
     buildRanking,
     venderRecurso,
-    getCompradores
+    getCompradores,
+    requestAssessoria,
+    handleAssessoriaRequest,
+    handleAssessoriaAnswer
 };
