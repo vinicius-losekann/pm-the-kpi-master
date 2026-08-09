@@ -221,14 +221,19 @@ function handleMessage(msg, fromPeerId) {
             state.timer = msg.timer;
             Game.core.startGame();
             break;
+        case 'leave-match-request':
+            if (state.isHost) Game.core.handleLeaveMatchRequest(msg);
+            break;
 
         case 'match-ended':
             Game.core.handleMatchEnded(msg);
             break;
 
+
         case 'game-over':
             Game.core.endGame(msg.ranking);
             break;
+
 
         // --- RODADA ---
         case 'round-start':
