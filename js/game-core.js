@@ -54,8 +54,17 @@ function startNewRound() {
     pickNewPair(evento);
 }
 
-function pickNewPair(evento = null) {
+function pickNewPair(evento = null, depth = 0) {
     const state = Game.state;
+
+    // Guard contra recursão infinita: se não sobrar ninguém com recursos
+    // disponíveis mesmo após resetar a lista de "já jogou nesta rodada",
+    // encerra a partida em vez de travar em loop.
+    if (depth > CONFIG.JOGO.MAX_PLAYERS * 2) {
+        console.error('❌ Nenhum jogador com recursos disponíveis. Encerrando partida.');
+        endGame(buildRanking());
+        return;
+    }
 
     if (!evento) {
         const eventos = state.questionsData?.eventos || [];
@@ -78,13 +87,31 @@ function pickNewPair(evento = null) {
     Game.ui.showEventoModal(evento);
 
     const activePlayers = Game.getActivePlayers();
-    const available = activePlayers.filter(p =>
+
+    if (activePlayers.length < CONFIG.JOGO.MIN_PLAYERS) {
+        console.warn('⚠️ Jogadores ativos insuficientes para continuar a partida.');
+        endGame(buildRanking());
+        return;
+    }
+
+    // Só considera respondedor quem ainda tem recursos — quem está sem
+    // recursos deve pular a vez em vez de receber a pergunta e ter a
+    // resposta descartada depois em handleAnswer().
+    const comRecursos = activePlayers.filter(p => p.recursos > 0);
+
+    if (comRecursos.length === 0) {
+        console.warn('⚠️ Nenhum jogador ativo tem recursos. Encerrando partida.');
+        endGame(buildRanking());
+        return;
+    }
+
+    const available = comRecursos.filter(p =>
         !state.usedRespondedorThisRound.includes(p.name)
     );
 
     if (available.length === 0) {
         state.usedRespondedorThisRound = [];
-        return pickNewPair(evento);
+        return pickNewPair(evento, depth + 1);
     }
 
     const respondedor = available[Math.floor(Math.random() * available.length)];
@@ -264,6 +291,9 @@ function handleAnswer(msg) {
 
     if (!respondedor) return;
 
+    // Esta checagem é uma segunda linha de defesa: o respondedor já é
+    // filtrado em pickNewPair() para nunca chegar aqui sem recursos.
+    // Mantemos como salvaguarda para reconexões/estados divergentes.
     if (respondedor.recursos <= 0) {
         console.warn('⚠️ ' + respondedorName + ' sem recursos! Pulando vez.');
         Game.network.broadcastAll({
@@ -409,7 +439,11 @@ function updatePlayerKPI(msg) {
         document.getElementById('myProgressFill').style.width =
             (msg.activities / CONFIG.JOGO.ACTIVITIES_PER_PHASE * 100) + '%';
 
-        if (msg.acertou !== undefined) {
+        if (msg.semRecursos) {
+            Game.ui.showResultModal(false, 0, msg.recursos);
+            const resultMsg = document.getElementById('resultMessage');
+            if (resultMsg) resultMsg.textContent = '⚠️ Sem recursos — vez pulada';
+        } else if (msg.acertou !== undefined) {
             Game.ui.showResultModal(msg.acertou, msg.kpiGanho, msg.recursos);
         } else if (msg.assessoriaBonus) {
             Game.ui.showAssessoriaBonusModal(msg.assessoriaBonus);
@@ -529,6 +563,7 @@ function startGame() {
         p.recursos = CONFIG.RECURSOS_INICIAIS;
     });
 
+    clearInterval(state.timerInterval);
     state.timerInterval = setInterval(() => {
         state.timer--;
         Game.ui.updateTimerDisplay();
@@ -708,6 +743,10 @@ function leaveSession() {
 // ============================================
 
 function buildRanking() {
+    // Inclui todos os jogadores (mesmo os que saíram da partida via
+    // leaveMatch) para manter Ranking e "Jogadores online" consistentes
+    // quanto a quem está sendo exibido; a UI decide o que mostrar em
+    // cada lista conforme o contexto.
     return [...Game.state.players]
         .map(p => ({
             name: p.name,
@@ -716,7 +755,8 @@ function buildRanking() {
             kpiFinal: p.kpi + (p.recursos * CONFIG.KPI.VALOR_RECURSO_FINAL),
             phase: p.phase,
             activities: p.activities,
-            isHost: p.isHost
+            isHost: p.isHost,
+            waitingInLobby: !!p.waitingInLobby
         }))
         .sort((a, b) => b.kpiFinal - a.kpiFinal)
         .map((p, i) => ({

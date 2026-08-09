@@ -16,6 +16,17 @@ const gameState = {
     hostPeerId: '',
     backupPeerId: '',
 
+    // ID "base" da sala (peerId original informado na URL / criado pelo
+    // host). NÃO muda durante a partida — ao contrário de hostPeerId, que
+    // passa a apontar para o host de backup após uma migração. É a partir
+    // dele que qualquer jogador consegue CALCULAR o peerId do próximo
+    // host, sem depender de receber uma mensagem de host-changed.
+    baseRoomPeerId: '',
+
+    // Quantas migrações de host já ocorreram nesta sessão. O peerId do
+    // host atual é sempre computeHostPeerId(baseRoomPeerId, hostVersion).
+    hostVersion: 0,
+
     // Jogadores: { name, peerId, kpi, phase, activities, isHost, waitingInLobby, recursos }
     players: [],
 
@@ -58,6 +69,20 @@ function resetAllPlayers() {
     });
 }
 
+/**
+ * Calcula deterministicamente o peerId de um host para uma dada versão de
+ * migração, a partir do peerId base da sala. version 0 = host original.
+ * version 1, 2, 3... = 1ª, 2ª, 3ª migração.
+ *
+ * Isso permite que QUALQUER jogador (não só quem recebeu um broadcast)
+ * calcule para onde tentar se conectar quando o host cai, em vez de
+ * depender de uma mensagem 'host-changed' que pode nunca chegar (o backup
+ * pode estar exatamente resetando suas conexões no momento do broadcast).
+ */
+function computeHostPeerId(baseId, version) {
+    return version > 0 ? `${baseId}-h${version}` : baseId;
+}
+
 function resetGameState() {
     gameState.gameStarted = false;
     gameState.gameOver = false;
@@ -77,3 +102,4 @@ window.Game.getPlayerByName = getPlayerByName;
 window.Game.getActivePlayers = getActivePlayers;
 window.Game.resetAllPlayers = resetAllPlayers;
 window.Game.resetGameState = resetGameState;
+window.Game.computeHostPeerId = computeHostPeerId;

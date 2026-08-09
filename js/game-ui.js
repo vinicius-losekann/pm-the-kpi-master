@@ -1,5 +1,5 @@
 // ============================================
-// PM: The KPI Master - INTERFACE DO USUÁRIO (V2)
+// PM: The KPI Master - INTERFACE DO USUÁRIO
 // ============================================
 // Responsabilidades:
 //   - Configurar event listeners (setupUI)
@@ -24,6 +24,15 @@ const DOM = {
 // ============================================
 // SETUP INICIAL
 // ============================================
+
+// Guards contra listeners duplicados. setupUI() é chamado mais de uma vez
+// na vida da página sempre que um guest assume como host no meio da
+// partida (becomeHost() chama Game.ui.setupUI() de novo para religar a UI
+// de host). Sem esses guards, cada clique em botões como "Sair", "Iniciar
+// Partida" ou nas alternativas de resposta disparava a ação múltiplas
+// vezes (confirm()/alert() duplicados, broadcasts em dobro, etc).
+let commonListenersBound = false;
+let hostOnlyListenersBound = false;
 
 function setupUI() {
     const state = Game.state;
@@ -52,18 +61,25 @@ function setupUI() {
         }
         updatePlayersList();
 
-        document.getElementById('btnStartGame').addEventListener('click', () => {
-            Game.network.broadcastAll({ type: 'game-start', timer: state.timer });
-            Game.core.startGame();
-        });
+        // Só liga uma vez: este bloco roda de novo quando um guest vira
+        // host no meio da partida (primeira vez que ELE precisa desses
+        // listeners), mas nunca deve religar para quem já era host.
+        if (!hostOnlyListenersBound) {
+            document.getElementById('btnStartGame').addEventListener('click', () => {
+                Game.network.broadcastAll({ type: 'game-start', timer: Game.state.timer });
+                Game.core.startGame();
+            });
 
-        document.getElementById('btnCopyId').addEventListener('click', () => {
-            navigator.clipboard.writeText(state.peerId).then(() => {
-                const btn = document.getElementById('btnCopyId');
-                btn.textContent = '✅ Copiado!';
-                setTimeout(() => { btn.textContent = '📋 Copiar'; }, 2000);
-            }).catch(() => { });
-        });
+            document.getElementById('btnCopyId').addEventListener('click', () => {
+                navigator.clipboard.writeText(Game.state.peerId).then(() => {
+                    const btn = document.getElementById('btnCopyId');
+                    btn.textContent = '✅ Copiado!';
+                    setTimeout(() => { btn.textContent = '📋 Copiar'; }, 2000);
+                }).catch(() => { });
+            });
+
+            hostOnlyListenersBound = true;
+        }
     } else {
         document.getElementById('hostControls').style.display = 'none';
         document.getElementById('playerWaiting').style.display = 'block';
@@ -73,6 +89,10 @@ function setupUI() {
         document.getElementById('btnLeaveSession').style.display = 'inline-block';
         document.getElementById('btnLeaveMatch').style.display = 'block';
     }
+
+    // Os listeners abaixo existem independente do papel (host/guest) e não
+    // precisam ser religados quando o papel muda — só a primeira vez.
+    if (commonListenersBound) return;
 
     // Botões de sessão/partida
     document.getElementById('btnEndSession').addEventListener('click', Game.core.endSession);
@@ -121,6 +141,8 @@ function setupUI() {
     document.getElementById('btnRecusarAssessoria').addEventListener('click', () => {
         Game.ui.responderAssessoria(null, true);
     });
+
+    commonListenersBound = true;
 }
 
 // ============================================
@@ -263,6 +285,8 @@ function displayRoundStart() {
         document.getElementById('eventCard').style.display = 'flex';
         document.getElementById('eventTitle').textContent = round.evento.titulo;
         document.getElementById('eventDesc').textContent = round.evento.descricao;
+    } else {
+        document.getElementById('eventCard').style.display = 'none';
     }
 
     // Reseta UI de assessoria a cada nova rodada
@@ -341,7 +365,7 @@ function handleAlternativeClick(alt, btn) {
 }
 
 // ============================================
-// MODAL DE RESULTADO (V2)
+// MODAL DE RESULTADO
 // ============================================
 
 function showResultModal(acertou, kpiGanho, recursosRestantes) {
@@ -354,7 +378,7 @@ function showResultModal(acertou, kpiGanho, recursosRestantes) {
 }
 
 // ============================================
-// RANKING (V2)
+// RANKING
 // ============================================
 
 function updatePlayersOnlineList() {
@@ -365,10 +389,14 @@ function updatePlayersOnlineList() {
 }
 
 function updateRankingList() {
-    const ranking = Game.core.buildRanking();
+    // O ranking exibido durante a partida reflete apenas jogadores ativos,
+    // consistente com a lista de "Jogadores" (updatePlayersOnlineList).
+    // Jogadores que saíram da partida (waitingInLobby) só reaparecem no
+    // ranking final de fim de jogo (displayFinalRanking).
+    const ranking = Game.core.buildRanking().filter(p => !p.waitingInLobby);
     const medalhas = ['🥇', '🥈', '🥉'];
     document.getElementById('rankingList').innerHTML = ranking.map((p, i) => `
-        <div class="rank-item"><span class="rank-pos">${medalhas[i] || '#' + p.posicao}</span><span class="rank-name">${p.name}</span><span class="rank-kpi">${p.kpiFinal} ⭐</span></div>
+        <div class="rank-item"><span class="rank-pos">${medalhas[i] || '#' + (i + 1)}</span><span class="rank-name">${p.name}</span><span class="rank-kpi">${p.kpiFinal} ⭐</span></div>
     `).join('');
 }
 

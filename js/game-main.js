@@ -40,17 +40,25 @@ async function loadQuestions() {
         }
     }
 
-    // Inicializa baralhos
+    // Inicializa baralhos.
+    // Se um estado restaurado (localStorage) já trouxe baralhos salvos,
+    // preserva o progresso de perguntas já usadas em vez de sobrescrever
+    // tudo do zero — do contrário, um F5 no meio da partida "destrava"
+    // perguntas repetidas indevidamente.
+    const baralhosRestaurados = state.baralhos && Object.keys(state.baralhos).length > 0;
+
+    if (!baralhosRestaurados) {
+        for (const [key, area] of Object.entries(state.questionsData.areas || {})) {
+            state.baralhos[key] = {
+                perguntas: area.perguntas.map(p => ({ ...p, usada: false })),
+                disponiveis: area.perguntas.length,
+                total: area.perguntas.length
+            };
+        }
+    }
+
     const areas = Object.keys(state.questionsData.areas || {});
     console.log('📚 Áreas carregadas:', areas.length);
-
-    for (const [key, area] of Object.entries(state.questionsData.areas || {})) {
-        state.baralhos[key] = {
-            perguntas: area.perguntas.map(p => ({ ...p, usada: false })),
-            disponiveis: area.perguntas.length,
-            total: area.perguntas.length
-        };
-    }
 }
 
 // ============================================
@@ -65,12 +73,15 @@ function saveState() {
     localStorage.setItem('pmKPI_roomState', JSON.stringify({
         hostPeerId: state.hostPeerId,
         backupPeerId: state.backupPeerId,
+        baseRoomPeerId: state.baseRoomPeerId,
+        hostVersion: state.hostVersion,
         roomName: state.roomName,
         players: state.players,
         currentRound: state.currentRound,
         baralhos: state.baralhos,
         timer: state.timer,
         gameStarted: state.gameStarted,
+        usedRespondedorThisRound: state.usedRespondedorThisRound,
         timestamp: new Date().toISOString()
     }));
 
@@ -108,10 +119,18 @@ function tryRestoreState() {
         console.log('💾 Estado restaurado do localStorage');
         Game.state.hostPeerId = state.hostPeerId;
         Game.state.backupPeerId = state.backupPeerId;
+        // Se o estado salvo não tiver esses campos (versão antiga do
+        // localStorage), cai para o hostPeerId salvo como base — mantém
+        // compatibilidade com sessões salvas antes desta correção.
+        Game.state.baseRoomPeerId = state.baseRoomPeerId || state.hostPeerId;
+        Game.state.hostVersion = state.hostVersion || 0;
         Game.state.roomName = state.roomName;
         Game.state.players = state.players;
         Game.state.timer = state.timer;
         Game.state.gameStarted = state.gameStarted;
+        Game.state.currentRound = state.currentRound || null;
+        Game.state.baralhos = state.baralhos || {};
+        Game.state.usedRespondedorThisRound = state.usedRespondedorThisRound || [];
 
         // Dados do próprio jogador
         const me = Game.getPlayerByName(myData.playerName);
@@ -125,6 +144,85 @@ function tryRestoreState() {
     } catch (e) {
         console.warn('⚠️ Estado salvo corrompido.');
         return false;
+    }
+}
+
+/**
+ * Retoma a partida em andamento após um reload (F5) do HOST.
+ * Sem isso, um refresh acidental do host mata o setInterval do timer
+ * e o fluxo de rodadas para de vez para todos os jogadores conectados.
+ */
+function resumeGameEngineIfHost() {
+    const state = Game.state;
+    if (!state.isHost || !state.gameStarted || state.gameOver) return;
+
+    console.log('🔁 Retomando motor da partida após reload do host...');
+
+    Game.ui.showScreen('game');
+    Game.ui.updatePlayersOnlineList();
+    Game.ui.updateRankingList();
+    Game.ui.updateTimerDisplay();
+
+    clearInterval(state.timerInterval);
+    state.timerInterval = setInterval(() => {
+        state.timer--;
+        Game.ui.updateTimerDisplay();
+
+        if (state.timer % 10 === 0) {
+            Game.network.broadcastAll({ type: 'timer-update', remaining: state.timer });
+        }
+
+        if (state.timer <= 0) {
+            clearInterval(state.timerInterval);
+            Game.core.endGame(Game.core.buildRanking());
+        }
+    }, 1000);
+
+    // Reenvia o player-list atualizado para reconciliar quem já estava
+    // conectado (guests vão reconectar sozinhos e receber state-sync).
+    Game.network.broadcastAll({ type: 'player-list', players: state.players });
+
+    if (!state.currentRound) {
+        // Não havia rodada em aberto no momento do reload — inicia uma nova.
+        Game.core.pickNewPair();
+    } else {
+        // Havia uma rodada em aberto. Reenvia para todos os participantes
+        // para garantir que ninguém fique travado esperando uma resposta
+        // que o host (que reiniciou) não tem mais em memória de forma
+        // "ao vivo" (ex: timers de assessoria). Mais simples e seguro:
+        // encerra a rodada atual e sorteia uma nova.
+        state.currentRound = null;
+        Game.core.pickNewPair();
+    }
+}
+
+// ============================================
+// CONEXÃO COM RETRY
+// ============================================
+
+/**
+ * Tenta abrir o Peer algumas vezes com backoff. Necessário principalmente
+ * para o HOST: ao dar F5, o servidor PeerJS pode levar alguns segundos
+ * para liberar o peerId da conexão anterior, e a primeira tentativa falha
+ * com 'unavailable-id' mesmo sendo o dono legítimo da sala.
+ */
+async function initPeerWithRetry(maxAttempts = 4, delayMs = 2000) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            await Game.network.initPeer();
+            return;
+        } catch (err) {
+            const isLastAttempt = attempt === maxAttempts;
+            console.warn(`⚠️ Falha ao iniciar Peer (tentativa ${attempt}/${maxAttempts}):`, err?.message || err);
+
+            if (isLastAttempt) {
+                Game.ui.updateConnectionStatus('error', 'Não foi possível conectar. Recarregue a página.');
+                throw err;
+            }
+
+            Game.ui.updateConnectionStatus('disconnected', `Reconectando (${attempt}/${maxAttempts})...`);
+            await new Promise(res => setTimeout(res, delayMs));
+        }
     }
 }
 
@@ -147,6 +245,11 @@ async function init() {
     state.roomName = params.get('room') || 'Sala';
     state.playerName = params.get('playerName') || 'Jogador';
     state.hostPeerId = params.get('peerId') || '';
+    // Base fixa para calcular deterministicamente IDs de host de backup.
+    // tryRestoreState() pode sobrescrever com o valor persistido (correto
+    // caso já tenha havido uma migração antes deste reload).
+    state.baseRoomPeerId = state.hostPeerId;
+    state.hostVersion = 0;
 
     console.log('🎮 Jogador:', state.playerName);
     console.log('👑 Host:', state.isHost);
@@ -162,16 +265,42 @@ async function init() {
     ).join('');
 
     // Tenta restaurar estado
-    tryRestoreState();
+    const restaurou = tryRestoreState();
 
     // 4. Carrega perguntas
     await loadQuestions();
 
-    // 5. Inicializa PeerJS
-    await Game.network.initPeer();
+    // 5. Inicializa PeerJS (com retry — o servidor PeerJS pode manter o
+    // peerId anterior "reservado" por alguns segundos após um F5 do host,
+    // rejeitando a primeira tentativa com 'unavailable-id')
+    try {
+        await initPeerWithRetry();
+    } catch (err) {
+        console.error('❌ Não foi possível estabelecer conexão P2P:', err);
+        // Status de erro já está visível na tela (setado por initPeer);
+        // interrompe a inicialização em vez de continuar com peer inválido.
+        return;
+    }
 
     // 6. Configura UI
     Game.ui.setupUI();
+
+    // 6.1 Se o estado restaurado indica partida em andamento, garante que
+    // a tela correta seja exibida (não fica preso no lobby) e, sendo host,
+    // retoma o motor da partida (timer + rodadas). Para guests, a tela
+    // correta já é resolvida via state-sync/host-changed em game-network.js
+    // assim que a conexão com o host for reestabelecida — mas ajustamos
+    // aqui também para o caso de reconexão lenta.
+    if (restaurou && state.gameStarted && !state.gameOver) {
+        if (state.isHost) {
+            resumeGameEngineIfHost();
+        } else {
+            Game.ui.showScreen('game');
+            Game.ui.updateTimerDisplay();
+            Game.ui.updatePlayersOnlineList();
+            Game.ui.updateRankingList();
+        }
+    }
 
     // 7. Salva estado inicial
     saveState();
