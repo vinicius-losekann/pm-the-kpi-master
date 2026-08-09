@@ -53,7 +53,7 @@ KPI Total = KPI de acertos + KPI de vendas - KPI de compras + KPI de assessorias
 |---|---|---|
 | e1 | 🟢 **Apoio da Alta Gestão** | +1 recurso para todos |
 | e2 | 🔴 **Corte de Orçamento** | -1 recurso de todos |
-| e3 | 🎁 **Patrocinador Generoso** | +2 recursos para quem tem menos |
+| e3 | 🎁 **Patrocinador Generoso** | +1 recursos para quem tem menos |
 | e4 | 🛡️ **Reserva de Contingência** | A resposta desta atividade não gasta recurso, acertando ou errando |
 | e5 | 🔄 **Reestruturação** | Mais rico dá 1 para mais pobre |
 
