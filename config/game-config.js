@@ -6,7 +6,7 @@ const CONFIG = {
         VALOR_VENDA_RECURSO: 10,   // era 15 — README pede 10
         ASSESSORIA_ACERTO: 5,     // NOVO — bônus do assessor quando acerta
     },
-    
+
     RECURSOS_INICIAIS: 10,
 
     JOGO: {
@@ -16,14 +16,23 @@ const CONFIG = {
         ACTIVITIES_PER_PHASE: 2,
         HOST_TIMEOUT: 30000,
         ASSESSORIA_TIMEOUT: 20000, // NOVO — 20s para o assessor responder
+        RESPOSTA_TIMEOUT: 60000,   // CORRIGIDO — faltava esta constante. Sem ela,
+        // CONFIG.JOGO.RESPOSTA_TIMEOUT era `undefined` em
+        // js/game-core.js (armarRespostaTimeout), e
+        // setTimeout(fn, undefined) é coagido para
+        // setTimeout(fn, 0) — o "pulo automático de vez"
+        // disparava quase instantaneamente para TODO
+        // Respondedor, e não só como salvaguarda contra
+        // desconexão, quebrando o fluxo de resposta
+        // descrito no README.
     },
 
     FASES: [
-        { id: 'iniciacao',              nome: 'Iniciação',                   emoji: '🚀' },
-        { id: 'planejamento',           nome: 'Planejamento',                emoji: '📋' },
-        { id: 'execucao',               nome: 'Execução',                    emoji: '⚙️' },
-        { id: 'monitoramento_controle', nome: 'Monitoramento e Controle',   emoji: '📊' },
-        { id: 'encerramento',           nome: 'Encerramento',                emoji: '🏁' },
+        { id: 'iniciacao', nome: 'Iniciação', emoji: '🚀' },
+        { id: 'planejamento', nome: 'Planejamento', emoji: '📋' },
+        { id: 'execucao', nome: 'Execução', emoji: '⚙️' },
+        { id: 'monitoramento_controle', nome: 'Monitoramento e Controle', emoji: '📊' },
+        { id: 'encerramento', nome: 'Encerramento', emoji: '🏁' },
     ],
 
     ROOM_PREFIX: 'pm-the-kpi-master-',
