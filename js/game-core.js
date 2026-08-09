@@ -566,6 +566,7 @@ function handleAssessoriaRequest(msg) {
     state.assessoriaTimeout = setTimeout(() => {
         handleAssessoriaAnswer({ alternativa: null, recusado: true, timeout: true });
     }, CONFIG.JOGO.ASSESSORIA_TIMEOUT);
+    Game.saveState(); // NOVO
 }
 
 /**
@@ -598,6 +599,7 @@ function handleAssessoriaAnswer(msg) {
         state.currentRound.pendingAnswer = null;
         handleAnswer(pending);
     }
+    Game.saveState(); // NOVO
 }
 // ============================================
 // CONTROLE DE PARTIDA
@@ -636,10 +638,34 @@ function startGame() {
     Game.saveState();
 }
 
+/*function endGame(ranking) {
+    const state = Game.state;
+    state.gameOver = true;
+    clearInterval(state.timerInterval);
+
+    if (state.isHost) {
+        Game.network.broadcastAll({ type: 'game-over', ranking });
+    }
+
+    Game.ui.showScreen('gameover');
+    Game.ui.displayFinalRanking(ranking);
+    Game.saveState();
+}*/
+
 function endGame(ranking) {
     const state = Game.state;
     state.gameOver = true;
     clearInterval(state.timerInterval);
+
+    // NOVO: cancela qualquer timeout de assessoria pendente e zera a rodada
+    // atual — sem isso, uma assessoria em andamento no exato momento do fim
+    // de partida disparava depois, atualizando KPI/recursos e abrindo modais
+    // com a tela de "Fim de Partida" já visível para todos.
+    if (state.assessoriaTimeout) {
+        clearTimeout(state.assessoriaTimeout);
+        state.assessoriaTimeout = null;
+    }
+    state.currentRound = null;
 
     if (state.isHost) {
         Game.network.broadcastAll({ type: 'game-over', ranking });
@@ -684,7 +710,7 @@ function handleMatchEnded(msg) {
 // VENDA DE RECURSOS
 // ============================================
 
-function venderRecurso(compradorName) {
+/* function venderRecurso(compradorName) {
     const state = Game.state;
     const vendedor = Game.getPlayerByName(state.playerName);
     const comprador = Game.getPlayerByName(compradorName);
@@ -744,6 +770,91 @@ function venderRecurso(compradorName) {
 
     Game.saveState();
     return true;
+} */
+// ============================================
+// VENDA DE RECURSOS
+// ============================================
+
+/**
+ * Chamado pelo cliente (host ou guest) ao confirmar uma venda.
+ * Guests enviam o pedido ao host; o host processa e faz broadcast.
+ */
+function venderRecurso(compradorName) {
+    const state = Game.state;
+
+    if (state.isHost) {
+        processVenda(state.playerName, compradorName);
+    } else {
+        Game.network.sendToHost({
+            type: 'venda-request',
+            vendedorName: state.playerName,
+            compradorName
+        });
+    }
+    return true; // feedback otimista; rejeição chega via 'venda-rejected'
+}
+
+/**
+ * HOST: valida e executa a venda de fato. Única fonte de verdade —
+ * evita que vendas feitas por um guest fiquem invisíveis para os
+ * demais guests, já que a topologia P2P é uma estrela (guests só
+ * têm conexão direta com o host, não entre si).
+ */
+function processVenda(vendedorName, compradorName) {
+    const state = Game.state;
+    if (!state.isHost) return;
+
+    const vendedor = Game.getPlayerByName(vendedorName);
+    const comprador = Game.getPlayerByName(compradorName);
+
+    const erro =
+        (!vendedor || !comprador) ? 'Vendedor ou comprador não encontrado.' :
+        (vendedor.name === comprador.name) ? 'Você não pode vender para si mesmo.' :
+        (vendedor.waitingInLobby || comprador.waitingInLobby) ? 'Jogador não está mais ativo na partida.' :
+        (vendedor.recursos < 1) ? 'Vendedor não tem recursos para vender.' :
+        (comprador.kpi < CONFIG.KPI.VALOR_VENDA_RECURSO) ? 'Comprador não tem KPI suficiente.' :
+        null;
+
+    if (erro) {
+        console.warn('⚠️ Venda rejeitada:', erro);
+        Game.network.sendToPlayer(vendedor?.peerId, { type: 'venda-rejected', motivo: erro });
+        return false;
+    }
+
+    // Executa a venda
+    vendedor.recursos--;
+    vendedor.kpi += CONFIG.KPI.VALOR_VENDA_RECURSO;
+    comprador.recursos++;
+    comprador.kpi -= CONFIG.KPI.VALOR_VENDA_RECURSO;
+
+    console.log('💰 Venda:', vendedor.name, 'vendeu 1📦 para', comprador.name, 'por', CONFIG.KPI.VALOR_VENDA_RECURSO, 'KPI');
+
+    Game.network.broadcastAll({
+        type: 'venda-confirmed',
+        vendedor: vendedor.name,
+        comprador: comprador.name,
+        valor: CONFIG.KPI.VALOR_VENDA_RECURSO,
+        vendedorKPI: vendedor.kpi,
+        vendedorRecursos: vendedor.recursos,
+        compradorKPI: comprador.kpi,
+        compradorRecursos: comprador.recursos
+    });
+
+    // O host também precisa atualizar sua própria UI, já que broadcastAll
+    // não reenvia para si mesmo (mesmo padrão usado em handleAnswer/kpi-update).
+    Game.network.handleMessage({
+        type: 'venda-confirmed',
+        vendedor: vendedor.name,
+        comprador: comprador.name,
+        valor: CONFIG.KPI.VALOR_VENDA_RECURSO,
+        vendedorKPI: vendedor.kpi,
+        vendedorRecursos: vendedor.recursos,
+        compradorKPI: comprador.kpi,
+        compradorRecursos: comprador.recursos
+    }, state.peerId);
+
+    Game.saveState();
+    return true;
 }
 
 function getCompradores() {
@@ -754,6 +865,14 @@ function getCompradores() {
         p.kpi >= CONFIG.KPI.VALOR_VENDA_RECURSO
     );
 }
+/*function getCompradores() {
+    const state = Game.state;
+    return state.players.filter(p =>
+        p.name !== state.playerName &&
+        !p.waitingInLobby &&
+        p.kpi >= CONFIG.KPI.VALOR_VENDA_RECURSO
+    );
+}*/
 
 // ============================================
 // CONTROLE DE SESSÃO
@@ -841,6 +960,7 @@ window.Game.core = {
     leaveSession,
     buildRanking,
     venderRecurso,
+    processVenda,      // NOVO
     getCompradores,
     requestAssessoria,
     handleAssessoriaRequest,

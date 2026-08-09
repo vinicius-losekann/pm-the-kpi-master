@@ -311,6 +311,39 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         // --- VENDA ---
+        /*case 'venda-confirmed':
+            const vendedor = Game.getPlayerByName(msg.vendedor);
+            const comprador = Game.getPlayerByName(msg.comprador);
+            if (vendedor) {
+                vendedor.kpi = msg.vendedorKPI;
+                vendedor.recursos = msg.vendedorRecursos;
+            }
+            if (comprador) {
+                comprador.kpi = msg.compradorKPI;
+                comprador.recursos = msg.compradorRecursos;
+            }
+            Game.ui.updatePlayersOnlineList();
+            Game.ui.updateRankingList();
+            // 🔧 Atualiza UI do próprio jogador se envolvido na venda
+            const me2 = Game.getPlayerByName(state.playerName);
+            if (me2) {
+                document.getElementById('myRecursos').textContent = me2.recursos;
+                document.getElementById('myKPI').textContent = me2.kpi;
+            }
+            console.log('💰 Venda confirmada:', msg.vendedor, '→', msg.comprador);
+            break;*/
+        // --- VENDA ---
+        case 'venda-request':
+            if (state.isHost) {
+                Game.core.processVenda(msg.vendedorName, msg.compradorName);
+            }
+            break;
+
+        case 'venda-rejected':
+            alert('⚠️ ' + msg.motivo);
+            Game.ui.fecharVendaModal();
+            break;
+
         case 'venda-confirmed':
             const vendedor = Game.getPlayerByName(msg.vendedor);
             const comprador = Game.getPlayerByName(msg.comprador);
