@@ -491,16 +491,29 @@ function showVendaModal() {
 }
 
 /**
- * Confirma a venda para um comprador
+ * Confirma a venda para um comprador.
+ *
+ * CORRIGIDO: o modal NÃO é mais fechado aqui de forma otimista — o próprio
+ * comentário original já dizia que o fechamento deveria vir só via
+ * broadcast ('venda-confirmed') ou rejeição ('venda-rejected'), processados
+ * em game-network.js, mas uma linha residual de um refactor anterior ainda
+ * fechava o modal imediatamente após o clique, contradizendo essa intenção.
+ * Deixamos só um estado de "processando" para dar feedback sem esconder
+ * uma possível rejeição do host.
  */
 function confirmarVenda(compradorName) {
     if (confirm('Vender 1📦 para ' + compradorName + ' por ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI?')) {
         Game.core.venderRecurso(compradorName);
-        // O fechamento do modal e o feedback de sucesso/erro agora chegam
-        // via broadcast ('venda-confirmed') ou rejeição ('venda-rejected'),
-        // processados em game-network.js — não fechamos aqui de forma otimista
-        // para não mascarar uma possível rejeição do host.
-        document.getElementById('modalVenda').style.display = 'none';
+
+        // Feedback não-destrutivo: desabilita os botões e avisa que está
+        // aguardando confirmação do host, mas mantém o modal aberto até
+        // que 'venda-confirmed' (fecha e atualiza UI) ou 'venda-rejected'
+        // (alerta o motivo) cheguem via game-network.js.
+        document.querySelectorAll('#vendaCompradores button').forEach(b => b.disabled = true);
+        const seusRecursosEl = document.getElementById('vendaSeusRecursos');
+        if (seusRecursosEl) {
+            seusRecursosEl.textContent = '🔄 Processando venda...';
+        }
     }
 }
 
@@ -556,6 +569,23 @@ function escolherAssessor(assessorName) {
         document.getElementById('assessoriaStatus').textContent = `📞 Aguardando resposta de ${assessorName}...`;
         // Evita clicar em uma alternativa enquanto a assessoria está pendente
         document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = true);
+
+        // CORRIGIDO: registra a assessoria também no estado local (não só
+        // no host), incluindo quando o próprio jogador é o host. Antes,
+        // 'currentRound.assessoria' só era populado no objeto de estado do
+        // host dentro de handleAssessoriaRequest(); nos clientes (guests)
+        // esse campo nunca era setado localmente ao pedir — só o texto na
+        // tela mudava. Isso quebrava o guard local em requestAssessoria()
+        // (`state.currentRound.assessoria` nunca bloqueava um 2º pedido no
+        // client) e a reconstrução de estado em displayQuestion() após F5,
+        // reconexão ou migração de host durante uma assessoria pendente.
+        if (Game.state.currentRound) {
+            Game.state.currentRound.assessoria = {
+                assessorName,
+                status: 'pending',
+                sugestao: null
+            };
+        }
     }
 }
 
@@ -567,6 +597,19 @@ function showAssessoriaStarted(msg) {
     if (state.playerName === state.currentRound?.respondedor) {
         document.getElementById('btnPedirAssessoria').disabled = true;
         document.getElementById('assessoriaStatus').textContent = `📞 Aguardando resposta de ${msg.assessorName}...`;
+
+        // CORRIGIDO: mesma razão do bloco em escolherAssessor() — mantém o
+        // estado local coerente com o que o host já tem, para que reload,
+        // reconexão ou migração de host durante o pedido reconstruam a UI
+        // corretamente a partir de state.currentRound.assessoria em vez de
+        // assumir que nenhum pedido existe.
+        if (state.currentRound) {
+            state.currentRound.assessoria = {
+                assessorName: msg.assessorName,
+                status: 'pending',
+                sugestao: null
+            };
+        }
     }
 }
 
@@ -624,6 +667,15 @@ function showAssessoriaResult(msg) {
     const statusEl = document.getElementById('assessoriaStatus');
     if (!statusEl) return;
 
+    // CORRIGIDO: sincroniza o estado local (status/sugestão) com o
+    // resultado vindo do host, pela mesma razão dos blocos acima —
+    // sem isso, `state.currentRound.assessoria` ficava com status
+    // 'pending' para sempre no client, mesmo após a resolução real.
+    if (state.currentRound?.assessoria) {
+        state.currentRound.assessoria.status = msg.recusado ? 'declined' : 'accepted';
+        state.currentRound.assessoria.sugestao = msg.recusado ? null : msg.sugestao;
+    }
+
     if (msg.recusado) {
         if (msg.invalido && msg.motivo === 'fase-encerramento') {
             // NOVO: mensagem específica quando o host rejeita o pedido por
@@ -654,6 +706,14 @@ function showAssessoriaResult(msg) {
     if (msg.invalido && msg.motivo !== 'fase-encerramento') {
         const btnPedir = document.getElementById('btnPedirAssessoria');
         if (btnPedir && !state.currentRound.respondeu) btnPedir.disabled = false;
+
+        // CORRIGIDO: se o pedido foi invalidado (ex.: assessor saiu da
+        // partida), limpa o registro local para permitir um novo pedido
+        // nesta mesma rodada — sem isso o guard local em
+        // requestAssessoria() bloquearia indevidamente uma nova tentativa.
+        if (state.currentRound) {
+            state.currentRound.assessoria = null;
+        }
     }
 }
 

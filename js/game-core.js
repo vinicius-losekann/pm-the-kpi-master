@@ -159,11 +159,13 @@ function pickNewPair(evento = null, depth = 0) {
 
     Game.network.sendToPlayer(perguntador.peerId, { ...perguntaData, isPerguntador: true });
 
-    if (respondedor.peerId === state.peerId && state.isHost) {
-        Game.network.sendToPlayer(respondedor.peerId, { ...perguntaData, isRespondedor: true });
-    } else {
-        Game.network.sendToPlayer(respondedor.peerId, { ...perguntaData, isRespondedor: true, correta: undefined });
-    }
+    // CORRIGIDO: o Respondedor NUNCA deve receber o gabarito (`correta`),
+    // independentemente de ser o host ou um guest. Antes, quando o próprio
+    // host era sorteado como Respondedor, a mensagem era enviada com
+    // `perguntaData` completo (incluindo `correta`), vazando a resposta
+    // certa só para esse caso específico — inconsistente com a regra do
+    // README de que o Respondedor só vê a pergunta e as alternativas.
+    Game.network.sendToPlayer(respondedor.peerId, { ...perguntaData, isRespondedor: true, correta: undefined });
 
     if (state.playerName !== perguntador.name && state.playerName !== respondedor.name) {
         Game.ui.displaySpectatorView(perguntador.name, respondedor.name);
