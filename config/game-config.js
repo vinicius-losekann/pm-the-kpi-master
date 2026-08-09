@@ -1,18 +1,12 @@
 const CONFIG = {
 
-    /*KPI: {
+    KPI: {
         ACERTO_BASE: 10,
         VALOR_RECURSO_FINAL: 5,
         VALOR_VENDA_RECURSO: 10,   // era 15 — README pede 10
         ASSESSORIA_ACERTO: 5,     // NOVO — bônus do assessor quando acerta
-    },*/
-    
-    KPI: {
-        VALOR_ACERTO: 10,
-        VALOR_VENDA_RECURSO: 10,
-        VALOR_ASSESSORIA: 5
     },
-
+    
     RECURSOS_INICIAIS: 10,
 
     JOGO: {

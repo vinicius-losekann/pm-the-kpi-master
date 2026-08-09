@@ -241,14 +241,15 @@ function aplicarEfeitosEvento(evento) {
 // ============================================
 
 function handleAnswer(msg) {
+
+    const state = Game.state;
+
     const { respondedor: respondedorName } = state.currentRound;
 
-    if (msg.playerName && msg.playerName !== respondedorName) {
+    if (msg.playerName !== respondedorName) {
         console.warn('⚠️ Resposta ignorada: jogador não é o respondedor da rodada.');
         return;
     }
-
-    const state = Game.state;
 
     if (state.currentRound.respondeu) {
         console.warn('⚠️ Rodada já foi respondida!');
