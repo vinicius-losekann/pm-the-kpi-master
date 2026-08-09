@@ -303,32 +303,6 @@ function displayQuestion(q) {
     document.getElementById('badgeArea').textContent = q.area;
     document.getElementById('badgeGrupo').textContent = q.grupo;
 
-    /*if (isResp && q.isRespondedor !== false) {
-        document.getElementById('alternativesGrid').style.display = 'grid';
-        document.getElementById('allAlternativesArea').style.display = 'none';
-        document.getElementById('roleNotice').style.display = 'block';
-        document.getElementById('roleNotice').innerHTML = '🎯 <strong>Você está respondendo!</strong> Escolha uma alternativa.';
-        document.getElementById('roleNotice').className = 'role-notice role-respondedor';
-        document.getElementById('altA').textContent = q.alternativas[0];
-        document.getElementById('altB').textContent = q.alternativas[1];
-        document.getElementById('altC').textContent = q.alternativas[2];
-        document.getElementById('altD').textContent = q.alternativas[3];
-        document.querySelectorAll('.alternative-btn').forEach(b => { b.disabled = false; b.className = 'alternative-btn'; });
-        // Botão de Assessoria — oculto na fase de Encerramento
-        const me = Game.getPlayerByName(Game.state.playerName);
-        const emEncerramento = me && Game.getFaseIndex(me.phase) === CONFIG.FASES.length - 1;
-        const semAssessorDisponivel = Game.getActivePlayers().length < 3;
-        const assessoriaArea = document.getElementById('assessoriaArea');
-        if (assessoriaArea) {
-            if (emEncerramento || semAssessorDisponivel) {
-                assessoriaArea.style.display = 'none';
-            } else {
-                assessoriaArea.style.display = 'block';
-                document.getElementById('btnPedirAssessoria').disabled = false;
-                document.getElementById('assessoriaStatus').textContent = '';
-            }
-        }
-    }*/
     if (isResp && q.isRespondedor !== false) {
         document.getElementById('alternativesGrid').style.display = 'grid';
         document.getElementById('allAlternativesArea').style.display = 'none';
@@ -340,7 +314,7 @@ function displayQuestion(q) {
         document.getElementById('altC').textContent = q.alternativas[2];
         document.getElementById('altD').textContent = q.alternativas[3];
 
-        // NOVO: reflete o estado real da rodada em vez de sempre habilitar —
+        // Reflete o estado real da rodada em vez de sempre habilitar —
         // relevante após reload (F5) ou reconexão, quando a rodada já pode
         // ter sido respondida ou ter uma assessoria em andamento.
         const round = Game.state.currentRound;
@@ -363,7 +337,7 @@ function displayQuestion(q) {
                 assessoriaArea.style.display = 'block';
             }
 
-            // NOVO: reconstrói o status de assessoria (pedido já feito, aceito,
+            // Reconstrói o status de assessoria (pedido já feito, aceito,
             // recusado etc.) em vez de assumir que nenhum pedido existe.
             if (round?.assessoria) {
                 document.getElementById('btnPedirAssessoria').disabled = true;
@@ -381,125 +355,131 @@ function displayQuestion(q) {
                 document.getElementById('assessoriaStatus').textContent = '';
             }
         }
-        else if (isPerg || q.isPerguntador) {
-            document.getElementById('alternativesGrid').style.display = 'none';
-            document.getElementById('allAlternativesArea').style.display = 'block';
-            document.getElementById('roleNotice').style.display = 'block';
-            document.getElementById('roleNotice').innerHTML = '👀 <strong>Você está perguntando!</strong> Tela somente leitura.';
-            document.getElementById('roleNotice').className = 'role-notice role-perguntador';
-            document.getElementById('allAlternativesList').innerHTML = q.alternativas.map(alt => {
-                const letter = alt.charAt(0).toLowerCase();
-                const isCorrect = letter === q.correta;
-                return `<div style="padding:12px 16px; background:${isCorrect ? 'rgba(0,255,136,0.12)' : 'rgba(255,255,255,0.03)'}; border:2px solid ${isCorrect ? 'rgba(0,255,136,0.4)' : 'rgba(255,255,255,0.08)'}; border-radius:10px; color:${isCorrect ? '#00ff88' : '#e0e0e0'}; font-size:0.9rem; ${isCorrect ? 'font-weight:600;' : ''}">${isCorrect ? '✅ ' : ''}${alt}</div>`;
-            }).join('');
-        }
+    } else if (isPerg || q.isPerguntador) {
+        document.getElementById('alternativesGrid').style.display = 'none';
+        document.getElementById('allAlternativesArea').style.display = 'block';
+        document.getElementById('roleNotice').style.display = 'block';
+        document.getElementById('roleNotice').innerHTML = '👀 <strong>Você está perguntando!</strong> Tela somente leitura.';
+        document.getElementById('roleNotice').className = 'role-notice role-perguntador';
+        document.getElementById('allAlternativesList').innerHTML = q.alternativas.map(alt => {
+            const letter = alt.charAt(0).toLowerCase();
+            const isCorrect = letter === q.correta;
+            return `<div style="padding:12px 16px; background:${isCorrect ? 'rgba(0,255,136,0.12)' : 'rgba(255,255,255,0.03)'}; border:2px solid ${isCorrect ? 'rgba(0,255,136,0.4)' : 'rgba(255,255,255,0.08)'}; border-radius:10px; color:${isCorrect ? '#00ff88' : '#e0e0e0'}; font-size:0.9rem; ${isCorrect ? 'font-weight:600;' : ''}">${isCorrect ? '✅ ' : ''}${alt}</div>`;
+        }).join('');
+
+        // Perguntador é somente leitura: garante que a área de assessoria
+        // (exclusiva do Respondedor) fique escondida na tela dele.
+        const assessoriaAreaPerg = document.getElementById('assessoriaArea');
+        if (assessoriaAreaPerg) assessoriaAreaPerg.style.display = 'none';
     }
+}
 
-    function displaySpectatorView(perguntador, respondedor) {
-        document.getElementById('questionArea').style.display = 'none';
-        document.getElementById('spectatorArea').style.display = 'block';
-        document.getElementById('spectatorMessage').textContent = `⏳ ${perguntador} pergunta para ${respondedor}...`;
-        const assessoriaArea = document.getElementById('assessoriaArea');
-        if (assessoriaArea) assessoriaArea.style.display = 'none';
+function displaySpectatorView(perguntador, respondedor) {
+    document.getElementById('questionArea').style.display = 'none';
+    document.getElementById('spectatorArea').style.display = 'block';
+    document.getElementById('spectatorMessage').textContent = `⏳ ${perguntador} pergunta para ${respondedor}...`;
+    const assessoriaArea = document.getElementById('assessoriaArea');
+    if (assessoriaArea) assessoriaArea.style.display = 'none';
+}
+
+function handleAlternativeClick(alt, btn) {
+    const state = Game.state;
+    if (!state.currentRound || state.currentRound.respondeu) return;
+    if (state.playerName !== state.currentRound.respondedor) return;
+    document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = true);
+    btn.classList.add('selected');
+    if (state.isHost) {
+        Game.core.handleAnswer({ alternativa: alt, playerName: state.playerName });
+    } else {
+        Game.network.sendToHost({ type: 'answer', alternativa: alt, playerName: state.playerName });
     }
+    state.currentRound.respondeu = true;
+}
 
-    function handleAlternativeClick(alt, btn) {
-        const state = Game.state;
-        if (!state.currentRound || state.currentRound.respondeu) return;
-        if (state.playerName !== state.currentRound.respondedor) return;
-        document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = true);
-        btn.classList.add('selected');
-        if (state.isHost) {
-            Game.core.handleAnswer({ alternativa: alt, playerName: state.playerName });
-        } else {
-            Game.network.sendToHost({ type: 'answer', alternativa: alt, playerName: state.playerName });
-        }
-        state.currentRound.respondeu = true;
-    }
+// ============================================
+// MODAL DE RESULTADO
+// ============================================
 
-    // ============================================
-    // MODAL DE RESULTADO
-    // ============================================
+function showResultModal(acertou, kpiGanho, recursosRestantes) {
+    document.getElementById('resultTitle').textContent = acertou ? '✅ Acertou!' : '❌ Errou!';
+    document.getElementById('resultTitle').className = 'result-title ' + (acertou ? 'result-success' : 'result-error');
+    let msg = acertou ? `+${kpiGanho} KPI` : '0 KPI';
+    if (recursosRestantes !== undefined) msg += ` | 📦 ${recursosRestantes} recursos`;
+    document.getElementById('resultMessage').textContent = msg;
+    DOM.modalResult.style.display = 'flex';
+}
 
-    function showResultModal(acertou, kpiGanho, recursosRestantes) {
-        document.getElementById('resultTitle').textContent = acertou ? '✅ Acertou!' : '❌ Errou!';
-        document.getElementById('resultTitle').className = 'result-title ' + (acertou ? 'result-success' : 'result-error');
-        let msg = acertou ? `+${kpiGanho} KPI` : '0 KPI';
-        if (recursosRestantes !== undefined) msg += ` | 📦 ${recursosRestantes} recursos`;
-        document.getElementById('resultMessage').textContent = msg;
-        DOM.modalResult.style.display = 'flex';
-    }
+// ============================================
+// RANKING
+// ============================================
 
-    // ============================================
-    // RANKING
-    // ============================================
+function updatePlayersOnlineList() {
+    document.getElementById('playersOnlineList').innerHTML = Game.getActivePlayers().map(p => {
+        const fase = Game.getFaseById(p.phase);
+        return `<div class="online-player"><div class="player-avatar-xs">${p.name.charAt(0)}</div><span>${p.name}</span><span style="font-size:0.7rem; color:#ffd700;">📦${p.recursos || 0}</span><span class="mini-phase">${fase.emoji}</span></div>`;
+    }).join('') || '<div style="color:#6a6a80; font-size:0.8rem;">Nenhum jogador ativo</div>';
+}
 
-    function updatePlayersOnlineList() {
-        document.getElementById('playersOnlineList').innerHTML = Game.getActivePlayers().map(p => {
-            const fase = Game.getFaseById(p.phase);
-            return `<div class="online-player"><div class="player-avatar-xs">${p.name.charAt(0)}</div><span>${p.name}</span><span style="font-size:0.7rem; color:#ffd700;">📦${p.recursos || 0}</span><span class="mini-phase">${fase.emoji}</span></div>`;
-        }).join('') || '<div style="color:#6a6a80; font-size:0.8rem;">Nenhum jogador ativo</div>';
-    }
-
-    function updateRankingList() {
-        // O ranking exibido durante a partida reflete apenas jogadores ativos,
-        // consistente com a lista de "Jogadores" (updatePlayersOnlineList).
-        // Jogadores que saíram da partida (waitingInLobby) só reaparecem no
-        // ranking final de fim de jogo (displayFinalRanking).
-        const ranking = Game.core.buildRanking().filter(p => !p.waitingInLobby);
-        const medalhas = ['🥇', '🥈', '🥉'];
-        document.getElementById('rankingList').innerHTML = ranking.map((p, i) => `
+function updateRankingList() {
+    // O ranking exibido durante a partida reflete apenas jogadores ativos,
+    // consistente com a lista de "Jogadores" (updatePlayersOnlineList).
+    // Jogadores que saíram da partida (waitingInLobby) só reaparecem no
+    // ranking final de fim de jogo (displayFinalRanking).
+    const ranking = Game.core.buildRanking().filter(p => !p.waitingInLobby);
+    const medalhas = ['🥇', '🥈', '🥉'];
+    document.getElementById('rankingList').innerHTML = ranking.map((p, i) => `
         <div class="rank-item"><span class="rank-pos">${medalhas[i] || '#' + (i + 1)}</span><span class="rank-name">${p.name}</span><span class="rank-kpi">${p.kpiFinal} ⭐</span></div>
     `).join('');
+}
+
+function displayFinalRanking(ranking) {
+    const medalhas = ['🥇', '🥈', '🥉'];
+    const formula = document.getElementById('kpiFinalFormula');
+
+    if (formula) {
+        formula.textContent =
+            `KPI Final = KPI acumulado + (Recursos restantes × ${CONFIG.KPI.VALOR_RECURSO_FINAL})`;
     }
-
-    function displayFinalRanking(ranking) {
-        const medalhas = ['🥇', '🥈', '🥉'];
-        const formula = document.getElementById('kpiFinalFormula');
-
-        if (formula) {
-            formula.textContent =
-                `KPI Final = KPI acumulado + (Recursos restantes × ${CONFIG.KPI.VALOR_RECURSO_FINAL})`;
-        }
-        document.getElementById('finalRanking').innerHTML = ranking.map((p, i) => {
-            const kpiRecursos = p.recursos * CONFIG.KPI.VALOR_RECURSO_FINAL;
-            return `<div class="final-rank-item ${i < 3 ? 'top-' + (i + 1) : ''}">
+    document.getElementById('finalRanking').innerHTML = ranking.map((p, i) => {
+        const kpiRecursos = p.recursos * CONFIG.KPI.VALOR_RECURSO_FINAL;
+        return `<div class="final-rank-item ${i < 3 ? 'top-' + (i + 1) : ''}">
         <span class="final-rank-pos">${medalhas[i] || '#' + p.posicao}</span>
         <span class="final-rank-name">${p.name}</span>
         <span class="final-rank-kpi">${p.kpiFinal} ⭐</span>
         <div class="final-rank-detail" style="font-size:0.75rem; color:#a0a0b8; margin-top:4px;">KPI acumulado (acertos, vendas e assessorias): ${p.kpi} | Recursos: ${p.recursos}📦 × ${CONFIG.KPI.VALOR_RECURSO_FINAL} = ${kpiRecursos} KPI</div>
     </div>`;
-        }).join('');
+    }).join('');
+}
+
+// ============================================
+// VENDA DE RECURSOS
+// ============================================
+
+/**
+ * Abre o modal de venda de recursos
+ */
+function showVendaModal() {
+    const state = Game.state;
+    const me = Game.getPlayerByName(state.playerName);
+
+    if (!me || me.recursos < 1) {
+        alert('⚠️ Você não tem recursos para vender.');
+        return;
     }
-    // ============================================
-    // VENDA DE RECURSOS
-    // ============================================
 
-    /**
-     * Abre o modal de venda de recursos
-     */
-    function showVendaModal() {
-        const state = Game.state;
-        const me = Game.getPlayerByName(state.playerName);
+    const compradores = Game.core.getCompradores();
 
-        if (!me || me.recursos < 1) {
-            alert('⚠️ Você não tem recursos para vender.');
-            return;
-        }
+    if (compradores.length === 0) {
+        alert('⚠️ Nenhum jogador disponível para comprar (precisa ter pelo menos ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI).');
+        return;
+    }
 
-        const compradores = Game.core.getCompradores();
+    // Atualiza informações
+    document.getElementById('vendaSeusRecursos').textContent =
+        'Seus recursos: 📦 ' + me.recursos;
 
-        if (compradores.length === 0) {
-            alert('⚠️ Nenhum jogador disponível para comprar (precisa ter pelo menos ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI).');
-            return;
-        }
-
-        // Atualiza informações
-        document.getElementById('vendaSeusRecursos').textContent =
-            'Seus recursos: 📦 ' + me.recursos;
-
-        // Lista de compradores
-        document.getElementById('vendaCompradores').innerHTML = compradores.map(c => `
+    // Lista de compradores
+    document.getElementById('vendaCompradores').innerHTML = compradores.map(c => `
         <button class="btn btn-glass" onclick="Game.ui.confirmarVenda('${c.name}')" 
                 style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px;">
             <span>${c.name}</span>
@@ -507,65 +487,54 @@ function displayQuestion(q) {
         </button>
     `).join('');
 
-        document.getElementById('modalVenda').style.display = 'flex';
-    }
+    document.getElementById('modalVenda').style.display = 'flex';
+}
 
-    /**
-     * Confirma a venda para um comprador
-     */
-    /*function confirmarVenda(compradorName) {
-        if (confirm('Vender 1📦 para ' + compradorName + ' por ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI?')) {
-            const sucesso = Game.core.venderRecurso(compradorName);
-            if (sucesso) {
-                document.getElementById('modalVenda').style.display = 'none';
-            }
-        }
-    }
-    */
-    /**
-     * Confirma a venda para um comprador
-     */
-    function confirmarVenda(compradorName) {
-        if (confirm('Vender 1📦 para ' + compradorName + ' por ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI?')) {
-            Game.core.venderRecurso(compradorName);
-            // O fechamento do modal e o feedback de sucesso/erro agora chegam
-            // via broadcast ('venda-confirmed') ou rejeição ('venda-rejected'),
-            // processados em game-network.js — não fechamos aqui de forma otimista
-            // para não mascarar uma possível rejeição do host.
-            document.getElementById('modalVenda').style.display = 'none';
-        }
-    }
-    /**
-     * Fecha o modal de venda
-     */
-    function fecharVendaModal() {
+/**
+ * Confirma a venda para um comprador
+ */
+function confirmarVenda(compradorName) {
+    if (confirm('Vender 1📦 para ' + compradorName + ' por ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI?')) {
+        Game.core.venderRecurso(compradorName);
+        // O fechamento do modal e o feedback de sucesso/erro agora chegam
+        // via broadcast ('venda-confirmed') ou rejeição ('venda-rejected'),
+        // processados em game-network.js — não fechamos aqui de forma otimista
+        // para não mascarar uma possível rejeição do host.
         document.getElementById('modalVenda').style.display = 'none';
     }
+}
 
-    // ============================================
-    // SISTEMA DE ASSESSORIA
-    // ============================================
+/**
+ * Fecha o modal de venda
+ */
+function fecharVendaModal() {
+    document.getElementById('modalVenda').style.display = 'none';
+}
 
-    let assessoriaCountdownInterval = null;
+// ============================================
+// SISTEMA DE ASSESSORIA
+// ============================================
 
-    /**
-     * Abre o modal de seleção de assessor (visão do Respondedor)
-     */
-    function showAssessoriaSelectModal() {
-        const state = Game.state;
-        const round = state.currentRound;
-        if (!round) return;
+let assessoriaCountdownInterval = null;
 
-        const candidatos = Game.getActivePlayers().filter(p =>
-            p.name !== round.perguntador && p.name !== state.playerName
-        );
+/**
+ * Abre o modal de seleção de assessor (visão do Respondedor)
+ */
+function showAssessoriaSelectModal() {
+    const state = Game.state;
+    const round = state.currentRound;
+    if (!round) return;
 
-        if (candidatos.length === 0) {
-            alert('⚠️ Nenhum jogador disponível para assessoria.');
-            return;
-        }
+    const candidatos = Game.getActivePlayers().filter(p =>
+        p.name !== round.perguntador && p.name !== state.playerName
+    );
 
-        document.getElementById('assessoriaJogadoresList').innerHTML = candidatos.map(p => `
+    if (candidatos.length === 0) {
+        alert('⚠️ Nenhum jogador disponível para assessoria.');
+        return;
+    }
+
+    document.getElementById('assessoriaJogadoresList').innerHTML = candidatos.map(p => `
         <button class="btn btn-glass" onclick="Game.ui.escolherAssessor('${p.name}')"
                 style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px;">
             <span>${p.name}</span>
@@ -573,133 +542,134 @@ function displayQuestion(q) {
         </button>
     `).join('');
 
-        document.getElementById('modalAssessoriaSelect').style.display = 'flex';
-    }
+    document.getElementById('modalAssessoriaSelect').style.display = 'flex';
+}
 
-    /**
-     * Confirma a escolha do assessor e envia o pedido
-     */
-    function escolherAssessor(assessorName) {
-        document.getElementById('modalAssessoriaSelect').style.display = 'none';
-        const ok = Game.core.requestAssessoria(assessorName);
-        if (ok) {
-            document.getElementById('btnPedirAssessoria').disabled = true;
-            document.getElementById('assessoriaStatus').textContent = `📞 Aguardando resposta de ${assessorName}...`;
-            // NOVO: evita clicar em uma alternativa enquanto a assessoria está pendente
-            document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = true);
-        }
+/**
+ * Confirma a escolha do assessor e envia o pedido
+ */
+function escolherAssessor(assessorName) {
+    document.getElementById('modalAssessoriaSelect').style.display = 'none';
+    const ok = Game.core.requestAssessoria(assessorName);
+    if (ok) {
+        document.getElementById('btnPedirAssessoria').disabled = true;
+        document.getElementById('assessoriaStatus').textContent = `📞 Aguardando resposta de ${assessorName}...`;
+        // Evita clicar em uma alternativa enquanto a assessoria está pendente
+        document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = true);
     }
+}
 
-    /**
-     * Notifica o Respondedor que o pedido foi iniciado (broadcast do host)
-     */
-    function showAssessoriaStarted(msg) {
-        const state = Game.state;
-        if (state.playerName === state.currentRound?.respondedor) {
-            document.getElementById('btnPedirAssessoria').disabled = true;
-            document.getElementById('assessoriaStatus').textContent = `📞 Aguardando resposta de ${msg.assessorName}...`;
-        }
+/**
+ * Notifica o Respondedor que o pedido foi iniciado (broadcast do host)
+ */
+function showAssessoriaStarted(msg) {
+    const state = Game.state;
+    if (state.playerName === state.currentRound?.respondedor) {
+        document.getElementById('btnPedirAssessoria').disabled = true;
+        document.getElementById('assessoriaStatus').textContent = `📞 Aguardando resposta de ${msg.assessorName}...`;
     }
+}
 
-    /**
-     * Exibe o modal de pergunta para o jogador chamado como assessor
-     */
-    function showAssessoriaQuestionModal(msg) {
-        document.getElementById('assessoriaQuestionText').textContent = msg.pergunta;
-        document.getElementById('assessoriaAlternativesList').innerHTML = msg.alternativas.map(alt => {
-            const letra = alt.charAt(0).toLowerCase();
-            return `<button class="btn btn-glass" onclick="Game.ui.responderAssessoria('${letra}', false)"
+/**
+ * Exibe o modal de pergunta para o jogador chamado como assessor
+ */
+function showAssessoriaQuestionModal(msg) {
+    document.getElementById('assessoriaQuestionText').textContent = msg.pergunta;
+    document.getElementById('assessoriaAlternativesList').innerHTML = msg.alternativas.map(alt => {
+        const letra = alt.charAt(0).toLowerCase();
+        return `<button class="btn btn-glass" onclick="Game.ui.responderAssessoria('${letra}', false)"
                     style="text-align:left; padding:10px 14px;">${alt}</button>`;
-        }).join('');
+    }).join('');
 
-        let seconds = Math.floor(CONFIG.JOGO.ASSESSORIA_TIMEOUT / 1000);
-        document.getElementById('assessoriaTimerText').textContent = `⏱️ ${seconds}s`;
+    let seconds = Math.floor(CONFIG.JOGO.ASSESSORIA_TIMEOUT / 1000);
+    document.getElementById('assessoriaTimerText').textContent = `⏱️ ${seconds}s`;
 
-        clearInterval(assessoriaCountdownInterval);
-        assessoriaCountdownInterval = setInterval(() => {
-            seconds--;
-            document.getElementById('assessoriaTimerText').textContent = `⏱️ ${Math.max(seconds, 0)}s`;
-            if (seconds <= 0) {
-                clearInterval(assessoriaCountdownInterval);
-                document.getElementById('modalAssessoriaQuestion').style.display = 'none';
-            }
-        }, 1000);
-
-        document.getElementById('modalAssessoriaQuestion').style.display = 'flex';
-    }
-
-    /**
-     * Envia a sugestão (ou recusa) do assessor ao host
-     */
-    function responderAssessoria(alternativa, recusado) {
-        clearInterval(assessoriaCountdownInterval);
-        document.getElementById('modalAssessoriaQuestion').style.display = 'none';
-
-        const state = Game.state;
-        const msg = { type: 'assessoria-answer', alternativa, recusado: !!recusado };
-
-        if (state.isHost) {
-            Game.core.handleAssessoriaAnswer(msg);
-        } else {
-            Game.network.sendToHost(msg);
+    clearInterval(assessoriaCountdownInterval);
+    assessoriaCountdownInterval = setInterval(() => {
+        seconds--;
+        document.getElementById('assessoriaTimerText').textContent = `⏱️ ${Math.max(seconds, 0)}s`;
+        if (seconds <= 0) {
+            clearInterval(assessoriaCountdownInterval);
+            document.getElementById('modalAssessoriaQuestion').style.display = 'none';
         }
+    }, 1000);
+
+    document.getElementById('modalAssessoriaQuestion').style.display = 'flex';
+}
+
+/**
+ * Envia a sugestão (ou recusa) do assessor ao host
+ */
+function responderAssessoria(alternativa, recusado) {
+    clearInterval(assessoriaCountdownInterval);
+    document.getElementById('modalAssessoriaQuestion').style.display = 'none';
+
+    const state = Game.state;
+    const msg = { type: 'assessoria-answer', alternativa, recusado: !!recusado };
+
+    if (state.isHost) {
+        Game.core.handleAssessoriaAnswer(msg);
+    } else {
+        Game.network.sendToHost(msg);
+    }
+}
+
+/**
+ * Mostra o resultado da assessoria na tela do Respondedor
+ */
+function showAssessoriaResult(msg) {
+    const state = Game.state;
+    if (state.playerName !== state.currentRound?.respondedor) return;
+
+    const statusEl = document.getElementById('assessoriaStatus');
+    if (!statusEl) return;
+
+    if (msg.recusado) {
+        statusEl.textContent = msg.invalido
+            ? `⚠️ Não foi possível chamar ${msg.assessorName}. Escolha uma alternativa.`
+            : (msg.timeout
+                ? `⌛ ${msg.assessorName} não respondeu a tempo.`
+                : `❌ ${msg.assessorName} recusou o pedido de assessoria.`);
+    } else {
+        statusEl.textContent = `🧭 ${msg.assessorName} sugere: ${msg.sugestao.toUpperCase()}`;
     }
 
-    /**
-     * Mostra o resultado da assessoria na tela do Respondedor
-     */
-    function showAssessoriaResult(msg) {
-        const state = Game.state;
-        if (state.playerName !== state.currentRound?.respondedor) return;
-
-        const statusEl = document.getElementById('assessoriaStatus');
-        if (!statusEl) return;
-
-        if (msg.recusado) {
-            statusEl.textContent = msg.invalido
-                ? `⚠️ Não foi possível chamar ${msg.assessorName}. Escolha uma alternativa.`
-                : (msg.timeout
-                    ? `⌛ ${msg.assessorName} não respondeu a tempo.`
-                    : `❌ ${msg.assessorName} recusou o pedido de assessoria.`);
-        } else {
-            statusEl.textContent = `🧭 ${msg.assessorName} sugere: ${msg.sugestao.toUpperCase()}`;
-        }
-
-        // NOVO: reabilita as alternativas agora que a assessoria foi resolvida
-        // (só se ainda não houver resposta enviada nesta rodada)
-        if (!state.currentRound.respondeu) {
-            document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = false);
-        }
+    // Reabilita as alternativas agora que a assessoria foi resolvida
+    // (só se ainda não houver resposta enviada nesta rodada)
+    if (!state.currentRound.respondeu) {
+        document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = false);
     }
+}
 
-    /**
-     * Modal simples de bônus de KPI para o assessor
-     */
-    function showAssessoriaBonusModal(bonus) {
-        document.getElementById('resultTitle').textContent = '🧭 Assessoria!';
-        document.getElementById('resultTitle').className = 'result-title result-success';
-        document.getElementById('resultMessage').textContent = `+${bonus} KPI (sugestão correta)`;
-        DOM.modalResult.style.display = 'flex';
-    }
-    // ============================================
-    // EXPORTAÇÃO
-    // ============================================
-    window.Game = window.Game || {};
-    window.Game.ui = {
-        setupUI, showScreen, showLobbyNormal, showLobbyWaitingView,
-        updateConnectionStatus, updatePlayersList, checkStartCondition,
-        updateTimerDisplay, displayRoundStart, displayQuestion, displaySpectatorView,
-        showResultModal, showEventoModal,
-        updatePlayersOnlineList, updateRankingList, displayFinalRanking,
-        handleAlternativeClick,
-        showVendaModal,
-        confirmarVenda,
-        fecharVendaModal,
-        showAssessoriaSelectModal,
-        escolherAssessor,
-        showAssessoriaStarted,
-        showAssessoriaQuestionModal,
-        responderAssessoria,
-        showAssessoriaResult,
-        showAssessoriaBonusModal
-    };
+/**
+ * Modal simples de bônus de KPI para o assessor
+ */
+function showAssessoriaBonusModal(bonus) {
+    document.getElementById('resultTitle').textContent = '🧭 Assessoria!';
+    document.getElementById('resultTitle').className = 'result-title result-success';
+    document.getElementById('resultMessage').textContent = `+${bonus} KPI (sugestão correta)`;
+    DOM.modalResult.style.display = 'flex';
+}
+
+// ============================================
+// EXPORTAÇÃO
+// ============================================
+window.Game = window.Game || {};
+window.Game.ui = {
+    setupUI, showScreen, showLobbyNormal, showLobbyWaitingView,
+    updateConnectionStatus, updatePlayersList, checkStartCondition,
+    updateTimerDisplay, displayRoundStart, displayQuestion, displaySpectatorView,
+    showResultModal, showEventoModal,
+    updatePlayersOnlineList, updateRankingList, displayFinalRanking,
+    handleAlternativeClick,
+    showVendaModal,
+    confirmarVenda,
+    fecharVendaModal,
+    showAssessoriaSelectModal,
+    escolherAssessor,
+    showAssessoriaStarted,
+    showAssessoriaQuestionModal,
+    responderAssessoria,
+    showAssessoriaResult,
+    showAssessoriaBonusModal
+};
