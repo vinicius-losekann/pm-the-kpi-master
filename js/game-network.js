@@ -266,7 +266,7 @@ function handleMessage(msg, fromPeerId) {
             state.currentRound.respondeu = false;
             Game.ui.displayQuestion(msg);
             break;
-        
+
         case 'answer':
             if (
                 state.isHost &&
@@ -696,6 +696,7 @@ function becomeHost() {
                 }
             }, 1000);
 
+            // game-network.js — becomeHost(), corrigido
             if (!state.currentRound) {
                 Game.core.pickNewPair();
             } else {
@@ -703,6 +704,10 @@ function becomeHost() {
                 if (state.currentRound.pergunta) {
                     Game.ui.displayQuestion(state.currentRound.pergunta);
                 }
+                // Rearma a rede de segurança: o timeout do host antigo morreu junto
+                // com ele. Sem isso, se o Respondedor da rodada em curso sumir após
+                // a migração, ninguém mais libera a vez até o fim dos 90 minutos.
+                Game.core.armarRespostaTimeout(state.currentRound.respondedor);
             }
         } else {
             Game.ui.showLobbyNormal();

@@ -655,35 +655,7 @@ function handleAssessoriaRequest(msg) {
 /**
  * HOST: processa a resposta (ou recusa/timeout) do assessor.
  */
-/*function handleAssessoriaAnswer(msg) {
-    const state = Game.state;
-    if (!state.isHost || !state.currentRound || !state.currentRound.assessoria) return;
-    if (state.currentRound.assessoria.status !== 'pending') return;
 
-    if (state.assessoriaTimeout) {
-        clearTimeout(state.assessoriaTimeout);
-        state.assessoriaTimeout = null;
-    }
-
-    state.currentRound.assessoria.status = msg.recusado ? 'declined' : 'accepted';
-    state.currentRound.assessoria.sugestao = msg.recusado ? null : msg.alternativa;
-
-    Game.network.broadcastAll({
-        type: 'assessoria-result',
-        assessorName: state.currentRound.assessoria.assessorName,
-        sugestao: state.currentRound.assessoria.sugestao,
-        recusado: !!msg.recusado,
-        timeout: !!msg.timeout
-    });
-    // NOVO: se o Respondedor já tinha enviado uma resposta enquanto a
-    // assessoria ainda estava pendente, processa agora que ela foi resolvida.
-    if (state.currentRound.pendingAnswer) {
-        const pending = state.currentRound.pendingAnswer;
-        state.currentRound.pendingAnswer = null;
-        handleAnswer(pending);
-    }
-    Game.saveState(); // NOVO
-}*/
 function handleAssessoriaAnswer(msg) {
     const state = Game.state;
     if (!state.isHost || !state.currentRound || !state.currentRound.assessoria) return;
