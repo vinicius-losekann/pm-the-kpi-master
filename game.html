@@ -117,7 +117,7 @@
                         <span class="kpi-label">KPI</span>
                     </div>
 
-                    <!-- Recursos (V2) -->
+                    <!-- Recursos -->
                     <div class="recursos-display"
                         style="display:flex; align-items:center; justify-content:center; gap:6px; margin-bottom:12px;">
                         <span style="font-size:1.2rem;">📦</span>
@@ -245,8 +245,7 @@
         <div class="game-container">
             <div class="gameover-card glass-card text-center">
                 <h2 class="gameover-title">🏆 Fim de Partida!</h2>
-                <p style="color:#a0a0b8; margin-bottom:16px;">KPI Total = Atividades concluídas + (Recursos restantes ×
-                    5)</p>
+                <p id="kpiFinalFormula" style="color:#a0a0b8; margin-bottom:16px;"></p>
                 <div id="finalRanking" class="final-ranking"></div>
                 <button id="btnBackToLobby" class="btn btn-primary btn-lg">🔙 Voltar ao Lobby</button>
                 <button id="btnExitGameOver" class="btn btn-secondary" style="margin-left:8px;">🚪 Sair</button>
@@ -255,7 +254,7 @@
     </div>
 
     <!-- ============================================ -->
-    <!-- MODAL EVENTO
+    <!-- MODAL EVENTO -->
     <!-- ============================================ -->
     <div id="modalEvento" class="modal" style="display:none;">
         <div class="modal-overlay"></div>

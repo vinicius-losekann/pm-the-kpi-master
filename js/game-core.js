@@ -258,7 +258,7 @@ function handleAnswer(msg) {
 
     state.currentRound.respondeu = true;
 
-    const { pergunta, evento, respondedor: respondedorName } = state.currentRound;
+    const { pergunta, evento} = state.currentRound;
     const acertou = msg.alternativa === pergunta.correta;
     const respondedor = Game.getPlayerByName(respondedorName);
 

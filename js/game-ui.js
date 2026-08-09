@@ -374,6 +374,12 @@ function updateRankingList() {
 
 function displayFinalRanking(ranking) {
     const medalhas = ['🥇', '🥈', '🥉'];
+    const formula = document.getElementById('kpiFinalFormula');
+
+    if (formula) {
+        formula.textContent =
+            `KPI Final = KPI acumulado + (Recursos restantes × ${CONFIG.KPI.VALOR_RECURSO_FINAL})`;
+    }
     document.getElementById('finalRanking').innerHTML = ranking.map((p, i) => {
         const kpiRecursos = p.recursos * CONFIG.KPI.VALOR_RECURSO_FINAL;
         return `<div class="final-rank-item ${i < 3 ? 'top-' + (i + 1) : ''}">
