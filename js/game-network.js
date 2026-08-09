@@ -266,10 +266,11 @@ function handleMessage(msg, fromPeerId) {
             state.currentRound.respondeu = false;
             Game.ui.displayQuestion(msg);
             break;
-
+        
         case 'answer':
             if (
                 state.isHost &&
+                state.currentRound &&
                 !state.currentRound.respondeu &&
                 msg.playerName === state.currentRound.respondedor
             ) {
