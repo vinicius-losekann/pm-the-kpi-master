@@ -216,6 +216,12 @@ function resetBaralho(areaKey) {
     }
 }
 
+// NOVO
+function resetAllBaralhos() {
+    Object.keys(Game.state.baralhos).forEach(key => resetBaralho(key));
+    console.log('🔄 Baralhos de perguntas resetados para a próxima partida.');
+}
+
 // ============================================
 // EFEITOS DOS EVENTOS
 // ============================================
@@ -224,36 +230,41 @@ function aplicarEfeitosEvento(evento) {
     const state = Game.state;
     if (!evento) return;
 
-    // e1: +1 recurso para todos
+    // NOVO: só afeta quem ainda está ativo na partida — jogadores que
+    // saíram (waitingInLobby) não devem ganhar nem perder recursos por
+    // eventos sorteados depois que pararam de jogar.
+    const ativos = Game.getActivePlayers();
+
+    // e1: +1 recurso para todos os ativos
     if (evento.recursos_todos > 0) {
-        state.players.forEach(p => p.recursos += evento.recursos_todos);
-        console.log('🟢 Evento: +' + evento.recursos_todos + ' recurso(s) para todos');
+        ativos.forEach(p => p.recursos += evento.recursos_todos);
+        console.log('🟢 Evento: +' + evento.recursos_todos + ' recurso(s) para todos os ativos');
     }
 
-    // e2: -1 recurso de todos (mínimo 0)
+    // e2: -1 recurso de todos os ativos (mínimo 0)
     if (evento.recursos_todos < 0) {
-        state.players.forEach(p => {
+        ativos.forEach(p => {
             p.recursos = Math.max(0, p.recursos + evento.recursos_todos);
         });
-        console.log('🔴 Evento: ' + evento.recursos_todos + ' recurso(s) de todos');
+        console.log('🔴 Evento: ' + evento.recursos_todos + ' recurso(s) de todos os ativos');
     }
 
-    // e3: +2 recursos para quem tem menos
-    if (evento.recursos_menos) {
-        const minRecursos = Math.min(...state.players.map(p => p.recursos));
-        const beneficiados = state.players.filter(p => p.recursos === minRecursos);
+    // e3: +N recursos para quem tem menos, entre os ativos
+    if (evento.recursos_menos && ativos.length > 0) {
+        const minRecursos = Math.min(...ativos.map(p => p.recursos));
+        const beneficiados = ativos.filter(p => p.recursos === minRecursos);
         beneficiados.forEach(p => p.recursos += evento.recursos_menos);
         console.log('🎁 Evento: +' + evento.recursos_menos + ' recursos para ' + beneficiados.map(p => p.name).join(', '));
     }
 
-    // e5: mais rico dá 1 para mais pobre
-    if (evento.troca_recursos) {
-        const maxRecursos = Math.max(...state.players.map(p => p.recursos));
-        const minRecursos = Math.min(...state.players.map(p => p.recursos));
+    // e5: mais rico dá 1 para mais pobre, entre os ativos
+    if (evento.troca_recursos && ativos.length > 0) {
+        const maxRecursos = Math.max(...ativos.map(p => p.recursos));
+        const minRecursos = Math.min(...ativos.map(p => p.recursos));
 
         if (maxRecursos > minRecursos) {
-            const rico = state.players.find(p => p.recursos === maxRecursos);
-            const pobre = state.players.find(p => p.recursos === minRecursos);
+            const rico = ativos.find(p => p.recursos === maxRecursos);
+            const pobre = ativos.find(p => p.recursos === minRecursos);
             if (rico && pobre && rico !== pobre) {
                 rico.recursos--;
                 pobre.recursos++;
@@ -280,6 +291,17 @@ function handleAnswer(msg) {
 
     if (state.currentRound.respondeu) {
         console.warn('⚠️ Rodada já foi respondida!');
+        return;
+    }
+    // NOVO: se há uma assessoria pendente para esta rodada, não processa a
+    // resposta ainda — guarda e reprocessa quando a assessoria for resolvida
+    // (aceita, recusada ou expirada). Sem isso, o bônus do assessor era
+    // perdido silenciosamente quando o Respondedor respondia antes da hora.
+    const assessoriaPendente = state.currentRound.assessoria &&
+        state.currentRound.assessoria.status === 'pending';
+    if (assessoriaPendente) {
+        console.log('⏳ Resposta recebida com assessoria pendente — aguardando resolução...');
+        state.currentRound.pendingAnswer = msg;
         return;
     }
 
@@ -491,10 +513,31 @@ function handleAssessoriaRequest(msg) {
     if (!state.isHost || !state.currentRound || state.currentRound.assessoria) return;
     if (msg.requesterName !== state.currentRound.respondedor) return;
 
+    const requester = Game.getPlayerByName(msg.requesterName);
     const assessor = Game.getPlayerByName(msg.assessorName);
-    if (!assessor || assessor.waitingInLobby) return;
-    if (msg.assessorName === state.currentRound.perguntador) return;
-    if (msg.assessorName === state.currentRound.respondedor) return;
+
+    const invalido =
+        !assessor ||
+        assessor.waitingInLobby ||
+        msg.assessorName === state.currentRound.perguntador ||
+        msg.assessorName === state.currentRound.respondedor;
+
+    // NOVO: se o assessor ficou inválido por alguma condição de corrida
+    // (ex.: saiu da partida entre a seleção e o envio), avisa o solicitante
+    // em vez de deixar a UI presa em "Aguardando resposta de..." para sempre.
+    if (invalido) {
+        console.warn('⚠️ Assessor inválido para o pedido de assessoria:', msg.assessorName);
+        if (requester) {
+            Game.network.sendToPlayer(requester.peerId, {
+                type: 'assessoria-result',
+                assessorName: msg.assessorName,
+                sugestao: null,
+                recusado: true,
+                invalido: true
+            });
+        }
+        return;
+    }
 
     state.currentRound.assessoria = {
         assessorName: msg.assessorName,
@@ -548,6 +591,13 @@ function handleAssessoriaAnswer(msg) {
         recusado: !!msg.recusado,
         timeout: !!msg.timeout
     });
+    // NOVO: se o Respondedor já tinha enviado uma resposta enquanto a
+    // assessoria ainda estava pendente, processa agora que ela foi resolvida.
+    if (state.currentRound.pendingAnswer) {
+        const pending = state.currentRound.pendingAnswer;
+        state.currentRound.pendingAnswer = null;
+        handleAnswer(pending);
+    }
 }
 // ============================================
 // CONTROLE DE PARTIDA
@@ -606,6 +656,7 @@ function endMatch() {
 
     Game.resetAllPlayers();
     Game.resetGameState();
+    Game.core.resetAllBaralhos(); // NOVO
 
     Game.network.broadcastAll({ type: 'match-ended', players: Game.state.players });
     Game.ui.showScreen('lobby');
@@ -620,6 +671,8 @@ function handleMatchEnded(msg) {
     Game.state.players = msg.players;
     Game.resetAllPlayers();
     Game.resetGameState();
+    Game.core.resetAllBaralhos(); // NOVO — mantém a cópia local do guest coerente,
+                                   // relevante caso ele vire host numa migração futura
     Game.ui.showScreen('lobby');
     Game.ui.showLobbyNormal();
     Game.ui.updatePlayersList();
@@ -773,6 +826,8 @@ window.Game.core = {
     startNewRound,
     pickNewPair,
     sortearPergunta,
+    resetBaralho,        // NOVO
+    resetAllBaralhos,    // NOVO
     aplicarEfeitosEvento,
     handleAnswer,
     updatePlayerKPI,

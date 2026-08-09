@@ -411,11 +411,11 @@ function displayFinalRanking(ranking) {
     document.getElementById('finalRanking').innerHTML = ranking.map((p, i) => {
         const kpiRecursos = p.recursos * CONFIG.KPI.VALOR_RECURSO_FINAL;
         return `<div class="final-rank-item ${i < 3 ? 'top-' + (i + 1) : ''}">
-            <span class="final-rank-pos">${medalhas[i] || '#' + p.posicao}</span>
-            <span class="final-rank-name">${p.name}</span>
-            <span class="final-rank-kpi">${p.kpiFinal} ⭐</span>
-            <div class="final-rank-detail" style="font-size:0.75rem; color:#a0a0b8; margin-top:4px;">Atividades: ${p.kpi} KPI | Recursos: ${p.recursos}📦 × ${CONFIG.KPI.VALOR_RECURSO_FINAL} = ${kpiRecursos} KPI</div>
-        </div>`;
+        <span class="final-rank-pos">${medalhas[i] || '#' + p.posicao}</span>
+        <span class="final-rank-name">${p.name}</span>
+        <span class="final-rank-kpi">${p.kpiFinal} ⭐</span>
+        <div class="final-rank-detail" style="font-size:0.75rem; color:#a0a0b8; margin-top:4px;">KPI acumulado (acertos, vendas e assessorias): ${p.kpi} | Recursos: ${p.recursos}📦 × ${CONFIG.KPI.VALOR_RECURSO_FINAL} = ${kpiRecursos} KPI</div>
+    </div>`;
     }).join('');
 }
 // ============================================
@@ -519,6 +519,8 @@ function escolherAssessor(assessorName) {
     if (ok) {
         document.getElementById('btnPedirAssessoria').disabled = true;
         document.getElementById('assessoriaStatus').textContent = `📞 Aguardando resposta de ${assessorName}...`;
+        // NOVO: evita clicar em uma alternativa enquanto a assessoria está pendente
+        document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = true);
     }
 }
 
@@ -588,11 +590,19 @@ function showAssessoriaResult(msg) {
     if (!statusEl) return;
 
     if (msg.recusado) {
-        statusEl.textContent = msg.timeout
-            ? `⌛ ${msg.assessorName} não respondeu a tempo.`
-            : `❌ ${msg.assessorName} recusou o pedido de assessoria.`;
+        statusEl.textContent = msg.invalido
+            ? `⚠️ Não foi possível chamar ${msg.assessorName}. Escolha uma alternativa.`
+            : (msg.timeout
+                ? `⌛ ${msg.assessorName} não respondeu a tempo.`
+                : `❌ ${msg.assessorName} recusou o pedido de assessoria.`);
     } else {
         statusEl.textContent = `🧭 ${msg.assessorName} sugere: ${msg.sugestao.toUpperCase()}`;
+    }
+
+    // NOVO: reabilita as alternativas agora que a assessoria foi resolvida
+    // (só se ainda não houver resposta enviada nesta rodada)
+    if (!state.currentRound.respondeu) {
+        document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = false);
     }
 }
 
