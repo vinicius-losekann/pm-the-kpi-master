@@ -254,7 +254,15 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'question':
-            state.currentRound.pergunta = msg;
+            // CORRIGIDO: quando o HOST é o Respondedor, sendToPlayer() despacha a
+            // mensagem para ele mesmo (mesmo processo/objeto de estado). Sem esta
+            // checagem, `state.currentRound.pergunta` — que é a cópia AUTORITATIVA
+            // usada por handleAnswer() para conferir a resposta — era sobrescrita
+            // pela versão "stripped" (correta: undefined) enviada ao Respondedor,
+            // fazendo o host errar toda pergunta em que ele mesmo era o Respondedor.
+            if (!state.isHost) {
+                state.currentRound.pergunta = msg;
+            }
             state.currentRound.respondeu = false;
             Game.ui.displayQuestion(msg);
             break;
@@ -418,13 +426,30 @@ function addPlayer(msg, fromPeerId) {
 
     const conn = connections[fromPeerId];
     if (conn && conn.open) {
+        // CORRIGIDO: nunca reenvie o gabarito (`correta`) para quem não é o
+        // Perguntador da rodada atual. Antes, `state.currentRound` era enviado
+        // sem qualquer filtro em todo state-sync (entrada/reconexão), vazando a
+        // resposta correta para o Respondedor (ou espectadores) que reconectasse
+        // no meio de uma rodada — contrariando a regra já aplicada no envio
+        // normal da pergunta em pickNewPair().
+        let currentRoundForSync = state.currentRound;
+        if (currentRoundForSync && currentRoundForSync.pergunta) {
+            const isPerguntadorDaRodada = msg.playerName === currentRoundForSync.perguntador;
+            if (!isPerguntadorDaRodada) {
+                currentRoundForSync = {
+                    ...currentRoundForSync,
+                    pergunta: { ...currentRoundForSync.pergunta, correta: undefined }
+                };
+            }
+        }
+
         conn.send({
             type: 'state-sync',
             fullState: {
                 players: state.players,
                 baralhos: state.baralhos,
                 timer: state.timer,
-                currentRound: state.currentRound,
+                currentRound: currentRoundForSync,
                 gameStarted: state.gameStarted,
                 hostVersion: state.hostVersion
             }
