@@ -1,6 +1,6 @@
 # 🎯 PM: The KPI Master — v1.0
 
-> **Quiz multiplayer P2P sobre os Domínios de Conhecimento do PMBOK (8ª Edição)**
+> **Quiz multiplayer P2P sobre os Domínios de Desempenho do PMBOK (8ª Edição)**
 >
 ---
 
@@ -108,6 +108,11 @@ mundo". Fora dessa situação, a Assessoria funciona normalmente.
 Essa restrição afeta apenas o **pedido**: um jogador que já está na fase de Encerramento
 continua podendo ser **chamado como assessor** por colegas em fases anteriores.
 
+A validação dessa restrição é feita tanto no cliente (feedback imediato ao jogador) quanto no
+**host**, que é a fonte da verdade da partida — um pedido de assessoria vindo de um Respondedor
+na fase de Encerramento é sempre rejeitado pelo host, independentemente do estado local de quem
+enviou o pedido.
+
 ### Quem pode ser assessor
 
 | Papel | Pode ser assessor? |
@@ -153,6 +158,7 @@ sugestão — ambos os casos têm o mesmo efeito.
 Respondedor recebe pergunta
         │
         ├── Está na fase de Encerramento? → Sim → não pode pedir Assessoria
+        │        (validado no cliente E no host)
         │
         ├── (opcional) Pede Assessoria → escolhe jogador ativo (≠ Perguntador)
         │         │
@@ -231,8 +237,7 @@ python -m http.server 8080
 |---|---|
 | 🔗 Conexão P2P | ✅ |
 | 👥 2-6 jogadores | ✅ |
-| 📚 100 perguntas (10 domínios de conhecimento) | ✅ |
-| 🎯 5 Áreas de Foco (Focus Areas) | ✅ |
+| 📚 76 perguntas (7 Domínios de Desempenho: Governança, Escopo, Cronograma, Finanças, Partes Interessadas, Recursos, Riscos) | ✅ |
 | ⭐ KPI fixo (10 por acerto) | ✅ |
 | 📋 5 eventos | ✅ |
 | 🪟 Modal de evento | ✅ |

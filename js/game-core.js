@@ -482,6 +482,10 @@ function updatePlayerKPI(msg) {
 
 /**
  * Chamado pelo cliente do Respondedor ao escolher um assessor.
+ * Esta é apenas uma checagem otimista/local para dar feedback rápido ao
+ * jogador — a validação que realmente vale é feita pelo HOST em
+ * handleAssessoriaRequest(), já que é ele a fonte da verdade da partida
+ * e não deve confiar no estado local de quem envia o pedido.
  */
 function requestAssessoria(assessorName) {
     const state = Game.state;
@@ -507,6 +511,14 @@ function requestAssessoria(assessorName) {
 
 /**
  * HOST: processa o pedido de assessoria e envia a pergunta ao assessor escolhido.
+ *
+ * Esta função é a fonte da verdade: revalida no servidor (host) tudo que o
+ * cliente do Respondedor já checou localmente em requestAssessoria(), pois
+ * o estado do cliente pode estar desatualizado (ex.: acabou de avançar
+ * para Encerramento mas ainda não recebeu o kpi-update) ou a mensagem
+ * 'assessoria-request' pode chegar diretamente sem passar pela checagem
+ * do cliente. Sem essa revalidação, a restrição do README — "Respondedor
+ * na fase de Encerramento não pode pedir Assessoria" — poderia ser burlada.
  */
 function handleAssessoriaRequest(msg) {
     const state = Game.state;
@@ -516,24 +528,35 @@ function handleAssessoriaRequest(msg) {
     const requester = Game.getPlayerByName(msg.requesterName);
     const assessor = Game.getPlayerByName(msg.assessorName);
 
+    // NOVO: valida no host (fonte da verdade) que o Respondedor não está
+    // na fase de Encerramento. Repete a regra já checada no cliente, pois
+    // aquela checagem sozinha não é suficiente — o host nunca deve confiar
+    // apenas no que o cliente diz sobre seu próprio estado.
+    const requesterEmEncerramento = requester &&
+        Game.getFaseIndex(requester.phase) === CONFIG.FASES.length - 1;
+
     const invalido =
         !assessor ||
         assessor.waitingInLobby ||
+        requesterEmEncerramento ||
         msg.assessorName === state.currentRound.perguntador ||
         msg.assessorName === state.currentRound.respondedor;
 
     // NOVO: se o assessor ficou inválido por alguma condição de corrida
-    // (ex.: saiu da partida entre a seleção e o envio), avisa o solicitante
-    // em vez de deixar a UI presa em "Aguardando resposta de..." para sempre.
+    // (ex.: saiu da partida entre a seleção e o envio) ou por o Respondedor
+    // estar na fase de Encerramento, avisa o solicitante em vez de deixar
+    // a UI presa em "Aguardando resposta de..." para sempre.
     if (invalido) {
-        console.warn('⚠️ Assessor inválido para o pedido de assessoria:', msg.assessorName);
+        console.warn('⚠️ Pedido de assessoria rejeitado pelo host:', msg.assessorName,
+            requesterEmEncerramento ? '(Respondedor na fase de Encerramento)' : '');
         if (requester) {
             Game.network.sendToPlayer(requester.peerId, {
                 type: 'assessoria-result',
                 assessorName: msg.assessorName,
                 sugestao: null,
                 recusado: true,
-                invalido: true
+                invalido: true,
+                motivo: requesterEmEncerramento ? 'fase-encerramento' : undefined
             });
         }
         return;
@@ -638,20 +661,6 @@ function startGame() {
     Game.saveState();
 }
 
-/*function endGame(ranking) {
-    const state = Game.state;
-    state.gameOver = true;
-    clearInterval(state.timerInterval);
-
-    if (state.isHost) {
-        Game.network.broadcastAll({ type: 'game-over', ranking });
-    }
-
-    Game.ui.showScreen('gameover');
-    Game.ui.displayFinalRanking(ranking);
-    Game.saveState();
-}*/
-
 function endGame(ranking) {
     const state = Game.state;
     state.gameOver = true;
@@ -706,71 +715,6 @@ function handleMatchEnded(msg) {
     Game.saveState();
 }
 
-// ============================================
-// VENDA DE RECURSOS
-// ============================================
-
-/* function venderRecurso(compradorName) {
-    const state = Game.state;
-    const vendedor = Game.getPlayerByName(state.playerName);
-    const comprador = Game.getPlayerByName(compradorName);
-
-    if (!vendedor || !comprador) {
-        console.warn('⚠️ Vendedor ou comprador não encontrado');
-        return false;
-    }
-
-    if (vendedor.recursos < 1) {
-        alert('⚠️ Você não tem recursos para vender.');
-        return false;
-    }
-
-    if (comprador.kpi < CONFIG.KPI.VALOR_VENDA_RECURSO) {
-        alert('⚠️ Comprador não tem KPI suficiente (precisa de ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ').');
-        return false;
-    }
-
-    if (vendedor.name === comprador.name) {
-        alert('⚠️ Você não pode vender para si mesmo.');
-        return false;
-    }
-
-    // Executa a venda
-    vendedor.recursos--;
-    vendedor.kpi += CONFIG.KPI.VALOR_VENDA_RECURSO;
-    comprador.recursos++;
-    comprador.kpi -= CONFIG.KPI.VALOR_VENDA_RECURSO;
-
-    console.log('💰 Venda:', vendedor.name, 'vendeu 1📦 para', comprador.name, 'por', CONFIG.KPI.VALOR_VENDA_RECURSO, 'KPI');
-
-    // 🔧 Atualiza UI após venda (Momento 2)
-    Game.ui.updatePlayersOnlineList();
-    Game.ui.updateRankingList();
-
-    // Atualiza UI do próprio jogador
-    if (state.playerName === vendedor.name || state.playerName === comprador.name) {
-        const me = Game.getPlayerByName(state.playerName);
-        if (me) {
-            document.getElementById('myKPI').textContent = me.kpi;
-            document.getElementById('myRecursos').textContent = me.recursos;
-        }
-    }
-
-    // Broadcast para todos
-    Game.network.broadcastAll({
-        type: 'venda-confirmed',
-        vendedor: vendedor.name,
-        comprador: comprador.name,
-        valor: CONFIG.KPI.VALOR_VENDA_RECURSO,
-        vendedorKPI: vendedor.kpi,
-        vendedorRecursos: vendedor.recursos,
-        compradorKPI: comprador.kpi,
-        compradorRecursos: comprador.recursos
-    });
-
-    Game.saveState();
-    return true;
-} */
 // ============================================
 // VENDA DE RECURSOS
 // ============================================
@@ -865,14 +809,6 @@ function getCompradores() {
         p.kpi >= CONFIG.KPI.VALOR_VENDA_RECURSO
     );
 }
-/*function getCompradores() {
-    const state = Game.state;
-    return state.players.filter(p =>
-        p.name !== state.playerName &&
-        !p.waitingInLobby &&
-        p.kpi >= CONFIG.KPI.VALOR_VENDA_RECURSO
-    );
-}*/
 
 // ============================================
 // CONTROLE DE SESSÃO

@@ -446,7 +446,7 @@ function displayFinalRanking(ranking) {
         <span class="final-rank-pos">${medalhas[i] || '#' + p.posicao}</span>
         <span class="final-rank-name">${p.name}</span>
         <span class="final-rank-kpi">${p.kpiFinal} ⭐</span>
-        <div class="final-rank-detail" style="font-size:0.75rem; color:#a0a0b8; margin-top:4px;">KPI acumulado (acertos, vendas e assessorias): ${p.kpi} | Recursos: ${p.recursos}📦 × ${CONFIG.KPI.VALOR_RECURSO_FINAL} = ${kpiRecursos} KPI</div>
+        <div class="final-rank-detail" style="font-size:0.75rem; color:#a0a0b8; margin-top:4px;">KPI acumulado (acertos, vendas, compras e assessorias): ${p.kpi} | Recursos: ${p.recursos}📦 × ${CONFIG.KPI.VALOR_RECURSO_FINAL} = ${kpiRecursos} KPI</div>
     </div>`;
     }).join('');
 }
@@ -625,11 +625,18 @@ function showAssessoriaResult(msg) {
     if (!statusEl) return;
 
     if (msg.recusado) {
-        statusEl.textContent = msg.invalido
-            ? `⚠️ Não foi possível chamar ${msg.assessorName}. Escolha uma alternativa.`
-            : (msg.timeout
-                ? `⌛ ${msg.assessorName} não respondeu a tempo.`
-                : `❌ ${msg.assessorName} recusou o pedido de assessoria.`);
+        if (msg.invalido && msg.motivo === 'fase-encerramento') {
+            // NOVO: mensagem específica quando o host rejeita o pedido por
+            // o Respondedor estar na fase de Encerramento (regra validada
+            // no host, não só no cliente — ver handleAssessoriaRequest).
+            statusEl.textContent = '⚠️ Jogadores na fase de Encerramento não podem pedir assessoria.';
+        } else if (msg.invalido) {
+            statusEl.textContent = `⚠️ Não foi possível chamar ${msg.assessorName}. Escolha uma alternativa.`;
+        } else if (msg.timeout) {
+            statusEl.textContent = `⌛ ${msg.assessorName} não respondeu a tempo.`;
+        } else {
+            statusEl.textContent = `❌ ${msg.assessorName} recusou o pedido de assessoria.`;
+        }
     } else {
         statusEl.textContent = `🧭 ${msg.assessorName} sugere: ${msg.sugestao.toUpperCase()}`;
     }
@@ -638,6 +645,15 @@ function showAssessoriaResult(msg) {
     // (só se ainda não houver resposta enviada nesta rodada)
     if (!state.currentRound.respondeu) {
         document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = false);
+    }
+
+    // Se o pedido foi rejeitado por regra (fase de Encerramento ou assessor
+    // inválido), o botão de pedir assessoria continua desabilitado só se
+    // a partida ainda impedir novo pedido; caso contrário, reabilita para
+    // permitir tentar novamente com outro jogador.
+    if (msg.invalido && msg.motivo !== 'fase-encerramento') {
+        const btnPedir = document.getElementById('btnPedirAssessoria');
+        if (btnPedir && !state.currentRound.respondeu) btnPedir.disabled = false;
     }
 }
 
