@@ -384,9 +384,7 @@ function handleAnswer(msg) {
         if (state.isHost) setTimeout(() => pickNewPair(), 500);
         Game.saveState();
         return;
-    }
-
-    if (!respondedor) return;
+    }    
 
     // Esta checagem é uma segunda linha de defesa: o respondedor já é
     // filtrado em pickNewPair() para nunca chegar aqui sem recursos.
@@ -663,7 +661,17 @@ function handleAssessoriaRequest(msg) {
         status: 'pending',
         sugestao: null
     };
-
+    // NOVO: pausa o timeout de segurança da resposta enquanto se aguarda o
+    // assessor. Esse timeout existe para detectar um Respondedor que sumiu
+    // (queda de conexão), não para penalizar quem está seguindo o fluxo de
+    // Assessoria descrito no README (até 20s de espera + tempo de decisão).
+    // Sem isso, o combo "esperar o assessor + decidir" podia ultrapassar o
+    // RESPOSTA_TIMEOUT e a rodada era marcada como errada automaticamente,
+    // mesmo com o jogador ativo na tela.
+    if (state.respostaTimeout) {
+        clearTimeout(state.respostaTimeout);
+        state.respostaTimeout = null;
+    }
     Game.network.broadcastAll({
         type: 'assessoria-started',
         assessorName: msg.assessorName,
@@ -725,7 +733,14 @@ function handleAssessoriaAnswer(msg) {
     // showAssessoriaResult() já ignora a chamada se quem está rodando não
     // for o Respondedor, então é seguro chamar sempre, sem checar isHost.
     Game.ui.showAssessoriaResult(resultMsg);
-
+    // NOVO: a Assessoria foi resolvida (aceita, recusada ou expirada) e o
+    // Respondedor ainda não enviou a resposta final — rearma o timeout de
+    // segurança do zero, dando a ele o tempo cheio para decidir, em vez de
+    // deixar a rodada sem nenhuma rede de segurança contra uma desconexão
+    // que aconteça só agora.
+    if (!state.currentRound.respondeu && !state.currentRound.pendingAnswer) {
+        armarRespostaTimeout(state.currentRound.respondedor);
+    }
     // NOVO: se o Respondedor já tinha enviado uma resposta enquanto a
     // assessoria ainda estava pendente, processa agora que ela foi resolvida.
     if (state.currentRound.pendingAnswer) {
