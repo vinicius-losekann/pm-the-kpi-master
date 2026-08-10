@@ -771,7 +771,20 @@ function startGame() {
     // atividades remanescentes da partida anterior — quebrando a
     // premissa de que toda partida começa do zero.
     Game.resetAllPlayers();
-
+    // NOVO: sincroniza o HUD do próprio jogador com o estado recém-resetado,
+    // em vez de depender que o texto padrão do HTML "coincida" com
+    // CONFIG.RECURSOS_INICIAIS/fase inicial, ou que o broadcast do primeiro
+    // evento (show-evento) chegue a tempo para guests.
+    const me = Game.getPlayerByName(state.playerName);
+    if (me) {
+        document.getElementById('myKPI').textContent = me.kpi;
+        document.getElementById('myRecursos').textContent = me.recursos;
+        const fase = Game.getFaseById(me.phase);
+        document.getElementById('myPhaseName').textContent = fase.nome;
+        document.getElementById('myPhaseIcon').textContent = fase.emoji;
+        document.getElementById('myActivity').textContent = me.activities;
+        document.getElementById('myProgressFill').style.width = '0%';
+    }
     clearInterval(state.timerInterval);
     state.timerInterval = setInterval(() => {
         state.timer--;

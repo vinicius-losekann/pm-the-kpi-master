@@ -497,6 +497,9 @@ function showVendaModal() {
         alert('⚠️ Nenhum jogador disponível para comprar (precisa ter pelo menos ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI).');
         return;
     }
+    // NOVO: mantém o preço exibido sempre em sincronia com CONFIG,
+    // em vez de depender de um valor fixo escrito no HTML.
+    document.getElementById('vendaValorKPI').textContent = CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI';
 
     // Atualiza informações
     document.getElementById('vendaSeusRecursos').textContent =
