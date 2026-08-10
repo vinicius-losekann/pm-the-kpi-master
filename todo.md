@@ -2,4 +2,7 @@
 - Vender Recursos não está funcionando corretamente. O comprador deve aceitar a compra de recurso. - feito
 - Eliminar modal de eventos quando jogador clica em sair (tratar melhor esta situação) - feito
 - Assessoria deve permitir para o host tambem. - pedente (não fazer por enquanto)
-- Garantir que todos os jogadores do jogo respondam ao menos uma vez antes que algum jogador responda novamente
+- Garantir que todos os jogadores do jogo respondam ao menos uma vez antes que algum jogador responda novamente - feito
+  (jogadores sem recursos agora são marcados como "turno usado" em pickNewPair(), evitando reset
+  prematuro de usedRespondedorThisRound que permitia repetição antes do rodízio completo)
+- README.md desatualizado quanto ao número de eventos (5 → 6, evento neutro e6 não documentado) - feito

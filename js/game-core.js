@@ -125,6 +125,31 @@ function pickNewPair(evento = null, depth = 0) {
         ? activePlayers
         : activePlayers.filter(p => p.recursos > 0);
 
+    /*if (comRecursos.length === 0) {
+        console.warn('⚠️ Nenhum jogador ativo tem recursos. Encerrando partida.');
+        endGame(buildRanking());
+        return;
+    }
+
+    const available = comRecursos.filter(p =>
+        !state.usedRespondedorThisRound.includes(p.name)
+    );*/
+    
+    // CORRIGIDO: jogador ativo sem recursos "pula a vez" automaticamente,
+    // mas isso PRECISA contar como turno para o rodízio "todos respondem
+    // antes de repetir" (usedRespondedorThisRound). Sem isso, ele nunca é
+    // sorteado (fica de fora de comRecursos) e nunca entra na lista — o
+    // reset abaixo, ao esgotar quem tem recursos, deixava outros jogadores
+    // responderem de novo antes desse jogador sequer ter sido considerado.
+    if (!semCustoNestaRodada) {
+        activePlayers
+            .filter(p => p.recursos <= 0 && !state.usedRespondedorThisRound.includes(p.name))
+            .forEach(p => {
+                console.log('⏭️ ' + p.name + ' sem recursos — pulando a vez neste ciclo.');
+                state.usedRespondedorThisRound.push(p.name);
+            });
+    }
+
     if (comRecursos.length === 0) {
         console.warn('⚠️ Nenhum jogador ativo tem recursos. Encerrando partida.');
         endGame(buildRanking());
@@ -134,7 +159,6 @@ function pickNewPair(evento = null, depth = 0) {
     const available = comRecursos.filter(p =>
         !state.usedRespondedorThisRound.includes(p.name)
     );
-
     if (available.length === 0) {
         state.usedRespondedorThisRound = [];
         return pickNewPair(evento, depth + 1);
@@ -1029,11 +1053,11 @@ function handleVendaOfertaRequest(msg) {
 
     const erro =
         (!vendedor || !comprador) ? 'Vendedor ou comprador não encontrado.' :
-        (vendedor.name === comprador.name) ? 'Você não pode vender para si mesmo.' :
-        (vendedor.waitingInLobby || comprador.waitingInLobby) ? 'Jogador não está mais ativo na partida.' :
-        (vendedor.recursos < 1) ? 'Vendedor não tem recursos para vender.' :
-        (comprador.kpi < CONFIG.KPI.VALOR_VENDA_RECURSO) ? 'Comprador não tem KPI suficiente.' :
-        null;
+            (vendedor.name === comprador.name) ? 'Você não pode vender para si mesmo.' :
+                (vendedor.waitingInLobby || comprador.waitingInLobby) ? 'Jogador não está mais ativo na partida.' :
+                    (vendedor.recursos < 1) ? 'Vendedor não tem recursos para vender.' :
+                        (comprador.kpi < CONFIG.KPI.VALOR_VENDA_RECURSO) ? 'Comprador não tem KPI suficiente.' :
+                            null;
 
     if (erro) {
         console.warn('⚠️ Oferta de venda rejeitada:', erro);
@@ -1148,7 +1172,7 @@ function getCompradores() {
 function endSession() {
     if (!Game.state.isHost) return;
     if (!confirm('⛔ Encerrar a sessão? Todos os jogadores serão desconectados e a sala destruída.')) return;
-    
+
     Game.ui.closeAllModals();
     Game.network.broadcastAll({ type: 'session-ended' });
     Game.network.cleanup();
@@ -1287,7 +1311,7 @@ function leaveSession() {
         return;
     }
     if (!confirm('🚪 Sair da sessão? Você voltará à tela inicial.')) return;
-    
+
     Game.ui.closeAllModals();
     Game.network.cleanup();
     window.location.href = 'index.html';

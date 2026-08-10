@@ -56,6 +56,7 @@ KPI Total = KPI de acertos + KPI de vendas - KPI de compras + KPI de assessorias
 | e3 | 🎁 **Patrocinador Generoso** | +1 recursos para quem tem menos |
 | e4 | 🛡️ **Reserva de Contingência** | A resposta desta atividade não gasta recurso, acertando ou errando |
 | e5 | 🔄 **Reestruturação** | Mais rico dá 1 para mais pobre |
+| e6 | ⚪ **Operação Normal** | Nenhum efeito nos recursos (evento neutro, ~50% de chance por rodada) |
 
 ---
 

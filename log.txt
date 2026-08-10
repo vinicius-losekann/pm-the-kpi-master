@@ -1,4 +1,4 @@
-## [Não publicado]
+## 10/08/2026 - 15:00
 
 ### Adicionado
 - Evento neutro "Operação Normal" (`e6`) em `data/questions.json`, sem
@@ -39,3 +39,29 @@
   auto-despacho de `sendToPlayer` já suportam o host normalmente. Nenhum
   bug de bloqueio foi encontrado; aplicada apenas melhoria de UX (item
   acima) para reduzir ambiguidade.
+
+## 10/08/2026 - 15:15
+
+### Corrigido
+- **Rodízio "todos respondem antes de repetir" podia ser quebrado por
+  jogadores sem recursos**: em `pickNewPair()` (js/game-core.js), jogadores
+  ativos sem recursos eram excluídos de `comRecursos` e, por consequência,
+  nunca registrados em `state.usedRespondedorThisRound`. Quando os demais
+  jogadores (com recursos) esgotavam suas tentativas no ciclo, o código
+  resetava `usedRespondedorThisRound = []` e sorteava de novo, permitindo
+  que eles respondessem uma segunda vez antes do jogador sem recursos ter
+  sequer sido considerado no ciclo. Agora, jogadores ativos sem recursos
+  (fora da rodada de Reserva de Contingência) são marcados como "turno
+  usado" (skip) assim que a rodada é avaliada, preservando a garantia de
+  que ninguém responde duas vezes antes que todos tenham tido sua vez
+  (ou pulado por falta de recursos).
+- **README.md desatualizado em relação a `data/questions.json`**: a tabela
+  de Eventos e o item de Funcionalidades citavam apenas 5 eventos, mas o
+  evento neutro `e6` ("Operação Normal"), introduzido junto com o sorteio
+  ponderado (`Game.core.sortearEvento()`), não estava documentado.
+  Atualizado README.md para refletir os 6 eventos existentes.
+
+### Alterado
+- `todo.md`: item "Garantir que todos os jogadores do jogo respondam ao
+  menos uma vez antes que algum jogador responda novamente" marcado como
+  concluído, com referência à correção acima.
