@@ -108,7 +108,14 @@ function pickNewPair(evento = null, depth = 0) {
     // Só considera respondedor quem ainda tem recursos — quem está sem
     // recursos deve pular a vez em vez de receber a pergunta e ter a
     // resposta descartada depois em handleAnswer().
-    const comRecursos = activePlayers.filter(p => p.recursos > 0);
+    // EXCEÇÃO: numa rodada com o evento 🛡️ Reserva de Contingência (e4),
+    // a resposta não gasta recurso algum ("acertando ou errando", conforme
+    // README), então mesmo jogadores com 0 recursos continuam elegíveis
+    // como Respondedor nessa rodada específica.
+    const semCustoNestaRodada = evento?.reserva_contingencia === true;
+    const comRecursos = semCustoNestaRodada
+        ? activePlayers
+        : activePlayers.filter(p => p.recursos > 0);
 
     if (comRecursos.length === 0) {
         console.warn('⚠️ Nenhum jogador ativo tem recursos. Encerrando partida.');
@@ -384,12 +391,12 @@ function handleAnswer(msg) {
         if (state.isHost) setTimeout(() => pickNewPair(), 500);
         Game.saveState();
         return;
-    }    
+    }
 
     // Esta checagem é uma segunda linha de defesa: o respondedor já é
     // filtrado em pickNewPair() para nunca chegar aqui sem recursos.
     // Mantemos como salvaguarda para reconexões/estados divergentes.
-    if (respondedor.recursos <= 0) {
+    /*if (respondedor.recursos <= 0) {
         console.warn('⚠️ ' + respondedorName + ' sem recursos! Pulando vez.');
         Game.network.broadcastAll({
             type: 'kpi-update',
@@ -414,8 +421,38 @@ function handleAnswer(msg) {
 
     if (gastaRecurso) {
         respondedor.recursos--;
+    }*/
+    // Reserva de Contingência (e4) — não gasta recurso, acertando ou errando
+    const temReserva = evento?.reserva_contingencia === true;
+    const gastaRecurso = !temReserva;
+
+    // Esta checagem é uma segunda linha de defesa: o respondedor já é
+    // filtrado em pickNewPair() para nunca chegar aqui sem recursos — exceto
+    // justamente na rodada de Reserva de Contingência, onde 0 recursos é uma
+    // situação válida e esperada, já que a resposta não custa nada. Por isso
+    // o "pula vez" só se aplica quando NÃO há reserva de contingência ativa.
+    if (respondedor.recursos <= 0 && !temReserva) {
+        console.warn('⚠️ ' + respondedorName + ' sem recursos! Pulando vez.');
+        Game.network.broadcastAll({
+            type: 'kpi-update',
+            playerName: respondedorName,
+            kpi: respondedor.kpi,
+            phase: respondedor.phase,
+            activities: respondedor.activities,
+            recursos: respondedor.recursos,
+            acertou: false,
+            kpiGanho: 0,
+            semRecursos: true
+        });
+        state.usedRespondedorThisRound.push(respondedorName);
+        setTimeout(() => nextTurn(), 2000);
+        Game.saveState();
+        return;
     }
 
+    if (gastaRecurso) {
+        respondedor.recursos--;
+    }
     let kpiGanho = 0;
     if (acertou) {
         kpiGanho = CONFIG.KPI.ACERTO_BASE;
