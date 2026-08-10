@@ -367,7 +367,7 @@ function handleAnswer(msg) {
 
     state.currentRound.respondeu = true;
 
-    const { pergunta, evento} = state.currentRound;
+    const { pergunta, evento } = state.currentRound;
     const acertou = msg.alternativa === pergunta.correta;
     const respondedor = Game.getPlayerByName(respondedorName);
 
@@ -554,7 +554,11 @@ function requestAssessoria(assessorName) {
         console.warn('⚠️ Já existe um pedido de assessoria nesta rodada.');
         return false;
     }
-
+    // NOVO: reforça no cliente a regra "antes de responder" do README.
+    if (state.currentRound.respondeu) {
+        console.warn('⚠️ Rodada já foi respondida — não é mais possível pedir assessoria.');
+        return false;
+    }
     const me = Game.getPlayerByName(state.playerName);
     if (me && Game.getFaseIndex(me.phase) === CONFIG.FASES.length - 1) {
         alert('⚠️ Jogadores na fase de Encerramento não podem pedir assessoria.');
@@ -584,6 +588,23 @@ function handleAssessoriaRequest(msg) {
     const state = Game.state;
     if (!state.isHost || !state.currentRound || state.currentRound.assessoria) return;
     if (msg.requesterName !== state.currentRound.respondedor) return;
+    // NOVO: o host é a fonte da verdade e não deve confiar só na UI do
+    // cliente para bloquear um pedido de assessoria após a rodada já ter
+    // sido respondida (mesmo raciocínio da checagem de fase de Encerramento).
+    if (state.currentRound.respondeu) {
+        const req = Game.getPlayerByName(msg.requesterName);
+        if (req) {
+            Game.network.sendToPlayer(req.peerId, {
+                type: 'assessoria-result',
+                assessorName: msg.assessorName,
+                sugestao: null,
+                recusado: true,
+                invalido: true,
+                motivo: 'ja-respondido'
+            });
+        }
+        return;
+    }
 
     const requester = Game.getPlayerByName(msg.requesterName);
     const assessor = Game.getPlayerByName(msg.assessorName);
@@ -703,7 +724,7 @@ function handleAssessoriaAnswer(msg) {
 // CONTROLE DE PARTIDA
 // ============================================
 
-function startGame() {
+/*function startGame() {
     const state = Game.state;
     state.gameStarted = true;
     state.usedRespondedorThisRound = [];
@@ -712,6 +733,44 @@ function startGame() {
     state.players.forEach(p => {
         p.recursos = CONFIG.RECURSOS_INICIAIS;
     });
+
+    clearInterval(state.timerInterval);
+    state.timerInterval = setInterval(() => {
+        state.timer--;
+        Game.ui.updateTimerDisplay();
+
+        if (state.timer % 10 === 0 && state.isHost) {
+            Game.network.broadcastAll({ type: 'timer-update', remaining: state.timer });
+        }
+
+        if (state.timer <= 0) {
+            clearInterval(state.timerInterval);
+            if (state.isHost) endGame(buildRanking());
+        }
+    }, 1000);
+
+    Game.ui.showScreen('game');
+    Game.ui.updatePlayersOnlineList();
+    Game.ui.updateTimerDisplay();
+
+    if (state.isHost) startNewRound();
+    Game.saveState();
+}
+*/
+function startGame() {
+    const state = Game.state;
+    state.gameStarted = true;
+    state.gameOver = false; // NOVO — endGame() define gameOver=true e nada revertia isso
+    state.usedRespondedorThisRound = [];
+
+    // CORRIGIDO: antes só 'recursos' era reinicializado aqui. Se uma
+    // partida terminasse naturalmente e o host clicasse em "Voltar ao
+    // Lobby" seguido de "Iniciar Partida" de novo (sem passar por
+    // "Encerrar Partida", que já fazia o reset completo via
+    // Game.resetAllPlayers()), a nova partida começava com o KPI, fase e
+    // atividades remanescentes da partida anterior — quebrando a
+    // premissa de que toda partida começa do zero.
+    Game.resetAllPlayers();
 
     clearInterval(state.timerInterval);
     state.timerInterval = setInterval(() => {
@@ -802,7 +861,7 @@ function handleMatchEnded(msg) {
     Game.resetAllPlayers();
     Game.resetGameState();
     Game.core.resetAllBaralhos(); // NOVO — mantém a cópia local do guest coerente,
-                                   // relevante caso ele vire host numa migração futura
+    // relevante caso ele vire host numa migração futura
     Game.ui.showScreen('lobby');
     Game.ui.showLobbyNormal();
     Game.ui.updatePlayersList();
@@ -848,11 +907,11 @@ function processVenda(vendedorName, compradorName) {
 
     const erro =
         (!vendedor || !comprador) ? 'Vendedor ou comprador não encontrado.' :
-        (vendedor.name === comprador.name) ? 'Você não pode vender para si mesmo.' :
-        (vendedor.waitingInLobby || comprador.waitingInLobby) ? 'Jogador não está mais ativo na partida.' :
-        (vendedor.recursos < 1) ? 'Vendedor não tem recursos para vender.' :
-        (comprador.kpi < CONFIG.KPI.VALOR_VENDA_RECURSO) ? 'Comprador não tem KPI suficiente.' :
-        null;
+            (vendedor.name === comprador.name) ? 'Você não pode vender para si mesmo.' :
+                (vendedor.waitingInLobby || comprador.waitingInLobby) ? 'Jogador não está mais ativo na partida.' :
+                    (vendedor.recursos < 1) ? 'Vendedor não tem recursos para vender.' :
+                        (comprador.kpi < CONFIG.KPI.VALOR_VENDA_RECURSO) ? 'Comprador não tem KPI suficiente.' :
+                            null;
 
     if (erro) {
         console.warn('⚠️ Venda rejeitada:', erro);

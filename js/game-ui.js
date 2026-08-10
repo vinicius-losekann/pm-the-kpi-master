@@ -66,6 +66,13 @@ function setupUI() {
         // listeners), mas nunca deve religar para quem já era host.
         if (!hostOnlyListenersBound) {
             document.getElementById('btnStartGame').addEventListener('click', () => {
+                // NOVO: garante que o timer enviado no broadcast (e usado
+                // localmente pelo host) seja sempre o tempo cheio da sessão —
+                // sem isso, reiniciar uma partida após uma anterior ter
+                // terminado antes do tempo esgotar propagava um timer quase
+                // zerado para todos os jogadores.
+                Game.state.timer = CONFIG.JOGO.SESSION_DURATION;
+
                 Game.network.broadcastAll({ type: 'game-start', timer: Game.state.timer });
                 Game.core.startGame();
             });
@@ -103,7 +110,24 @@ function setupUI() {
         Game.network.cleanup();
         window.location.href = 'index.html';
     });
+    /*document.getElementById('btnBackToLobby').addEventListener('click', () => {
+        showScreen('lobby');
+        showLobbyNormal();
+        updatePlayersList();
+        Game.saveState();
+    });*/
     document.getElementById('btnBackToLobby').addEventListener('click', () => {
+        // NOVO: sem isso, 'gameStarted'/'gameOver' continuavam true após o
+        // fim natural de uma partida, e o baralho de perguntas usadas não
+        // era resetado neste fluxo (só era resetado em "Encerrar Partida").
+        // A correção em startGame() já reseta KPI/fase/atividades/timer,
+        // mas manter esses campos de estado coerentes evita comportamentos
+        // estranhos na tela de lobby entre uma partida e outra.
+        Game.state.gameStarted = false;
+        Game.state.gameOver = false;
+        Game.state.currentRound = null;
+        Game.core.resetAllBaralhos();
+
         showScreen('lobby');
         showLobbyNormal();
         updatePlayersList();

@@ -98,7 +98,7 @@ function saveState() {
  * Tenta restaurar estado de uma sessão anterior
  * @returns {boolean} true se restaurou
  */
-function tryRestoreState() {
+/*function tryRestoreState() {
     const savedState = localStorage.getItem('pmKPI_roomState');
     const savedMyData = localStorage.getItem('pmKPI_myData');
 
@@ -146,7 +146,86 @@ function tryRestoreState() {
         return false;
     }
 }
+*/
+function tryRestoreState() {
+    const savedState = localStorage.getItem('pmKPI_roomState');
+    const savedMyData = localStorage.getItem('pmKPI_myData');
 
+    if (!savedState || !savedMyData) return false;
+
+    try {
+        const saved = JSON.parse(savedState);
+        const myData = JSON.parse(savedMyData);
+
+        const currentParams = new URLSearchParams(window.location.search);
+
+        const currentRoom = currentParams.get('room') || 'Sala';
+        const currentPlayer = currentParams.get('playerName') || 'Jogador';
+        const currentBasePeerId = currentParams.get('peerId') || '';
+
+        // Não restaura estado de outra sala.
+        const savedBasePeerId =
+            saved.baseRoomPeerId ||
+            saved.hostPeerId ||
+            '';
+
+        if (
+            saved.roomName !== currentRoom ||
+            savedBasePeerId !== currentBasePeerId ||
+            myData.playerName !== currentPlayer
+        ) {
+            console.log('💾 Estado salvo pertence a outra sala/jogador. Ignorando.');
+            return false;
+        }
+
+        // Verifica validade do timestamp.
+        const timestamp = new Date(saved.timestamp);
+        const now = new Date();
+
+        if (
+            Number.isNaN(timestamp.getTime()) ||
+            now - timestamp > 5 * 60 * 1000
+        ) {
+            console.log('💾 Estado salvo expirou.');
+            return false;
+        }
+
+        console.log('💾 Estado restaurado do localStorage');
+
+        Game.state.hostPeerId = saved.hostPeerId;
+        Game.state.backupPeerId = saved.backupPeerId;
+        Game.state.baseRoomPeerId =
+            saved.baseRoomPeerId || saved.hostPeerId;
+
+        Game.state.hostVersion = saved.hostVersion || 0;
+        Game.state.roomName = saved.roomName;
+        Game.state.players = saved.players || [];
+        Game.state.timer = saved.timer ?? CONFIG.JOGO.SESSION_DURATION;
+        Game.state.gameStarted = !!saved.gameStarted;
+        Game.state.currentRound = saved.currentRound || null;
+        Game.state.baralhos = saved.baralhos || {};
+        Game.state.usedRespondedorThisRound =
+            saved.usedRespondedorThisRound || [];
+
+        const me = Game.getPlayerByName(myData.playerName);
+
+        if (me) {
+            me.kpi = myData.kpi ?? me.kpi;
+            me.phase = myData.phase ?? me.phase;
+            me.activities = myData.activities ?? me.activities;
+        }
+
+        return true;
+
+    } catch (e) {
+        console.warn('⚠️ Estado salvo corrompido. Limpando.');
+
+        localStorage.removeItem('pmKPI_roomState');
+        localStorage.removeItem('pmKPI_myData');
+
+        return false;
+    }
+}
 /**
  * Retoma a partida em andamento após um reload (F5) do HOST.
  * Sem isso, um refresh acidental do host mata o setInterval do timer
