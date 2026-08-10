@@ -65,3 +65,21 @@
 - `todo.md`: item "Garantir que todos os jogadores do jogo respondam ao
   menos uma vez antes que algum jogador responda novamente" marcado como
   concluído, com referência à correção acima.
+
+## 10/08/2026 - 15:20
+
+### Corrigido
+- **`game.html` continha marcadores de diff (`+`) não removidos** no bloco
+  do modal `#modalVendaOferta`. Por estarem fora das tags, esses `+`
+  formavam nós de texto soltos no `<body>` e eram renderizados
+  visivelmente na página (o `display:none` da `<div>` do modal não cobre
+  texto solto fora dela). Removidos todos os prefixos `+` do bloco,
+  mantendo a estrutura HTML original (divs corretamente balanceados).
+- **Botão "✕ Cancelar" do modal de Venda de Recurso (`btnFecharVenda`)
+  não fazia nada**: o listener em `js/game-ui.js` (`setupUI()`) estava
+  comentado. O jogador não conseguia fechar/cancelar o modal de venda
+  manualmente, ficando preso até a confirmação/rejeição vinda do host.
+  Listener reativado, chamando `Game.ui.fecharVendaModal()`.
+
+### Alterado
+- `todo.md`: adicionados os dois itens acima como concluídos.

@@ -181,9 +181,12 @@ function setupUI() {
     document.getElementById('btnVenderRecurso').addEventListener('click', () => {
         Game.ui.showVendaModal();
     });
-    /*document.getElementById('btnFecharVenda').addEventListener('click', () => {
+    // CORRIGIDO: listener estava comentado — o botão "✕ Cancelar" do modal
+    // de Venda de Recurso não fazia nada, deixando o jogador preso na tela
+    // até a venda ser confirmada/rejeitada pelo host.
+    document.getElementById('btnFecharVenda').addEventListener('click', () => {
         Game.ui.fecharVendaModal();
-    });*/
+    });
     document.getElementById('btnAceitarVendaOferta').addEventListener('click', () => {
         Game.ui.responderOfertaVenda(true);
     });
