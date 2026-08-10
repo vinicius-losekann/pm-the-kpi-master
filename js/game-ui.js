@@ -33,6 +33,35 @@ const DOM = {
 // vezes (confirm()/alert() duplicados, broadcasts em dobro, etc).
 let commonListenersBound = false;
 let hostOnlyListenersBound = false;
+let ofertaVendaAtual = null;
+
+/** Exibe ao comprador a oferta recebida de outro jogador. */
+function showVendaOfertaModal(msg) {
+    ofertaVendaAtual = msg;
+    document.getElementById('vendaOfertaTexto').innerHTML =
+        `<strong>${msg.vendedorName}</strong> oferece 1📦 por <strong style="color:#ffd700;">${msg.valor} KPI</strong>`;
+    document.getElementById('modalVendaOferta').style.display = 'flex';
+}
+
+/** Envia a resposta do comprador (aceite/recusa) ao host. */
+function responderOfertaVenda(aceito) {
+    document.getElementById('modalVendaOferta').style.display = 'none';
+    if (!ofertaVendaAtual) return;
+
+    const msg = {
+        type: 'venda-offer-response',
+        vendedorName: ofertaVendaAtual.vendedorName,
+        compradorName: ofertaVendaAtual.compradorName,
+        aceito: !!aceito
+    };
+
+    if (Game.state.isHost) {
+        Game.core.handleVendaOfertaResponse(msg);
+    } else {
+        Game.network.sendToHost(msg);
+    }
+    ofertaVendaAtual = null;
+}
 
 function setupUI() {
     const state = Game.state;
@@ -152,9 +181,15 @@ function setupUI() {
     document.getElementById('btnVenderRecurso').addEventListener('click', () => {
         Game.ui.showVendaModal();
     });
-    document.getElementById('btnFecharVenda').addEventListener('click', () => {
+    /*document.getElementById('btnFecharVenda').addEventListener('click', () => {
         Game.ui.fecharVendaModal();
+    });*/
+    document.getElementById('btnAceitarVendaOferta').addEventListener('click', () => {
+        Game.ui.responderOfertaVenda(true);
     });
+    document.getElementById('btnRecusarVendaOferta').addEventListener('click', () => {
+        Game.ui.responderOfertaVenda(false);
+    });    
     // Assessoria
     document.getElementById('btnPedirAssessoria').addEventListener('click', () => {
         Game.ui.showAssessoriaSelectModal();
@@ -189,6 +224,11 @@ function showEventoModal(evento) {
 // ============================================
 
 function showScreen(screen) {
+    // Garante que nenhum modal (evento, venda, assessoria, resultado) fique
+    // visível "por cima" ao trocar de tela — ex.: jogador clica em
+    // Sair/Encerrar com o modal de evento ainda aberto na tela.
+    closeAllModals();
+
     DOM.screenLobby.classList.remove('active');
     DOM.screenGame.classList.remove('active');
     DOM.screenGameOver.classList.remove('active');
@@ -198,6 +238,15 @@ function showScreen(screen) {
         case 'game': DOM.screenGame.classList.add('active'); break;
         case 'gameover': DOM.screenGameOver.classList.add('active'); break;
     }
+}
+
+/** Fecha todos os modais do jogo. */
+function closeAllModals() {
+    ['modalResult', 'modalEvento', 'modalVenda', 'modalVendaOferta',
+     'modalAssessoriaSelect', 'modalAssessoriaQuestion'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
 }
 
 // ============================================
@@ -529,7 +578,8 @@ function showVendaModal() {
  * uma possível rejeição do host.
  */
 function confirmarVenda(compradorName) {
-    if (confirm('Vender 1📦 para ' + compradorName + ' por ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI?')) {
+    // if (confirm('Vender 1📦 para ' + compradorName + ' por ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI?')) {
+    if (confirm('Enviar oferta de venda de 1📦 para ' + compradorName + ' por ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI?')) {
         Game.core.venderRecurso(compradorName);
 
         // Feedback não-destrutivo: desabilita os botões e avisa que está
@@ -539,7 +589,8 @@ function confirmarVenda(compradorName) {
         document.querySelectorAll('#vendaCompradores button').forEach(b => b.disabled = true);
         const seusRecursosEl = document.getElementById('vendaSeusRecursos');
         if (seusRecursosEl) {
-            seusRecursosEl.textContent = '🔄 Processando venda...';
+            //seusRecursosEl.textContent = '🔄 Processando venda...';
+            seusRecursosEl.textContent = '🔄 Aguardando ' + compradorName + ' aceitar a oferta...';
         }
     }
 }
@@ -760,6 +811,7 @@ function showAssessoriaBonusModal(bonus) {
 window.Game = window.Game || {};
 window.Game.ui = {
     setupUI, showScreen, showLobbyNormal, showLobbyWaitingView,
+    closeAllModals,
     updateConnectionStatus, updatePlayersList, checkStartCondition,
     updateTimerDisplay, displayRoundStart, displayQuestion, displaySpectatorView,
     showResultModal, showEventoModal,
@@ -768,6 +820,8 @@ window.Game.ui = {
     showVendaModal,
     confirmarVenda,
     fecharVendaModal,
+    showVendaOfertaModal,
+    responderOfertaVenda,
     showAssessoriaSelectModal,
     escolherAssessor,
     showAssessoriaStarted,

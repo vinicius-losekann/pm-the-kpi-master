@@ -1,0 +1,41 @@
+## [Não publicado]
+
+### Adicionado
+- Evento neutro "Operação Normal" (`e6`) em `data/questions.json`, sem
+  efeito sobre recursos.
+- `Game.core.sortearEvento()`: sorteio ponderado de eventos — o evento
+  neutro tem 50% de chance de ocorrência a cada rodada; os demais 5
+  eventos dividem os outros 50% uniformemente.
+- Fluxo de oferta de venda de recursos: `venda-offer-request` →
+  `venda-offer` → `venda-offer-response`, com novo modal
+  `modalVendaOferta` para o comprador aceitar ou recusar a oferta antes
+  da transação ser efetivada.
+- `Game.ui.closeAllModals()`: fecha todos os modais do jogo (evento,
+  venda, oferta de venda, assessoria, resultado) ao trocar de tela.
+
+### Corrigido
+- **Vendas de recursos não pediam confirmação do comprador**: a
+  transferência de KPI/recursos era executada unilateralmente pelo
+  vendedor. Agora o comprador precisa aceitar explicitamente a oferta
+  (`btnAceitarVendaOferta` / `btnRecusarVendaOferta`) antes que
+  `processVenda()` seja chamada.
+- **Modal de evento (e demais modais) permanecia visível após "Sair"
+  da Sessão/Partida ou "Encerrar" Sessão/Partida**: `showScreen()`
+  agora fecha todos os modais a cada troca de tela; `leaveSession()`,
+  `endSession()` e o handler de `session-ended` (nos demais clientes)
+  fecham os modais explicitamente antes de navegar para fora do jogo.
+- Ausência de qualquer chance de "rodada neutra": todas as rodadas
+  aplicavam efeito de recursos; introduzido sorteio ponderado com
+  evento neutro a 50%.
+
+### Alterado
+- `js/game-debug.js`: a simulação automática (`simularPartidaCompleta`)
+  passou a usar `Game.core.sortearEvento()` em vez de sorteio uniforme
+  direto, mantendo o comportamento simulado fiel ao motor real do jogo.
+
+### Verificado (sem alteração funcional)
+- Fluxo de Assessoria envolvendo o host como solicitante e/ou assessor:
+  confirmado que `requestAssessoria`, `handleAssessoriaRequest` e o
+  auto-despacho de `sendToPlayer` já suportam o host normalmente. Nenhum
+  bug de bloqueio foi encontrado; aplicada apenas melhoria de UX (item
+  acima) para reduzir ambiguidade.

@@ -29,14 +29,19 @@
 // ============================================
 
 function startNewRound() {
-    const state = Game.state;
+    /*const state = Game.state;
     const eventos = state.questionsData?.eventos || [];
     if (eventos.length === 0) {
         console.error('❌ Nenhum evento disponível!');
         return;
     }
-    const evento = eventos[Math.floor(Math.random() * eventos.length)];
-
+    const evento = eventos[Math.floor(Math.random() * eventos.length)];*/
+    const state = Game.state;
+    const evento = sortearEvento();
+    if (!evento) {
+        console.error('❌ Nenhum evento disponível!');
+        return;
+    }
     // Aplica efeitos do evento nos recursos
     aplicarEfeitosEvento(evento);
 
@@ -75,9 +80,12 @@ function pickNewPair(evento = null, depth = 0) {
     const eventoJaExibidoNestaRodada = depth > 0;
 
     if (!evento) {
-        const eventos = state.questionsData?.eventos || [];
+        /*const eventos = state.questionsData?.eventos || [];
         if (eventos.length === 0) return;
         evento = eventos[Math.floor(Math.random() * eventos.length)];
+        aplicarEfeitosEvento(evento);*/
+        evento = sortearEvento();
+        if (!evento) return;
         aplicarEfeitosEvento(evento);
 
         // Atualiza UI se o evento foi aplicado aqui também
@@ -322,6 +330,23 @@ function aplicarEfeitosEvento(evento) {
     }
 }
 
+/**
+ * Sorteia o evento da rodada. O evento marcado como "neutro" (sem efeito
+ * em recursos) tem 50% de chance de ser escolhido; os demais eventos
+ * dividem os outros 50% uniformemente entre si.
+ */
+function sortearEvento() {
+    const eventos = Game.state.questionsData?.eventos || [];
+    if (eventos.length === 0) return null;
+
+    const neutro = eventos.find(e => e.neutro === true);
+    const outros = eventos.filter(e => e.neutro !== true);
+
+    if (neutro && (outros.length === 0 || Math.random() < 0.5)) {
+        return neutro;
+    }
+    return outros[Math.floor(Math.random() * outros.length)];
+}
 // ============================================
 // RESPOSTA E KPI (COM RECURSOS)
 // ============================================
@@ -957,7 +982,7 @@ function handleMatchEnded(msg) {
  * Chamado pelo cliente (host ou guest) ao confirmar uma venda.
  * Guests enviam o pedido ao host; o host processa e faz broadcast.
  */
-function venderRecurso(compradorName) {
+/*function venderRecurso(compradorName) {
     const state = Game.state;
 
     if (state.isHost) {
@@ -970,8 +995,80 @@ function venderRecurso(compradorName) {
         });
     }
     return true; // feedback otimista; rejeição chega via 'venda-rejected'
+}*/
+/**
+ * Chamado pelo cliente ao ESCOLHER um comprador. Não executa mais a venda
+ * de imediato: envia uma OFERTA ao comprador, que precisa aceitar
+ * explicitamente (ver todo.md). A venda só é efetivada em processVenda(),
+ * chamada a partir de handleVendaOfertaResponse() quando o comprador aceita.
+ */
+function venderRecurso(compradorName) {
+    const state = Game.state;
+
+    if (state.isHost) {
+        handleVendaOfertaRequest({ vendedorName: state.playerName, compradorName });
+    } else {
+        Game.network.sendToHost({
+            type: 'venda-offer-request',
+            vendedorName: state.playerName,
+            compradorName
+        });
+    }
+    return true; // feedback otimista; rejeição chega via 'venda-rejected'
 }
 
+/**
+ * HOST: valida a oferta e a encaminha ao comprador para aceite/recusa.
+ */
+function handleVendaOfertaRequest(msg) {
+    const state = Game.state;
+    if (!state.isHost) return;
+
+    const vendedor = Game.getPlayerByName(msg.vendedorName);
+    const comprador = Game.getPlayerByName(msg.compradorName);
+
+    const erro =
+        (!vendedor || !comprador) ? 'Vendedor ou comprador não encontrado.' :
+        (vendedor.name === comprador.name) ? 'Você não pode vender para si mesmo.' :
+        (vendedor.waitingInLobby || comprador.waitingInLobby) ? 'Jogador não está mais ativo na partida.' :
+        (vendedor.recursos < 1) ? 'Vendedor não tem recursos para vender.' :
+        (comprador.kpi < CONFIG.KPI.VALOR_VENDA_RECURSO) ? 'Comprador não tem KPI suficiente.' :
+        null;
+
+    if (erro) {
+        console.warn('⚠️ Oferta de venda rejeitada:', erro);
+        Game.network.sendToPlayer(vendedor?.peerId, { type: 'venda-rejected', motivo: erro });
+        return;
+    }
+
+    Game.network.sendToPlayer(comprador.peerId, {
+        type: 'venda-offer',
+        vendedorName: vendedor.name,
+        compradorName: comprador.name,
+        valor: CONFIG.KPI.VALOR_VENDA_RECURSO
+    });
+}
+
+/**
+ * HOST: processa a resposta do comprador (aceite ou recusa) a uma oferta.
+ */
+function handleVendaOfertaResponse(msg) {
+    const state = Game.state;
+    if (!state.isHost) return;
+
+    if (!msg.aceito) {
+        const vendedor = Game.getPlayerByName(msg.vendedorName);
+        if (vendedor) {
+            Game.network.sendToPlayer(vendedor.peerId, {
+                type: 'venda-rejected',
+                motivo: msg.compradorName + ' recusou a oferta de compra.'
+            });
+        }
+        return;
+    }
+
+    processVenda(msg.vendedorName, msg.compradorName);
+}
 /**
  * HOST: valida e executa a venda de fato. Única fonte de verdade —
  * evita que vendas feitas por um guest fiquem invisíveis para os
@@ -1051,7 +1148,8 @@ function getCompradores() {
 function endSession() {
     if (!Game.state.isHost) return;
     if (!confirm('⛔ Encerrar a sessão? Todos os jogadores serão desconectados e a sala destruída.')) return;
-
+    
+    Game.ui.closeAllModals();
     Game.network.broadcastAll({ type: 'session-ended' });
     Game.network.cleanup();
     window.location.href = 'index.html';
@@ -1189,7 +1287,8 @@ function leaveSession() {
         return;
     }
     if (!confirm('🚪 Sair da sessão? Você voltará à tela inicial.')) return;
-
+    
+    Game.ui.closeAllModals();
     Game.network.cleanup();
     window.location.href = 'index.html';
 }
@@ -1233,6 +1332,7 @@ window.Game.core = {
     resetBaralho,        // NOVO
     resetAllBaralhos,    // NOVO
     aplicarEfeitosEvento,
+    sortearEvento,
     handleAnswer,
     updatePlayerKPI,
     nextTurn,
@@ -1246,6 +1346,8 @@ window.Game.core = {
     abortRoundIfParticipant, // NOVO
     leaveSession,
     buildRanking,
+    handleVendaOfertaRequest,
+    handleVendaOfertaResponse,
     venderRecurso,
     processVenda,      // NOVO
     getCompradores,

@@ -183,6 +183,7 @@ function handleMessage(msg, fromPeerId) {
 
         // --- SESSÃO ---
         case 'session-ended':
+            Game.ui.closeAllModals();
             alert('⛔ O host encerrou a sessão.');
             Game.network.cleanup();
             window.location.href = 'index.html';
@@ -325,9 +326,26 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         // --- VENDA ---
-        case 'venda-request':
+        /*case 'venda-request':
             if (state.isHost) {
                 Game.core.processVenda(msg.vendedorName, msg.compradorName);
+            }
+            break;
+        */
+        // --- VENDA ---
+        case 'venda-offer-request':
+            if (state.isHost) {
+                Game.core.handleVendaOfertaRequest(msg);
+            }
+            break;
+
+        case 'venda-offer':
+            Game.ui.showVendaOfertaModal(msg);
+            break;
+
+        case 'venda-offer-response':
+            if (state.isHost) {
+                Game.core.handleVendaOfertaResponse(msg);
             }
             break;
 

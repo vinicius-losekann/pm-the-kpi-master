@@ -325,8 +325,8 @@ window.Game.debug = {
                 break;
             }
 
-            const evento = Game.state.questionsData.eventos[Math.floor(Math.random() * Game.state.questionsData.eventos.length)];
-            Game.core.aplicarEfeitosEvento(evento);
+            //const evento = Game.state.questionsData.eventos[Math.floor(Math.random() * Game.state.questionsData.eventos.length)];
+            const evento = Game.core.sortearEvento();Game.core.aplicarEfeitosEvento(evento);
 
             // Chance de venda automática a cada rodada (15%)
             if (Math.random() < 0.15 && rodada > 3) {

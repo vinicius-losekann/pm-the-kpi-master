@@ -909,6 +909,12 @@
       "titulo": "Reestruturação",
       "descricao": "Equipe reorganizada! Quem tem mais dá 1 recurso para quem tem menos.",
       "troca_recursos": true
+    },
+    {
+      "id": "e6",
+      "titulo": "Operação Normal",
+      "descricao": "Nenhum evento especial nesta rodada. O trabalho segue conforme planejado.",
+      "neutro": true
     }
   ]
 }
