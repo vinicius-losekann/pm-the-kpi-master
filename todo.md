@@ -1,0 +1,4 @@
+- evento neutro (evento neutro deve ser + 50% das ocorrências)
+- Vender Recursos não está funcionando corretamente. O comprador deve aceitar a compra de recurso.
+- Eliminar modal de eventos quando jogador clica em sair (tratar melhor esta situação)
+- Assessoria deve permitir para o host tambem.

@@ -7,7 +7,7 @@ const CONFIG = {
         ASSESSORIA_ACERTO: 5,     // NOVO — bônus do assessor quando acerta
     },
 
-    RECURSOS_INICIAIS: 10,
+    RECURSOS_INICIAIS: 20,
 
     JOGO: {
         MAX_PLAYERS: 6,
