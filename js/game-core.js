@@ -8,7 +8,7 @@
 //   - Sistema de recursos 
 //   - Controle de partida (iniciar, encerrar)
 //   - Controle de sessão (encerrar, sair) 
-//   - Recursos iniciais: 10 por jogador
+//   - Recursos iniciais: Definidos em game-config.js
 //   - Responder gasta 1 recurso (acertando ou errando)
 //   - Atividade só ganha se acertar
 //   - KPI fixo: 10 por atividade completada
@@ -134,7 +134,7 @@ function pickNewPair(evento = null, depth = 0) {
     const available = comRecursos.filter(p =>
         !state.usedRespondedorThisRound.includes(p.name)
     );*/
-    
+
     // CORRIGIDO: jogador ativo sem recursos "pula a vez" automaticamente,
     // mas isso PRECISA contar como turno para o rodízio "todos respondem
     // antes de repetir" (usedRespondedorThisRound). Sem isso, ele nunca é

@@ -83,3 +83,38 @@
 
 ### Alterado
 - `todo.md`: adicionados os dois itens acima como concluídos.
+
+## 10/08/2026 - 15:30
+
+### Corrigido
+- **README.md — tabela "🎯 Funcionalidades" desatualizada quanto ao número de
+  eventos**: a correção anterior (10/08/2026 15:15) atualizou apenas a tabela
+  da seção "🃏 Eventos" (5 → 6, incluindo o evento neutro `e6`), mas a tabela
+  de Funcionalidades continuava afirmando "📋 5 eventos". Corrigido para
+  "📋 6 eventos", coerente com `data/questions.json` (6 objetos em `eventos`)
+  e com `Game.core.sortearEvento()`.
+- **Comentário desatualizado em `js/game-core.js`**: o cabeçalho do arquivo
+  ainda documentava "Recursos iniciais: 10 por jogador", divergindo de
+  `CONFIG.RECURSOS_INICIAIS` (20). Atualizado o comentário para refletir o
+  valor real de configuração.
+- **Texto fixo enganoso em `js/game-debug.js`**: a mensagem de ajuda de
+  `fakePlayers(3)` no console (F12) exibia "📦10 recursos" fixo, também
+  divergente de `CONFIG.RECURSOS_INICIAIS` (20). Alterado para interpolar o
+  valor de `CONFIG.RECURSOS_INICIAIS` dinamicamente, evitando nova
+  divergência caso o valor de configuração mude no futuro.
+- **Placeholder estático em `game.html` (#myRecursos)**: o valor inicial
+  fixo no HTML ("10") não refletia `CONFIG.RECURSOS_INICIAIS` (20). Embora
+  seja sempre sobrescrito por JS antes da tela de jogo ficar visível (sem
+  impacto funcional/visual para o usuário), o valor foi atualizado para "20"
+  por consistência com a configuração real do jogo.
+
+### Verificado (sem alteração funcional)
+- Demais regras do README (KPI por acerto, valor de venda de recurso,
+  duração da sessão de 90min, bônus de Assessoria, timeout de Assessoria,
+  restrições de quem pode ser assessor, fórmula de KPI Final, contagem de
+  76 perguntas) foram conferidas linha a linha contra o código e estão
+  corretas — nenhuma divergência adicional encontrada nesta revisão.
+
+### Alterado
+- `todo.md`: adicionados os itens acima como concluídos; item de Assessoria
+  para o host atualizado de "pendente" para "verificado — já funcionava".

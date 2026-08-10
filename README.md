@@ -240,7 +240,7 @@ python -m http.server 8080
 | 👥 2-6 jogadores | ✅ |
 | 📚 76 perguntas (7 Domínios de Desempenho: Governança, Escopo, Cronograma, Finanças, Partes Interessadas, Recursos, Riscos) | ✅ |
 | ⭐ KPI fixo (10 por acerto) | ✅ |
-| 📋 5 eventos | ✅ |
+| 📋 6 eventos | ✅ |
 | 🪟 Modal de evento | ✅ |
 | 📦 Sistema de recursos | ✅ |
 | 💰 Venda de recursos | ✅ |

@@ -516,7 +516,7 @@ console.log('   simularPartidaCompleta()     - Partida completa (com vendas) ⭐
 console.log('   simularPartidaCompleta(4, 0.3) - 4 jogadores, 30% acerto');
 console.log('   testVenda("Host_Debug", "Guest1_Debug") - Testa venda 💰');
 console.log('   testVendasAutomaticas(3)    - Simula 3 vendas 💰');
-console.log('   fakePlayers(3)              - Cria jogadores (📦10 recursos)');
+console.log('   fakePlayers(3)              - Cria jogadores (📦' + CONFIG.RECURSOS_INICIAIS + ' recursos)');
 console.log('   dumpState()                 - Estado completo');
 console.log('   resetAll()                  - Reseta tudo');
 console.log('🔒 Travas: 500 rodadas máx | 10 rodadas sem resposta');
