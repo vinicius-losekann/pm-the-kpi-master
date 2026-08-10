@@ -137,3 +137,39 @@
 
 ### Alterado
 - `todo.md`: adicionado o item acima como concluído.
+
+## 10/08/2026 - 18:00
+
+### Corrigido
+- **Rodízio de Respondedor podia "reiniciar" após migração de host**: a garantia de que todos os
+  jogadores respondem antes que alguém repita dependia de `state.usedRespondedorThisRound`, uma
+  lista mantida apenas na memória local de quem era o HOST no momento — nunca sincronizada pela
+  rede (não ia em `state-sync`, `round-start` nem `host-changed`). Quando um GUEST assumia como
+  host via `Game.network.becomeHost()` (após queda de conexão do host anterior), sua cópia local
+  dessa lista era a inicial (vazia), e o rodízio recomeçava do zero sem qualquer aviso — permitindo
+  que um jogador fosse sorteado como Respondedor novamente antes dos demais. Esse ponto era o
+  suspeito mais provável por trás do relato em `todo.md` ("quando um jogador erra uma resposta
+  chamou novamente"), já que esse tipo de coincidência costuma aparecer perto de reconexões/queda
+  de host, não por causa de acerto ou erro em si.
+- Substituída a lista por um contador de respostas por jogador
+  (`state.respostasCount[nome]`, `js/game-state.js`). `Game.core.pickNewPair()` (js/game-core.js)
+  passou a sortear o Respondedor sempre entre quem tem o MENOR valor no contador — jogadores sem
+  recursos que "pulam a vez" também têm o contador incrementado, para não ficarem permanentemente
+  atrás na fila assim que voltarem a ter recursos.
+- O contador é transmitido a cada `round-start` (`js/game-core.js` → `js/game-network.js`) e também
+  incluído em `state-sync` (entrada/reconexão de jogador) e `host-changed` (migração de host), para
+  que qualquer cliente que venha a assumir como host já tenha a contagem correta.
+- Removida a recursão de `pickNewPair()` (parâmetro `depth`, guard de `MAX_PLAYERS * 2` e o reset de
+  `usedRespondedorThisRound` quando `available.length === 0`): com seleção por contador, sempre há
+  pelo menos um candidato elegível na primeira tentativa, então a recursão — que era outro ponto
+  frágil, já que resetava a fila inteira no meio de um ciclo — deixou de ser necessária.
+- `js/game-core.js` — `nextTurn()`: simplificada para sempre chamar `pickNewPair()`. A distinção
+  antiga entre "resetar e chamar `startNewRound()`" vs "chamar `pickNewPair()`" só existia para
+  saber quando zerar a lista antiga; sem lista para zerar, as duas chamadas eram idênticas na
+  prática. `startNewRound()` permanece usada apenas no início da partida (`startGame()`).
+- `js/game-main.js` (`saveState`/`tryRestoreState`) e `js/game-debug.js` (`fakeStartGame`)
+  atualizados para persistir/resetar `respostasCount` em vez de `usedRespondedorThisRound`.
+
+### Alterado
+- `todo.md`: item de rotação de Respondedor marcado como concluído, com a causa raiz documentada
+  (migração de host sem sincronizar o estado de rodízio) para referência futura.

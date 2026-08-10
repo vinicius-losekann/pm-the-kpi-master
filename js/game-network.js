@@ -193,6 +193,7 @@ function handleMessage(msg, fromPeerId) {
             state.hostPeerId = msg.newHostPeerId;
             if (msg.hostVersion !== undefined) state.hostVersion = msg.hostVersion;
             if (msg.players) state.players = msg.players;
+            if (msg.respostasCount) state.respostasCount = msg.respostasCount;
             if (!state.isHost) reconnectToNewHost(msg.newHostPeerId);
             // Retoma a visualização correta caso a partida já esteja em andamento
             if (state.gameStarted && !state.gameOver) {
@@ -245,6 +246,10 @@ function handleMessage(msg, fromPeerId) {
                 pergunta: null,
                 respondeu: false
             };
+            // NOVO: mantém a cópia local sincronizada com o host a cada
+            // rodada — é o que garante que, numa migração de host
+            // (becomeHost), quem assumir já tenha a contagem correta.
+            if (msg.respostasCount) state.respostasCount = msg.respostasCount;            
             // Só quem participa da rodada vê a tela de pergunta;
             // os demais (espectadores) veem a tela de espera.
             if (state.playerName === msg.perguntador || state.playerName === msg.respondedor) {
@@ -470,7 +475,9 @@ function addPlayer(msg, fromPeerId) {
                 timer: state.timer,
                 currentRound: currentRoundForSync,
                 gameStarted: state.gameStarted,
-                hostVersion: state.hostVersion
+                //hostVersion: state.hostVersion
+                hostVersion: state.hostVersion,
+                respostasCount: state.respostasCount                
             }
         });
     }
@@ -531,6 +538,10 @@ function restoreState(fullState) {
     state.currentRound = fullState.currentRound;
     state.gameStarted = fullState.gameStarted;
     if (fullState.hostVersion !== undefined) state.hostVersion = fullState.hostVersion;
+    // NOVO: sem isso, um jogador que entra/reconecta fica com
+    // respostasCount vazio; se ele mais tarde virar host, o rodízio
+    // reiniciava do zero para todo mundo a partir dali.
+    state.respostasCount = fullState.respostasCount || {};
 
     if (state.gameStarted) {
         // Garante que a tela correta seja exibida após reconexão/reload,
@@ -716,7 +727,8 @@ function becomeHost() {
         // attemptReconnectToNewHost) e se conecta diretamente — não depende
         // mais só deste broadcast. Ainda assim tentamos, útil se alguma
         // conexão tiver sobrevivido.
-        broadcastAll({ type: 'host-changed', newHostPeerId: id, hostVersion: newVersion, players: state.players });
+        //broadcastAll({ type: 'host-changed', newHostPeerId: id, hostVersion: newVersion, players: state.players });
+        broadcastAll({ type: 'host-changed', newHostPeerId: id, hostVersion: newVersion, players: state.players, respostasCount: state.respostasCount });        
 
         Game.ui.setupUI();
 

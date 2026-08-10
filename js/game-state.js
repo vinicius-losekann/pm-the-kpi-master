@@ -38,7 +38,15 @@ const gameState = {
     gameStarted: false,
     gameOver: false,
     questionsData: null,
-    usedRespondedorThisRound: [],
+    // usedRespondedorThisRound: [],
+    // Quantas vezes cada jogador (por nome) já foi Respondedor na
+    // partida atual. Substitui a antiga usedRespondedorThisRound: em vez
+    // de marcar "já jogou neste ciclo" e depender de resets pontuais
+    // (fim de ciclo, recursão em pickNewPair, migração de host),
+    // pickNewPair() sempre escolhe entre quem tem o MENOR valor aqui.
+    // Sincronizado via broadcast a cada rodada (ver 'round-start' em
+    // game-network.js) para sobreviver a uma migração de host.
+    respostasCount: {},    
 };
 
 // --- Helpers ---
@@ -87,7 +95,8 @@ function resetGameState() {
     gameState.gameStarted = false;
     gameState.gameOver = false;
     gameState.currentRound = null;
-    gameState.usedRespondedorThisRound = [];
+    // gameState.usedRespondedorThisRound = [];
+    gameState.respostasCount = {};
     gameState.timer = CONFIG.JOGO.SESSION_DURATION;
     clearInterval(gameState.timerInterval);
     gameState.timerInterval = null;

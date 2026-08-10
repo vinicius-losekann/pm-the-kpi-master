@@ -70,7 +70,8 @@ window.Game.debug = {
         // gameOver=true para sempre, e simularPartidaCompleta()
         // não tinha como saber que precisa reiniciar do zero.
 
-        state.usedRespondedorThisRound = [];
+        // state.usedRespondedorThisRound = [];
+        state.respostasCount = {};
         state.timer = CONFIG.JOGO.SESSION_DURATION;
 
         state.players.forEach(p => p.recursos = CONFIG.RECURSOS_INICIAIS);
