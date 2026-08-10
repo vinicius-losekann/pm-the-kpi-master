@@ -460,7 +460,7 @@ function addPlayer(msg, fromPeerId) {
     Game.saveState();
 }
 
-function removePlayerByPeerId(peerId) {
+/*function removePlayerByPeerId(peerId) {
     const state = Game.state;
     state.players = state.players.filter(p => p.peerId !== peerId);
 
@@ -472,8 +472,35 @@ function removePlayerByPeerId(peerId) {
     Game.ui.updatePlayersList();
     Game.ui.checkStartCondition();
     Game.saveState();
-}
+}*/
+// DEPOIS
+function removePlayerByPeerId(peerId) {
+    const state = Game.state;
 
+    // NOVO: guarda o jogador antes de removê-lo, para poder checar se ele
+    // fazia parte da rodada atual.
+    const removedPlayer = state.players.find(p => p.peerId === peerId);
+    state.players = state.players.filter(p => p.peerId !== peerId);
+
+    if (state.backupPeerId === peerId && state.players.length > 1) {
+        state.backupPeerId = state.players[1]?.peerId;
+    }
+
+    broadcastAll({ type: 'player-list', players: state.players });
+    Game.ui.updatePlayersList();
+    Game.ui.checkStartCondition();
+
+    // CORRIGIDO: uma desconexão involuntária (queda de rede, aba fechada)
+    // do Perguntador ou Respondedor da rodada em curso travava a partida
+    // indefinidamente — nada mais avançava o jogo até o timer de 90min
+    // zerar. Aplica aqui o mesmo tratamento já usado para saída voluntária
+    // (handleLeaveMatchRequest em game-core.js).
+    if (removedPlayer && state.gameStarted && !state.gameOver) {
+        Game.core.abortRoundIfParticipant(removedPlayer.name);
+    }
+
+    Game.saveState();
+}
 // ============================================
 // RECONEXÃO E HOST MIGRATION
 // ============================================

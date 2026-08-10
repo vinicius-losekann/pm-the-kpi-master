@@ -369,7 +369,22 @@ function handleAnswer(msg) {
 
     const { pergunta, evento } = state.currentRound;
     const acertou = msg.alternativa === pergunta.correta;
+    /*const respondedor = Game.getPlayerByName(respondedorName);*/
+    // DEPOIS
     const respondedor = Game.getPlayerByName(respondedorName);
+
+    // CORRIGIDO: antes, se o respondedor já tivesse sido removido de
+    // state.players (ex.: desconexão detectada entre o disparo do
+    // armarRespostaTimeout e sua execução), a função retornava aqui sem
+    // liberar a vez — travando a partida para todos os demais jogadores
+    // até o fim dos 90 minutos. Agora aborta a rodada e sorteia uma nova.
+    if (!respondedor) {
+        console.warn('⚠️ Respondedor não encontrado (provavelmente desconectou) — abortando rodada.');
+        state.currentRound = null;
+        if (state.isHost) setTimeout(() => pickNewPair(), 500);
+        Game.saveState();
+        return;
+    }
 
     if (!respondedor) return;
 
@@ -1027,7 +1042,7 @@ function leaveMatch() {
  * oficial de state.players e propaga via broadcast, igual ao padrão já
  * usado para entrada/saída de jogadores (addPlayer/removePlayerByPeerId).
  */
-function handleLeaveMatchRequest(msg) {
+/*function handleLeaveMatchRequest(msg) {
     const state = Game.state;
     if (!state.isHost) return;
 
@@ -1060,6 +1075,58 @@ function handleLeaveMatchRequest(msg) {
         state.currentRound = null;
         Game.core.pickNewPair();
     }
+
+    Game.saveState();
+}*/
+// DEPOIS
+
+/**
+ * CORRIGIDO: extraído de handleLeaveMatchRequest() para ser reutilizável.
+ * Aborta a rodada atual (se ainda não respondida) quando um dos
+ * participantes (perguntador ou respondedor) deixa de estar disponível —
+ * seja por sair voluntariamente da partida (leaveMatch) ou por
+ * desconexão involuntária (queda de conexão, ver removePlayerByPeerId em
+ * game-network.js). Sem isso, uma queda de conexão do Respondedor durante
+ * a rodada travava a partida indefinidamente: handleAnswer() encontrava
+ * `respondedor === undefined` (já removido de state.players) e retornava
+ * sem nunca chamar pickNewPair() de novo.
+ */
+function abortRoundIfParticipant(playerName) {
+    const state = Game.state;
+    if (!state.isHost) return;
+
+    const round = state.currentRound;
+    if (round && !round.respondeu &&
+        (round.perguntador === playerName || round.respondedor === playerName)) {
+        console.warn('⚠️ Participante da rodada atual ficou indisponível — abortando rodada e sorteando nova.');
+        if (state.assessoriaTimeout) {
+            clearTimeout(state.assessoriaTimeout);
+            state.assessoriaTimeout = null;
+        }
+        if (state.respostaTimeout) {
+            clearTimeout(state.respostaTimeout);
+            state.respostaTimeout = null;
+        }
+        state.currentRound = null;
+        Game.core.pickNewPair();
+    }
+}
+
+function handleLeaveMatchRequest(msg) {
+    const state = Game.state;
+    if (!state.isHost) return;
+
+    const player = Game.getPlayerByName(msg.playerName);
+    if (!player || player.waitingInLobby) return;
+
+    player.waitingInLobby = true;
+    console.log('🚶 ' + player.name + ' saiu da partida (waitingInLobby=true).');
+
+    Game.network.broadcastAll({ type: 'player-list', players: state.players });
+    Game.ui.updatePlayersOnlineList();
+    Game.ui.updateRankingList();
+
+    abortRoundIfParticipant(player.name);
 
     Game.saveState();
 }
@@ -1124,6 +1191,7 @@ window.Game.core = {
     endSession,
     leaveMatch,
     handleLeaveMatchRequest, // NOVO
+    abortRoundIfParticipant, // NOVO
     leaveSession,
     buildRanking,
     venderRecurso,
