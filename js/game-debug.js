@@ -66,10 +66,20 @@ window.Game.debug = {
         }
 
         state.gameStarted = true;
+        state.gameOver = false; // CORRIGIDO — sem isso, endGame() anterior deixava
+        // gameOver=true para sempre, e simularPartidaCompleta()
+        // não tinha como saber que precisa reiniciar do zero.
+
         state.usedRespondedorThisRound = [];
         state.timer = CONFIG.JOGO.SESSION_DURATION;
 
         state.players.forEach(p => p.recursos = CONFIG.RECURSOS_INICIAIS);
+        // CORRIGIDO — antes só `recursos` era resetado aqui. Igual ao bug já
+        // corrigido em game-core.js/startGame(): sem resetar kpi/phase/activities,
+        // rodar uma simulação depois de outra reaproveitava KPI, fase e atividades
+        // da partida simulada anterior, quebrando a premissa de que toda
+        // partida começa do zero.
+        Game.resetAllPlayers();
 
         Game.ui.showScreen('game');
         Game.ui.updateTimerDisplay();
@@ -130,7 +140,7 @@ window.Game.debug = {
             const acertou = Math.random() < 0.5;
             const evento = (state.questionsData?.eventos || [])[Math.floor(Math.random() * state.questionsData.eventos.length)];
             const temSeguro = evento?.reserva_contingencia === true;
-            const gastaRecurso = !temSeguro; 
+            const gastaRecurso = !temSeguro;
             if (gastaRecurso) player.recursos--;
 
             let kpiGanho = 0;
@@ -289,7 +299,11 @@ window.Game.debug = {
             this.fakePlayers(numJogadores);
         }
 
-        if (!Game.state.gameStarted) {
+        // CORRIGIDO — checar só `gameStarted` não bastava, pois endGame() nunca
+        // volta esse campo para false (só seta gameOver=true). Resultado: rodar
+        // simularPartidaCompleta() uma segunda vez pulava fakeStartGame() por
+        // completo e reaproveitava KPI/fase/recursos da simulação anterior.
+        if (!Game.state.gameStarted || Game.state.gameOver) {
             console.log('💡 Iniciando partida automaticamente...');
             this.fakeStartGame();
         }
@@ -318,11 +332,11 @@ window.Game.debug = {
             if (Math.random() < 0.15 && rodada > 3) {
                 const vendedores = jogadores.filter(p => p.recursos > 1);
                 const compradores = jogadores.filter(p => p.kpi >= CONFIG.KPI.VALOR_VENDA_RECURSO);
-                
+
                 if (vendedores.length > 0 && compradores.length > 0) {
                     const vendedor = vendedores[Math.floor(Math.random() * vendedores.length)];
                     const comprador = compradores.filter(c => c.name !== vendedor.name)[0];
-                    
+
                     if (comprador) {
                         vendedor.recursos--;
                         vendedor.kpi += CONFIG.KPI.VALOR_VENDA_RECURSO;
