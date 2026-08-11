@@ -21,6 +21,32 @@ const DOM = {
     modalEvento: document.getElementById('modalEvento'),
 };
 
+/**
+ * BUGFIX (XSS): playerName vem da URL (?playerName=...) e é propagado via
+ * P2P para todos os clientes sem qualquer sanitização. Vários pontos deste
+ * arquivo usavam innerHTML interpolando `${p.name}` (ou outros textos
+ * vindos da rede, como evento/oferta de venda) diretamente — um jogador
+ * mal-intencionado podia usar um nome como "<img src=x onerror=...>" e
+ * executar script na tela de todos os outros participantes. Além disso,
+ * alguns pontos montavam `onclick="fn('${nome}')"` como string, o que
+ * também quebra (ou pior, permite escapar do literal) se o nome tiver
+ * aspas simples.
+ *
+ * escapeHtml() converte caracteres perigosos para entidades HTML antes de
+ * qualquer interpolação em innerHTML. É usada em TODO texto vindo de rede
+ * (nomes de jogador, títulos/descrições de evento, sugestões de
+ * assessoria) que é inserido via innerHTML neste arquivo.
+ */
+function escapeHtml(str) {
+    if (str === undefined || str === null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // ============================================
 // SETUP INICIAL
 // ============================================
@@ -39,7 +65,7 @@ let ofertaVendaAtual = null;
 function showVendaOfertaModal(msg) {
     ofertaVendaAtual = msg;
     document.getElementById('vendaOfertaTexto').innerHTML =
-        `<strong>${msg.vendedorName}</strong> oferece 1📦 por <strong style="color:#ffd700;">${msg.valor} KPI</strong>`;
+        `<strong>${escapeHtml(msg.vendedorName)}</strong> oferece 1📦 por <strong style="color:#ffd700;">${escapeHtml(msg.valor)} KPI</strong>`;
     document.getElementById('modalVendaOferta').style.display = 'flex';
 }
 
@@ -210,6 +236,9 @@ function setupUI() {
  */
 function showEventoModal(evento) {
     if (!evento) return;
+    // titulo/descricao vêm do JSON de perguntas (confiável, não de rede
+    // controlada por outro jogador), mas usamos textContent de qualquer
+    // forma — já era o comportamento original e continua correto/seguro.
     document.getElementById('eventoModalTitulo').textContent = evento.titulo;
     document.getElementById('eventoModalDesc').textContent = evento.descricao;
     DOM.modalEvento.style.display = 'flex';
@@ -280,8 +309,8 @@ function showLobbyWaitingView() {
     `;
 
     document.getElementById('playersList').innerHTML = `
-        <div style="margin-bottom:8px;"><strong>👥 Em jogo (${playing.length})</strong>${playing.map(p => `<div>• ${p.name}</div>`).join('')}</div>
-        <div><strong>👤 Aguardando (${waiting.length})</strong>${waiting.map(p => `<div>• ${p.name}</div>`).join('')}</div>
+        <div style="margin-bottom:8px;"><strong>👥 Em jogo (${playing.length})</strong>${playing.map(p => `<div>• ${escapeHtml(p.name)}</div>`).join('')}</div>
+        <div><strong>👤 Aguardando (${waiting.length})</strong>${waiting.map(p => `<div>• ${escapeHtml(p.name)}</div>`).join('')}</div>
     `;
 }
 
@@ -300,8 +329,8 @@ function updatePlayersList() {
     document.getElementById('playerCount').textContent = state.players.length;
     document.getElementById('playersList').innerHTML = state.players.map(p => `
         <div class="player-item">
-            <div class="player-avatar-sm">${p.name.charAt(0).toUpperCase()}</div>
-            <span class="player-item-name">${p.name}</span>
+            <div class="player-avatar-sm">${escapeHtml(p.name.charAt(0).toUpperCase())}</div>
+            <span class="player-item-name">${escapeHtml(p.name)}</span>
             ${p.isHost ? '<span class="host-badge">HOST</span>' : ''}
             ${p.waitingInLobby ? '<span style="font-size:0.7rem; color:#ffa502;">(aguardando)</span>' : ''}
             <span class="player-status-dot status-connected"></span>
@@ -348,6 +377,8 @@ function displayRoundStart() {
     if (!round) return;
     document.getElementById('questionArea').style.display = 'block';
     document.getElementById('spectatorArea').style.display = 'none';
+    // Nomes de jogador via textContent (seguro por padrão, sem precisar de
+    // escapeHtml — mantido assim pois já era textContent no original).
     document.getElementById('perguntadorName').textContent = round.perguntador;
     document.getElementById('respondedorName').textContent = round.respondedor;
     if (round.evento) {
@@ -430,10 +461,12 @@ function displayQuestion(q) {
         document.getElementById('roleNotice').style.display = 'block';
         document.getElementById('roleNotice').innerHTML = '👀 <strong>Você está perguntando!</strong> Tela somente leitura.';
         document.getElementById('roleNotice').className = 'role-notice role-perguntador';
+        // Alternativas vêm do baralho local de perguntas (JSON confiável),
+        // não de outro jogador — innerHTML aqui já era seguro no original.
         document.getElementById('allAlternativesList').innerHTML = q.alternativas.map(alt => {
             const letter = alt.charAt(0).toLowerCase();
             const isCorrect = letter === q.correta;
-            return `<div style="padding:12px 16px; background:${isCorrect ? 'rgba(0,255,136,0.12)' : 'rgba(255,255,255,0.03)'}; border:2px solid ${isCorrect ? 'rgba(0,255,136,0.4)' : 'rgba(255,255,255,0.08)'}; border-radius:10px; color:${isCorrect ? '#00ff88' : '#e0e0e0'}; font-size:0.9rem; ${isCorrect ? 'font-weight:600;' : ''}">${isCorrect ? '✅ ' : ''}${alt}</div>`;
+            return `<div style="padding:12px 16px; background:${isCorrect ? 'rgba(0,255,136,0.12)' : 'rgba(255,255,255,0.03)'}; border:2px solid ${isCorrect ? 'rgba(0,255,136,0.4)' : 'rgba(255,255,255,0.08)'}; border-radius:10px; color:${isCorrect ? '#00ff88' : '#e0e0e0'}; font-size:0.9rem; ${isCorrect ? 'font-weight:600;' : ''}">${isCorrect ? '✅ ' : ''}${escapeHtml(alt)}</div>`;
         }).join('');
 
         // Perguntador é somente leitura: garante que a área de assessoria
@@ -446,6 +479,7 @@ function displayQuestion(q) {
 function displaySpectatorView(perguntador, respondedor) {
     document.getElementById('questionArea').style.display = 'none';
     document.getElementById('spectatorArea').style.display = 'block';
+    // textContent — seguro por padrão, sem necessidade de escapeHtml.
     document.getElementById('spectatorMessage').textContent = `⏳ ${perguntador} pergunta para ${respondedor}...`;
     const assessoriaArea = document.getElementById('assessoriaArea');
     if (assessoriaArea) assessoriaArea.style.display = 'none';
@@ -498,7 +532,7 @@ function showResultModal(acertou, kpiGanho, recursosRestantes) {
 function updatePlayersOnlineList() {
     document.getElementById('playersOnlineList').innerHTML = Game.getActivePlayers().map(p => {
         const fase = Game.getFaseById(p.phase);
-        return `<div class="online-player"><div class="player-avatar-xs">${p.name.charAt(0)}</div><span>${p.name}</span><span style="font-size:0.7rem; color:#ffd700;">📦${p.recursos || 0}</span><span class="mini-phase">${fase.emoji}</span></div>`;
+        return `<div class="online-player"><div class="player-avatar-xs">${escapeHtml(p.name.charAt(0))}</div><span>${escapeHtml(p.name)}</span><span style="font-size:0.7rem; color:#ffd700;">📦${p.recursos || 0}</span><span class="mini-phase">${fase.emoji}</span></div>`;
     }).join('') || '<div style="color:#6a6a80; font-size:0.8rem;">Nenhum jogador ativo</div>';
 }
 
@@ -510,7 +544,7 @@ function updateRankingList() {
     const ranking = Game.core.buildRanking().filter(p => !p.waitingInLobby);
     const medalhas = ['🥇', '🥈', '🥉'];
     document.getElementById('rankingList').innerHTML = ranking.map((p, i) => `
-        <div class="rank-item"><span class="rank-pos">${medalhas[i] || '#' + (i + 1)}</span><span class="rank-name">${p.name}</span><span class="rank-kpi">${p.kpiFinal} ⭐</span></div>
+        <div class="rank-item"><span class="rank-pos">${medalhas[i] || '#' + (i + 1)}</span><span class="rank-name">${escapeHtml(p.name)}</span><span class="rank-kpi">${p.kpiFinal} ⭐</span></div>
     `).join('');
 }
 
@@ -526,7 +560,7 @@ function displayFinalRanking(ranking) {
         const kpiRecursos = p.recursos * CONFIG.KPI.VALOR_RECURSO_FINAL;
         return `<div class="final-rank-item ${i < 3 ? 'top-' + (i + 1) : ''}">
         <span class="final-rank-pos">${medalhas[i] || '#' + p.posicao}</span>
-        <span class="final-rank-name">${p.name}</span>
+        <span class="final-rank-name">${escapeHtml(p.name)}</span>
         <span class="final-rank-kpi">${p.kpiFinal} ⭐</span>
         <div class="final-rank-detail" style="font-size:0.75rem; color:#a0a0b8; margin-top:4px;">KPI acumulado (acertos, vendas, compras e assessorias): ${p.kpi} | Recursos: ${p.recursos}📦 × ${CONFIG.KPI.VALOR_RECURSO_FINAL} = ${kpiRecursos} KPI</div>
     </div>`;
@@ -539,6 +573,14 @@ function displayFinalRanking(ranking) {
 
 /**
  * Abre o modal de venda de recursos
+ *
+ * BUGFIX: a lista de compradores usava
+ * `onclick="Game.ui.confirmarVenda('${c.name}')"` montado como string —
+ * além de vulnerável a XSS, um nome contendo aspas simples (') quebrava
+ * literalmente o atributo onclick gerado. Agora os botões são criados sem
+ * onclick inline: o nome vai num atributo `data-name` (sempre seguro,
+ * pois atributos não são interpretados como HTML) e um único listener
+ * delegado lê esse atributo ao clicar.
  */
 function showVendaModal() {
     const state = Game.state;
@@ -564,14 +606,21 @@ function showVendaModal() {
     document.getElementById('vendaSeusRecursos').textContent =
         'Seus recursos: 📦 ' + me.recursos;
 
-    // Lista de compradores
-    document.getElementById('vendaCompradores').innerHTML = compradores.map(c => `
-        <button class="btn btn-glass" onclick="Game.ui.confirmarVenda('${c.name}')" 
+    // Lista de compradores — sem onclick inline (ver comentário acima).
+    const compradoresEl = document.getElementById('vendaCompradores');
+    compradoresEl.innerHTML = compradores.map(c => `
+        <button class="btn btn-glass" data-comprador-name="${escapeHtml(c.name)}"
                 style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px;">
-            <span>${c.name}</span>
+            <span>${escapeHtml(c.name)}</span>
             <span style="color:#ffd700; font-size:0.8rem;">⭐${c.kpi} KPI</span>
         </button>
     `).join('');
+
+    compradoresEl.querySelectorAll('button[data-comprador-name]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            Game.ui.confirmarVenda(btn.getAttribute('data-comprador-name'));
+        });
+    });
 
     document.getElementById('modalVenda').style.display = 'flex';
 }
@@ -616,6 +665,9 @@ let assessoriaCountdownInterval = null;
 
 /**
  * Abre o modal de seleção de assessor (visão do Respondedor)
+ *
+ * BUGFIX: mesma questão de segurança/robustez de showVendaModal() — troca
+ * de onclick inline por data-attribute + listener delegado.
  */
 function showAssessoriaSelectModal() {
     const state = Game.state;
@@ -631,13 +683,20 @@ function showAssessoriaSelectModal() {
         return;
     }
 
-    document.getElementById('assessoriaJogadoresList').innerHTML = candidatos.map(p => `
-        <button class="btn btn-glass" onclick="Game.ui.escolherAssessor('${p.name}')"
+    const listaEl = document.getElementById('assessoriaJogadoresList');
+    listaEl.innerHTML = candidatos.map(p => `
+        <button class="btn btn-glass" data-assessor-name="${escapeHtml(p.name)}"
                 style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px;">
-            <span>${p.name}</span>
+            <span>${escapeHtml(p.name)}</span>
             <span style="font-size:0.8rem; color:#a0a0b8;">${Game.getFaseById(p.phase).emoji}</span>
         </button>
     `).join('');
+
+    listaEl.querySelectorAll('button[data-assessor-name]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            Game.ui.escolherAssessor(btn.getAttribute('data-assessor-name'));
+        });
+    });
 
     document.getElementById('modalAssessoriaSelect').style.display = 'flex';
 }
@@ -702,13 +761,17 @@ function showAssessoriaStarted(msg) {
 
 /**
  * Exibe o modal de pergunta para o jogador chamado como assessor
+ *
+ * Alternativas vêm do baralho local de perguntas (fonte confiável), não
+ * de outro jogador — o onclick aqui usa apenas a letra ('a'/'b'/'c'/'d'),
+ * um valor controlado internamente, não texto arbitrário de rede.
  */
 function showAssessoriaQuestionModal(msg) {
     document.getElementById('assessoriaQuestionText').textContent = msg.pergunta;
     document.getElementById('assessoriaAlternativesList').innerHTML = msg.alternativas.map(alt => {
         const letra = alt.charAt(0).toLowerCase();
         return `<button class="btn btn-glass" onclick="Game.ui.responderAssessoria('${letra}', false)"
-                    style="text-align:left; padding:10px 14px;">${alt}</button>`;
+                    style="text-align:left; padding:10px 14px;">${escapeHtml(alt)}</button>`;
     }).join('');
 
     let seconds = Math.floor(CONFIG.JOGO.ASSESSORIA_TIMEOUT / 1000);
@@ -817,6 +880,7 @@ window.Game = window.Game || {};
 window.Game.ui = {
     setupUI, showScreen, showLobbyNormal, showLobbyWaitingView,
     closeAllModals,
+    escapeHtml,
     updateConnectionStatus, updatePlayersList, checkStartCondition,
     updateTimerDisplay, displayRoundStart, displayQuestion, displaySpectatorView,
     showResultModal, showEventoModal,

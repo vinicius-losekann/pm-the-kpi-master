@@ -37,7 +37,33 @@ async function initPeer() {
 
         myPeer = new Peer(peerId, { debug: 0 });
 
+        // BUGFIX: antes, este handler de erro (myPeer.on('error', ...))
+        // ficava registrado PERMANENTEMENTE na instância de Peer, não só
+        // durante esta inicialização. Qualquer erro de PeerJS ocorrido
+        // DEPOIS da inicialização bem-sucedida — por exemplo um
+        // 'peer-unavailable' ao tentar myPeer.connect() para um host que
+        // não existe mais dentro de attemptReconnectToNewHost() — também
+        // disparava este mesmo handler, chamando myPeer.destroy() no meio
+        // de uma tentativa de reconexão e derrubando o peer do próprio
+        // jogador sem necessidade, quebrando o fluxo de retry.
+        //
+        // Agora o listener genérico só fica ativo enquanto esta Promise de
+        // inicialização não foi resolvida; depois disso, cada chamador
+        // (attemptReconnectToNewHost, becomeHost, etc.) trata seus próprios
+        // erros de conexão localmente, sem destruir o Peer inteiro.
+        let initSettled = false;
+
+        const onInitError = (err) => {
+            if (initSettled) return; // erro ocorrido após init: não é mais responsabilidade deste handler
+            initSettled = true;
+            console.error('❌ PeerJS Error (inicialização):', err);
+            Game.ui.updateConnectionStatus('error', 'Erro de conexão');
+            try { myPeer.destroy(); } catch (e) { /* ignora */ }
+            reject(err);
+        };
+
         myPeer.on('open', (id) => {
+            initSettled = true;
             state.peerId = id;
             if (state.isHost) {
                 state.hostPeerId = id;
@@ -54,11 +80,15 @@ async function initPeer() {
 
         myPeer.on('connection', (conn) => handleConnection(conn));
 
+        myPeer.on('error', onInitError);
+
+        // Handler permanente de erros pós-inicialização: apenas loga e
+        // atualiza status na UI, sem destruir o Peer — cada fluxo que
+        // depende de myPeer.connect() (reconexão, migração de host) já
+        // trata seus próprios timeouts/erros de conexão individualmente.
         myPeer.on('error', (err) => {
-            console.error('❌ PeerJS Error:', err);
-            Game.ui.updateConnectionStatus('error', 'Erro de conexão');
-            try { myPeer.destroy(); } catch (e) { /* ignora */ }
-            reject(err);
+            if (!initSettled) return; // já tratado por onInitError acima
+            console.warn('⚠️ PeerJS Error (pós-inicialização):', err?.type || err);
         });
 
         myPeer.on('disconnected', () => {
@@ -74,9 +104,75 @@ async function initPeer() {
 // CONEXÕES
 // ============================================
 
-function connectToHost() {
-    const conn = myPeer.connect(Game.state.hostPeerId, { reliable: true });
-    handleConnection(conn);
+/**
+ * BUGFIX: connectToHost() tentava se conectar sempre ao hostPeerId
+ * "conhecido" (normalmente o ID base da sala, vindo da URL de convite).
+ * Se já tivesse ocorrido uma migração de host ANTES deste jogador entrar
+ * (host original caiu, backup assumiu como base-h1), esse peerId base não
+ * existia mais — um jogador entrando pela primeira vez nesse momento
+ * tentava conectar a um peer morto e ficava pendurado indefinidamente,
+ * sem nenhum fallback (o cálculo de versões seguintes só era usado por
+ * quem JÁ estava conectado e detectou a queda via attemptReconnectToNewHost).
+ *
+ * Agora, se a conexão ao hostPeerId conhecido não abrir dentro de um
+ * tempo razoável, tentamos as próximas versões calculadas a partir de
+ * baseRoomPeerId, do mesmo jeito que attemptReconnectToNewHost já faz
+ * para reconexões.
+ */
+function connectToHost(attempt = 0, maxAttempts = 5) {
+    const state = Game.state;
+    if (state.isHost) return;
+
+    const targetId = attempt === 0
+        ? state.hostPeerId
+        : Game.computeHostPeerId(state.baseRoomPeerId, state.hostVersion + attempt);
+
+    console.log(`🔌 Conectando ao host (tentativa ${attempt + 1}/${maxAttempts + 1}): ${targetId}`);
+
+    let settled = false;
+    const conn = myPeer.connect(targetId, { reliable: true });
+
+    conn.on('open', () => {
+        if (settled) return;
+        settled = true;
+
+        if (attempt > 0) {
+            // A conexão só foi bem-sucedida numa versão de host mais
+            // recente que a conhecida — atualiza o estado local para
+            // refletir a migração que já tinha acontecido antes de
+            // entrarmos na sala.
+            state.hostVersion = state.hostVersion + attempt;
+            state.hostPeerId = targetId;
+        }
+
+        handleConnection(conn);
+    });
+
+    conn.on('error', () => {
+        if (settled) return;
+        settled = true;
+        if (attempt < maxAttempts) {
+            setTimeout(() => connectToHost(attempt + 1, maxAttempts), 1500);
+        } else {
+            console.error('❌ Não foi possível conectar a nenhuma versão conhecida do host.');
+            Game.ui.updateConnectionStatus('error', 'Não foi possível conectar à sala. Verifique o link e tente novamente.');
+        }
+    });
+
+    // PeerJS às vezes não dispara 'error' para um peerId inexistente
+    // dentro de um tempo razoável — força um timeout de segurança, assim
+    // como já é feito em attemptReconnectToNewHost().
+    setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        try { conn.close(); } catch (e) { /* ignora */ }
+        if (attempt < maxAttempts) {
+            connectToHost(attempt + 1, maxAttempts);
+        } else {
+            console.error('❌ Não foi possível conectar a nenhuma versão conhecida do host (timeout).');
+            Game.ui.updateConnectionStatus('error', 'Não foi possível conectar à sala. Verifique o link e tente novamente.');
+        }
+    }, 4000);
 }
 
 function handleConnection(conn) {
@@ -163,7 +259,7 @@ function handleMessage(msg, fromPeerId) {
             if (state.isHost) addPlayer(msg, fromPeerId);
             break;
 
-        case 'join-rejected':
+        case 'join-rejected': {
             Game.network.cleanup();
             const motivo = msg.reason === 'room-full'
                 ? '⚠️ Sala cheia (máximo de ' + CONFIG.JOGO.MAX_PLAYERS + ' jogadores).'
@@ -171,6 +267,7 @@ function handleMessage(msg, fromPeerId) {
             alert(motivo);
             window.location.href = 'index.html';
             break;
+        }
 
         case 'player-list':
             state.players = msg.players;
@@ -311,7 +408,7 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         // --- EVENTO ---
-        case 'show-evento':
+        case 'show-evento': {
             if (msg.players) {
                 state.players = msg.players;
             }
@@ -326,6 +423,7 @@ function handleMessage(msg, fromPeerId) {
                 document.getElementById('myKPI').textContent = me.kpi;
             }
             break;
+        }
 
         case 'assessoria-request':
             if (state.isHost) Game.core.handleAssessoriaRequest(msg, fromPeerId);
@@ -378,7 +476,7 @@ function handleMessage(msg, fromPeerId) {
             Game.ui.fecharVendaModal();
             break;
 
-        case 'venda-confirmed':
+        case 'venda-confirmed': {
             const vendedor = Game.getPlayerByName(msg.vendedor);
             const comprador = Game.getPlayerByName(msg.comprador);
             if (vendedor) {
@@ -405,6 +503,7 @@ function handleMessage(msg, fromPeerId) {
             }
             console.log('💰 Venda confirmada:', msg.vendedor, '→', msg.comprador);
             break;
+        }
     }
 }
 
@@ -512,6 +611,18 @@ function addPlayer(msg, fromPeerId) {
                 timer: state.timer,
                 currentRound: currentRoundForSync,
                 gameStarted: state.gameStarted,
+                // BUGFIX: gameOver e pendingVendaOfertas nunca eram enviados
+                // aqui. Sem gameOver, um jogador que entra/reconecta durante
+                // a tela de ranking final (gameStarted ainda true, gameOver
+                // true, antes do host clicar "Encerrar Partida") era jogado
+                // de volta para a tela de jogo em andamento. Sem
+                // pendingVendaOfertas, um jogador que entra depois que uma
+                // oferta de venda já existe nunca fica sabendo dela — e, se
+                // mais tarde assumir como host, a oferta "desaparece" para
+                // sempre (comprador nunca é notificado, vendedor fica
+                // esperando indefinidamente).
+                gameOver: state.gameOver,
+                pendingVendaOfertas: state.pendingVendaOfertas,
                 hostVersion: state.hostVersion,
                 respostasCount: state.respostasCount
             }
@@ -560,13 +671,24 @@ function restoreState(fullState) {
     state.timer = fullState.timer;
     state.currentRound = fullState.currentRound;
     state.gameStarted = fullState.gameStarted;
+    // BUGFIX: gameOver e pendingVendaOfertas agora fazem parte do
+    // fullState (ver addPlayer) e precisam ser restaurados aqui também.
+    state.gameOver = !!fullState.gameOver;
+    state.pendingVendaOfertas = fullState.pendingVendaOfertas || {};
     if (fullState.hostVersion !== undefined) state.hostVersion = fullState.hostVersion;
     // Sem isso, um jogador que entra/reconecta fica com respostasCount
     // vazio; se ele mais tarde virar host, o rodízio reiniciava do zero
     // para todo mundo a partir dali.
     state.respostasCount = fullState.respostasCount || {};
 
-    if (state.gameStarted) {
+    if (state.gameOver) {
+        // BUGFIX: sem esta checagem, um jogador que entra/reconecta depois
+        // que a partida já terminou (mas antes do host clicar "Encerrar
+        // Partida") caía no branch de "partida em andamento" abaixo, pois
+        // state.gameStarted continua true até o host encerrar de fato.
+        Game.ui.showScreen('gameover');
+        Game.ui.displayFinalRanking(Game.core.buildRanking());
+    } else if (state.gameStarted) {
         // Garante que a tela correta seja exibida após reconexão/reload,
         // e não deixa o jogador preso visualmente no lobby.
         Game.ui.showScreen('game');
@@ -610,6 +732,32 @@ function restoreState(fullState) {
     Game.saveState();
 }
 
+/**
+ * BUGFIX: souOBackup era calculado reordenando state.players (host
+ * primeiro) e olhando o índice resultante — um segundo mecanismo paralelo
+ * a state.backupPeerId (já mantido à parte, atualizado em addPlayer,
+ * removePlayerByPeerId e becomeHost). Os dois podiam divergir (ex.: a
+ * ordem de state.players nem sempre reflete quem foi designado como
+ * backup), e depender de reordenação implícita é frágil e difícil de
+ * auditar. Agora usamos diretamente state.backupPeerId como fonte única
+ * da verdade sobre quem deve assumir como host.
+ */
+function souOBackup() {
+    const state = Game.state;
+    const me = Game.getPlayerByName(state.playerName);
+    if (!me) return false;
+
+    if (state.backupPeerId) {
+        return me.peerId === state.backupPeerId;
+    }
+
+    // Fallback caso backupPeerId nunca tenha sido definido (ex.: sala com
+    // apenas 1 outro jogador que nunca chegou a ser marcado): o próximo
+    // jogador ativo que não seja o host vira o candidato.
+    const candidato = Game.getActivePlayers().find(p => !p.isHost);
+    return !!candidato && candidato.name === state.playerName;
+}
+
 function handleHostDisconnect() {
     console.warn('⚠️ Host desconectado! Aguardando...');
     Game.ui.updateConnectionStatus('error', 'Host desconectado — tentando reconectar...');
@@ -617,17 +765,7 @@ function handleHostDisconnect() {
     setTimeout(() => {
         if (Game.state.isHost) return;
 
-        const sorted = [...Game.state.players].sort((a, b) => {
-            if (a.isHost) return -1;
-            if (b.isHost) return 1;
-            return 0;
-        });
-
-        const me = sorted.find(p => p.name === Game.state.playerName);
-        const myIndex = sorted.indexOf(me);
-        const souOBackup = myIndex === 1 || (myIndex === 0 && !sorted[0]?.isHost);
-
-        if (souOBackup) {
+        if (souOBackup()) {
             console.log('👑 Assumindo como novo host!');
             becomeHost();
         } else {
@@ -763,6 +901,22 @@ function becomeHost() {
             Game.ui.updateTimerDisplay();
 
             clearInterval(state.timerInterval);
+
+            // BUGFIX: mesma proteção já aplicada em resumeGameEngineIfHost()
+            // (game-main.js) para o cenário de F5 do host. Sem isso, uma
+            // migração de host ocorrendo bem no fim do timer (timer já
+            // zerado ou negativo no momento da migração) rearmava o
+            // setInterval normalmente, deixando o timer visivelmente ir a
+            // negativo por 1 tick antes de encerrar a partida.
+            if (state.timer <= 0) {
+                Game.core.endGame(Game.core.buildRanking());
+                document.getElementById('roomPeerId').textContent = id;
+                document.getElementById('hostRoomIdSection').style.display = 'block';
+                alert('👑 Você agora é o host!');
+                Game.saveState();
+                return;
+            }
+
             state.timerInterval = setInterval(() => {
                 state.timer--;
                 Game.ui.updateTimerDisplay();
@@ -797,6 +951,15 @@ function becomeHost() {
                     Game.core.armarRespostaTimeout(state.currentRound.respondedor);
                 }
             }
+
+            // Rearma também os timeouts de qualquer oferta de venda
+            // pendente herdada do host antigo — sem isso, ofertas em
+            // aberto no momento da migração ficariam sem nenhum timeout de
+            // segurança rodando (o timeout antigo morreu junto com o host
+            // anterior).
+            Object.entries(state.pendingVendaOfertas || {}).forEach(([vendedorName, compradorName]) => {
+                Game.core.armarVendaOfertaTimeout(vendedorName, compradorName);
+            });
         } else {
             Game.ui.showLobbyNormal();
             Game.ui.updatePlayersList();
@@ -841,8 +1004,10 @@ function cleanup() {
 window.Game = window.Game || {};
 window.Game.network = {
     initPeer,
+    connectToHost,
     handleMessage,
     handleHostDisconnect,
+    souOBackup,
     attemptReconnectToNewHost,
     removePlayerByPeerId,
     becomeHost,

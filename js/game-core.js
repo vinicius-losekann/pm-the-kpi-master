@@ -28,27 +28,41 @@
 // RODADA - SORTEIO E PERGUNTAS
 // ============================================
 
-function startNewRound() {
+/**
+ * Sorteia o evento da rodada, aplica seus efeitos nos recursos e
+ * atualiza a UI local imediatamente (Momento 1, antes de saber quem serão
+ * perguntador/respondedor). Extraído de startNewRound()/pickNewPair(),
+ * que faziam exatamente a mesma sequência de forma duplicada — qualquer
+ * correção futura precisava ser replicada nos dois lugares.
+ *
+ * @returns {object|null} o evento sorteado, ou null se não houver eventos
+ * disponíveis (sem baralho de eventos carregado).
+ */
+function sortearEAplicarEvento() {
     const state = Game.state;
     const evento = sortearEvento();
-    if (!evento) {
-        console.error('❌ Nenhum evento disponível!');
-        return;
-    }
-    // Aplica efeitos do evento nos recursos
+    if (!evento) return null;
+
     aplicarEfeitosEvento(evento);
 
-    // Atualiza UI imediatamente após o evento (Momento 1)
     Game.ui.updatePlayersOnlineList();
     Game.ui.updateRankingList();
 
-    // Atualiza recursos e KPI do próprio jogador na tela
     const me = Game.getPlayerByName(state.playerName);
     if (me) {
         document.getElementById('myRecursos').textContent = me.recursos;
         document.getElementById('myKPI').textContent = me.kpi;
     }
 
+    return evento;
+}
+
+function startNewRound() {
+    const evento = sortearEAplicarEvento();
+    if (!evento) {
+        console.error('❌ Nenhum evento disponível!');
+        return;
+    }
     pickNewPair(evento);
 }
 
@@ -56,17 +70,8 @@ function pickNewPair(evento = null) {
     const state = Game.state;
 
     if (!evento) {
-        evento = sortearEvento();
+        evento = sortearEAplicarEvento();
         if (!evento) return;
-        aplicarEfeitosEvento(evento);
-
-        Game.ui.updatePlayersOnlineList();
-        Game.ui.updateRankingList();
-        const me = Game.getPlayerByName(state.playerName);
-        if (me) {
-            document.getElementById('myRecursos').textContent = me.recursos;
-            document.getElementById('myKPI').textContent = me.kpi;
-        }
     }
 
     // Mostra o modal do evento para todos (sempre exatamente uma vez por
@@ -123,8 +128,33 @@ function pickNewPair(evento = null) {
     const perguntador = askers[Math.floor(Math.random() * askers.length)];
     const pergunta = sortearPergunta(respondedor.phase);
 
+    // BUGFIX: antes, se sortearPergunta() retornasse null (nenhuma área
+    // tem perguntas disponíveis para a fase do respondedor, mesmo após
+    // resetar o baralho — ex.: baralho da fase vazio no JSON de
+    // perguntas), a função só logava um erro e retornava. Como o modal de
+    // evento e o broadcast 'show-evento' já tinham sido disparados para
+    // TODOS os jogadores antes deste ponto, a partida ficava travada
+    // silenciosamente: ninguém recebia 'round-start', a tela de espera
+    // nunca saía do lugar, e nada avançava até o timer da sessão zerar
+    // sozinho. Agora tentamos novamente com outro respondedor elegível
+    // (pode haver perguntas para a fase de outro jogador); se ninguém
+    // tiver pergunta disponível, encerra a partida em vez de travar.
     if (!pergunta) {
-        console.error('❌ Sem pergunta disponível!');
+        console.error('❌ Sem pergunta disponível para a fase de ' + respondedor.name + ' (' + respondedor.phase + ')!');
+
+        const outrosElegiveis = elegiveis.filter(p => p.peerId !== respondedor.peerId);
+        const temPerguntaParaAlgumOutro = outrosElegiveis.some(p => temPerguntaDisponivelParaFase(p.phase));
+
+        if (temPerguntaParaAlgumOutro) {
+            // Conta o turno "perdido" do respondedor sem pergunta (evita
+            // loop infinito sempre recaindo nele) e tenta de novo.
+            state.respostasCount[respondedor.name] = (state.respostasCount[respondedor.name] || 0) + 1;
+            pickNewPair(evento);
+            return;
+        }
+
+        console.error('❌ Nenhum jogador ativo tem pergunta disponível. Encerrando partida.');
+        endGame(buildRanking());
         return;
     }
 
@@ -178,6 +208,25 @@ function pickNewPair(evento = null) {
     armarRespostaTimeout(respondedor.name);
 
     Game.saveState();
+}
+
+/**
+ * Checa (sem consumir) se existe ao menos uma pergunta disponível para a
+ * fase informada — considerando também o reset automático do baralho que
+ * sortearPergunta() faria. Usada apenas para decidir, em pickNewPair(),
+ * se vale a pena tentar outro respondedor antes de desistir e encerrar a
+ * partida.
+ */
+function temPerguntaDisponivelParaFase(grupoProcesso) {
+    const state = Game.state;
+    for (const [key, area] of Object.entries(state.questionsData?.areas || {})) {
+        if (!area.grupos.includes(grupoProcesso)) continue;
+        const baralho = state.baralhos[key];
+        // Se o baralho já tem disponíveis>0, ou se tem perguntas no total
+        // (podendo ser resetado), consideramos que há pergunta possível.
+        if (baralho && (baralho.disponiveis > 0 || baralho.total > 0)) return true;
+    }
+    return false;
 }
 
 /**
@@ -593,6 +642,17 @@ function requestAssessoria(assessorName) {
 
     if (state.isHost) {
         handleAssessoriaRequest({ assessorName, requesterName: state.playerName });
+        // BUGFIX: quando o host é o próprio Respondedor, handleAssessoriaRequest()
+        // roda de forma SÍNCRONA. Se o pedido for rejeitado por uma condição de
+        // corrida (ex.: assessor ficou inválido), showAssessoriaResult() já roda
+        // aqui dentro e limpa state.currentRound.assessoria antes deste ponto.
+        // Sem esta checagem, requestAssessoria() sempre retornava true e
+        // escolherAssessor() (game-ui.js) sobrescrevia de volta para "pending",
+        // travando o host numa assessoria fantasma que nunca seria respondida.
+        const resultado = state.currentRound?.assessoria;
+        if (!resultado || resultado.assessorName !== assessorName || resultado.status !== 'pending') {
+            return false;
+        }
     } else {
         Game.network.sendToHost({ type: 'assessoria-request', assessorName, requesterName: state.playerName });
     }
@@ -845,6 +905,11 @@ function endGame(ranking) {
         clearTimeout(state.respostaTimeout);
         state.respostaTimeout = null;
     }
+    // Cancela também qualquer timeout de oferta de venda pendente — sem
+    // isso, uma oferta em aberto no fim da partida podia disparar depois
+    // do jogo já ter terminado.
+    Object.values(state.vendaOfertaTimeouts || {}).forEach(t => clearTimeout(t));
+    state.vendaOfertaTimeouts = {};
     state.currentRound = null;
 
     if (state.isHost) {
@@ -862,7 +927,9 @@ function endMatch() {
 
     // Cancela timeouts pendentes (resposta/assessoria) da rodada que está
     // sendo encerrada abruptamente, evitando disparos tardios para uma
-    // partida que já foi resetada.
+    // partida que já foi resetada. (resetGameState() também limpa esses
+    // timeouts, mas cancelamos aqui também antes de zerar currentRound
+    // para manter o comportamento explícito e imediato.)
     if (Game.state.assessoriaTimeout) {
         clearTimeout(Game.state.assessoriaTimeout);
         Game.state.assessoriaTimeout = null;
@@ -925,6 +992,48 @@ function venderRecurso(compradorName) {
 }
 
 /**
+ * HOST: cancela (se existir) o timeout de segurança de uma oferta de
+ * venda pendente para o vendedor informado.
+ */
+function limparVendaOfertaTimeout(vendedorName) {
+    const state = Game.state;
+    state.vendaOfertaTimeouts = state.vendaOfertaTimeouts || {};
+    if (state.vendaOfertaTimeouts[vendedorName]) {
+        clearTimeout(state.vendaOfertaTimeouts[vendedorName]);
+        delete state.vendaOfertaTimeouts[vendedorName];
+    }
+}
+
+/**
+ * HOST: arma o timeout de segurança de uma oferta de venda pendente.
+ *
+ * BUGFIX: diferente da resposta e da assessoria, a oferta de venda não
+ * tinha nenhum timeout — se o comprador nunca respondesse (fechou a aba,
+ * ficou parado sem decidir), o vendedor ficava esperando indefinidamente,
+ * só "resolvido" caso ele mesmo enviasse uma nova oferta (que sobrescreve
+ * a antiga) ou saísse da partida. Agora, expirada CONFIG.JOGO.VENDA_OFERTA_TIMEOUT
+ * (com fallback caso a config não defina esse valor), a oferta é tratada
+ * como recusada automaticamente e o vendedor é avisado.
+ */
+function armarVendaOfertaTimeout(vendedorName, compradorName) {
+    const state = Game.state;
+    limparVendaOfertaTimeout(vendedorName);
+
+    const timeoutMs = CONFIG.JOGO.VENDA_OFERTA_TIMEOUT || 30000;
+
+    state.vendaOfertaTimeouts = state.vendaOfertaTimeouts || {};
+    state.vendaOfertaTimeouts[vendedorName] = setTimeout(() => {
+        // A oferta pode já ter sido resolvida (aceita/recusada) por uma
+        // resposta que chegou bem perto do timeout — confere se ainda é a
+        // mesma oferta pendente antes de expirar automaticamente.
+        if (state.pendingVendaOfertas?.[vendedorName] !== compradorName) return;
+
+        console.warn('⌛ Timeout: oferta de venda de ' + vendedorName + ' para ' + compradorName + ' expirou sem resposta.');
+        handleVendaOfertaResponse({ vendedorName, compradorName, aceito: false, timeout: true });
+    }, timeoutMs);
+}
+
+/**
  * HOST: valida a oferta e a encaminha ao comprador para aceite/recusa.
  */
 function handleVendaOfertaRequest(msg, fromPeerId) {
@@ -962,6 +1071,9 @@ function handleVendaOfertaRequest(msg, fromPeerId) {
     // nada. Uma nova oferta do mesmo vendedor sobrescreve a anterior.
     state.pendingVendaOfertas = state.pendingVendaOfertas || {};
     state.pendingVendaOfertas[vendedor.name] = comprador.name;
+
+    // Arma o timeout de segurança desta oferta (ver armarVendaOfertaTimeout).
+    armarVendaOfertaTimeout(vendedor.name, comprador.name);
 
     // Propaga a oferta pendente para TODOS os clientes (não só o
     // comprador), para que qualquer um deles, ao eventualmente assumir
@@ -1001,7 +1113,8 @@ function handleVendaOfertaResponse(msg, fromPeerId) {
 
     // Só aceita a resposta se vier da conexão do COMPRADOR da oferta
     // original — evita que qualquer jogador aceite ou recuse, em nome de
-    // outro, uma oferta de venda que não é sua.
+    // outro, uma oferta de venda que não é sua. Chamadas internas do
+    // próprio host (timeout de segurança) não passam fromPeerId.
     const comprador = Game.getPlayerByName(msg.compradorName);
     if (fromPeerId !== undefined && (!comprador || comprador.peerId !== fromPeerId)) {
         console.warn('⚠️ venda-offer-response ignorado: remetente não é o comprador da oferta.');
@@ -1020,6 +1133,7 @@ function handleVendaOfertaResponse(msg, fromPeerId) {
     // Consome a oferta imediatamente — resolvida (aceita ou recusada), ela
     // deixa de existir e não pode ser respondida de novo.
     delete state.pendingVendaOfertas[msg.vendedorName];
+    limparVendaOfertaTimeout(msg.vendedorName);
 
     // Propaga a resolução (consumo) da oferta para todos os clientes.
     Game.network.broadcastAll({
@@ -1035,7 +1149,9 @@ function handleVendaOfertaResponse(msg, fromPeerId) {
         if (vendedor) {
             Game.network.sendToPlayer(vendedor.peerId, {
                 type: 'venda-rejected',
-                motivo: msg.compradorName + ' recusou a oferta de compra.'
+                motivo: msg.timeout
+                    ? (msg.compradorName + ' não respondeu a tempo.')
+                    : (msg.compradorName + ' recusou a oferta de compra.')
             });
         }
         return;
@@ -1260,7 +1376,10 @@ window.Game = window.Game || {};
 window.Game.core = {
     startNewRound,
     pickNewPair,
+    sortearEAplicarEvento,
+    temPerguntaDisponivelParaFase,
     armarRespostaTimeout,
+    armarAssessoriaTimeout,
     sortearPergunta,
     resetBaralho,
     resetAllBaralhos,
@@ -1284,6 +1403,8 @@ window.Game.core = {
     venderRecurso,
     processVenda,
     getCompradores,
+    armarVendaOfertaTimeout,
+    limparVendaOfertaTimeout,
     requestAssessoria,
     handleAssessoriaRequest,
     handleAssessoriaAnswer

@@ -54,6 +54,13 @@ const gameState = {
     // migração de host ou a um F5 no meio de uma oferta em aberto (mesma
     // classe de problema já resolvida para respostasCount).
     pendingVendaOfertas: {},
+
+    // Timeout de segurança da OFERTA DE VENDA pendente, indexado por nome
+    // do vendedor. Diferente de respostaTimeout/assessoriaTimeout (que só
+    // existem para 1 rodada por vez), pode haver mais de uma oferta de
+    // venda pendente simultaneamente (uma por vendedor), então cada uma
+    // tem seu próprio timeout independente.
+    vendaOfertaTimeouts: {},
 };
 
 // --- Helpers ---
@@ -98,6 +105,15 @@ function computeHostPeerId(baseId, version) {
     return version > 0 ? `${baseId}-h${version}` : baseId;
 }
 
+/**
+ * BUGFIX: a limpeza de respostaTimeout/assessoriaTimeout ficava espalhada
+ * em cada chamador (endMatch, endGame etc.), exigindo que quem chamasse
+ * resetGameState() lembrasse de limpar os timeouts ANTES. Se algum novo
+ * caminho de código chamasse resetGameState() sem essa limpeza prévia, um
+ * timeout órfão de uma partida anterior podia disparar depois (ex.:
+ * handleAnswer/handleAssessoriaAnswer rodando sobre um currentRound já
+ * nulo). Agora a limpeza é centralizada aqui, junto do reset do estado.
+ */
 function resetGameState() {
     gameState.gameStarted = false;
     gameState.gameOver = false;
@@ -106,6 +122,19 @@ function resetGameState() {
     gameState.timer = CONFIG.JOGO.SESSION_DURATION;
     clearInterval(gameState.timerInterval);
     gameState.timerInterval = null;
+
+    if (gameState.respostaTimeout) {
+        clearTimeout(gameState.respostaTimeout);
+        gameState.respostaTimeout = null;
+    }
+    if (gameState.assessoriaTimeout) {
+        clearTimeout(gameState.assessoriaTimeout);
+        gameState.assessoriaTimeout = null;
+    }
+    // Limpa todos os timeouts de oferta de venda pendentes.
+    Object.values(gameState.vendaOfertaTimeouts || {}).forEach(t => clearTimeout(t));
+    gameState.vendaOfertaTimeouts = {};
+
     // Limpa ofertas de venda pendentes entre partidas — sem isso, uma
     // oferta nunca respondida na partida anterior continuaria válida (e
     // executável) já na partida seguinte, mesmo após "Encerrar Partida".

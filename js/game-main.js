@@ -68,6 +68,7 @@ function saveState() {
         baralhos: state.baralhos,
         timer: state.timer,
         gameStarted: state.gameStarted,
+        gameOver: state.gameOver,
         respostasCount: state.respostasCount,
         pendingVendaOfertas: state.pendingVendaOfertas,
         timestamp: new Date().toISOString()
@@ -116,10 +117,11 @@ function tryRestoreState() {
         // Verifica validade do timestamp (expira em 5 minutos).
         const timestamp = new Date(saved.timestamp);
         const now = new Date();
+        const elapsedMs = now - timestamp;
 
         if (
             Number.isNaN(timestamp.getTime()) ||
-            now - timestamp > 5 * 60 * 1000
+            elapsedMs > 5 * 60 * 1000
         ) {
             console.log('💾 Estado salvo expirou.');
             return false;
@@ -133,12 +135,25 @@ function tryRestoreState() {
         Game.state.hostVersion = saved.hostVersion || 0;
         Game.state.roomName = saved.roomName;
         Game.state.players = saved.players || [];
-        Game.state.timer = saved.timer ?? CONFIG.JOGO.SESSION_DURATION;
         Game.state.gameStarted = !!saved.gameStarted;
+        Game.state.gameOver = !!saved.gameOver;
         Game.state.currentRound = saved.currentRound || null;
         Game.state.baralhos = saved.baralhos || {};
         Game.state.respostasCount = saved.respostasCount || {};
         Game.state.pendingVendaOfertas = saved.pendingVendaOfertas || {};
+
+        // Desconta do timer o tempo que passou "fora do ar" durante o
+        // reload/reconexão. Sem isso, cada F5 do host dava tempo bônus
+        // indevido a todos os jogadores, pois o timer salvo era restaurado
+        // exatamente como estava no momento do save. Só faz sentido ajustar
+        // se a partida estava rodando (senão o timer nem está em contagem).
+        const savedTimer = saved.timer ?? CONFIG.JOGO.SESSION_DURATION;
+        if (Game.state.gameStarted && !Game.state.gameOver) {
+            const elapsedSeconds = Math.floor(elapsedMs / 1000);
+            Game.state.timer = Math.max(0, savedTimer - elapsedSeconds);
+        } else {
+            Game.state.timer = savedTimer;
+        }
 
         const me = Game.getPlayerByName(myData.playerName);
         if (me) {
@@ -172,6 +187,15 @@ function resumeGameEngineIfHost() {
     Game.ui.updateTimerDisplay();
 
     clearInterval(state.timerInterval);
+
+    if (state.timer <= 0) {
+        // O tempo restante (já descontado da pausa em tryRestoreState)
+        // acabou durante o reload. Encerra o jogo em vez de retomar o
+        // motor com um timer zerado/negativo.
+        Game.core.endGame(Game.core.buildRanking());
+        return;
+    }
+
     state.timerInterval = setInterval(() => {
         state.timer--;
         Game.ui.updateTimerDisplay();
@@ -190,16 +214,11 @@ function resumeGameEngineIfHost() {
     // conectado (guests vão reconectar sozinhos e receber state-sync).
     Game.network.broadcastAll({ type: 'player-list', players: state.players });
 
-    if (!state.currentRound) {
-        // Não havia rodada em aberto no momento do reload — inicia uma nova.
-        Game.core.pickNewPair();
-    } else {
-        // Havia uma rodada em aberto, mas o host reiniciou e perdeu o
-        // estado "ao vivo" dela (ex: timers de assessoria). Mais simples
-        // e seguro: encerra a rodada atual e sorteia uma nova.
-        state.currentRound = null;
-        Game.core.pickNewPair();
-    }
+    // Havia ou não uma rodada em aberto, o host reiniciou e perdeu o
+    // estado "ao vivo" dela (ex: timers de assessoria). Mais simples e
+    // seguro: garante que não há rodada pendura e sorteia uma nova.
+    state.currentRound = null;
+    Game.core.pickNewPair();
 }
 
 // ============================================
