@@ -29,13 +29,6 @@
 // ============================================
 
 function startNewRound() {
-    /*const state = Game.state;
-    const eventos = state.questionsData?.eventos || [];
-    if (eventos.length === 0) {
-        console.error('❌ Nenhum evento disponível!');
-        return;
-    }
-    const evento = eventos[Math.floor(Math.random() * eventos.length)];*/
     const state = Game.state;
     const evento = sortearEvento();
     if (!evento) {
@@ -59,33 +52,14 @@ function startNewRound() {
     pickNewPair(evento);
 }
 
-// function pickNewPair(evento = null, depth = 0) {
 function pickNewPair(evento = null) {
     const state = Game.state;
-
-    // Guard contra recursão infinita: se não sobrar ninguém com recursos
-    // disponíveis mesmo após resetar a lista de "já jogou nesta rodada",
-    // encerra a partida em vez de travar em loop.
-    /*if (depth > CONFIG.JOGO.MAX_PLAYERS * 2) {
-        console.error('❌ Nenhum jogador com recursos disponíveis. Encerrando partida.');
-        endGame(buildRanking());
-        return;
-    }*/
-
-    // CORRIGIDO: chamadas recursivas (depth > 0) reaproveitam o MESMO
-    // evento só para tentar sortear um novo par de jogadores — nenhum
-    // evento novo é sorteado/aplicado nelas. Antes, o bloco abaixo que
-    // faz broadcast + abre o modal de evento rodava de novo em toda
-    // chamada, mesmo reutilizando o evento já mostrado, fazendo o mesmo
-    // modal reaparecer duas (ou mais) vezes seguidas para todos.
-    // const eventoJaExibidoNestaRodada = depth > 0;
 
     if (!evento) {
         evento = sortearEvento();
         if (!evento) return;
         aplicarEfeitosEvento(evento);
 
-        // Atualiza UI se o evento foi aplicado aqui também
         Game.ui.updatePlayersOnlineList();
         Game.ui.updateRankingList();
         const me = Game.getPlayerByName(state.playerName);
@@ -95,16 +69,8 @@ function pickNewPair(evento = null) {
         }
     }
 
-    // Mostra modal do evento para todos — apenas na primeira vez que ele é
-    // exibido nesta busca por um novo par (ver comentário acima).
-    /*if (!eventoJaExibidoNestaRodada) {
-        Game.network.broadcastAll({ type: 'show-evento', evento: evento, players: state.players });
-        Game.ui.showEventoModal(evento);
-    }*/
-    // CORRIGIDO: pickNewPair() não recursa mais em busca de Respondedor
-    // (ver seleção por contador abaixo, que sempre acha um candidato de
-    // primeira), então não existe mais "segunda chamada reaproveitando o
-    // mesmo evento" — o modal é sempre mostrado exatamente uma vez aqui.
+    // Mostra o modal do evento para todos (sempre exatamente uma vez por
+    // chamada, já que não há mais recursão em busca de Respondedor).
     Game.network.broadcastAll({ type: 'show-evento', evento: evento, players: state.players });
     Game.ui.showEventoModal(evento);
 
@@ -116,58 +82,10 @@ function pickNewPair(evento = null) {
         return;
     }
 
-    // Só considera respondedor quem ainda tem recursos — quem está sem
-    // recursos deve pular a vez em vez de receber a pergunta e ter a
-    // resposta descartada depois em handleAnswer().
-    // EXCEÇÃO: numa rodada com o evento 🛡️ Reserva de Contingência (e4),
-    // a resposta não gasta recurso algum ("acertando ou errando", conforme
-    // README), então mesmo jogadores com 0 recursos continuam elegíveis
-    // como Respondedor nessa rodada específica.
-    /*const semCustoNestaRodada = evento?.reserva_contingencia === true;
-    const comRecursos = semCustoNestaRodada
-        ? activePlayers
-        : activePlayers.filter(p => p.recursos > 0);
-
-    /*if (comRecursos.length === 0) {
-        console.warn('⚠️ Nenhum jogador ativo tem recursos. Encerrando partida.');
-        endGame(buildRanking());
-        return;
-    }
-
-    const available = comRecursos.filter(p =>
-        !state.usedRespondedorThisRound.includes(p.name)
-    );*/
-
-    // CORRIGIDO: jogador ativo sem recursos "pula a vez" automaticamente,
-    // mas isso PRECISA contar como turno para o rodízio "todos respondem
-    // antes de repetir" (usedRespondedorThisRound). Sem isso, ele nunca é
-    // sorteado (fica de fora de comRecursos) e nunca entra na lista — o
-    // reset abaixo, ao esgotar quem tem recursos, deixava outros jogadores
-    // responderem de novo antes desse jogador sequer ter sido considerado.
-    /*if (!semCustoNestaRodada) {
-        activePlayers
-            .filter(p => p.recursos <= 0 && !state.usedRespondedorThisRound.includes(p.name))
-            .forEach(p => {
-                console.log('⏭️ ' + p.name + ' sem recursos — pulando a vez neste ciclo.');
-                state.usedRespondedorThisRound.push(p.name);
-            });
-    }
-
-    if (comRecursos.length === 0) {
-        console.warn('⚠️ Nenhum jogador ativo tem recursos. Encerrando partida.');
-        endGame(buildRanking());
-        return;
-    }
-
-    const available = comRecursos.filter(p =>
-        !state.usedRespondedorThisRound.includes(p.name)
-    );
-    if (available.length === 0) {
-        state.usedRespondedorThisRound = [];
-        return pickNewPair(evento, depth + 1);
-    }*/
-    // CORRIGIDO: rodízio agora por CONTADOR (state.respostasCount), não
-    // por lista com reset manual — ver justificativa em game-state.js.
+    // Só considera respondedor quem ainda tem recursos — exceto na rodada
+    // do evento 🛡️ Reserva de Contingência (e4), onde a resposta não gasta
+    // recurso algum (acertando ou errando), então mesmo jogadores com 0
+    // recursos continuam elegíveis como Respondedor nessa rodada.
     const semCustoNestaRodada = evento?.reserva_contingencia === true;
 
     const elegiveis = semCustoNestaRodada
@@ -181,8 +99,8 @@ function pickNewPair(evento = null) {
     }
 
     // Quem está sem recursos "pula a vez" — mas o pulo CONTA como turno
-    // para o rodízio, senão o jogador ficaria pra sempre atrás na fila
-    // assim que voltasse a ter recursos.
+    // para o rodízio (respostasCount), senão o jogador ficaria pra sempre
+    // atrás na fila assim que voltasse a ter recursos.
     if (!semCustoNestaRodada) {
         activePlayers
             .filter(p => p.recursos <= 0)
@@ -192,6 +110,9 @@ function pickNewPair(evento = null) {
             });
     }
 
+    // Rodízio por contador: escolhe entre os elegíveis com o menor número
+    // de respostas já dadas, garantindo que todos respondam antes de
+    // qualquer um repetir.
     const minRespostas = Math.min(...elegiveis.map(p => state.respostasCount[p.name] || 0));
     const available = elegiveis.filter(p => (state.respostasCount[p.name] || 0) === minRespostas);
 
@@ -222,7 +143,6 @@ function pickNewPair(evento = null) {
         type: 'round-start',
         evento,
         perguntador: perguntador.name,
-        // respondedor: respondedor.name
         respondedor: respondedor.name,
         respostasCount: state.respostasCount
     });
@@ -242,12 +162,8 @@ function pickNewPair(evento = null) {
 
     Game.network.sendToPlayer(perguntador.peerId, { ...perguntaData, isPerguntador: true });
 
-    // CORRIGIDO: o Respondedor NUNCA deve receber o gabarito (`correta`),
-    // independentemente de ser o host ou um guest. Antes, quando o próprio
-    // host era sorteado como Respondedor, a mensagem era enviada com
-    // `perguntaData` completo (incluindo `correta`), vazando a resposta
-    // certa só para esse caso específico — inconsistente com a regra do
-    // README de que o Respondedor só vê a pergunta e as alternativas.
+    // O Respondedor NUNCA deve receber o gabarito (`correta`), mesmo
+    // quando ele próprio for o host.
     Game.network.sendToPlayer(respondedor.peerId, { ...perguntaData, isRespondedor: true, correta: undefined });
 
     if (state.playerName !== perguntador.name && state.playerName !== respondedor.name) {
@@ -256,13 +172,9 @@ function pickNewPair(evento = null) {
 
     Game.ui.displayRoundStart();
 
-    // NOVO: arma um timeout de segurança para o caso do Respondedor sumir
-    // (queda de conexão sem o evento 'close' disparar corretamente,
-    // aba em segundo plano travada, etc). Sem isso, a rodada — e a
-    // partida inteira, já que o timer principal continua rodando mas
-    // ninguém mais avança — ficava travada até o fim dos 90 minutos.
-    // Ao expirar, é tratado como resposta errada (sem alternativa
-    // marcada), consumindo o recurso normalmente e liberando a vez.
+    // Timeout de segurança: se o Respondedor sumir (queda de conexão sem
+    // o evento 'close' disparar, aba em segundo plano travada, etc), a
+    // rodada é tratada como resposta errada, liberando a vez.
     armarRespostaTimeout(respondedor.name);
 
     Game.saveState();
@@ -321,6 +233,20 @@ function sortearPergunta(grupoProcesso) {
     return { ...pergunta, area_key: areaSorteada };
 }
 
+/**
+ * Arma (ou rearma) o timeout de segurança da Assessoria pendente.
+ * Extraído para função reutilizável para que becomeHost() (game-network.js)
+ * também consiga rearmá-lo após uma migração de host ocorrida no meio de
+ * uma Assessoria ainda pendente.
+ */
+function armarAssessoriaTimeout() {
+    const state = Game.state;
+    if (state.assessoriaTimeout) clearTimeout(state.assessoriaTimeout);
+    state.assessoriaTimeout = setTimeout(() => {
+        handleAssessoriaAnswer({ alternativa: null, recusado: true, timeout: true });
+    }, CONFIG.JOGO.ASSESSORIA_TIMEOUT);
+}
+
 function resetBaralho(areaKey) {
     const baralho = Game.state.baralhos[areaKey];
     if (baralho) {
@@ -329,7 +255,6 @@ function resetBaralho(areaKey) {
     }
 }
 
-// NOVO
 function resetAllBaralhos() {
     Object.keys(Game.state.baralhos).forEach(key => resetBaralho(key));
     console.log('🔄 Baralhos de perguntas resetados para a próxima partida.');
@@ -343,9 +268,9 @@ function aplicarEfeitosEvento(evento) {
     const state = Game.state;
     if (!evento) return;
 
-    // NOVO: só afeta quem ainda está ativo na partida — jogadores que
-    // saíram (waitingInLobby) não devem ganhar nem perder recursos por
-    // eventos sorteados depois que pararam de jogar.
+    // Só afeta quem ainda está ativo na partida — jogadores que saíram
+    // (waitingInLobby) não devem ganhar nem perder recursos por eventos
+    // sorteados depois que pararam de jogar.
     const ativos = Game.getActivePlayers();
 
     // e1: +1 recurso para todos os ativos
@@ -404,19 +329,17 @@ function sortearEvento() {
     }
     return outros[Math.floor(Math.random() * outros.length)];
 }
+
 // ============================================
 // RESPOSTA E KPI (COM RECURSOS)
 // ============================================
 
-function handleAnswer(msg) {
-
+function handleAnswer(msg, fromPeerId) {
     const state = Game.state;
 
-    // CORRIGIDO: state.currentRound pode ser null se esta mensagem chegar
-    // atrasada (ex.: latência de rede) logo após o fim da partida — endGame()
-    // zera state.currentRound explicitamente. Sem este guard, o acesso a
-    // `state.currentRound.respondedor` logo abaixo lançava
-    // "TypeError: Cannot read properties of null".
+    // state.currentRound pode ser null se esta mensagem chegar atrasada
+    // (ex.: latência de rede) logo após o fim da partida, já que endGame()
+    // zera state.currentRound explicitamente.
     if (!state.currentRound) {
         console.warn('⚠️ handleAnswer chamado sem rodada ativa — ignorando (provavelmente resposta atrasada).');
         return;
@@ -429,23 +352,35 @@ function handleAnswer(msg) {
         return;
     }
 
+    // Valida que a mensagem veio da conexão do próprio Respondedor, não
+    // apenas que o campo `playerName` do payload bate com o nome dele.
+    // fromPeerId é omitido nas chamadas internas do próprio host
+    // (armarRespostaTimeout expirando, host respondendo localmente como
+    // Respondedor, ou o reprocessamento de pendingAnswer) e essas ficam
+    // isentas da checagem.
+    if (fromPeerId !== undefined) {
+        const respondedorPlayer = Game.getPlayerByName(respondedorName);
+        if (!respondedorPlayer || respondedorPlayer.peerId !== fromPeerId) {
+            console.warn('⚠️ answer ignorado: remetente não é o Respondedor da rodada.');
+            return;
+        }
+    }
+
     if (state.currentRound.respondeu) {
         console.warn('⚠️ Rodada já foi respondida!');
         return;
     }
 
-    // NOVO: o Respondedor efetivamente respondeu (ou o timeout de
-    // segurança disparou) — cancela o timeout pendente, já que não é mais
-    // necessário pular a vez automaticamente.
+    // O Respondedor efetivamente respondeu (ou o timeout de segurança
+    // disparou) — cancela o timeout pendente.
     if (state.respostaTimeout) {
         clearTimeout(state.respostaTimeout);
         state.respostaTimeout = null;
     }
 
-    // NOVO: se há uma assessoria pendente para esta rodada, não processa a
-    // resposta ainda — guarda e reprocessa quando a assessoria for resolvida
-    // (aceita, recusada ou expirada). Sem isso, o bônus do assessor era
-    // perdido silenciosamente quando o Respondedor respondia antes da hora.
+    // Se há uma assessoria pendente para esta rodada, não processa a
+    // resposta ainda — guarda e reprocessa quando a assessoria for
+    // resolvida (aceita, recusada ou expirada).
     const assessoriaPendente = state.currentRound.assessoria &&
         state.currentRound.assessoria.status === 'pending';
     if (assessoriaPendente) {
@@ -458,15 +393,12 @@ function handleAnswer(msg) {
 
     const { pergunta, evento } = state.currentRound;
     const acertou = msg.alternativa === pergunta.correta;
-    /*const respondedor = Game.getPlayerByName(respondedorName);*/
-    // DEPOIS
     const respondedor = Game.getPlayerByName(respondedorName);
 
-    // CORRIGIDO: antes, se o respondedor já tivesse sido removido de
-    // state.players (ex.: desconexão detectada entre o disparo do
-    // armarRespostaTimeout e sua execução), a função retornava aqui sem
-    // liberar a vez — travando a partida para todos os demais jogadores
-    // até o fim dos 90 minutos. Agora aborta a rodada e sorteia uma nova.
+    // Se o respondedor já tiver sido removido de state.players (ex.:
+    // desconexão detectada entre o disparo do armarRespostaTimeout e sua
+    // execução), aborta a rodada e sorteia uma nova em vez de travar a
+    // partida para todos os demais jogadores.
     if (!respondedor) {
         console.warn('⚠️ Respondedor não encontrado (provavelmente desconectou) — abortando rodada.');
         state.currentRound = null;
@@ -475,44 +407,14 @@ function handleAnswer(msg) {
         return;
     }
 
-    // Esta checagem é uma segunda linha de defesa: o respondedor já é
-    // filtrado em pickNewPair() para nunca chegar aqui sem recursos.
-    // Mantemos como salvaguarda para reconexões/estados divergentes.
-    /*if (respondedor.recursos <= 0) {
-        console.warn('⚠️ ' + respondedorName + ' sem recursos! Pulando vez.');
-        Game.network.broadcastAll({
-            type: 'kpi-update',
-            playerName: respondedorName,
-            kpi: respondedor.kpi,
-            phase: respondedor.phase,
-            activities: respondedor.activities,
-            recursos: respondedor.recursos,
-            acertou: false,
-            kpiGanho: 0,
-            semRecursos: true
-        });
-        state.usedRespondedorThisRound.push(respondedorName);
-        setTimeout(() => nextTurn(), 2000);
-        Game.saveState();
-        return;
-    }
-
     // Reserva de Contingência (e4) — não gasta recurso, acertando ou errando
     const temReserva = evento?.reserva_contingencia === true;
     const gastaRecurso = !temReserva;
 
-    if (gastaRecurso) {
-        respondedor.recursos--;
-    }*/
-    // Reserva de Contingência (e4) — não gasta recurso, acertando ou errando
-    const temReserva = evento?.reserva_contingencia === true;
-    const gastaRecurso = !temReserva;
-
-    // Esta checagem é uma segunda linha de defesa: o respondedor já é
-    // filtrado em pickNewPair() para nunca chegar aqui sem recursos — exceto
-    // justamente na rodada de Reserva de Contingência, onde 0 recursos é uma
-    // situação válida e esperada, já que a resposta não custa nada. Por isso
-    // o "pula vez" só se aplica quando NÃO há reserva de contingência ativa.
+    // Segunda linha de defesa: o respondedor já é filtrado em
+    // pickNewPair() para nunca chegar aqui sem recursos, exceto justamente
+    // na rodada de Reserva de Contingência, onde 0 recursos é uma situação
+    // válida e esperada.
     if (respondedor.recursos <= 0 && !temReserva) {
         console.warn('⚠️ ' + respondedorName + ' sem recursos! Pulando vez.');
         Game.network.broadcastAll({
@@ -526,8 +428,6 @@ function handleAnswer(msg) {
             kpiGanho: 0,
             semRecursos: true
         });
-        //state.usedRespondedorThisRound.push(respondedorName);
-        // CORRIGIDO: incrementa o contador em vez de empilhar numa lista.
         state.respostasCount[respondedorName] = (state.respostasCount[respondedorName] || 0) + 1;
         setTimeout(() => nextTurn(), 2000);
         Game.saveState();
@@ -537,6 +437,7 @@ function handleAnswer(msg) {
     if (gastaRecurso) {
         respondedor.recursos--;
     }
+
     let kpiGanho = 0;
     if (acertou) {
         kpiGanho = CONFIG.KPI.ACERTO_BASE;
@@ -607,18 +508,6 @@ function handleAnswer(msg) {
         }
     }
 
-    /*state.usedRespondedorThisRound.push(respondedorName);
-
-    const faseIdx = Game.getFaseIndex(respondedor.phase);*/
-
-    // CORRIGIDO: usedRespondedorThisRound foi removido em favor do contador
-    // respostasCount (ver log.txt 18:00) — esta era a única chamada que
-    // ainda restava usando a lista antiga. Como o campo não existe mais em
-    // Game.state, o .push() lançava TypeError logo após o bônus de
-    // assessoria, interrompendo handleAnswer() ANTES de agendar
-    // nextTurn()/endGame() e antes de Game.saveState(). Na prática, a
-    // partida travava para sempre após a primeira resposta normal (com
-    // recursos, sem reserva de contingência) — o caso mais comum do jogo.
     state.respostasCount[respondedorName] = (state.respostasCount[respondedorName] || 0) + 1;
 
     const faseIdx = Game.getFaseIndex(respondedor.phase);
@@ -633,22 +522,6 @@ function handleAnswer(msg) {
 }
 
 function nextTurn() {
-    /*const state = Game.state;
-    const activePlayers = Game.getActivePlayers();
-    const allDone = activePlayers.every(p => state.usedRespondedorThisRound.includes(p.name));
-
-    if (allDone) {
-        state.usedRespondedorThisRound = [];
-        startNewRound();
-    } else {
-        pickNewPair();
-    }*/
-    // CORRIGIDO: a distinção "todos já responderam → reseta e chama
-    // startNewRound()" só existia para saber quando zerar a lista antiga.
-    // Com o contador (respostasCount), não há mais nada para zerar no
-    // meio da partida — as duas chamadas eram, na prática, idênticas.
-    // startNewRound() continua existindo só para o início da partida
-    // (chamada por startGame()).
     Game.core.pickNewPair();
 }
 
@@ -708,7 +581,6 @@ function requestAssessoria(assessorName) {
         console.warn('⚠️ Já existe um pedido de assessoria nesta rodada.');
         return false;
     }
-    // NOVO: reforça no cliente a regra "antes de responder" do README.
     if (state.currentRound.respondeu) {
         console.warn('⚠️ Rodada já foi respondida — não é mais possível pedir assessoria.');
         return false;
@@ -735,16 +607,27 @@ function requestAssessoria(assessorName) {
  * o estado do cliente pode estar desatualizado (ex.: acabou de avançar
  * para Encerramento mas ainda não recebeu o kpi-update) ou a mensagem
  * 'assessoria-request' pode chegar diretamente sem passar pela checagem
- * do cliente. Sem essa revalidação, a restrição do README — "Respondedor
- * na fase de Encerramento não pode pedir Assessoria" — poderia ser burlada.
+ * do cliente.
  */
-function handleAssessoriaRequest(msg) {
+function handleAssessoriaRequest(msg, fromPeerId) {
     const state = Game.state;
     if (!state.isHost || !state.currentRound || state.currentRound.assessoria) return;
     if (msg.requesterName !== state.currentRound.respondedor) return;
-    // NOVO: o host é a fonte da verdade e não deve confiar só na UI do
-    // cliente para bloquear um pedido de assessoria após a rodada já ter
-    // sido respondida (mesmo raciocínio da checagem de fase de Encerramento).
+
+    // Valida que o pedido veio realmente da conexão do Respondedor da
+    // rodada, e não de outro jogador se passando por ele com o nome certo
+    // no payload.
+    if (fromPeerId !== undefined) {
+        const requesterConn = Game.getPlayerByName(msg.requesterName);
+        if (!requesterConn || requesterConn.peerId !== fromPeerId) {
+            console.warn('⚠️ assessoria-request ignorado: remetente não é o Respondedor da rodada.');
+            return;
+        }
+    }
+
+    // O host é a fonte da verdade e não deve confiar só na UI do cliente
+    // para bloquear um pedido de assessoria após a rodada já ter sido
+    // respondida.
     if (state.currentRound.respondeu) {
         const req = Game.getPlayerByName(msg.requesterName);
         if (req) {
@@ -763,10 +646,9 @@ function handleAssessoriaRequest(msg) {
     const requester = Game.getPlayerByName(msg.requesterName);
     const assessor = Game.getPlayerByName(msg.assessorName);
 
-    // NOVO: valida no host (fonte da verdade) que o Respondedor não está
-    // na fase de Encerramento. Repete a regra já checada no cliente, pois
-    // aquela checagem sozinha não é suficiente — o host nunca deve confiar
-    // apenas no que o cliente diz sobre seu próprio estado.
+    // Valida no host (fonte da verdade) que o Respondedor não está na fase
+    // de Encerramento — o host nunca deve confiar apenas no que o cliente
+    // diz sobre seu próprio estado.
     const requesterEmEncerramento = requester &&
         Game.getFaseIndex(requester.phase) === CONFIG.FASES.length - 1;
 
@@ -777,8 +659,8 @@ function handleAssessoriaRequest(msg) {
         msg.assessorName === state.currentRound.perguntador ||
         msg.assessorName === state.currentRound.respondedor;
 
-    // NOVO: se o assessor ficou inválido por alguma condição de corrida
-    // (ex.: saiu da partida entre a seleção e o envio) ou por o Respondedor
+    // Se o assessor ficou inválido por alguma condição de corrida (ex.:
+    // saiu da partida entre a seleção e o envio) ou por o Respondedor
     // estar na fase de Encerramento, avisa o solicitante em vez de deixar
     // a UI presa em "Aguardando resposta de..." para sempre.
     if (invalido) {
@@ -802,13 +684,11 @@ function handleAssessoriaRequest(msg) {
         status: 'pending',
         sugestao: null
     };
-    // NOVO: pausa o timeout de segurança da resposta enquanto se aguarda o
-    // assessor. Esse timeout existe para detectar um Respondedor que sumiu
-    // (queda de conexão), não para penalizar quem está seguindo o fluxo de
-    // Assessoria descrito no README (até 20s de espera + tempo de decisão).
-    // Sem isso, o combo "esperar o assessor + decidir" podia ultrapassar o
-    // RESPOSTA_TIMEOUT e a rodada era marcada como errada automaticamente,
-    // mesmo com o jogador ativo na tela.
+
+    // Pausa o timeout de segurança da resposta enquanto se aguarda o
+    // assessor. Esse timeout existe para detectar um Respondedor que
+    // sumiu (queda de conexão), não para penalizar quem está seguindo o
+    // fluxo de Assessoria (até 20s de espera + tempo de decisão).
     if (state.respostaTimeout) {
         clearTimeout(state.respostaTimeout);
         state.respostaTimeout = null;
@@ -830,31 +710,22 @@ function handleAssessoriaRequest(msg) {
         id: pergunta.id
     });
 
-    if (state.assessoriaTimeout) clearTimeout(state.assessoriaTimeout);
-    state.assessoriaTimeout = setTimeout(() => {
-        handleAssessoriaAnswer({ alternativa: null, recusado: true, timeout: true });
-    }, CONFIG.JOGO.ASSESSORIA_TIMEOUT);
-    Game.saveState(); // NOVO
+    armarAssessoriaTimeout();
+    Game.saveState();
 }
 
 /**
  * HOST: processa a resposta (ou recusa/timeout) do assessor.
  */
-
-/*function handleAssessoriaAnswer(msg) {
-    const state = Game.state;
-    if (!state.isHost || !state.currentRound || !state.currentRound.assessoria) return;
-    if (state.currentRound.assessoria.status !== 'pending') return;
-*/
 function handleAssessoriaAnswer(msg, fromPeerId) {
     const state = Game.state;
     if (!state.isHost || !state.currentRound || !state.currentRound.assessoria) return;
     if (state.currentRound.assessoria.status !== 'pending') return;
 
-    // NOVO: só aceita a resposta se ela vier da conexão do assessor
-    // efetivamente designado nesta rodada. fromPeerId só é omitido nas
-    // chamadas internas do próprio host (timeout de 20s), que são a
-    // fonte da verdade e não precisam dessa checagem.
+    // Só aceita a resposta se ela vier da conexão do assessor efetivamente
+    // designado nesta rodada. fromPeerId só é omitido nas chamadas
+    // internas do próprio host (timeout de 20s), que são a fonte da
+    // verdade e não precisam dessa checagem.
     if (fromPeerId !== undefined) {
         const assessorDesignado = Game.getPlayerByName(state.currentRound.assessoria.assessorName);
         if (!assessorDesignado || assessorDesignado.peerId !== fromPeerId) {
@@ -881,90 +752,49 @@ function handleAssessoriaAnswer(msg, fromPeerId) {
 
     Game.network.broadcastAll(resultMsg);
 
-    // CORRIGIDO: broadcastAll() nunca reenvia a mensagem para o próprio
-    // host (só existe conexão P2P com os outros peers). Sem esta chamada,
-    // quando o HOST é o Respondedor que pediu a assessoria, a tela dele
-    // nunca recebe o resultado: o texto fica preso em "Aguardando
-    // resposta..." e as alternativas continuam desabilitadas para sempre,
-    // já que só showAssessoriaResult() as reabilita. Mesmo padrão de
-    // self-dispatch já usado em processVenda() e handleAnswer(). A própria
+    // broadcastAll() nunca reenvia a mensagem para o próprio host (só
+    // existe conexão P2P com os outros peers). Quando o HOST é o
+    // Respondedor que pediu a assessoria, precisamos entregar o resultado
+    // localmente também (mesmo padrão usado em processVenda/handleAnswer).
     // showAssessoriaResult() já ignora a chamada se quem está rodando não
-    // for o Respondedor, então é seguro chamar sempre, sem checar isHost.
+    // for o Respondedor, então é seguro chamar sempre.
     Game.ui.showAssessoriaResult(resultMsg);
-    // NOVO: a Assessoria foi resolvida (aceita, recusada ou expirada) e o
+
+    // A Assessoria foi resolvida (aceita, recusada ou expirada) e o
     // Respondedor ainda não enviou a resposta final — rearma o timeout de
-    // segurança do zero, dando a ele o tempo cheio para decidir, em vez de
-    // deixar a rodada sem nenhuma rede de segurança contra uma desconexão
-    // que aconteça só agora.
+    // segurança do zero, dando a ele o tempo cheio para decidir.
     if (!state.currentRound.respondeu && !state.currentRound.pendingAnswer) {
         armarRespostaTimeout(state.currentRound.respondedor);
     }
-    // NOVO: se o Respondedor já tinha enviado uma resposta enquanto a
-    // assessoria ainda estava pendente, processa agora que ela foi resolvida.
+    // Se o Respondedor já tinha enviado uma resposta enquanto a assessoria
+    // ainda estava pendente, processa agora que ela foi resolvida.
     if (state.currentRound.pendingAnswer) {
         const pending = state.currentRound.pendingAnswer;
         state.currentRound.pendingAnswer = null;
         handleAnswer(pending);
     }
-    Game.saveState(); // NOVO
+    Game.saveState();
 }
+
 // ============================================
 // CONTROLE DE PARTIDA
 // ============================================
 
-/*function startGame() {
-    const state = Game.state;
-    state.gameStarted = true;
-    state.usedRespondedorThisRound = [];
-
-    // Inicializa recursos
-    state.players.forEach(p => {
-        p.recursos = CONFIG.RECURSOS_INICIAIS;
-    });
-
-    clearInterval(state.timerInterval);
-    state.timerInterval = setInterval(() => {
-        state.timer--;
-        Game.ui.updateTimerDisplay();
-
-        if (state.timer % 10 === 0 && state.isHost) {
-            Game.network.broadcastAll({ type: 'timer-update', remaining: state.timer });
-        }
-
-        if (state.timer <= 0) {
-            clearInterval(state.timerInterval);
-            if (state.isHost) endGame(buildRanking());
-        }
-    }, 1000);
-
-    Game.ui.showScreen('game');
-    Game.ui.updatePlayersOnlineList();
-    Game.ui.updateTimerDisplay();
-
-    if (state.isHost) startNewRound();
-    Game.saveState();
-}
-*/
 function startGame() {
     const state = Game.state;
     state.gameStarted = true;
-    state.gameOver = false; // NOVO — endGame() define gameOver=true e nada revertia isso
-    // state.usedRespondedorThisRound = [];
+    state.gameOver = false; // endGame() define gameOver=true e nada revertia isso antes
 
     state.respostasCount = {};
 
-    // CORRIGIDO: antes só 'recursos' era reinicializado aqui. Se uma
-    // partida terminasse naturalmente e o host clicasse em "Voltar ao
-    // Lobby" seguido de "Iniciar Partida" de novo (sem passar por
-    // "Encerrar Partida", que já fazia o reset completo via
-    // Game.resetAllPlayers()), a nova partida começava com o KPI, fase e
-    // atividades remanescentes da partida anterior — quebrando a
-    // premissa de que toda partida começa do zero.
+    // Reseta todos os jogadores (KPI, fase, atividades, recursos) para que
+    // toda nova partida comece do zero, mesmo que a anterior tenha
+    // terminado naturalmente sem passar por "Encerrar Partida".
     Game.resetAllPlayers();
-    // NOVO: sincroniza o HUD do próprio jogador com o estado recém-resetado,
-    // em vez de depender que o texto padrão do HTML "coincida" com
-    // CONFIG.RECURSOS_INICIAIS/fase inicial, ou que o broadcast do primeiro
-    // evento (show-evento) chegue a tempo para guests.
+
+    // Sincroniza o HUD do próprio jogador com o estado recém-resetado, em
+    // vez de depender do texto padrão do HTML ou do broadcast do primeiro
+    // evento (show-evento) chegar a tempo para guests.
     const me = Game.getPlayerByName(state.playerName);
     if (me) {
         document.getElementById('myKPI').textContent = me.kpi;
@@ -1003,17 +833,14 @@ function endGame(ranking) {
     state.gameOver = true;
     clearInterval(state.timerInterval);
 
-    // NOVO: cancela qualquer timeout de assessoria pendente e zera a rodada
-    // atual — sem isso, uma assessoria em andamento no exato momento do fim
-    // de partida disparava depois, atualizando KPI/recursos e abrindo modais
-    // com a tela de "Fim de Partida" já visível para todos.
+    // Cancela qualquer timeout de assessoria/resposta pendente e zera a
+    // rodada atual — evita que eles disparem depois do fim da partida,
+    // atualizando KPI/recursos ou chamando handlers para uma rodada que
+    // não existe mais.
     if (state.assessoriaTimeout) {
         clearTimeout(state.assessoriaTimeout);
         state.assessoriaTimeout = null;
     }
-    // NOVO: mesma razão acima, mas para o timeout de resposta do
-    // Respondedor — evita que ele dispare depois do fim de jogo e chame
-    // handleAnswer() para uma rodada que não existe mais.
     if (state.respostaTimeout) {
         clearTimeout(state.respostaTimeout);
         state.respostaTimeout = null;
@@ -1033,10 +860,9 @@ function endMatch() {
     if (!Game.state.isHost) return;
     if (!confirm('🏁 Encerrar a partida? Todos voltarão ao lobby com KPI zerado.')) return;
 
-    // NOVO: cancela timeouts pendentes (resposta/assessoria) da rodada que
-    // está sendo encerrada abruptamente — evitam disparos tardios chamando
-    // handleAnswer/handleAssessoriaAnswer para uma partida que já foi
-    // resetada.
+    // Cancela timeouts pendentes (resposta/assessoria) da rodada que está
+    // sendo encerrada abruptamente, evitando disparos tardios para uma
+    // partida que já foi resetada.
     if (Game.state.assessoriaTimeout) {
         clearTimeout(Game.state.assessoriaTimeout);
         Game.state.assessoriaTimeout = null;
@@ -1048,7 +874,7 @@ function endMatch() {
 
     Game.resetAllPlayers();
     Game.resetGameState();
-    Game.core.resetAllBaralhos(); // NOVO
+    Game.core.resetAllBaralhos();
 
     Game.network.broadcastAll({ type: 'match-ended', players: Game.state.players });
     Game.ui.showScreen('lobby');
@@ -1063,8 +889,9 @@ function handleMatchEnded(msg) {
     Game.state.players = msg.players;
     Game.resetAllPlayers();
     Game.resetGameState();
-    Game.core.resetAllBaralhos(); // NOVO — mantém a cópia local do guest coerente,
-    // relevante caso ele vire host numa migração futura
+    // Mantém a cópia local do guest coerente, relevante caso ele vire
+    // host numa migração futura.
+    Game.core.resetAllBaralhos();
     Game.ui.showScreen('lobby');
     Game.ui.showLobbyNormal();
     Game.ui.updatePlayersList();
@@ -1077,28 +904,10 @@ function handleMatchEnded(msg) {
 // ============================================
 
 /**
- * Chamado pelo cliente (host ou guest) ao confirmar uma venda.
- * Guests enviam o pedido ao host; o host processa e faz broadcast.
- */
-/*function venderRecurso(compradorName) {
-    const state = Game.state;
-
-    if (state.isHost) {
-        processVenda(state.playerName, compradorName);
-    } else {
-        Game.network.sendToHost({
-            type: 'venda-request',
-            vendedorName: state.playerName,
-            compradorName
-        });
-    }
-    return true; // feedback otimista; rejeição chega via 'venda-rejected'
-}*/
-/**
- * Chamado pelo cliente ao ESCOLHER um comprador. Não executa mais a venda
- * de imediato: envia uma OFERTA ao comprador, que precisa aceitar
- * explicitamente (ver todo.md). A venda só é efetivada em processVenda(),
- * chamada a partir de handleVendaOfertaResponse() quando o comprador aceita.
+ * Chamado pelo cliente ao ESCOLHER um comprador. Não executa a venda de
+ * imediato: envia uma OFERTA ao comprador, que precisa aceitar
+ * explicitamente. A venda só é efetivada em processVenda(), chamada a
+ * partir de handleVendaOfertaResponse() quando o comprador aceita.
  */
 function venderRecurso(compradorName) {
     const state = Game.state;
@@ -1118,12 +927,19 @@ function venderRecurso(compradorName) {
 /**
  * HOST: valida a oferta e a encaminha ao comprador para aceite/recusa.
  */
-function handleVendaOfertaRequest(msg) {
+function handleVendaOfertaRequest(msg, fromPeerId) {
     const state = Game.state;
     if (!state.isHost) return;
 
     const vendedor = Game.getPlayerByName(msg.vendedorName);
     const comprador = Game.getPlayerByName(msg.compradorName);
+
+    // Valida que a oferta veio realmente da conexão do vendedor informado
+    // no payload, e não de outro jogador oferecendo os recursos de terceiros.
+    if (fromPeerId !== undefined && (!vendedor || vendedor.peerId !== fromPeerId)) {
+        console.warn('⚠️ venda-offer-request ignorado: remetente não é o vendedor informado.');
+        return;
+    }
 
     const erro =
         (!vendedor || !comprador) ? 'Vendedor ou comprador não encontrado.' :
@@ -1139,47 +955,80 @@ function handleVendaOfertaRequest(msg) {
         return;
     }
 
+    // Registra a oferta pendente NO HOST (fonte da verdade) antes de
+    // notificar o comprador — sem isso, qualquer jogador podia forjar uma
+    // 'venda-offer-response' com vendedorName de outro jogador e
+    // aceito:true, forçando a venda de recursos de quem nunca ofereceu
+    // nada. Uma nova oferta do mesmo vendedor sobrescreve a anterior.
+    state.pendingVendaOfertas = state.pendingVendaOfertas || {};
+    state.pendingVendaOfertas[vendedor.name] = comprador.name;
+
+    // Propaga a oferta pendente para TODOS os clientes (não só o
+    // comprador), para que qualquer um deles, ao eventualmente assumir
+    // como host numa migração, já tenha essa oferta em memória.
+    Game.network.broadcastAll({
+        type: 'venda-oferta-sync',
+        action: 'add',
+        vendedorName: vendedor.name,
+        compradorName: comprador.name
+    });
+
     Game.network.sendToPlayer(comprador.peerId, {
         type: 'venda-offer',
         vendedorName: vendedor.name,
         compradorName: comprador.name,
         valor: CONFIG.KPI.VALOR_VENDA_RECURSO
     });
+
+    Game.saveState();
 }
 
 /**
  * HOST: processa a resposta do comprador (aceite ou recusa) a uma oferta.
+ *
+ * BUGFIX: fromPeerId só é validado quando é fornecido (mesmo padrão de
+ * handleVendaOfertaRequest/handleAnswer/handleAssessoriaRequest). Antes,
+ * a checagem `comprador.peerId !== fromPeerId` rodava incondicionalmente;
+ * como game-ui.js chama esta função sem passar fromPeerId quando o
+ * próprio host é o comprador (fromPeerId fica undefined), a comparação
+ * nunca batia e a venda era sempre rejeitada nesse cenário — o host
+ * ficava preso na tela "Aguardando aceitar oferta..." ao tentar comprar
+ * de outro jogador.
  */
-/*function handleVendaOfertaResponse(msg) {
-    const state = Game.state;
-    if (!state.isHost) return;
-
-    if (!msg.aceito) {
-        const vendedor = Game.getPlayerByName(msg.vendedorName);
-        if (vendedor) {
-            Game.network.sendToPlayer(vendedor.peerId, {
-                type: 'venda-rejected',
-                motivo: msg.compradorName + ' recusou a oferta de compra.'
-            });
-        }
-        return;
-    }
-
-    processVenda(msg.vendedorName, msg.compradorName);
-}*/
-
 function handleVendaOfertaResponse(msg, fromPeerId) {
     const state = Game.state;
     if (!state.isHost) return;
 
-    // NOVO: só aceita a resposta se vier da conexão do COMPRADOR da
-    // oferta original — evita que qualquer jogador conectado aceite ou
-    // recuse, em nome de outro, uma oferta de venda que não é sua.
+    // Só aceita a resposta se vier da conexão do COMPRADOR da oferta
+    // original — evita que qualquer jogador aceite ou recuse, em nome de
+    // outro, uma oferta de venda que não é sua.
     const comprador = Game.getPlayerByName(msg.compradorName);
-    if (!comprador || comprador.peerId !== fromPeerId) {
+    if (fromPeerId !== undefined && (!comprador || comprador.peerId !== fromPeerId)) {
         console.warn('⚠️ venda-offer-response ignorado: remetente não é o comprador da oferta.');
         return;
     }
+
+    // Só processa a resposta se existir, no HOST, uma oferta pendente
+    // registrada EXATAMENTE para este par vendedor→comprador — evita
+    // ofertas forjadas ou reenvio duplicado (duplo clique / replay)
+    // executando a venda mais de uma vez.
+    const pendingComprador = state.pendingVendaOfertas && state.pendingVendaOfertas[msg.vendedorName];
+    if (pendingComprador !== msg.compradorName) {
+        console.warn('⚠️ venda-offer-response ignorado: nenhuma oferta pendente correspondente.');
+        return;
+    }
+    // Consome a oferta imediatamente — resolvida (aceita ou recusada), ela
+    // deixa de existir e não pode ser respondida de novo.
+    delete state.pendingVendaOfertas[msg.vendedorName];
+
+    // Propaga a resolução (consumo) da oferta para todos os clientes.
+    Game.network.broadcastAll({
+        type: 'venda-oferta-sync',
+        action: 'remove',
+        vendedorName: msg.vendedorName
+    });
+
+    Game.saveState();
 
     if (!msg.aceito) {
         const vendedor = Game.getPlayerByName(msg.vendedorName);
@@ -1196,10 +1045,10 @@ function handleVendaOfertaResponse(msg, fromPeerId) {
 }
 
 /**
- * HOST: valida e executa a venda de fato. Única fonte de verdade —
- * evita que vendas feitas por um guest fiquem invisíveis para os
- * demais guests, já que a topologia P2P é uma estrela (guests só
- * têm conexão direta com o host, não entre si).
+ * HOST: valida e executa a venda de fato. Única fonte de verdade — evita
+ * que vendas feitas por um guest fiquem invisíveis para os demais guests,
+ * já que a topologia P2P é uma estrela (guests só têm conexão direta com
+ * o host, não entre si).
  */
 function processVenda(vendedorName, compradorName) {
     const state = Game.state;
@@ -1282,21 +1131,13 @@ function endSession() {
 }
 
 /**
- * CORRIGIDO: antes, esta função só alterava `waitingInLobby` na cópia
- * LOCAL de state.players do jogador que clicou em "🚶 Sair da Partida" —
- * não existia nenhuma mensagem de rede equivalente. O host (fonte da
- * verdade da partida) e os demais jogadores continuavam enxergando esse
- * jogador como ativo, podendo sorteá-lo como perguntador ou respondedor
- * mesmo com a tela dele já mostrando o lobby — travando aquela rodada
- * indefinidamente (só resolvido quando o timer de 90 min zerasse) e
- * deixando ranking/lista de jogadores incorretos para todo mundo.
- *
- * Agora, além de atualizar a cópia local (feedback imediato para quem
- * saiu), o guest notifica o host via 'leave-match-request'; o host é
- * quem de fato marca o jogador como waitingInLobby na fonte da verdade e
- * propaga a mudança para todos via 'player-list' (ver
- * handleLeaveMatchRequest, abaixo, e o case correspondente em
- * game-network.js).
+ * Além de atualizar a cópia local (feedback imediato para quem saiu),
+ * notifica o host via 'leave-match-request'; o host é quem de fato marca
+ * o jogador como waitingInLobby na fonte da verdade e propaga a mudança
+ * para todos via 'player-list' (ver handleLeaveMatchRequest, abaixo).
+ * Sem essa notificação de rede, o host e os demais jogadores continuariam
+ * enxergando o jogador como ativo, podendo sorteá-lo como perguntador ou
+ * respondedor mesmo após ele já ter saído.
  */
 function leaveMatch() {
     if (Game.state.isHost) return;
@@ -1313,59 +1154,11 @@ function leaveMatch() {
 }
 
 /**
- * HOST: processa o pedido de um guest para sair da partida em andamento.
- * É a fonte da verdade — marca o jogador como waitingInLobby na cópia
- * oficial de state.players e propaga via broadcast, igual ao padrão já
- * usado para entrada/saída de jogadores (addPlayer/removePlayerByPeerId).
- */
-/*function handleLeaveMatchRequest(msg) {
-    const state = Game.state;
-    if (!state.isHost) return;
-
-    const player = Game.getPlayerByName(msg.playerName);
-    if (!player || player.waitingInLobby) return;
-
-    player.waitingInLobby = true;
-    console.log('🚶 ' + player.name + ' saiu da partida (waitingInLobby=true).');
-
-    Game.network.broadcastAll({ type: 'player-list', players: state.players });
-    Game.ui.updatePlayersOnlineList();
-    Game.ui.updateRankingList();
-
-    // NOVO: se o jogador que saiu fazia parte da rodada atual (como
-    // perguntador ou respondedor) e ela ainda não foi respondida, a rodada
-    // ficaria travada esperando por alguém que já não está mais jogando.
-    // Aborta a rodada em aberto e sorteia uma nova imediatamente.
-    const round = state.currentRound;
-    if (round && !round.respondeu &&
-        (round.perguntador === player.name || round.respondedor === player.name)) {
-        console.warn('⚠️ Jogador da rodada atual saiu da partida — abortando rodada e sorteando nova.');
-        if (state.assessoriaTimeout) {
-            clearTimeout(state.assessoriaTimeout);
-            state.assessoriaTimeout = null;
-        }
-        if (state.respostaTimeout) {
-            clearTimeout(state.respostaTimeout);
-            state.respostaTimeout = null;
-        }
-        state.currentRound = null;
-        Game.core.pickNewPair();
-    }
-
-    Game.saveState();
-}*/
-// DEPOIS
-
-/**
- * CORRIGIDO: extraído de handleLeaveMatchRequest() para ser reutilizável.
  * Aborta a rodada atual (se ainda não respondida) quando um dos
  * participantes (perguntador ou respondedor) deixa de estar disponível —
  * seja por sair voluntariamente da partida (leaveMatch) ou por
  * desconexão involuntária (queda de conexão, ver removePlayerByPeerId em
- * game-network.js). Sem isso, uma queda de conexão do Respondedor durante
- * a rodada travava a partida indefinidamente: handleAnswer() encontrava
- * `respondedor === undefined` (já removido de state.players) e retornava
- * sem nunca chamar pickNewPair() de novo.
+ * game-network.js). Extraído para reutilização em handleLeaveMatchRequest.
  */
 function abortRoundIfParticipant(playerName) {
     const state = Game.state;
@@ -1388,12 +1181,26 @@ function abortRoundIfParticipant(playerName) {
     }
 }
 
-function handleLeaveMatchRequest(msg) {
+/**
+ * HOST: processa o pedido de um guest para sair da partida em andamento.
+ * É a fonte da verdade — marca o jogador como waitingInLobby na cópia
+ * oficial de state.players e propaga via broadcast, igual ao padrão já
+ * usado para entrada/saída de jogadores (addPlayer/removePlayerByPeerId).
+ */
+function handleLeaveMatchRequest(msg, fromPeerId) {
     const state = Game.state;
     if (!state.isHost) return;
 
     const player = Game.getPlayerByName(msg.playerName);
     if (!player || player.waitingInLobby) return;
+
+    // Só aceita o pedido de saída se ele vier da própria conexão do
+    // jogador referenciado — evita que um jogador tire outro da partida
+    // remotamente apenas informando o nome dele no payload.
+    if (fromPeerId !== undefined && player.peerId !== fromPeerId) {
+        console.warn('⚠️ leave-match-request ignorado: remetente não é o próprio jogador.');
+        return;
+    }
 
     player.waitingInLobby = true;
     console.log('🚶 ' + player.name + ' saiu da partida (waitingInLobby=true).');
@@ -1453,10 +1260,10 @@ window.Game = window.Game || {};
 window.Game.core = {
     startNewRound,
     pickNewPair,
-    armarRespostaTimeout, // NOVO
+    armarRespostaTimeout,
     sortearPergunta,
-    resetBaralho,        // NOVO
-    resetAllBaralhos,    // NOVO
+    resetBaralho,
+    resetAllBaralhos,
     aplicarEfeitosEvento,
     sortearEvento,
     handleAnswer,
@@ -1468,14 +1275,14 @@ window.Game.core = {
     handleMatchEnded,
     endSession,
     leaveMatch,
-    handleLeaveMatchRequest, // NOVO
-    abortRoundIfParticipant, // NOVO
+    handleLeaveMatchRequest,
+    abortRoundIfParticipant,
     leaveSession,
     buildRanking,
     handleVendaOfertaRequest,
     handleVendaOfertaResponse,
     venderRecurso,
-    processVenda,      // NOVO
+    processVenda,
     getCompradores,
     requestAssessoria,
     handleAssessoriaRequest,

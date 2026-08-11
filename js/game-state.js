@@ -38,15 +38,22 @@ const gameState = {
     gameStarted: false,
     gameOver: false,
     questionsData: null,
-    // usedRespondedorThisRound: [],
-    // Quantas vezes cada jogador (por nome) já foi Respondedor na
-    // partida atual. Substitui a antiga usedRespondedorThisRound: em vez
-    // de marcar "já jogou neste ciclo" e depender de resets pontuais
-    // (fim de ciclo, recursão em pickNewPair, migração de host),
-    // pickNewPair() sempre escolhe entre quem tem o MENOR valor aqui.
-    // Sincronizado via broadcast a cada rodada (ver 'round-start' em
-    // game-network.js) para sobreviver a uma migração de host.
-    respostasCount: {},    
+
+    // Quantas vezes cada jogador (por nome) já foi Respondedor na partida
+    // atual. Substitui a antiga usedRespondedorThisRound: em vez de marcar
+    // "já jogou neste ciclo" e depender de resets pontuais (fim de ciclo,
+    // recursão em pickNewPair, migração de host), pickNewPair() sempre
+    // escolhe entre quem tem o MENOR valor aqui. Sincronizado via
+    // broadcast a cada rodada (ver 'round-start' em game-network.js) para
+    // sobreviver a uma migração de host.
+    respostasCount: {},
+
+    // Ofertas de venda pendentes, uma por vendedor (vendedorName ->
+    // compradorName). Sincronizado entre todos os clientes via
+    // 'venda-oferta-sync' — não só no host — para que sobreviva a uma
+    // migração de host ou a um F5 no meio de uma oferta em aberto (mesma
+    // classe de problema já resolvida para respostasCount).
+    pendingVendaOfertas: {},
 };
 
 // --- Helpers ---
@@ -95,11 +102,14 @@ function resetGameState() {
     gameState.gameStarted = false;
     gameState.gameOver = false;
     gameState.currentRound = null;
-    // gameState.usedRespondedorThisRound = [];
     gameState.respostasCount = {};
     gameState.timer = CONFIG.JOGO.SESSION_DURATION;
     clearInterval(gameState.timerInterval);
     gameState.timerInterval = null;
+    // Limpa ofertas de venda pendentes entre partidas — sem isso, uma
+    // oferta nunca respondida na partida anterior continuaria válida (e
+    // executável) já na partida seguinte, mesmo após "Encerrar Partida".
+    gameState.pendingVendaOfertas = {};
 }
 
 // --- Exportação ---

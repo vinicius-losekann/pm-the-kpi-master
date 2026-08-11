@@ -223,19 +223,18 @@ function handleMessage(msg, fromPeerId) {
             state.timer = msg.timer;
             Game.core.startGame();
             break;
+
         case 'leave-match-request':
-            if (state.isHost) Game.core.handleLeaveMatchRequest(msg);
+            if (state.isHost) Game.core.handleLeaveMatchRequest(msg, fromPeerId);
             break;
 
         case 'match-ended':
             Game.core.handleMatchEnded(msg);
             break;
 
-
         case 'game-over':
             Game.core.endGame(msg.ranking);
             break;
-
 
         // --- RODADA ---
         case 'round-start':
@@ -246,9 +245,9 @@ function handleMessage(msg, fromPeerId) {
                 pergunta: null,
                 respondeu: false
             };
-            // NOVO: mantém a cópia local sincronizada com o host a cada
-            // rodada — é o que garante que, numa migração de host
-            // (becomeHost), quem assumir já tenha a contagem correta.
+            // Mantém a cópia local sincronizada com o host a cada rodada —
+            // é o que garante que, numa migração de host (becomeHost),
+            // quem assumir já tenha a contagem correta do rodízio.
             if (msg.respostasCount) state.respostasCount = msg.respostasCount;
             // Só quem participa da rodada vê a tela de pergunta;
             // os demais (espectadores) veem a tela de espera.
@@ -260,12 +259,13 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'question':
-            // CORRIGIDO: quando o HOST é o Respondedor, sendToPlayer() despacha a
-            // mensagem para ele mesmo (mesmo processo/objeto de estado). Sem esta
-            // checagem, `state.currentRound.pergunta` — que é a cópia AUTORITATIVA
-            // usada por handleAnswer() para conferir a resposta — era sobrescrita
-            // pela versão "stripped" (correta: undefined) enviada ao Respondedor,
-            // fazendo o host errar toda pergunta em que ele mesmo era o Respondedor.
+            // Quando o HOST é o Respondedor, sendToPlayer() despacha a
+            // mensagem para ele mesmo (mesmo processo/objeto de estado).
+            // Sem esta checagem, `state.currentRound.pergunta` — a cópia
+            // AUTORITATIVA usada por handleAnswer() para conferir a
+            // resposta — era sobrescrita pela versão "stripped" (correta:
+            // undefined) enviada ao Respondedor, fazendo o host errar toda
+            // pergunta em que ele mesmo era o Respondedor.
             if (!state.isHost) {
                 state.currentRound.pergunta = msg;
             }
@@ -280,11 +280,28 @@ function handleMessage(msg, fromPeerId) {
                 !state.currentRound.respondeu &&
                 msg.playerName === state.currentRound.respondedor
             ) {
-                Game.core.handleAnswer(msg);
+                Game.core.handleAnswer(msg, fromPeerId);
             }
             break;
 
         case 'kpi-update':
+            // Sincroniza currentRound.respondeu em TODOS os clientes quando
+            // a mensagem é o resultado da resposta do Respondedor da rodada
+            // atual (não um bônus de Assessoria para outro jogador, que
+            // também usa 'kpi-update' mas sem `acertou`/`semRecursos`). Sem
+            // isso, só o HOST sabia localmente que a rodada já tinha sido
+            // julgada — se ele caísse entre broadcastar este kpi-update e
+            // efetivamente avançar a partida (nextTurn/pickNewPair,
+            // atrasado por setTimeout), o próximo host (becomeHost)
+            // "resumia" a rodada antiga como se ainda estivesse em aberto,
+            // podendo reprocessar a mesma resposta.
+            if (
+                state.currentRound &&
+                msg.playerName === state.currentRound.respondedor &&
+                (msg.acertou !== undefined || msg.semRecursos)
+            ) {
+                state.currentRound.respondeu = true;
+            }
             Game.core.updatePlayerKPI(msg);
             break;
 
@@ -311,7 +328,7 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'assessoria-request':
-            if (state.isHost) Game.core.handleAssessoriaRequest(msg);
+            if (state.isHost) Game.core.handleAssessoriaRequest(msg, fromPeerId);
             break;
 
         case 'assessoria-started':
@@ -322,10 +339,6 @@ function handleMessage(msg, fromPeerId) {
             Game.ui.showAssessoriaQuestionModal(msg);
             break;
 
-        /* case 'assessoria-answer':
-            if (state.isHost) Game.core.handleAssessoriaAnswer(msg);
-            break; */
-
         case 'assessoria-answer':
             if (state.isHost) Game.core.handleAssessoriaAnswer(msg, fromPeerId);
             break;
@@ -335,16 +348,9 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         // --- VENDA ---
-        /*case 'venda-request':
-            if (state.isHost) {
-                Game.core.processVenda(msg.vendedorName, msg.compradorName);
-            }
-            break;
-        */
-        // --- VENDA ---
         case 'venda-offer-request':
             if (state.isHost) {
-                Game.core.handleVendaOfertaRequest(msg);
+                Game.core.handleVendaOfertaRequest(msg, fromPeerId);
             }
             break;
 
@@ -352,17 +358,21 @@ function handleMessage(msg, fromPeerId) {
             Game.ui.showVendaOfertaModal(msg);
             break;
 
-        /*case 'venda-offer-response':
-            if (state.isHost) {
-                Game.core.handleVendaOfertaResponse(msg);
-            }
-            break; */
         case 'venda-offer-response':
             if (state.isHost) {
                 Game.core.handleVendaOfertaResponse(msg, fromPeerId);
             }
             break;
-            
+
+        case 'venda-oferta-sync':
+            state.pendingVendaOfertas = state.pendingVendaOfertas || {};
+            if (msg.action === 'add') {
+                state.pendingVendaOfertas[msg.vendedorName] = msg.compradorName;
+            } else {
+                delete state.pendingVendaOfertas[msg.vendedorName];
+            }
+            break;
+
         case 'venda-rejected':
             alert('⚠️ ' + msg.motivo);
             Game.ui.fecharVendaModal();
@@ -381,17 +391,15 @@ function handleMessage(msg, fromPeerId) {
             }
             Game.ui.updatePlayersOnlineList();
             Game.ui.updateRankingList();
-            // 🔧 Atualiza UI do próprio jogador se envolvido na venda
+
             const me2 = Game.getPlayerByName(state.playerName);
             if (me2) {
                 document.getElementById('myRecursos').textContent = me2.recursos;
                 document.getElementById('myKPI').textContent = me2.kpi;
             }
-            // CORRIGIDO: agora que confirmarVenda() em game-ui.js não fecha
-            // mais o modal de forma otimista (ver comentário lá), é aqui —
-            // na confirmação real vinda do host — que o fechamento deve
-            // acontecer de fato. Sem isso o modal de venda ficaria aberto
-            // indefinidamente após uma venda bem-sucedida.
+            // Agora que confirmarVenda() em game-ui.js não fecha mais o
+            // modal de forma otimista, é aqui — na confirmação real vinda
+            // do host — que o fechamento deve acontecer de fato.
             if (state.playerName === msg.vendedor) {
                 Game.ui.fecharVendaModal();
             }
@@ -422,6 +430,25 @@ function addPlayer(msg, fromPeerId) {
     const existingIdx = state.players.findIndex(p => p.name === msg.playerName);
     if (existingIdx >= 0) {
         const existingPlayer = state.players[existingIdx];
+
+        // O HOST nunca "reconecta" via player-join — seu registro é criado
+        // localmente em setupUI() e ele não mantém uma entrada em
+        // `connections` para si mesmo (fala consigo por chamada direta,
+        // não por DataConnection — ver sendToPlayer). Isso fazia `oldConn`
+        // abaixo ser SEMPRE undefined para o host, então `oldPeerStillConnected`
+        // era sempre false e qualquer guest podia enviar player-join com o
+        // nome do host para sequestrar o peerId do registro do host,
+        // quebrando a premissa de que o host é a fonte da verdade da partida.
+        if (existingPlayer.isHost) {
+            console.warn('⚠️ player-join rejeitado: tentativa de usar o nome do host.');
+            const c = connections[fromPeerId];
+            if (c && c.open) {
+                c.send({ type: 'join-rejected', reason: 'name-taken' });
+            }
+            setTimeout(() => { if (c) c.close(); }, 300);
+            return;
+        }
+
         const oldConn = connections[existingPlayer.peerId];
         const oldPeerStillConnected = oldConn && oldConn.open && existingPlayer.peerId !== fromPeerId;
 
@@ -459,12 +486,13 @@ function addPlayer(msg, fromPeerId) {
 
     const conn = connections[fromPeerId];
     if (conn && conn.open) {
-        // CORRIGIDO: nunca reenvie o gabarito (`correta`) para quem não é o
-        // Perguntador da rodada atual. Antes, `state.currentRound` era enviado
-        // sem qualquer filtro em todo state-sync (entrada/reconexão), vazando a
-        // resposta correta para o Respondedor (ou espectadores) que reconectasse
-        // no meio de uma rodada — contrariando a regra já aplicada no envio
-        // normal da pergunta em pickNewPair().
+        // Nunca reenvie o gabarito (`correta`) para quem não é o
+        // Perguntador da rodada atual. Antes, `state.currentRound` era
+        // enviado sem qualquer filtro em todo state-sync (entrada/
+        // reconexão), vazando a resposta correta para o Respondedor (ou
+        // espectadores) que reconectasse no meio de uma rodada —
+        // contrariando a regra já aplicada no envio normal da pergunta em
+        // pickNewPair().
         let currentRoundForSync = state.currentRound;
         if (currentRoundForSync && currentRoundForSync.pergunta) {
             const isPerguntadorDaRodada = msg.playerName === currentRoundForSync.perguntador;
@@ -484,7 +512,6 @@ function addPlayer(msg, fromPeerId) {
                 timer: state.timer,
                 currentRound: currentRoundForSync,
                 gameStarted: state.gameStarted,
-                //hostVersion: state.hostVersion
                 hostVersion: state.hostVersion,
                 respostasCount: state.respostasCount
             }
@@ -494,25 +521,11 @@ function addPlayer(msg, fromPeerId) {
     Game.saveState();
 }
 
-/*function removePlayerByPeerId(peerId) {
-    const state = Game.state;
-    state.players = state.players.filter(p => p.peerId !== peerId);
-
-    if (state.backupPeerId === peerId && state.players.length > 1) {
-        state.backupPeerId = state.players[1]?.peerId;
-    }
-
-    broadcastAll({ type: 'player-list', players: state.players });
-    Game.ui.updatePlayersList();
-    Game.ui.checkStartCondition();
-    Game.saveState();
-}*/
-// DEPOIS
 function removePlayerByPeerId(peerId) {
     const state = Game.state;
 
-    // NOVO: guarda o jogador antes de removê-lo, para poder checar se ele
-    // fazia parte da rodada atual.
+    // Guarda o jogador antes de removê-lo, para poder checar se ele fazia
+    // parte da rodada atual.
     const removedPlayer = state.players.find(p => p.peerId === peerId);
     state.players = state.players.filter(p => p.peerId !== peerId);
 
@@ -524,8 +537,8 @@ function removePlayerByPeerId(peerId) {
     Game.ui.updatePlayersList();
     Game.ui.checkStartCondition();
 
-    // CORRIGIDO: uma desconexão involuntária (queda de rede, aba fechada)
-    // do Perguntador ou Respondedor da rodada em curso travava a partida
+    // Uma desconexão involuntária (queda de rede, aba fechada) do
+    // Perguntador ou Respondedor da rodada em curso travava a partida
     // indefinidamente — nada mais avançava o jogo até o timer de 90min
     // zerar. Aplica aqui o mesmo tratamento já usado para saída voluntária
     // (handleLeaveMatchRequest em game-core.js).
@@ -535,6 +548,7 @@ function removePlayerByPeerId(peerId) {
 
     Game.saveState();
 }
+
 // ============================================
 // RECONEXÃO E HOST MIGRATION
 // ============================================
@@ -547,9 +561,9 @@ function restoreState(fullState) {
     state.currentRound = fullState.currentRound;
     state.gameStarted = fullState.gameStarted;
     if (fullState.hostVersion !== undefined) state.hostVersion = fullState.hostVersion;
-    // NOVO: sem isso, um jogador que entra/reconecta fica com
-    // respostasCount vazio; se ele mais tarde virar host, o rodízio
-    // reiniciava do zero para todo mundo a partir dali.
+    // Sem isso, um jogador que entra/reconecta fica com respostasCount
+    // vazio; se ele mais tarde virar host, o rodízio reiniciava do zero
+    // para todo mundo a partir dali.
     state.respostasCount = fullState.respostasCount || {};
 
     if (state.gameStarted) {
@@ -736,7 +750,6 @@ function becomeHost() {
         // attemptReconnectToNewHost) e se conecta diretamente — não depende
         // mais só deste broadcast. Ainda assim tentamos, útil se alguma
         // conexão tiver sobrevivido.
-        //broadcastAll({ type: 'host-changed', newHostPeerId: id, hostVersion: newVersion, players: state.players });
         broadcastAll({ type: 'host-changed', newHostPeerId: id, hostVersion: newVersion, players: state.players, respostasCount: state.respostasCount });
 
         Game.ui.setupUI();
@@ -762,7 +775,6 @@ function becomeHost() {
                 }
             }, 1000);
 
-            // game-network.js — becomeHost(), corrigido
             if (!state.currentRound) {
                 Game.core.pickNewPair();
             } else {
@@ -770,10 +782,20 @@ function becomeHost() {
                 if (state.currentRound.pergunta) {
                     Game.ui.displayQuestion(state.currentRound.pergunta);
                 }
-                // Rearma a rede de segurança: o timeout do host antigo morreu junto
-                // com ele. Sem isso, se o Respondedor da rodada em curso sumir após
-                // a migração, ninguém mais libera a vez até o fim dos 90 minutos.
-                Game.core.armarRespostaTimeout(state.currentRound.respondedor);
+                // Rearma a rede de segurança: o timeout do host antigo
+                // morreu junto com ele. Se havia uma Assessoria pendente no
+                // exato momento da migração, rearma o timeout de
+                // ASSESSORIA (20s) em vez do timeout de resposta — mesmo
+                // padrão já aplicado em handleAssessoriaRequest(), que
+                // pausa respostaTimeout enquanto se aguarda o assessor.
+                // Rearmar respostaTimeout aqui incondicionalmente
+                // contradiria essa pausa e ainda deixaria a Assessoria sem
+                // NENHUM timeout rodando caso o assessor nunca respondesse.
+                if (state.currentRound.assessoria?.status === 'pending') {
+                    Game.core.armarAssessoriaTimeout();
+                } else {
+                    Game.core.armarRespostaTimeout(state.currentRound.respondedor);
+                }
             }
         } else {
             Game.ui.showLobbyNormal();

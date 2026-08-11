@@ -241,3 +241,156 @@
   novamente", com nota de que a causa raiz desta vez era um resquício
   literal (`.push` em campo removido) da própria migração já documentada
   em 10/08/2026 18:00 — não um novo bug de lógica de rodízio.
+
+  ## 11/08/2026 - 12:15
+
+### Corrigido
+- **`assessoria-request`, `venda-offer-request` e `leave-match-request` sofriam da
+  mesma lacuna corrigida em `assessoria-answer`/`venda-offer-response` (ver
+  11/08/2026 - 12:00)**: os handlers em `js/game-core.js`
+  (`handleAssessoriaRequest`, `handleVendaOfertaRequest`,
+  `handleLeaveMatchRequest`) confiavam apenas nos nomes informados no payload
+  (`requesterName`, `vendedorName`, `playerName`) para decidir de quem era o
+  pedido, sem checar se a mensagem veio de fato da conexão (`fromPeerId`) desse
+  jogador. Na prática, qualquer jogador conectado podia: iniciar um pedido de
+  Assessoria em nome do Respondedor real; criar uma oferta de venda envolvendo
+  recursos/KPI de outro jogador como "vendedor"; ou forçar outro jogador a sair
+  da partida (`waitingInLobby = true`) remotamente. Corrigido repassando
+  `fromPeerId` (já disponível em `handleMessage`, `js/game-network.js`) aos três
+  handlers e validando `jogadorReferenciado.peerId === fromPeerId` antes de
+  processar cada pedido, seguindo o mesmo padrão já usado em
+  `handleAssessoriaAnswer`/`handleVendaOfertaResponse` e no `case 'answer'`
+  original. Chamadas internas do próprio host continuam funcionando por não
+  passarem `fromPeerId` (parâmetro tratado como opcional, `=== undefined`
+  ignora a checagem).
+
+### Alterado
+- `todo.md`: adicionado e concluído o item de replicação da validação de
+  identidade do remetente para os três handlers acima.
+
+  ## 11/08/2026 - 12:30
+
+### Corrigido
+- **`case 'answer'` sofria da mesma lacuna já corrigida nos demais handlers
+  (ver 11/08/2026 - 12:00 e 12:15), mas havia sido erroneamente citada como
+  "já correta" por já validar `msg.playerName === state.currentRound.respondedor`**:
+  essa checagem confere apenas o NOME informado no payload, não se a mensagem
+  veio de fato da conexão do Respondedor. Qualquer jogador conectado podia
+  enviar `{ type:'answer', playerName: '<nome do Respondedor>', alternativa }`
+  e o host processava como resposta legítima, contrariando a regra do README
+  de que a decisão final é sempre do Respondedor. Corrigido repassando
+  `fromPeerId` de `js/game-network.js` para `Game.core.handleAnswer()` e
+  validando `respondedorPlayer.peerId === fromPeerId` logo após a checagem
+  de papel, antes do guard de assessoria pendente (que reprocessa a mesma
+  mensagem já validada, sem precisar checar de novo). Chamadas internas do
+  host (timeout de resposta, host respondendo localmente, reprocessamento de
+  `pendingAnswer`) não passam `fromPeerId` e continuam isentas da checagem.
+
+### Alterado
+- `todo.md`: adicionado e concluído o item de validação de identidade do
+  remetente para o `case 'answer'`.
+
+  ## 11/08/2026 - 13:00
+
+### Corrigido
+- **`venda-offer-response` era aceita pelo host sem qualquer confirmação de que
+  uma oferta de venda tivesse sido de fato enviada**: `handleVendaOfertaRequest()`
+  (js/game-core.js) só encaminhava a oferta ao comprador via `sendToPlayer`, sem
+  registrar nada no lado do HOST; `handleVendaOfertaResponse()` confiava
+  inteiramente no par `vendedorName`/`compradorName` do payload — mesmo após a
+  validação de identidade do comprador (`comprador.peerId === fromPeerId`,
+  correção de 11/08 12:00) — para chamar `processVenda()` diretamente. Isso
+  permitia que qualquer jogador ativo com KPI suficiente enviasse uma
+  `venda-offer-response` forjada, com `aceito:true` e `vendedorName` de OUTRO
+  jogador qualquer, forçando a venda de 1 recurso desse jogador sem que ele
+  jamais tivesse iniciado ou aceito qualquer oferta — o oposto do fluxo de
+  confirmação explícita do comprador introduzido em 10/08 15:00. Também permitia
+  que uma mesma resposta legítima fosse reenviada/duplicada (replay), executando
+  `processVenda()` mais de uma vez para uma única oferta combinada. Corrigido
+  registrando a oferta pendente no host (`state.pendingVendaOfertas[vendedorName]
+  = compradorName`) no momento do request, e só processando uma
+  `venda-offer-response` quando ela corresponder exatamente a essa entrada —
+  removendo-a assim que resolvida (aceita ou recusada), o que também bloqueia
+  replay. `Game.resetGameState()` (js/game-state.js) passa a limpar
+  `pendingVendaOfertas` entre partidas, evitando que uma oferta nunca respondida
+  numa partida permaneça executável na partida seguinte.
+
+### Alterado
+- `todo.md`: adicionado e concluído o item de validação de oferta de venda
+  pendente no host.
+
+  ## 11/08/2026 - 13:15
+
+### Corrigido
+- **`pendingVendaOfertas` (introduzido em 11/08/2026 13:00) só existia na memória
+  local de quem era HOST no momento do `venda-offer-request`, sem ser sincronizado
+  para os demais clientes nem persistido em `localStorage`**: uma queda do host
+  (ou um F5 acidental) exatamente entre o pedido de oferta e a resposta do
+  comprador fazia o próximo host (via `becomeHost()`) ou o próprio host após
+  reload (`resumeGameEngineIfHost()`) não ter mais registro daquela oferta.
+  Resultado: `handleVendaOfertaResponse()` rejeitava a aceitação legítima do
+  comprador com "nenhuma oferta pendente correspondente" — reproduzindo, por
+  outro caminho, o mesmo tipo de problema que a correção de 13:00 pretendia
+  eliminar. Corrigido aplicando o mesmo padrão já usado para `respostasCount`:
+  toda criação/resolução de oferta agora é propagada a TODOS os clientes via
+  broadcast (`venda-oferta-sync`, novo case em `js/game-network.js`), não só
+  processada localmente pelo host atual, e o campo passou a ser persistido em
+  `saveState()`/restaurado em `tryRestoreState()` (`js/game-main.js`) para
+  sobreviver a um F5. `pendingVendaOfertas: {}` também passou a ser declarado
+  explicitamente no estado inicial (`js/game-state.js`), em vez de depender de
+  inicialização preguiçosa (`|| {}`) espalhada pelo código.
+
+### Alterado
+- `todo.md`: adicionado e concluído o item de sincronização de
+  `pendingVendaOfertas` entre clientes.
+
+  ## 11/08/2026 - 13:30
+
+### Corrigido
+- **`assessoriaTimeout` (20s) nunca era rearmado em `becomeHost()` após uma
+  migração de host**: diferente de `armarRespostaTimeout()`, que já é
+  cuidadosamente rearmado após migração, o timeout de segurança da Assessoria
+  não tinha equivalente — se a migração ocorresse com uma Assessoria em
+  `status: 'pending'` e o assessor nunca respondesse, nenhum timer resolvia
+  mais o pedido, travando o Respondedor indefinidamente (alternativas
+  desabilitadas enquanto `round.assessoria?.status === 'pending'`).
+  Extraída a lógica de armamento para `Game.core.armarAssessoriaTimeout()`
+  (reutilizada também em `handleAssessoriaRequest`), e `becomeHost()`
+  (`js/game-network.js`) passou a rearmar o timeout correto conforme o
+  estado real da rodada: `armarAssessoriaTimeout()` se há Assessoria
+  pendente, `armarRespostaTimeout()` caso contrário — evitando também
+  rearmar indevidamente o timeout de resposta durante uma Assessoria em
+  andamento, o que contradiria a pausa intencional já aplicada em
+  `handleAssessoriaRequest`.
+- **Causa raiz do bug acima: `currentRound.assessoria` só era sincronizado
+  localmente no cliente do próprio Respondedor**: `showAssessoriaStarted()`
+  e `showAssessoriaResult()` (`js/game-ui.js`) só escreviam em
+  `state.currentRound.assessoria` dentro de um `if (state.playerName ===
+  state.currentRound?.respondedor)` — nenhum outro cliente (espectadores,
+  ou o backup candidato a próximo host) tinha essa informação. Se esse
+  jogador assumisse como host via `becomeHost()`, seu
+  `state.currentRound.assessoria` permanecia `undefined`: além do bug de
+  timeout acima, a resposta do assessor (`assessoria-answer`), ao chegar
+  no novo host, era descartada pelo guard `!state.currentRound.assessoria`
+  em `handleAssessoriaAnswer()` — travando o Respondedor mesmo quando o
+  assessor respondia dentro do prazo. Corrigido movendo as atualizações de
+  estado (`status`/`sugestao`, e a limpeza em caso de pedido inválido) para
+  antes do `return` restrito ao Respondedor, mantendo apenas as atualizações
+  de UI (texto de status, reabilitar botões) condicionadas a esse papel.
+  Como `currentRound` já é salvo/restaurado por inteiro em
+  `saveState()`/`tryRestoreState()`, nenhuma alteração de persistência
+  adicional foi necessária.
+
+### Verificado (sem alteração — risco residual de baixo impacto)
+- `state.currentRound.pendingAnswer` (resposta do Respondedor recebida
+  enquanto uma Assessoria ainda está pendente) é um campo criado apenas no
+  HOST em `handleAnswer()` e nunca é transmitido a ninguém — numa migração
+  de host bem no meio dessa janela específica, essa resposta pendente se
+  perde. Registrado em `todo.md` como item de baixo impacto (o cliente pode
+  reenviar a resposta), não corrigido nesta rodada por estar fora do
+  escopo imediato.
+
+### Alterado
+- `todo.md`: adicionados os itens de sincronização de `currentRound.assessoria`
+  e rearme de `assessoriaTimeout` na migração de host, e registrado o item
+  pendente de `pendingAnswer`.

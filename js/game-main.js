@@ -1,14 +1,9 @@
 // ============================================
 // PM: The KPI Master - ORQUESTRADOR PRINCIPAL
 // ============================================
-// Responsabilidades:
-//   - Inicializar o jogo na ordem correta
-//   - Carregar perguntas (fetch ou fallback)
-//   - Salvar/carregar estado no localStorage
-//   - Ponto de entrada único (DOMContentLoaded)
-//
-// Dependências: Todos os módulos Game.*
-// Carregado por ÚLTIMO no HTML
+// Inicializa o jogo, carrega perguntas, gerencia persistência
+// no localStorage e é o ponto de entrada único (DOMContentLoaded).
+// Depende de todos os módulos Game.* — deve ser carregado por último no HTML.
 // ============================================
 
 // ============================================
@@ -22,17 +17,13 @@ async function loadQuestions() {
     const state = Game.state;
 
     try {
-        console.log('📚 Carregando questions.json via fetch...');
-        const response = await fetch('data/questions.json');  // Caminho ajustado
+        const response = await fetch('data/questions.json');
         if (!response.ok) throw new Error('HTTP ' + response.status);
         state.questionsData = await response.json();
-        console.log('✅ questions.json carregado!');
     } catch (err) {
         console.warn('⚠️ Fetch falhou:', err.message);
 
-        // Fallback para desenvolvimento local
         if (typeof FALLBACK_QUESTIONS !== 'undefined') {
-            console.log('📦 Usando questions-fallback.js (teste local)');
             state.questionsData = FALLBACK_QUESTIONS;
         } else {
             console.error('❌ Nenhuma fonte de perguntas!');
@@ -40,7 +31,6 @@ async function loadQuestions() {
         }
     }
 
-    // Inicializa baralhos.
     // Se um estado restaurado (localStorage) já trouxe baralhos salvos,
     // preserva o progresso de perguntas já usadas em vez de sobrescrever
     // tudo do zero — do contrário, um F5 no meio da partida "destrava"
@@ -56,9 +46,6 @@ async function loadQuestions() {
             };
         }
     }
-
-    const areas = Object.keys(state.questionsData.areas || {});
-    console.log('📚 Áreas carregadas:', areas.length);
 }
 
 // ============================================
@@ -81,8 +68,8 @@ function saveState() {
         baralhos: state.baralhos,
         timer: state.timer,
         gameStarted: state.gameStarted,
-        // usedRespondedorThisRound: state.usedRespondedorThisRound,
         respostasCount: state.respostasCount,
+        pendingVendaOfertas: state.pendingVendaOfertas,
         timestamp: new Date().toISOString()
     }));
 
@@ -99,55 +86,6 @@ function saveState() {
  * Tenta restaurar estado de uma sessão anterior
  * @returns {boolean} true se restaurou
  */
-/*function tryRestoreState() {
-    const savedState = localStorage.getItem('pmKPI_roomState');
-    const savedMyData = localStorage.getItem('pmKPI_myData');
-
-    if (!savedState || !savedMyData) return false;
-
-    try {
-        const state = JSON.parse(savedState);
-        const myData = JSON.parse(savedMyData);
-
-        // Verifica se o estado é recente (< 5 minutos)
-        const timestamp = new Date(state.timestamp);
-        const now = new Date();
-        if (now - timestamp > 5 * 60 * 1000) {
-            console.log('💾 Estado salvo expirou.');
-            return false;
-        }
-
-        console.log('💾 Estado restaurado do localStorage');
-        Game.state.hostPeerId = state.hostPeerId;
-        Game.state.backupPeerId = state.backupPeerId;
-        // Se o estado salvo não tiver esses campos (versão antiga do
-        // localStorage), cai para o hostPeerId salvo como base — mantém
-        // compatibilidade com sessões salvas antes desta correção.
-        Game.state.baseRoomPeerId = state.baseRoomPeerId || state.hostPeerId;
-        Game.state.hostVersion = state.hostVersion || 0;
-        Game.state.roomName = state.roomName;
-        Game.state.players = state.players;
-        Game.state.timer = state.timer;
-        Game.state.gameStarted = state.gameStarted;
-        Game.state.currentRound = state.currentRound || null;
-        Game.state.baralhos = state.baralhos || {};
-        Game.state.usedRespondedorThisRound = state.usedRespondedorThisRound || [];
-
-        // Dados do próprio jogador
-        const me = Game.getPlayerByName(myData.playerName);
-        if (me) {
-            me.kpi = myData.kpi;
-            me.phase = myData.phase;
-            me.activities = myData.activities;
-        }
-
-        return true;
-    } catch (e) {
-        console.warn('⚠️ Estado salvo corrompido.');
-        return false;
-    }
-}
-*/
 function tryRestoreState() {
     const savedState = localStorage.getItem('pmKPI_roomState');
     const savedMyData = localStorage.getItem('pmKPI_myData');
@@ -159,16 +97,12 @@ function tryRestoreState() {
         const myData = JSON.parse(savedMyData);
 
         const currentParams = new URLSearchParams(window.location.search);
-
         const currentRoom = currentParams.get('room') || 'Sala';
         const currentPlayer = currentParams.get('playerName') || 'Jogador';
         const currentBasePeerId = currentParams.get('peerId') || '';
 
-        // Não restaura estado de outra sala.
-        const savedBasePeerId =
-            saved.baseRoomPeerId ||
-            saved.hostPeerId ||
-            '';
+        // Não restaura estado de outra sala/jogador.
+        const savedBasePeerId = saved.baseRoomPeerId || saved.hostPeerId || '';
 
         if (
             saved.roomName !== currentRoom ||
@@ -179,7 +113,7 @@ function tryRestoreState() {
             return false;
         }
 
-        // Verifica validade do timestamp.
+        // Verifica validade do timestamp (expira em 5 minutos).
         const timestamp = new Date(saved.timestamp);
         const now = new Date();
 
@@ -195,9 +129,7 @@ function tryRestoreState() {
 
         Game.state.hostPeerId = saved.hostPeerId;
         Game.state.backupPeerId = saved.backupPeerId;
-        Game.state.baseRoomPeerId =
-            saved.baseRoomPeerId || saved.hostPeerId;
-
+        Game.state.baseRoomPeerId = saved.baseRoomPeerId || saved.hostPeerId;
         Game.state.hostVersion = saved.hostVersion || 0;
         Game.state.roomName = saved.roomName;
         Game.state.players = saved.players || [];
@@ -205,12 +137,10 @@ function tryRestoreState() {
         Game.state.gameStarted = !!saved.gameStarted;
         Game.state.currentRound = saved.currentRound || null;
         Game.state.baralhos = saved.baralhos || {};
-        //Game.state.usedRespondedorThisRound =
-        //    saved.usedRespondedorThisRound || [];
         Game.state.respostasCount = saved.respostasCount || {};
+        Game.state.pendingVendaOfertas = saved.pendingVendaOfertas || {};
 
         const me = Game.getPlayerByName(myData.playerName);
-
         if (me) {
             me.kpi = myData.kpi ?? me.kpi;
             me.phase = myData.phase ?? me.phase;
@@ -221,13 +151,12 @@ function tryRestoreState() {
 
     } catch (e) {
         console.warn('⚠️ Estado salvo corrompido. Limpando.');
-
         localStorage.removeItem('pmKPI_roomState');
         localStorage.removeItem('pmKPI_myData');
-
         return false;
     }
 }
+
 /**
  * Retoma a partida em andamento após um reload (F5) do HOST.
  * Sem isso, um refresh acidental do host mata o setInterval do timer
@@ -236,8 +165,6 @@ function tryRestoreState() {
 function resumeGameEngineIfHost() {
     const state = Game.state;
     if (!state.isHost || !state.gameStarted || state.gameOver) return;
-
-    console.log('🔁 Retomando motor da partida após reload do host...');
 
     Game.ui.showScreen('game');
     Game.ui.updatePlayersOnlineList();
@@ -267,11 +194,9 @@ function resumeGameEngineIfHost() {
         // Não havia rodada em aberto no momento do reload — inicia uma nova.
         Game.core.pickNewPair();
     } else {
-        // Havia uma rodada em aberto. Reenvia para todos os participantes
-        // para garantir que ninguém fique travado esperando uma resposta
-        // que o host (que reiniciou) não tem mais em memória de forma
-        // "ao vivo" (ex: timers de assessoria). Mais simples e seguro:
-        // encerra a rodada atual e sorteia uma nova.
+        // Havia uma rodada em aberto, mas o host reiniciou e perdeu o
+        // estado "ao vivo" dela (ex: timers de assessoria). Mais simples
+        // e seguro: encerra a rodada atual e sorteia uma nova.
         state.currentRound = null;
         Game.core.pickNewPair();
     }
@@ -316,9 +241,6 @@ async function initPeerWithRetry(maxAttempts = 4, delayMs = 2000) {
  * Ordem: ler URL → carregar perguntas → iniciar PeerJS → setup UI
  */
 async function init() {
-    console.log('🎯 PM: The KPI Master - Inicializando...');
-    console.log('📋 Módulos:', Object.keys(Game));
-
     // 1. Lê parâmetros da URL
     const params = new URLSearchParams(window.location.search);
     const state = Game.state;
@@ -332,10 +254,6 @@ async function init() {
     state.baseRoomPeerId = state.hostPeerId;
     state.hostVersion = 0;
 
-    console.log('🎮 Jogador:', state.playerName);
-    console.log('👑 Host:', state.isHost);
-    console.log('🏠 Sala:', state.roomName);
-
     // 2. UI inicial
     document.getElementById('lobbyRoomName').textContent = state.roomName;
     document.getElementById('myName').textContent = state.playerName;
@@ -345,7 +263,7 @@ async function init() {
         `<div class="phase-item" data-phase="${f.id}">${f.emoji} ${f.nome}</div>`
     ).join('');
 
-    // Tenta restaurar estado
+    // 3. Tenta restaurar estado de uma sessão anterior
     const restaurou = tryRestoreState();
 
     // 4. Carrega perguntas
@@ -385,9 +303,6 @@ async function init() {
 
     // 7. Salva estado inicial
     saveState();
-
-    console.log('✅ Jogo inicializado!');
-    console.log('💡 Debug: Game.debug está disponível no console (F12)');
 }
 
 // ============================================
@@ -402,6 +317,5 @@ window.Game.saveState = saveState;
 // INICIALIZA AO CARREGAR A PÁGINA
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🚀 DOM carregado, iniciando jogo...');
     Game.init();
 });

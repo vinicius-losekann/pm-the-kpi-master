@@ -95,11 +95,11 @@ function setupUI() {
         // listeners), mas nunca deve religar para quem já era host.
         if (!hostOnlyListenersBound) {
             document.getElementById('btnStartGame').addEventListener('click', () => {
-                // NOVO: garante que o timer enviado no broadcast (e usado
-                // localmente pelo host) seja sempre o tempo cheio da sessão —
-                // sem isso, reiniciar uma partida após uma anterior ter
-                // terminado antes do tempo esgotar propagava um timer quase
-                // zerado para todos os jogadores.
+                // Garante que o timer enviado no broadcast (e usado
+                // localmente pelo host) seja sempre o tempo cheio da
+                // sessão — sem isso, reiniciar uma partida após uma
+                // anterior ter terminado antes do tempo esgotar propagava
+                // um timer quase zerado para todos os jogadores.
                 Game.state.timer = CONFIG.JOGO.SESSION_DURATION;
 
                 Game.network.broadcastAll({ type: 'game-start', timer: Game.state.timer });
@@ -139,18 +139,12 @@ function setupUI() {
         Game.network.cleanup();
         window.location.href = 'index.html';
     });
-    /*document.getElementById('btnBackToLobby').addEventListener('click', () => {
-        showScreen('lobby');
-        showLobbyNormal();
-        updatePlayersList();
-        Game.saveState();
-    });*/
     document.getElementById('btnBackToLobby').addEventListener('click', () => {
-        // NOVO: sem isso, 'gameStarted'/'gameOver' continuavam true após o
-        // fim natural de uma partida, e o baralho de perguntas usadas não
-        // era resetado neste fluxo (só era resetado em "Encerrar Partida").
-        // A correção em startGame() já reseta KPI/fase/atividades/timer,
-        // mas manter esses campos de estado coerentes evita comportamentos
+        // Sem isso, 'gameStarted'/'gameOver' continuavam true após o fim
+        // natural de uma partida, e o baralho de perguntas usadas não era
+        // resetado neste fluxo (só era resetado em "Encerrar Partida"). A
+        // correção em startGame() já reseta KPI/fase/atividades/timer, mas
+        // manter esses campos de estado coerentes evita comportamentos
         // estranhos na tela de lobby entre uma partida e outra.
         Game.state.gameStarted = false;
         Game.state.gameOver = false;
@@ -177,13 +171,11 @@ function setupUI() {
             handleAlternativeClick(this.getAttribute('data-alt'), this);
         });
     });
+
     // Venda de recurso
     document.getElementById('btnVenderRecurso').addEventListener('click', () => {
         Game.ui.showVendaModal();
     });
-    // CORRIGIDO: listener estava comentado — o botão "✕ Cancelar" do modal
-    // de Venda de Recurso não fazia nada, deixando o jogador preso na tela
-    // até a venda ser confirmada/rejeitada pelo host.
     document.getElementById('btnFecharVenda').addEventListener('click', () => {
         Game.ui.fecharVendaModal();
     });
@@ -192,7 +184,8 @@ function setupUI() {
     });
     document.getElementById('btnRecusarVendaOferta').addEventListener('click', () => {
         Game.ui.responderOfertaVenda(false);
-    });    
+    });
+
     // Assessoria
     document.getElementById('btnPedirAssessoria').addEventListener('click', () => {
         Game.ui.showAssessoriaSelectModal();
@@ -458,6 +451,19 @@ function displaySpectatorView(perguntador, respondedor) {
     if (assessoriaArea) assessoriaArea.style.display = 'none';
 }
 
+/**
+ * BUGFIX: `state.currentRound.respondeu = true` só é setado aqui no ramo
+ * do GUEST (feedback local otimista antes da confirmação do host chegar
+ * via rede). Quando o próprio HOST é o Respondedor, handleAnswer() (em
+ * game-core.js) é chamado de forma síncrona sobre a MESMA instância de
+ * state.currentRound — e se houver uma assessoria pendente, handleAnswer
+ * deliberadamente NÃO marca respondeu=true (a resposta fica em
+ * pendingAnswer até a assessoria ser resolvida). Antes desta correção,
+ * esta função sobrescrevia respondeu=true logo em seguida de qualquer
+ * forma, fazendo handleAnswer() descartar a resposta pendente quando
+ * reprocessada ("Rodada já foi respondida!") e travando a rodada para
+ * sempre nesse cenário (host = Respondedor + assessoria solicitada).
+ */
 function handleAlternativeClick(alt, btn) {
     const state = Game.state;
     if (!state.currentRound || state.currentRound.respondeu) return;
@@ -468,8 +474,8 @@ function handleAlternativeClick(alt, btn) {
         Game.core.handleAnswer({ alternativa: alt, playerName: state.playerName });
     } else {
         Game.network.sendToHost({ type: 'answer', alternativa: alt, playerName: state.playerName });
+        state.currentRound.respondeu = true;
     }
-    state.currentRound.respondeu = true;
 }
 
 // ============================================
@@ -549,8 +555,9 @@ function showVendaModal() {
         alert('⚠️ Nenhum jogador disponível para comprar (precisa ter pelo menos ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI).');
         return;
     }
-    // NOVO: mantém o preço exibido sempre em sincronia com CONFIG,
-    // em vez de depender de um valor fixo escrito no HTML.
+
+    // Mantém o preço exibido sempre em sincronia com CONFIG, em vez de
+    // depender de um valor fixo escrito no HTML.
     document.getElementById('vendaValorKPI').textContent = CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI';
 
     // Atualiza informações
@@ -572,16 +579,13 @@ function showVendaModal() {
 /**
  * Confirma a venda para um comprador.
  *
- * CORRIGIDO: o modal NÃO é mais fechado aqui de forma otimista — o próprio
- * comentário original já dizia que o fechamento deveria vir só via
- * broadcast ('venda-confirmed') ou rejeição ('venda-rejected'), processados
- * em game-network.js, mas uma linha residual de um refactor anterior ainda
- * fechava o modal imediatamente após o clique, contradizendo essa intenção.
- * Deixamos só um estado de "processando" para dar feedback sem esconder
- * uma possível rejeição do host.
+ * O modal não é fechado aqui de forma otimista — o fechamento vem só via
+ * broadcast ('venda-confirmed') ou rejeição ('venda-rejected'),
+ * processados em game-network.js. Aqui só mostramos um estado de
+ * "processando" para dar feedback sem esconder uma possível rejeição do
+ * host.
  */
 function confirmarVenda(compradorName) {
-    // if (confirm('Vender 1📦 para ' + compradorName + ' por ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI?')) {
     if (confirm('Enviar oferta de venda de 1📦 para ' + compradorName + ' por ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI?')) {
         Game.core.venderRecurso(compradorName);
 
@@ -592,7 +596,6 @@ function confirmarVenda(compradorName) {
         document.querySelectorAll('#vendaCompradores button').forEach(b => b.disabled = true);
         const seusRecursosEl = document.getElementById('vendaSeusRecursos');
         if (seusRecursosEl) {
-            //seusRecursosEl.textContent = '🔄 Processando venda...';
             seusRecursosEl.textContent = '🔄 Aguardando ' + compradorName + ' aceitar a oferta...';
         }
     }
@@ -651,8 +654,8 @@ function escolherAssessor(assessorName) {
         // Evita clicar em uma alternativa enquanto a assessoria está pendente
         document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = true);
 
-        // CORRIGIDO: registra a assessoria também no estado local (não só
-        // no host), incluindo quando o próprio jogador é o host. Antes,
+        // Registra a assessoria também no estado local (não só no host),
+        // incluindo quando o próprio jogador é o host. Sem isso,
         // 'currentRound.assessoria' só era populado no objeto de estado do
         // host dentro de handleAssessoriaRequest(); nos clientes (guests)
         // esse campo nunca era setado localmente ao pedir — só o texto na
@@ -675,22 +678,25 @@ function escolherAssessor(assessorName) {
  */
 function showAssessoriaStarted(msg) {
     const state = Game.state;
+
+    // Atualiza o estado local em TODOS os clientes — não só no
+    // Respondedor. Sem isso, um espectador/backup que assuma como host
+    // (becomeHost) no meio de uma Assessoria pendente não sabe que ela
+    // existe: o timeout de segurança correspondente nunca é rearmado (ver
+    // becomeHost) e a resposta do assessor, ao chegar no novo host, é
+    // descartada pelo guard `!state.currentRound.assessoria` em
+    // handleAssessoriaAnswer(), travando o Respondedor indefinidamente.
+    if (state.currentRound) {
+        state.currentRound.assessoria = {
+            assessorName: msg.assessorName,
+            status: 'pending',
+            sugestao: null
+        };
+    }
+
     if (state.playerName === state.currentRound?.respondedor) {
         document.getElementById('btnPedirAssessoria').disabled = true;
         document.getElementById('assessoriaStatus').textContent = `📞 Aguardando resposta de ${msg.assessorName}...`;
-
-        // CORRIGIDO: mesma razão do bloco em escolherAssessor() — mantém o
-        // estado local coerente com o que o host já tem, para que reload,
-        // reconexão ou migração de host durante o pedido reconstruam a UI
-        // corretamente a partir de state.currentRound.assessoria em vez de
-        // assumir que nenhum pedido existe.
-        if (state.currentRound) {
-            state.currentRound.assessoria = {
-                assessorName: msg.assessorName,
-                status: 'pending',
-                sugestao: null
-            };
-        }
     }
 }
 
@@ -743,25 +749,27 @@ function responderAssessoria(alternativa, recusado) {
  */
 function showAssessoriaResult(msg) {
     const state = Game.state;
+
+    // As duas atualizações de ESTADO (status/sugestão da assessoria e sua
+    // limpeza quando inválida) rodam em TODOS os clientes, antes de
+    // qualquer early-return — mesma razão de showAssessoriaStarted acima.
+    // Só o restante da função (atualização de UI) continua restrito à
+    // tela do Respondedor.
+    if (state.currentRound?.assessoria) {
+        state.currentRound.assessoria.status = msg.recusado ? 'declined' : 'accepted';
+        state.currentRound.assessoria.sugestao = msg.recusado ? null : msg.sugestao;
+    }
+    if (msg.invalido && state.currentRound) {
+        state.currentRound.assessoria = null;
+    }
+
     if (state.playerName !== state.currentRound?.respondedor) return;
 
     const statusEl = document.getElementById('assessoriaStatus');
     if (!statusEl) return;
 
-    // CORRIGIDO: sincroniza o estado local (status/sugestão) com o
-    // resultado vindo do host, pela mesma razão dos blocos acima —
-    // sem isso, `state.currentRound.assessoria` ficava com status
-    // 'pending' para sempre no client, mesmo após a resolução real.
-    if (state.currentRound?.assessoria) {
-        state.currentRound.assessoria.status = msg.recusado ? 'declined' : 'accepted';
-        state.currentRound.assessoria.sugestao = msg.recusado ? null : msg.sugestao;
-    }
-
     if (msg.recusado) {
         if (msg.invalido && msg.motivo === 'fase-encerramento') {
-            // NOVO: mensagem específica quando o host rejeita o pedido por
-            // o Respondedor estar na fase de Encerramento (regra validada
-            // no host, não só no cliente — ver handleAssessoriaRequest).
             statusEl.textContent = '⚠️ Jogadores na fase de Encerramento não podem pedir assessoria.';
         } else if (msg.invalido) {
             statusEl.textContent = `⚠️ Não foi possível chamar ${msg.assessorName}. Escolha uma alternativa.`;
@@ -774,41 +782,21 @@ function showAssessoriaResult(msg) {
         statusEl.textContent = `🧭 ${msg.assessorName} sugere: ${msg.sugestao.toUpperCase()}`;
     }
 
-    // Reabilita as alternativas agora que a assessoria foi resolvida
-    // (só se ainda não houver resposta enviada nesta rodada)
+    // Reabilita as alternativas agora que a assessoria foi resolvida (só
+    // se ainda não houver resposta enviada nesta rodada)
     if (!state.currentRound.respondeu) {
         document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = false);
     }
 
-    // Se o pedido foi rejeitado por regra (fase de Encerramento ou assessor
-    // inválido), o registro local da assessoria é SEMPRE limpo — independente
-    // do motivo. O botão "Pedir Assessoria" é que só é reabilitado quando a
-    // regra permitiria um novo pedido nesta mesma rodada (não é o caso da
-    // fase de Encerramento, cuja restrição vale para a rodada inteira).
-    if (msg.invalido) {
-        // CORRIGIDO: antes, esta limpeza só ocorria quando
-        // motivo !== 'fase-encerramento'. Isso deixava
-        // state.currentRound.assessoria preso com status 'pending' para
-        // sempre nesta rodada quando a rejeição vinha por fase de
-        // Encerramento (possível em corridas entre o estado local
-        // desatualizado do jogador e um kpi-update que o avançou de fase
-        // em trânsito). Como displayQuestion() decide se desabilita as
-        // alternativas do Respondedor a partir de
-        // round.assessoria?.status === 'pending', qualquer nova chamada a
-        // displayQuestion() nesta mesma rodada — após reconectar, dar F5,
-        // ou uma migração de host — travava as alternativas até o timeout
-        // de 60s da resposta expirar sozinho, contrariando a regra do
-        // README de que a decisão final de responder é sempre do
-        // Respondedor. Agora o registro é sempre limpo quando o pedido é
-        // inválido, qualquer que seja o motivo.
-        if (state.currentRound) {
-            state.currentRound.assessoria = null;
-        }
-
-        if (msg.motivo !== 'fase-encerramento') {
-            const btnPedir = document.getElementById('btnPedirAssessoria');
-            if (btnPedir && !state.currentRound.respondeu) btnPedir.disabled = false;
-        }
+    // Se o pedido foi rejeitado por regra (fase de Encerramento ou
+    // assessor inválido), o registro local da assessoria já foi limpo
+    // acima independente do motivo. O botão "Pedir Assessoria" é que só é
+    // reabilitado quando a regra permitiria um novo pedido nesta mesma
+    // rodada (não é o caso da fase de Encerramento, cuja restrição vale
+    // para a rodada inteira).
+    if (msg.invalido && msg.motivo !== 'fase-encerramento') {
+        const btnPedir = document.getElementById('btnPedirAssessoria');
+        if (btnPedir && !state.currentRound.respondeu) btnPedir.disabled = false;
     }
 }
 
