@@ -781,19 +781,33 @@ function showAssessoriaResult(msg) {
     }
 
     // Se o pedido foi rejeitado por regra (fase de Encerramento ou assessor
-    // inválido), o botão de pedir assessoria continua desabilitado só se
-    // a partida ainda impedir novo pedido; caso contrário, reabilita para
-    // permitir tentar novamente com outro jogador.
-    if (msg.invalido && msg.motivo !== 'fase-encerramento') {
-        const btnPedir = document.getElementById('btnPedirAssessoria');
-        if (btnPedir && !state.currentRound.respondeu) btnPedir.disabled = false;
-
-        // CORRIGIDO: se o pedido foi invalidado (ex.: assessor saiu da
-        // partida), limpa o registro local para permitir um novo pedido
-        // nesta mesma rodada — sem isso o guard local em
-        // requestAssessoria() bloquearia indevidamente uma nova tentativa.
+    // inválido), o registro local da assessoria é SEMPRE limpo — independente
+    // do motivo. O botão "Pedir Assessoria" é que só é reabilitado quando a
+    // regra permitiria um novo pedido nesta mesma rodada (não é o caso da
+    // fase de Encerramento, cuja restrição vale para a rodada inteira).
+    if (msg.invalido) {
+        // CORRIGIDO: antes, esta limpeza só ocorria quando
+        // motivo !== 'fase-encerramento'. Isso deixava
+        // state.currentRound.assessoria preso com status 'pending' para
+        // sempre nesta rodada quando a rejeição vinha por fase de
+        // Encerramento (possível em corridas entre o estado local
+        // desatualizado do jogador e um kpi-update que o avançou de fase
+        // em trânsito). Como displayQuestion() decide se desabilita as
+        // alternativas do Respondedor a partir de
+        // round.assessoria?.status === 'pending', qualquer nova chamada a
+        // displayQuestion() nesta mesma rodada — após reconectar, dar F5,
+        // ou uma migração de host — travava as alternativas até o timeout
+        // de 60s da resposta expirar sozinho, contrariando a regra do
+        // README de que a decisão final de responder é sempre do
+        // Respondedor. Agora o registro é sempre limpo quando o pedido é
+        // inválido, qualquer que seja o motivo.
         if (state.currentRound) {
             state.currentRound.assessoria = null;
+        }
+
+        if (msg.motivo !== 'fase-encerramento') {
+            const btnPedir = document.getElementById('btnPedirAssessoria');
+            if (btnPedir && !state.currentRound.respondeu) btnPedir.disabled = false;
         }
     }
 }
