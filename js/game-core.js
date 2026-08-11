@@ -607,9 +607,22 @@ function handleAnswer(msg) {
         }
     }
 
-    state.usedRespondedorThisRound.push(respondedorName);
+    /*state.usedRespondedorThisRound.push(respondedorName);
+
+    const faseIdx = Game.getFaseIndex(respondedor.phase);*/
+    
+    // CORRIGIDO: usedRespondedorThisRound foi removido em favor do contador
+    // respostasCount (ver log.txt 18:00) — esta era a única chamada que
+    // ainda restava usando a lista antiga. Como o campo não existe mais em
+    // Game.state, o .push() lançava TypeError logo após o bônus de
+    // assessoria, interrompendo handleAnswer() ANTES de agendar
+    // nextTurn()/endGame() e antes de Game.saveState(). Na prática, a
+    // partida travava para sempre após a primeira resposta normal (com
+    // recursos, sem reserva de contingência) — o caso mais comum do jogo.
+    state.respostasCount[respondedorName] = (state.respostasCount[respondedorName] || 0) + 1;
 
     const faseIdx = Game.getFaseIndex(respondedor.phase);
+
     if (faseIdx === CONFIG.FASES.length - 1 && respondedor.activities >= CONFIG.JOGO.ACTIVITIES_PER_PHASE) {
         setTimeout(() => endGame(buildRanking()), 3000);
     } else {

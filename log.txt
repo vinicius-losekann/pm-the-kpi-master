@@ -215,3 +215,29 @@
 - `todo.md`: nenhum item novo necessário — todos os itens já estavam
   marcados como concluídos, exceto "Assessoria para o host", que
   permanece intencionalmente pendente.
+
+## 11/08/2026 - 11:00
+
+### Corrigido
+- **Partida travava permanentemente após a primeira resposta "normal" (jogador
+  com recursos, sem evento de Reserva de Contingência)**: em `js/game-core.js`
+  (`handleAnswer()`), sobrou uma chamada `state.usedRespondedorThisRound.push(...)`
+  não migrada durante a troca do rodízio por lista (`usedRespondedorThisRound`)
+  para rodízio por contador (`state.respostasCount`), feita em 10/08/2026 18:00.
+  Como `usedRespondedorThisRound` não existe mais em `Game.state`
+  (`js/game-state.js`), a chamada lançava `TypeError: Cannot read properties
+  of undefined (reading 'push')` — interrompendo `handleAnswer()` ANTES de
+  agendar `nextTurn()`/`endGame()` e antes de `Game.saveState()`. Resultado:
+  a rodada ficava presa com `currentRound.respondeu = true` para sempre,
+  nenhuma nova rodada era sorteada, e o rodízio "todos respondem antes de
+  repetir" (`todo.md`) voltava a ser quebrado, já que o contador do
+  respondedor nunca era incrementado nesse caminho. Substituída a chamada
+  por `state.respostasCount[respondedorName] = (state.respostasCount[respondedorName] || 0) + 1;`,
+  consistente com os demais pontos do arquivo que já usam o contador.
+
+### Alterado
+- `todo.md`: reaberto e re-fechado o item "Garantir que todos os jogadores
+  do jogo respondam ao menos uma vez antes que algum jogador responda
+  novamente", com nota de que a causa raiz desta vez era um resquício
+  literal (`.push` em campo removido) da própria migração já documentada
+  em 10/08/2026 18:00 — não um novo bug de lógica de rodízio.
