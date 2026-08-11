@@ -610,7 +610,7 @@ function handleAnswer(msg) {
     /*state.usedRespondedorThisRound.push(respondedorName);
 
     const faseIdx = Game.getFaseIndex(respondedor.phase);*/
-    
+
     // CORRIGIDO: usedRespondedorThisRound foi removido em favor do contador
     // respostasCount (ver log.txt 18:00) — esta era a única chamada que
     // ainda restava usando a lista antiga. Como o campo não existe mais em
@@ -841,10 +841,27 @@ function handleAssessoriaRequest(msg) {
  * HOST: processa a resposta (ou recusa/timeout) do assessor.
  */
 
-function handleAssessoriaAnswer(msg) {
+/*function handleAssessoriaAnswer(msg) {
     const state = Game.state;
     if (!state.isHost || !state.currentRound || !state.currentRound.assessoria) return;
     if (state.currentRound.assessoria.status !== 'pending') return;
+*/
+function handleAssessoriaAnswer(msg, fromPeerId) {
+    const state = Game.state;
+    if (!state.isHost || !state.currentRound || !state.currentRound.assessoria) return;
+    if (state.currentRound.assessoria.status !== 'pending') return;
+
+    // NOVO: só aceita a resposta se ela vier da conexão do assessor
+    // efetivamente designado nesta rodada. fromPeerId só é omitido nas
+    // chamadas internas do próprio host (timeout de 20s), que são a
+    // fonte da verdade e não precisam dessa checagem.
+    if (fromPeerId !== undefined) {
+        const assessorDesignado = Game.getPlayerByName(state.currentRound.assessoria.assessorName);
+        if (!assessorDesignado || assessorDesignado.peerId !== fromPeerId) {
+            console.warn('⚠️ assessoria-answer ignorado: remetente não é o assessor designado da rodada.');
+            return;
+        }
+    }
 
     if (state.assessoriaTimeout) {
         clearTimeout(state.assessoriaTimeout);
@@ -1133,7 +1150,7 @@ function handleVendaOfertaRequest(msg) {
 /**
  * HOST: processa a resposta do comprador (aceite ou recusa) a uma oferta.
  */
-function handleVendaOfertaResponse(msg) {
+/*function handleVendaOfertaResponse(msg) {
     const state = Game.state;
     if (!state.isHost) return;
 
@@ -1149,7 +1166,35 @@ function handleVendaOfertaResponse(msg) {
     }
 
     processVenda(msg.vendedorName, msg.compradorName);
+}*/
+
+function handleVendaOfertaResponse(msg, fromPeerId) {
+    const state = Game.state;
+    if (!state.isHost) return;
+
+    // NOVO: só aceita a resposta se vier da conexão do COMPRADOR da
+    // oferta original — evita que qualquer jogador conectado aceite ou
+    // recuse, em nome de outro, uma oferta de venda que não é sua.
+    const comprador = Game.getPlayerByName(msg.compradorName);
+    if (!comprador || comprador.peerId !== fromPeerId) {
+        console.warn('⚠️ venda-offer-response ignorado: remetente não é o comprador da oferta.');
+        return;
+    }
+
+    if (!msg.aceito) {
+        const vendedor = Game.getPlayerByName(msg.vendedorName);
+        if (vendedor) {
+            Game.network.sendToPlayer(vendedor.peerId, {
+                type: 'venda-rejected',
+                motivo: msg.compradorName + ' recusou a oferta de compra.'
+            });
+        }
+        return;
+    }
+
+    processVenda(msg.vendedorName, msg.compradorName);
 }
+
 /**
  * HOST: valida e executa a venda de fato. Única fonte de verdade —
  * evita que vendas feitas por um guest fiquem invisíveis para os

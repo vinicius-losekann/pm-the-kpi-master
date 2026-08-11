@@ -249,7 +249,7 @@ function handleMessage(msg, fromPeerId) {
             // NOVO: mantém a cópia local sincronizada com o host a cada
             // rodada — é o que garante que, numa migração de host
             // (becomeHost), quem assumir já tenha a contagem correta.
-            if (msg.respostasCount) state.respostasCount = msg.respostasCount;            
+            if (msg.respostasCount) state.respostasCount = msg.respostasCount;
             // Só quem participa da rodada vê a tela de pergunta;
             // os demais (espectadores) veem a tela de espera.
             if (state.playerName === msg.perguntador || state.playerName === msg.respondedor) {
@@ -322,8 +322,12 @@ function handleMessage(msg, fromPeerId) {
             Game.ui.showAssessoriaQuestionModal(msg);
             break;
 
-        case 'assessoria-answer':
+        /* case 'assessoria-answer':
             if (state.isHost) Game.core.handleAssessoriaAnswer(msg);
+            break; */
+
+        case 'assessoria-answer':
+            if (state.isHost) Game.core.handleAssessoriaAnswer(msg, fromPeerId);
             break;
 
         case 'assessoria-result':
@@ -348,12 +352,17 @@ function handleMessage(msg, fromPeerId) {
             Game.ui.showVendaOfertaModal(msg);
             break;
 
-        case 'venda-offer-response':
+        /*case 'venda-offer-response':
             if (state.isHost) {
                 Game.core.handleVendaOfertaResponse(msg);
             }
+            break; */
+        case 'venda-offer-response':
+            if (state.isHost) {
+                Game.core.handleVendaOfertaResponse(msg, fromPeerId);
+            }
             break;
-
+            
         case 'venda-rejected':
             alert('⚠️ ' + msg.motivo);
             Game.ui.fecharVendaModal();
@@ -477,7 +486,7 @@ function addPlayer(msg, fromPeerId) {
                 gameStarted: state.gameStarted,
                 //hostVersion: state.hostVersion
                 hostVersion: state.hostVersion,
-                respostasCount: state.respostasCount                
+                respostasCount: state.respostasCount
             }
         });
     }
@@ -728,7 +737,7 @@ function becomeHost() {
         // mais só deste broadcast. Ainda assim tentamos, útil se alguma
         // conexão tiver sobrevivido.
         //broadcastAll({ type: 'host-changed', newHostPeerId: id, hostVersion: newVersion, players: state.players });
-        broadcastAll({ type: 'host-changed', newHostPeerId: id, hostVersion: newVersion, players: state.players, respostasCount: state.respostasCount });        
+        broadcastAll({ type: 'host-changed', newHostPeerId: id, hostVersion: newVersion, players: state.players, respostasCount: state.respostasCount });
 
         Game.ui.setupUI();
 
