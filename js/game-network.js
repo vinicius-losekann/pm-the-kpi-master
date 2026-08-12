@@ -118,14 +118,35 @@ async function initPeer() {
  * tempo razoável, tentamos as próximas versões calculadas a partir de
  * baseRoomPeerId, do mesmo jeito que attemptReconnectToNewHost já faz
  * para reconexões.
+ *
+ * BUGFIX 2: a versão anterior desta função tratava QUALQUER falha na
+ * primeira tentativa (attempt 0, mirando no ID correto/atual) como
+ * evidência de migração de host, e a partir do attempt 1 já passava a
+ * "adivinhar" IDs de versões seguintes (base-h1, base-h2...) que nunca
+ * existiram. Isso quebrava a entrada normal de um guest logo após a
+ * criação da sala: é comum a 1ª tentativa falhar por um motivo puramente
+ * transitório (ex.: o host ainda terminando de se registrar no servidor
+ * de sinalização do PeerJS no instante em que o guest tenta conectar), e
+ * o ID correto nunca era tentado de novo — a sala "não era encontrada"
+ * mesmo com o host ativo e o link/sala corretos.
+ *
+ * Agora as primeiras RETRY_KNOWN_ID_ATTEMPTS tentativas insistem no ID
+ * atualmente conhecido (hostVersion atual); só depois disso passamos a
+ * supor migração e escalar para as próximas versões.
  */
+const RETRY_KNOWN_ID_ATTEMPTS = 2;
+
 function connectToHost(attempt = 0, maxAttempts = 5) {
     const state = Game.state;
     if (state.isHost) return;
 
-    const targetId = attempt === 0
-        ? state.hostPeerId
-        : Game.computeHostPeerId(state.baseRoomPeerId, state.hostVersion + attempt);
+    // Enquanto attempt < RETRY_KNOWN_ID_ATTEMPTS, insiste no ID já
+    // conhecido (versão atual do host). Só depois disso começa a
+    // escalar para versões seguintes, assumindo possível migração.
+    const versionOffset = attempt < RETRY_KNOWN_ID_ATTEMPTS
+        ? 0
+        : (attempt - RETRY_KNOWN_ID_ATTEMPTS + 1);
+    const targetId = Game.computeHostPeerId(state.baseRoomPeerId, state.hostVersion + versionOffset);
 
     console.log(`🔌 Conectando ao host (tentativa ${attempt + 1}/${maxAttempts + 1}): ${targetId}`);
 
@@ -136,12 +157,12 @@ function connectToHost(attempt = 0, maxAttempts = 5) {
         if (settled) return;
         settled = true;
 
-        if (attempt > 0) {
+        if (versionOffset > 0) {
             // A conexão só foi bem-sucedida numa versão de host mais
             // recente que a conhecida — atualiza o estado local para
             // refletir a migração que já tinha acontecido antes de
             // entrarmos na sala.
-            state.hostVersion = state.hostVersion + attempt;
+            state.hostVersion = state.hostVersion + versionOffset;
             state.hostPeerId = targetId;
         }
 
