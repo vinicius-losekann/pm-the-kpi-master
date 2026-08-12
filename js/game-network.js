@@ -135,21 +135,18 @@ async function initPeer() {
  * supor migração e escalar para as próximas versões.
  */
 //const RETRY_KNOWN_ID_ATTEMPTS = 2;
-const RETRY_KNOWN_ID_ATTEMPTS = 3;
+const RETRY_KNOWN_ID_ATTEMPTS = 4;
 
-function connectToHost(attempt = 0, maxAttempts = 8) {
+function connectToHost(attempt = 0, maxAttempts = 10) {
     const state = Game.state;
     if (state.isHost) return;
 
-    // Enquanto attempt < RETRY_KNOWN_ID_ATTEMPTS, insiste no ID já
-    // conhecido (versão atual do host). Só depois disso começa a
-    // escalar para versões seguintes, assumindo possível migração.
     const versionOffset = attempt < RETRY_KNOWN_ID_ATTEMPTS
         ? 0
         : (attempt - RETRY_KNOWN_ID_ATTEMPTS + 1);
     const targetId = Game.computeHostPeerId(state.baseRoomPeerId, state.hostVersion + versionOffset);
 
-    console.log(`🔌 Conectando ao host (tentativa ${attempt + 1}/${maxAttempts + 1}): ${targetId}`);
+    console.log(`🔌 Conectando ao host (tentativa ${attempt + 1}/${maxAttempts}): ${targetId}`);
 
     let settled = false;
     const conn = myPeer.connect(targetId, { reliable: true });
@@ -157,12 +154,9 @@ function connectToHost(attempt = 0, maxAttempts = 8) {
     conn.on('open', () => {
         if (settled) return;
         settled = true;
+        console.log('✅ Conexão aberta com o host!');
 
         if (versionOffset > 0) {
-            // A conexão só foi bem-sucedida numa versão de host mais
-            // recente que a conhecida — atualiza o estado local para
-            // refletir a migração que já tinha acontecido antes de
-            // entrarmos na sala.
             state.hostVersion = state.hostVersion + versionOffset;
             state.hostPeerId = targetId;
         }
@@ -174,29 +168,29 @@ function connectToHost(attempt = 0, maxAttempts = 8) {
         if (settled) return;
         settled = true;
         if (attempt < maxAttempts) {
-            setTimeout(() => connectToHost(attempt + 1, maxAttempts), 1500);
+            console.log(`⏳ Tentativa ${attempt+1} falhou, nova tentativa em 2s...`);
+            setTimeout(() => connectToHost(attempt + 1, maxAttempts), 2000);
         } else {
-            console.error('❌ Não foi possível conectar a nenhuma versão conhecida do host.');
-            Game.ui.updateConnectionStatus('error', 'Não foi possível conectar à sala. Verifique o link e tente novamente.');
+            console.error('❌ Esgotadas todas as tentativas de conexão.');
+            Game.ui.updateConnectionStatus('error', 'Não foi possível conectar. Verifique o código da sala.');
+            alert('⚠️ Não foi possível conectar ao host. Verifique se o código está correto e se o host está ativo. Recarregue a página para tentar novamente.');
         }
     });
 
-    console.log(`🔌 Conectando ao host (tentativa ${attempt + 1}/${maxAttempts}): ${targetId}`);
-
-    // PeerJS às vezes não dispara 'error' para um peerId inexistente
-    // dentro de um tempo razoável — força um timeout de segurança, assim
-    // como já é feito em attemptReconnectToNewHost().
+    // Timeout de 15 segundos
     setTimeout(() => {
         if (settled) return;
         settled = true;
-        try { conn.close(); } catch (e) { /* ignora */ }
+        try { conn.close(); } catch (e) {}
         if (attempt < maxAttempts) {
-            connectToHost(attempt + 1, maxAttempts);
+            console.log(`⏳ Timeout na tentativa ${attempt+1}, nova tentativa em 2s...`);
+            setTimeout(() => connectToHost(attempt + 1, maxAttempts), 2000);
         } else {
-            console.error('❌ Não foi possível conectar a nenhuma versão conhecida do host (timeout).');
-            Game.ui.updateConnectionStatus('error', 'Não foi possível conectar à sala. Verifique o link e tente novamente.');
+            console.error('❌ Timeout: esgotadas todas as tentativas.');
+            Game.ui.updateConnectionStatus('error', 'Não foi possível conectar. Verifique o código da sala.');
+            alert('⚠️ Não foi possível conectar ao host. Verifique se o código está correto e se o host está ativo. Recarregue a página para tentar novamente.');
         }
-    }, 8000);
+    }, 15000);
 }
 
 function handleConnection(conn) {
