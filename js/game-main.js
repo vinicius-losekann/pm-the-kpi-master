@@ -81,8 +81,7 @@ function saveState() {
         baralhos: state.baralhos,
         timer: state.timer,
         gameStarted: state.gameStarted,
-        // usedRespondedorThisRound: state.usedRespondedorThisRound,
-        respostasCount: state.respostasCount,
+        usedRespondedorThisRound: state.usedRespondedorThisRound,
         timestamp: new Date().toISOString()
     }));
 
@@ -205,9 +204,8 @@ function tryRestoreState() {
         Game.state.gameStarted = !!saved.gameStarted;
         Game.state.currentRound = saved.currentRound || null;
         Game.state.baralhos = saved.baralhos || {};
-        //Game.state.usedRespondedorThisRound =
-        //    saved.usedRespondedorThisRound || [];
-        Game.state.respostasCount = saved.respostasCount || {};
+        Game.state.usedRespondedorThisRound =
+            saved.usedRespondedorThisRound || [];
 
         const me = Game.getPlayerByName(myData.playerName);
 

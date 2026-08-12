@@ -59,18 +59,17 @@ function startNewRound() {
     pickNewPair(evento);
 }
 
-// function pickNewPair(evento = null, depth = 0) {
-function pickNewPair(evento = null) {
+function pickNewPair(evento = null, depth = 0) {
     const state = Game.state;
 
     // Guard contra recursão infinita: se não sobrar ninguém com recursos
     // disponíveis mesmo após resetar a lista de "já jogou nesta rodada",
     // encerra a partida em vez de travar em loop.
-    /*if (depth > CONFIG.JOGO.MAX_PLAYERS * 2) {
+    if (depth > CONFIG.JOGO.MAX_PLAYERS * 2) {
         console.error('❌ Nenhum jogador com recursos disponíveis. Encerrando partida.');
         endGame(buildRanking());
         return;
-    }*/
+    }
 
     // CORRIGIDO: chamadas recursivas (depth > 0) reaproveitam o MESMO
     // evento só para tentar sortear um novo par de jogadores — nenhum
@@ -78,9 +77,13 @@ function pickNewPair(evento = null) {
     // faz broadcast + abre o modal de evento rodava de novo em toda
     // chamada, mesmo reutilizando o evento já mostrado, fazendo o mesmo
     // modal reaparecer duas (ou mais) vezes seguidas para todos.
-    // const eventoJaExibidoNestaRodada = depth > 0;
+    const eventoJaExibidoNestaRodada = depth > 0;
 
     if (!evento) {
+        /*const eventos = state.questionsData?.eventos || [];
+        if (eventos.length === 0) return;
+        evento = eventos[Math.floor(Math.random() * eventos.length)];
+        aplicarEfeitosEvento(evento);*/
         evento = sortearEvento();
         if (!evento) return;
         aplicarEfeitosEvento(evento);
@@ -97,16 +100,10 @@ function pickNewPair(evento = null) {
 
     // Mostra modal do evento para todos — apenas na primeira vez que ele é
     // exibido nesta busca por um novo par (ver comentário acima).
-    /*if (!eventoJaExibidoNestaRodada) {
+    if (!eventoJaExibidoNestaRodada) {
         Game.network.broadcastAll({ type: 'show-evento', evento: evento, players: state.players });
         Game.ui.showEventoModal(evento);
-    }*/
-    // CORRIGIDO: pickNewPair() não recursa mais em busca de Respondedor
-    // (ver seleção por contador abaixo, que sempre acha um candidato de
-    // primeira), então não existe mais "segunda chamada reaproveitando o
-    // mesmo evento" — o modal é sempre mostrado exatamente uma vez aqui.
-    Game.network.broadcastAll({ type: 'show-evento', evento: evento, players: state.players });
-    Game.ui.showEventoModal(evento);
+    }
 
     const activePlayers = Game.getActivePlayers();
 
@@ -123,7 +120,7 @@ function pickNewPair(evento = null) {
     // a resposta não gasta recurso algum ("acertando ou errando", conforme
     // README), então mesmo jogadores com 0 recursos continuam elegíveis
     // como Respondedor nessa rodada específica.
-    /*const semCustoNestaRodada = evento?.reserva_contingencia === true;
+    const semCustoNestaRodada = evento?.reserva_contingencia === true;
     const comRecursos = semCustoNestaRodada
         ? activePlayers
         : activePlayers.filter(p => p.recursos > 0);
@@ -144,7 +141,7 @@ function pickNewPair(evento = null) {
     // sorteado (fica de fora de comRecursos) e nunca entra na lista — o
     // reset abaixo, ao esgotar quem tem recursos, deixava outros jogadores
     // responderem de novo antes desse jogador sequer ter sido considerado.
-    /*if (!semCustoNestaRodada) {
+    if (!semCustoNestaRodada) {
         activePlayers
             .filter(p => p.recursos <= 0 && !state.usedRespondedorThisRound.includes(p.name))
             .forEach(p => {
@@ -165,35 +162,7 @@ function pickNewPair(evento = null) {
     if (available.length === 0) {
         state.usedRespondedorThisRound = [];
         return pickNewPair(evento, depth + 1);
-    }*/
-    // CORRIGIDO: rodízio agora por CONTADOR (state.respostasCount), não
-    // por lista com reset manual — ver justificativa em game-state.js.
-    const semCustoNestaRodada = evento?.reserva_contingencia === true;
-
-    const elegiveis = semCustoNestaRodada
-        ? activePlayers
-        : activePlayers.filter(p => p.recursos > 0);
-
-    if (elegiveis.length === 0) {
-        console.warn('⚠️ Nenhum jogador ativo tem recursos. Encerrando partida.');
-        endGame(buildRanking());
-        return;
     }
-
-    // Quem está sem recursos "pula a vez" — mas o pulo CONTA como turno
-    // para o rodízio, senão o jogador ficaria pra sempre atrás na fila
-    // assim que voltasse a ter recursos.
-    if (!semCustoNestaRodada) {
-        activePlayers
-            .filter(p => p.recursos <= 0)
-            .forEach(p => {
-                state.respostasCount[p.name] = (state.respostasCount[p.name] || 0) + 1;
-                console.log('⏭️ ' + p.name + ' sem recursos — pulando a vez (contabilizado no rodízio).');
-            });
-    }
-
-    const minRespostas = Math.min(...elegiveis.map(p => state.respostasCount[p.name] || 0));
-    const available = elegiveis.filter(p => (state.respostasCount[p.name] || 0) === minRespostas);
 
     const respondedor = available[Math.floor(Math.random() * available.length)];
     const askers = activePlayers.filter(p => p.peerId !== respondedor.peerId);
@@ -222,9 +191,7 @@ function pickNewPair(evento = null) {
         type: 'round-start',
         evento,
         perguntador: perguntador.name,
-        // respondedor: respondedor.name
-        respondedor: respondedor.name,
-        respostasCount: state.respostasCount
+        respondedor: respondedor.name
     });
 
     const areaNome = state.questionsData.areas[pergunta.area_key]?.nome || pergunta.area_key;
@@ -526,9 +493,7 @@ function handleAnswer(msg) {
             kpiGanho: 0,
             semRecursos: true
         });
-        //state.usedRespondedorThisRound.push(respondedorName);
-        // CORRIGIDO: incrementa o contador em vez de empilhar numa lista.
-        state.respostasCount[respondedorName] = (state.respostasCount[respondedorName] || 0) + 1;
+        state.usedRespondedorThisRound.push(respondedorName);
         setTimeout(() => nextTurn(), 2000);
         Game.saveState();
         return;
@@ -620,7 +585,7 @@ function handleAnswer(msg) {
 }
 
 function nextTurn() {
-    /*const state = Game.state;
+    const state = Game.state;
     const activePlayers = Game.getActivePlayers();
     const allDone = activePlayers.every(p => state.usedRespondedorThisRound.includes(p.name));
 
@@ -629,14 +594,7 @@ function nextTurn() {
         startNewRound();
     } else {
         pickNewPair();
-    }*/
-    // CORRIGIDO: a distinção "todos já responderam → reseta e chama
-    // startNewRound()" só existia para saber quando zerar a lista antiga.
-    // Com o contador (respostasCount), não há mais nada para zerar no
-    // meio da partida — as duas chamadas eram, na prática, idênticas.
-    // startNewRound() continua existindo só para o início da partida
-    // (chamada por startGame()).
-    Game.core.pickNewPair();
+    }
 }
 
 function updatePlayerKPI(msg) {
@@ -919,9 +877,7 @@ function startGame() {
     const state = Game.state;
     state.gameStarted = true;
     state.gameOver = false; // NOVO — endGame() define gameOver=true e nada revertia isso
-    // state.usedRespondedorThisRound = [];
-
-    state.respostasCount = {};
+    state.usedRespondedorThisRound = [];
 
     // CORRIGIDO: antes só 'recursos' era reinicializado aqui. Se uma
     // partida terminasse naturalmente e o host clicasse em "Voltar ao
