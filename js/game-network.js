@@ -134,9 +134,10 @@ async function initPeer() {
  * atualmente conhecido (hostVersion atual); só depois disso passamos a
  * supor migração e escalar para as próximas versões.
  */
-const RETRY_KNOWN_ID_ATTEMPTS = 2;
+//const RETRY_KNOWN_ID_ATTEMPTS = 2;
+const RETRY_KNOWN_ID_ATTEMPTS = 3;
 
-function connectToHost(attempt = 0, maxAttempts = 5) {
+function connectToHost(attempt = 0, maxAttempts = 8) {
     const state = Game.state;
     if (state.isHost) return;
 
@@ -180,6 +181,8 @@ function connectToHost(attempt = 0, maxAttempts = 5) {
         }
     });
 
+    console.log(`🔌 Conectando ao host (tentativa ${attempt + 1}/${maxAttempts}): ${targetId}`);
+
     // PeerJS às vezes não dispara 'error' para um peerId inexistente
     // dentro de um tempo razoável — força um timeout de segurança, assim
     // como já é feito em attemptReconnectToNewHost().
@@ -193,7 +196,7 @@ function connectToHost(attempt = 0, maxAttempts = 5) {
             console.error('❌ Não foi possível conectar a nenhuma versão conhecida do host (timeout).');
             Game.ui.updateConnectionStatus('error', 'Não foi possível conectar à sala. Verifique o link e tente novamente.');
         }
-    }, 4000);
+    }, 8000);
 }
 
 function handleConnection(conn) {

@@ -231,7 +231,7 @@ function resumeGameEngineIfHost() {
  * para liberar o peerId da conexão anterior, e a primeira tentativa falha
  * com 'unavailable-id' mesmo sendo o dono legítimo da sala.
  */
-async function initPeerWithRetry(maxAttempts = 4, delayMs = 2000) {
+async function initPeerWithRetry(maxAttempts = 5, delayMs = 3000) {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
             await Game.network.initPeer();
