@@ -231,7 +231,7 @@ function resumeGameEngineIfHost() {
  * para liberar o peerId da conexão anterior, e a primeira tentativa falha
  * com 'unavailable-id' mesmo sendo o dono legítimo da sala.
  */
-async function initPeerWithRetry(maxAttempts = 6, delayMs = 4000) {
+async function initPeerWithRetry(maxAttempts = 7, delayMs = 4000) {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
             await Game.network.initPeer();
@@ -239,12 +239,10 @@ async function initPeerWithRetry(maxAttempts = 6, delayMs = 4000) {
         } catch (err) {
             const isLastAttempt = attempt === maxAttempts;
             console.warn(`⚠️ Falha ao iniciar Peer (tentativa ${attempt}/${maxAttempts}):`, err?.message || err);
-
             if (isLastAttempt) {
                 Game.ui.updateConnectionStatus('error', 'Não foi possível conectar. Recarregue a página.');
                 throw err;
             }
-
             Game.ui.updateConnectionStatus('disconnected', `Reconectando (${attempt}/${maxAttempts})...`);
             await new Promise(res => setTimeout(res, delayMs));
         }

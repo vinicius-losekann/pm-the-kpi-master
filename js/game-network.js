@@ -118,33 +118,14 @@ async function initPeer() {
  * tempo razoável, tentamos as próximas versões calculadas a partir de
  * baseRoomPeerId, do mesmo jeito que attemptReconnectToNewHost já faz
  * para reconexões.
- *
- * BUGFIX 2: a versão anterior desta função tratava QUALQUER falha na
- * primeira tentativa (attempt 0, mirando no ID correto/atual) como
- * evidência de migração de host, e a partir do attempt 1 já passava a
- * "adivinhar" IDs de versões seguintes (base-h1, base-h2...) que nunca
- * existiram. Isso quebrava a entrada normal de um guest logo após a
- * criação da sala: é comum a 1ª tentativa falhar por um motivo puramente
- * transitório (ex.: o host ainda terminando de se registrar no servidor
- * de sinalização do PeerJS no instante em que o guest tenta conectar), e
- * o ID correto nunca era tentado de novo — a sala "não era encontrada"
- * mesmo com o host ativo e o link/sala corretos.
- *
- * Agora as primeiras RETRY_KNOWN_ID_ATTEMPTS tentativas insistem no ID
- * atualmente conhecido (hostVersion atual); só depois disso passamos a
- * supor migração e escalar para as próximas versões.
  */
-//const RETRY_KNOWN_ID_ATTEMPTS = 2;
-const RETRY_KNOWN_ID_ATTEMPTS = 4;
-
 function connectToHost(attempt = 0, maxAttempts = 10) {
     const state = Game.state;
     if (state.isHost) return;
 
-    const versionOffset = attempt < RETRY_KNOWN_ID_ATTEMPTS
-        ? 0
-        : (attempt - RETRY_KNOWN_ID_ATTEMPTS + 1);
-    const targetId = Game.computeHostPeerId(state.baseRoomPeerId, state.hostVersion + versionOffset);
+    const targetId = attempt === 0
+        ? state.hostPeerId
+        : Game.computeHostPeerId(state.baseRoomPeerId, state.hostVersion + attempt);
 
     console.log(`🔌 Conectando ao host (tentativa ${attempt + 1}/${maxAttempts}): ${targetId}`);
 
@@ -154,10 +135,10 @@ function connectToHost(attempt = 0, maxAttempts = 10) {
     conn.on('open', () => {
         if (settled) return;
         settled = true;
-        console.log('✅ Conexão aberta com o host!');
+        console.log('✅ Conexão estabelecida com o host!');
 
-        if (versionOffset > 0) {
-            state.hostVersion = state.hostVersion + versionOffset;
+        if (attempt > 0) {
+            state.hostVersion = state.hostVersion + attempt;
             state.hostPeerId = targetId;
         }
 
@@ -168,30 +149,29 @@ function connectToHost(attempt = 0, maxAttempts = 10) {
         if (settled) return;
         settled = true;
         if (attempt < maxAttempts) {
-            console.log(`⏳ Tentativa ${attempt+1} falhou, nova tentativa em 2s...`);
-            setTimeout(() => connectToHost(attempt + 1, maxAttempts), 2000);
+            console.log(`⏳ Erro na tentativa ${attempt+1}, nova tentativa em 3s...`);
+            setTimeout(() => connectToHost(attempt + 1, maxAttempts), 3000);
         } else {
-            console.error('❌ Esgotadas todas as tentativas de conexão.');
-            Game.ui.updateConnectionStatus('error', 'Não foi possível conectar. Verifique o código da sala.');
-            alert('⚠️ Não foi possível conectar ao host. Verifique se o código está correto e se o host está ativo. Recarregue a página para tentar novamente.');
+            console.error('❌ Não foi possível conectar a nenhuma versão conhecida do host.');
+            Game.ui.updateConnectionStatus('error', 'Não foi possível conectar à sala. Verifique o link e tente novamente.');
         }
     });
 
-    // Timeout de 15 segundos
+    // Timeout de segurança aumentado para 20 segundos
     setTimeout(() => {
         if (settled) return;
         settled = true;
-        try { conn.close(); } catch (e) {}
+        try { conn.close(); } catch (e) { /* ignora */ }
         if (attempt < maxAttempts) {
-            console.log(`⏳ Timeout na tentativa ${attempt+1}, nova tentativa em 2s...`);
-            setTimeout(() => connectToHost(attempt + 1, maxAttempts), 2000);
+            console.log(`⏳ Timeout na tentativa ${attempt+1}, nova tentativa em 3s...`);
+            setTimeout(() => connectToHost(attempt + 1, maxAttempts), 3000);
         } else {
-            console.error('❌ Timeout: esgotadas todas as tentativas.');
-            Game.ui.updateConnectionStatus('error', 'Não foi possível conectar. Verifique o código da sala.');
-            alert('⚠️ Não foi possível conectar ao host. Verifique se o código está correto e se o host está ativo. Recarregue a página para tentar novamente.');
+            console.error('❌ Não foi possível conectar a nenhuma versão conhecida do host (timeout).');
+            Game.ui.updateConnectionStatus('error', 'Não foi possível conectar à sala. Verifique o link e tente novamente.');
         }
-    }, 15000);
+    }, 20000); // 20 segundos
 }
+
 
 function handleConnection(conn) {
     const state = Game.state;
