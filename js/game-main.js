@@ -1,14 +1,11 @@
 // ============================================
-// PM: The KPI Master - ORQUESTRADOR PRINCIPAL
+// PM: The KPI Master - Orquestrador Principal
 // ============================================
 // Responsabilidades:
-//   - Inicializar o jogo na ordem correta
-//   - Carregar perguntas (fetch ou fallback)
-//   - Salvar/carregar estado no localStorage
+//   - Inicializar o jogo na ordem correta (DOM, perguntas, PeerJS)
+//   - Carregar/salvar estado no localStorage
+//   - Retomar partida após recarregar a página (F5)
 //   - Ponto de entrada único (DOMContentLoaded)
-//
-// Dependências: Todos os módulos Game.*
-// Carregado por ÚLTIMO no HTML
 // ============================================
 
 // ============================================
@@ -16,21 +13,20 @@
 // ============================================
 
 /**
- * Carrega perguntas do JSON (fetch no GitHub, fallback local)
+ * Carrega o arquivo questions.json via fetch.
+ * Em caso de falha, tenta usar um fallback local (se definido).
  */
 async function loadQuestions() {
     const state = Game.state;
 
     try {
         console.log('📚 Carregando questions.json via fetch...');
-        const response = await fetch('data/questions.json');  // Caminho ajustado
+        const response = await fetch('data/questions.json');
         if (!response.ok) throw new Error('HTTP ' + response.status);
         state.questionsData = await response.json();
         console.log('✅ questions.json carregado!');
     } catch (err) {
         console.warn('⚠️ Fetch falhou:', err.message);
-
-        // Fallback para desenvolvimento local
         if (typeof FALLBACK_QUESTIONS !== 'undefined') {
             console.log('📦 Usando questions-fallback.js (teste local)');
             state.questionsData = FALLBACK_QUESTIONS;
@@ -40,13 +36,8 @@ async function loadQuestions() {
         }
     }
 
-    // Inicializa baralhos.
-    // Se um estado restaurado (localStorage) já trouxe baralhos salvos,
-    // preserva o progresso de perguntas já usadas em vez de sobrescrever
-    // tudo do zero — do contrário, um F5 no meio da partida "destrava"
-    // perguntas repetidas indevidamente.
+    // Inicializa os baralhos, preservando progresso se já existir
     const baralhosRestaurados = state.baralhos && Object.keys(state.baralhos).length > 0;
-
     if (!baralhosRestaurados) {
         for (const [key, area] of Object.entries(state.questionsData.areas || {})) {
             state.baralhos[key] = {
@@ -66,7 +57,7 @@ async function loadQuestions() {
 // ============================================
 
 /**
- * Salva estado completo no localStorage
+ * Salva o estado completo no localStorage.
  */
 function saveState() {
     const state = Game.state;
@@ -95,58 +86,10 @@ function saveState() {
 }
 
 /**
- * Tenta restaurar estado de uma sessão anterior
- * @returns {boolean} true se restaurou
+ * Tenta restaurar o estado salvo no localStorage.
+ * Só restaura se pertencer à mesma sala/jogador e tiver menos de 5 minutos.
+ * @returns {boolean} true se restaurou com sucesso
  */
-/*function tryRestoreState() {
-    const savedState = localStorage.getItem('pmKPI_roomState');
-    const savedMyData = localStorage.getItem('pmKPI_myData');
-
-    if (!savedState || !savedMyData) return false;
-
-    try {
-        const state = JSON.parse(savedState);
-        const myData = JSON.parse(savedMyData);
-
-        // Verifica se o estado é recente (< 5 minutos)
-        const timestamp = new Date(state.timestamp);
-        const now = new Date();
-        if (now - timestamp > 5 * 60 * 1000) {
-            console.log('💾 Estado salvo expirou.');
-            return false;
-        }
-
-        console.log('💾 Estado restaurado do localStorage');
-        Game.state.hostPeerId = state.hostPeerId;
-        Game.state.backupPeerId = state.backupPeerId;
-        // Se o estado salvo não tiver esses campos (versão antiga do
-        // localStorage), cai para o hostPeerId salvo como base — mantém
-        // compatibilidade com sessões salvas antes desta correção.
-        Game.state.baseRoomPeerId = state.baseRoomPeerId || state.hostPeerId;
-        Game.state.hostVersion = state.hostVersion || 0;
-        Game.state.roomName = state.roomName;
-        Game.state.players = state.players;
-        Game.state.timer = state.timer;
-        Game.state.gameStarted = state.gameStarted;
-        Game.state.currentRound = state.currentRound || null;
-        Game.state.baralhos = state.baralhos || {};
-        Game.state.usedRespondedorThisRound = state.usedRespondedorThisRound || [];
-
-        // Dados do próprio jogador
-        const me = Game.getPlayerByName(myData.playerName);
-        if (me) {
-            me.kpi = myData.kpi;
-            me.phase = myData.phase;
-            me.activities = myData.activities;
-        }
-
-        return true;
-    } catch (e) {
-        console.warn('⚠️ Estado salvo corrompido.');
-        return false;
-    }
-}
-*/
 function tryRestoreState() {
     const savedState = localStorage.getItem('pmKPI_roomState');
     const savedMyData = localStorage.getItem('pmKPI_myData');
@@ -158,34 +101,22 @@ function tryRestoreState() {
         const myData = JSON.parse(savedMyData);
 
         const currentParams = new URLSearchParams(window.location.search);
-
         const currentRoom = currentParams.get('room') || 'Sala';
         const currentPlayer = currentParams.get('playerName') || 'Jogador';
         const currentBasePeerId = currentParams.get('peerId') || '';
 
-        // Não restaura estado de outra sala.
-        const savedBasePeerId =
-            saved.baseRoomPeerId ||
-            saved.hostPeerId ||
-            '';
+        const savedBasePeerId = saved.baseRoomPeerId || saved.hostPeerId || '';
 
-        if (
-            saved.roomName !== currentRoom ||
+        if (saved.roomName !== currentRoom ||
             savedBasePeerId !== currentBasePeerId ||
-            myData.playerName !== currentPlayer
-        ) {
+            myData.playerName !== currentPlayer) {
             console.log('💾 Estado salvo pertence a outra sala/jogador. Ignorando.');
             return false;
         }
 
-        // Verifica validade do timestamp.
         const timestamp = new Date(saved.timestamp);
         const now = new Date();
-
-        if (
-            Number.isNaN(timestamp.getTime()) ||
-            now - timestamp > 5 * 60 * 1000
-        ) {
+        if (Number.isNaN(timestamp.getTime()) || now - timestamp > 5 * 60 * 1000) {
             console.log('💾 Estado salvo expirou.');
             return false;
         }
@@ -194,9 +125,7 @@ function tryRestoreState() {
 
         Game.state.hostPeerId = saved.hostPeerId;
         Game.state.backupPeerId = saved.backupPeerId;
-        Game.state.baseRoomPeerId =
-            saved.baseRoomPeerId || saved.hostPeerId;
-
+        Game.state.baseRoomPeerId = saved.baseRoomPeerId || saved.hostPeerId;
         Game.state.hostVersion = saved.hostVersion || 0;
         Game.state.roomName = saved.roomName;
         Game.state.players = saved.players || [];
@@ -204,11 +133,9 @@ function tryRestoreState() {
         Game.state.gameStarted = !!saved.gameStarted;
         Game.state.currentRound = saved.currentRound || null;
         Game.state.baralhos = saved.baralhos || {};
-        Game.state.usedRespondedorThisRound =
-            saved.usedRespondedorThisRound || [];
+        Game.state.usedRespondedorThisRound = saved.usedRespondedorThisRound || [];
 
         const me = Game.getPlayerByName(myData.playerName);
-
         if (me) {
             me.kpi = myData.kpi ?? me.kpi;
             me.phase = myData.phase ?? me.phase;
@@ -216,20 +143,16 @@ function tryRestoreState() {
         }
 
         return true;
-
     } catch (e) {
         console.warn('⚠️ Estado salvo corrompido. Limpando.');
-
         localStorage.removeItem('pmKPI_roomState');
         localStorage.removeItem('pmKPI_myData');
-
         return false;
     }
 }
+
 /**
- * Retoma a partida em andamento após um reload (F5) do HOST.
- * Sem isso, um refresh acidental do host mata o setInterval do timer
- * e o fluxo de rodadas para de vez para todos os jogadores conectados.
+ * Retoma o motor da partida caso o host tenha recarregado a página.
  */
 function resumeGameEngineIfHost() {
     const state = Game.state;
@@ -257,19 +180,11 @@ function resumeGameEngineIfHost() {
         }
     }, 1000);
 
-    // Reenvia o player-list atualizado para reconciliar quem já estava
-    // conectado (guests vão reconectar sozinhos e receber state-sync).
     Game.network.broadcastAll({ type: 'player-list', players: state.players });
 
     if (!state.currentRound) {
-        // Não havia rodada em aberto no momento do reload — inicia uma nova.
         Game.core.pickNewPair();
     } else {
-        // Havia uma rodada em aberto. Reenvia para todos os participantes
-        // para garantir que ninguém fique travado esperando uma resposta
-        // que o host (que reiniciou) não tem mais em memória de forma
-        // "ao vivo" (ex: timers de assessoria). Mais simples e seguro:
-        // encerra a rodada atual e sorteia uma nova.
         state.currentRound = null;
         Game.core.pickNewPair();
     }
@@ -280,10 +195,7 @@ function resumeGameEngineIfHost() {
 // ============================================
 
 /**
- * Tenta abrir o Peer algumas vezes com backoff. Necessário principalmente
- * para o HOST: ao dar F5, o servidor PeerJS pode levar alguns segundos
- * para liberar o peerId da conexão anterior, e a primeira tentativa falha
- * com 'unavailable-id' mesmo sendo o dono legítimo da sala.
+ * Inicia o PeerJS com tentativas de retry (útil após F5 do host).
  */
 async function initPeerWithRetry(maxAttempts = 4, delayMs = 2000) {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -310,23 +222,19 @@ async function initPeerWithRetry(maxAttempts = 4, delayMs = 2000) {
 // ============================================
 
 /**
- * Ponto de entrada do jogo
- * Ordem: ler URL → carregar perguntas → iniciar PeerJS → setup UI
+ * Ponto de entrada do jogo.
+ * Ordem: ler URL → carregar perguntas → restaurar estado → iniciar PeerJS → configurar UI.
  */
 async function init() {
     console.log('🎯 PM: The KPI Master - Inicializando...');
     console.log('📋 Módulos:', Object.keys(Game));
 
-    // 1. Lê parâmetros da URL
     const params = new URLSearchParams(window.location.search);
     const state = Game.state;
     state.isHost = params.get('host') === 'true';
     state.roomName = params.get('room') || 'Sala';
     state.playerName = params.get('playerName') || 'Jogador';
     state.hostPeerId = params.get('peerId') || '';
-    // Base fixa para calcular deterministicamente IDs de host de backup.
-    // tryRestoreState() pode sobrescrever com o valor persistido (correto
-    // caso já tenha havido uma migração antes deste reload).
     state.baseRoomPeerId = state.hostPeerId;
     state.hostVersion = 0;
 
@@ -334,7 +242,7 @@ async function init() {
     console.log('👑 Host:', state.isHost);
     console.log('🏠 Sala:', state.roomName);
 
-    // 2. UI inicial
+    // Configuração inicial da UI
     document.getElementById('lobbyRoomName').textContent = state.roomName;
     document.getElementById('myName').textContent = state.playerName;
     document.getElementById('myAvatar').textContent = state.playerName.charAt(0).toUpperCase();
@@ -343,33 +251,19 @@ async function init() {
         `<div class="phase-item" data-phase="${f.id}">${f.emoji} ${f.nome}</div>`
     ).join('');
 
-    // Tenta restaurar estado
     const restaurou = tryRestoreState();
 
-    // 4. Carrega perguntas
     await loadQuestions();
 
-    // 5. Inicializa PeerJS (com retry — o servidor PeerJS pode manter o
-    // peerId anterior "reservado" por alguns segundos após um F5 do host,
-    // rejeitando a primeira tentativa com 'unavailable-id')
     try {
         await initPeerWithRetry();
     } catch (err) {
         console.error('❌ Não foi possível estabelecer conexão P2P:', err);
-        // Status de erro já está visível na tela (setado por initPeer);
-        // interrompe a inicialização em vez de continuar com peer inválido.
         return;
     }
 
-    // 6. Configura UI
     Game.ui.setupUI();
 
-    // 6.1 Se o estado restaurado indica partida em andamento, garante que
-    // a tela correta seja exibida (não fica preso no lobby) e, sendo host,
-    // retoma o motor da partida (timer + rodadas). Para guests, a tela
-    // correta já é resolvida via state-sync/host-changed em game-network.js
-    // assim que a conexão com o host for reestabelecida — mas ajustamos
-    // aqui também para o caso de reconexão lenta.
     if (restaurou && state.gameStarted && !state.gameOver) {
         if (state.isHost) {
             resumeGameEngineIfHost();
@@ -381,7 +275,6 @@ async function init() {
         }
     }
 
-    // 7. Salva estado inicial
     saveState();
 
     console.log('✅ Jogo inicializado!');
@@ -397,7 +290,7 @@ window.Game.loadQuestions = loadQuestions;
 window.Game.saveState = saveState;
 
 // ============================================
-// INICIALIZA AO CARREGAR A PÁGINA
+// INICIALIZAÇÃO AUTOMÁTICA
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 DOM carregado, iniciando jogo...');

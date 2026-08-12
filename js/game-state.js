@@ -1,11 +1,7 @@
 // ============================================
-// PM: The KPI Master - ESTADO DO JOGO
+// PM: The KPI Master - Estado do Jogo
 // ============================================
-// Responsabilidades:
-//   - Define o objeto gameState (fonte da verdade)
-//   - Exporta helpers para acessar/manipular o estado
-//
-// Namespace: Game.state, Game.helpers
+// Define o objeto `gameState` (fonte da verdade) e helpers para manipulá-lo.
 // ============================================
 
 const gameState = {
@@ -15,30 +11,20 @@ const gameState = {
     peerId: '',
     hostPeerId: '',
     backupPeerId: '',
-
-    // ID "base" da sala (peerId original informado na URL / criado pelo
-    // host). NÃO muda durante a partida — ao contrário de hostPeerId, que
-    // passa a apontar para o host de backup após uma migração. É a partir
-    // dele que qualquer jogador consegue CALCULAR o peerId do próximo
-    // host, sem depender de receber uma mensagem de host-changed.
-    baseRoomPeerId: '',
-
-    // Quantas migrações de host já ocorreram nesta sessão. O peerId do
-    // host atual é sempre computeHostPeerId(baseRoomPeerId, hostVersion).
-    hostVersion: 0,
-
-    // Jogadores: { name, peerId, kpi, phase, activities, isHost, waitingInLobby, recursos }
+    baseRoomPeerId: '',          // ID base da sala (nunca muda)
+    hostVersion: 0,              // Número de migrações de host
     players: [],
-
     currentRound: null,
     baralhos: {},
     timer: CONFIG.JOGO.SESSION_DURATION,
     timerInterval: null,
-
     gameStarted: false,
     gameOver: false,
     questionsData: null,
     usedRespondedorThisRound: [],
+    // Campos para timeouts (não persistidos)
+    respostaTimeout: null,
+    assessoriaTimeout: null,
 };
 
 // --- Helpers ---
@@ -59,6 +45,9 @@ function getActivePlayers() {
     return gameState.players.filter(p => !p.waitingInLobby);
 }
 
+/**
+ * Reseta todos os jogadores para o início de uma partida (KPI zero, fase inicial, recursos iniciais).
+ */
 function resetAllPlayers() {
     gameState.players.forEach(p => {
         p.kpi = 0;
@@ -70,19 +59,15 @@ function resetAllPlayers() {
 }
 
 /**
- * Calcula deterministicamente o peerId de um host para uma dada versão de
- * migração, a partir do peerId base da sala. version 0 = host original.
- * version 1, 2, 3... = 1ª, 2ª, 3ª migração.
- *
- * Isso permite que QUALQUER jogador (não só quem recebeu um broadcast)
- * calcule para onde tentar se conectar quando o host cai, em vez de
- * depender de uma mensagem 'host-changed' que pode nunca chegar (o backup
- * pode estar exatamente resetando suas conexões no momento do broadcast).
+ * Calcula o ID do host para uma determinada versão de migração.
  */
 function computeHostPeerId(baseId, version) {
     return version > 0 ? `${baseId}-h${version}` : baseId;
 }
 
+/**
+ * Reseta o estado da partida (mantém a sala e os jogadores).
+ */
 function resetGameState() {
     gameState.gameStarted = false;
     gameState.gameOver = false;

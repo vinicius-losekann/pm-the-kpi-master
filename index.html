@@ -1,25 +1,28 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PM: The KPI Master - Entrar</title>
-    
+
     <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
-    
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@500;600;700;800&display=swap"
+        rel="stylesheet"
+    />
+
     <!-- Favicon (emoji como ícone) -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>" />
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css" />
 </head>
 <body class="page-entry">
-    
+
     <div class="entry-container">
-        
+
         <!-- Logo e Título -->
         <div class="entry-header">
             <div class="logo-icon">🎯</div>
@@ -32,24 +35,22 @@
         </div>
 
         <!-- ============================================ -->
-        <!-- TELA 1: ESCOLHER MODO -->
+        <!-- TELA 1: ESCOLHER MODO                        -->
         <!-- ============================================ -->
         <div id="screenChoose" class="screen-choose">
             <div class="entry-card glass-card">
                 <h2 class="screen-title">Bem-vindo!</h2>
                 <p class="screen-desc">Escolha como deseja participar:</p>
-                
+
                 <div class="choose-buttons">
                     <button id="btnChooseCreate" class="btn btn-primary btn-lg btn-block">
                         <span class="btn-icon">⚡</span>
                         Criar Nova Sala
                         <span class="btn-badge">Host</span>
                     </button>
-                    
-                    <div class="actions-divider">
-                        <span>ou</span>
-                    </div>
-                    
+
+                    <div class="actions-divider"><span>ou</span></div>
+
                     <button id="btnChooseJoin" class="btn btn-secondary btn-lg btn-block">
                         <span class="btn-icon">🚪</span>
                         Entrar em uma Sala
@@ -60,18 +61,18 @@
         </div>
 
         <!-- ============================================ -->
-        <!-- TELA 2: CRIAR SALA -->
+        <!-- TELA 2: CRIAR SALA                          -->
         <!-- ============================================ -->
         <div id="screenCreate" class="screen-form" style="display: none;">
             <div class="entry-card glass-card">
                 <h2 class="screen-title">⚡ Criar Nova Sala</h2>
-                
+
                 <div class="form-group">
                     <label for="createPlayerName" class="form-label">
                         <span class="label-icon">👤</span> Seu Nome
                     </label>
-                    <input type="text" id="createPlayerName" class="form-input" 
-                           placeholder="Digite seu nome de jogador..." minlength="3" maxlength="20" required autocomplete="off">
+                    <input type="text" id="createPlayerName" class="form-input"
+                           placeholder="Digite seu nome de jogador..." minlength="3" maxlength="20" required autocomplete="off" />
                 </div>
 
                 <div class="form-group">
@@ -80,8 +81,8 @@
                     </label>
                     <div class="room-id-input-group">
                         <span class="room-id-prefix">pm-the-kpi-master-</span>
-                        <input type="text" id="createRoomId" class="form-input form-input-inline" 
-                               placeholder="001" minlength="1" maxlength="20" required autocomplete="off">
+                        <input type="text" id="createRoomId" class="form-input form-input-inline"
+                               placeholder="001" minlength="1" maxlength="20" required autocomplete="off" />
                     </div>
                     <span class="form-hint">Escolha um identificador único (ex: 001, equipe-alfa, turma-a)</span>
                 </div>
@@ -98,13 +99,13 @@
         </div>
 
         <!-- ============================================ -->
-        <!-- TELA 3: SALA CRIADA (Host) -->
+        <!-- TELA 3: SALA CRIADA (Host)                  -->
         <!-- ============================================ -->
         <div id="screenCreated" class="screen-form" style="display: none;">
             <div class="entry-card glass-card text-center">
                 <div class="success-icon">✅</div>
                 <h2 class="screen-title">Sala Criada com Sucesso!</h2>
-                
+
                 <div class="room-id-display">
                     <label class="room-id-display-label">Compartilhe este ID com os jogadores:</label>
                     <div class="room-id-display-box">
@@ -128,18 +129,18 @@
         </div>
 
         <!-- ============================================ -->
-        <!-- TELA 4: ENTRAR EM SALA -->
+        <!-- TELA 4: ENTRAR EM SALA                      -->
         <!-- ============================================ -->
         <div id="screenJoin" class="screen-form" style="display: none;">
             <div class="entry-card glass-card">
                 <h2 class="screen-title">🚪 Entrar em uma Sala</h2>
-                
+
                 <div class="form-group">
                     <label for="joinPlayerName" class="form-label">
                         <span class="label-icon">👤</span> Seu Nome
                     </label>
-                    <input type="text" id="joinPlayerName" class="form-input" 
-                           placeholder="Digite seu nome de jogador..." minlength="3" maxlength="20" required autocomplete="off">
+                    <input type="text" id="joinPlayerName" class="form-input"
+                           placeholder="Digite seu nome de jogador..." minlength="3" maxlength="20" required autocomplete="off" />
                 </div>
 
                 <div class="form-group">
@@ -148,8 +149,8 @@
                     </label>
                     <div class="room-id-input-group">
                         <span class="room-id-prefix">pm-the-kpi-master-</span>
-                        <input type="text" id="joinRoomSuffix" class="form-input form-input-inline" 
-                               placeholder="001" minlength="1" maxlength="20" required autocomplete="off">
+                        <input type="text" id="joinRoomSuffix" class="form-input form-input-inline"
+                               placeholder="001" minlength="1" maxlength="20" required autocomplete="off" />
                     </div>
                     <span class="form-hint">Digite o código fornecido pelo host (ex: 001)</span>
                 </div>
@@ -167,7 +168,7 @@
 
         <!-- Info Footer -->
         <div class="entry-footer">
-            <div class="players-info"><span class="info-dot"></span> 2-6 jogadores</div>
+            <div class="players-info"><span class="info-dot"></span> 2–6 jogadores</div>
             <div class="duration-info"><span class="info-dot"></span> 90 minutos</div>
             <div class="tech-info"><span class="info-dot"></span> Conexão P2P</div>
         </div>
@@ -175,7 +176,7 @@
     </div>
 
     <!-- ============================================ -->
-    <!-- SCRIPTS -->
+    <!-- SCRIPTS                                      -->
     <!-- ============================================ -->
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
     <script src="config/game-config.js"></script>

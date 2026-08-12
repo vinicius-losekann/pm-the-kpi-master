@@ -1,36 +1,28 @@
 // ============================================
-// PM: The KPI Master - REDE (PeerJS)
+// PM: The KPI Master - Rede (PeerJS)
 // ============================================
 // Responsabilidades:
-//   - Inicializar e gerenciar conexão PeerJS
+//   - Gerenciar conexões PeerJS (inicialização, reconexão)
 //   - Enviar/receber mensagens entre jogadores
-//   - Broadcast, unicast, reconexão
-//   - Host migration (queda involuntária)
-//   - Atualização de UI para guests (eventos, vendas)
-//
-// Dependências:
-//   - PeerJS (CDN carregado no HTML)
-//   - Game.state (game-state.js)
-//   - Game (game-core.js) para handleAnswer, etc
-//   - Game (game-ui.js) para atualizar UI
-//
-// Namespace: Game.network
+//   - Broadcast, unicast, host migration
+//   - Manter a lista de jogadores e sincronizar estado
 // ============================================
 
-let myPeer = null;           // Instância PeerJS
-let connections = {};        // peerId -> DataConnection
+let myPeer = null;
+let connections = {};
 
 // ============================================
 // INICIALIZAÇÃO PEERJS
 // ============================================
 
+/**
+ * Cria uma instância PeerJS. Se for host, usa um ID fixo; se for guest, gera um ID aleatório.
+ */
 async function initPeer() {
     return new Promise((resolve, reject) => {
         const state = Game.state;
         const peerId = state.isHost ? state.hostPeerId : undefined;
 
-        // Se uma tentativa anterior falhou (ex: retry após F5 do host),
-        // garante que não sobrou um Peer "zumbi" consumindo o ID antigo.
         if (myPeer && !myPeer.destroyed) {
             try { myPeer.destroy(); } catch (e) { /* ignora */ }
         }
@@ -74,11 +66,17 @@ async function initPeer() {
 // CONEXÕES
 // ============================================
 
+/**
+ * Conecta-se ao host (usado por guests).
+ */
 function connectToHost() {
     const conn = myPeer.connect(Game.state.hostPeerId, { reliable: true });
     handleConnection(conn);
 }
 
+/**
+ * Configura os eventos de uma conexão (data, close, error).
+ */
 function handleConnection(conn) {
     const state = Game.state;
 
@@ -152,6 +150,9 @@ function sendToPlayer(peerId, data) {
 // RECEBIMENTO DE MENSAGENS
 // ============================================
 
+/**
+ * Roteia as mensagens recebidas para as funções apropriadas.
+ */
 function handleMessage(msg, fromPeerId) {
     console.log('📨 Mensagem recebida:', msg.type);
     const state = Game.state;
@@ -194,7 +195,6 @@ function handleMessage(msg, fromPeerId) {
             if (msg.hostVersion !== undefined) state.hostVersion = msg.hostVersion;
             if (msg.players) state.players = msg.players;
             if (!state.isHost) reconnectToNewHost(msg.newHostPeerId);
-            // Retoma a visualização correta caso a partida já esteja em andamento
             if (state.gameStarted && !state.gameOver) {
                 Game.ui.showScreen('game');
                 Game.ui.updatePlayersOnlineList();
@@ -222,6 +222,7 @@ function handleMessage(msg, fromPeerId) {
             state.timer = msg.timer;
             Game.core.startGame();
             break;
+
         case 'leave-match-request':
             if (state.isHost) Game.core.handleLeaveMatchRequest(msg);
             break;
@@ -230,11 +231,9 @@ function handleMessage(msg, fromPeerId) {
             Game.core.handleMatchEnded(msg);
             break;
 
-
         case 'game-over':
             Game.core.endGame(msg.ranking);
             break;
-
 
         // --- RODADA ---
         case 'round-start':
@@ -245,8 +244,6 @@ function handleMessage(msg, fromPeerId) {
                 pergunta: null,
                 respondeu: false
             };
-            // Só quem participa da rodada vê a tela de pergunta;
-            // os demais (espectadores) veem a tela de espera.
             if (state.playerName === msg.perguntador || state.playerName === msg.respondedor) {
                 Game.ui.displayRoundStart();
             } else {
@@ -255,12 +252,6 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'question':
-            // CORRIGIDO: quando o HOST é o Respondedor, sendToPlayer() despacha a
-            // mensagem para ele mesmo (mesmo processo/objeto de estado). Sem esta
-            // checagem, `state.currentRound.pergunta` — que é a cópia AUTORITATIVA
-            // usada por handleAnswer() para conferir a resposta — era sobrescrita
-            // pela versão "stripped" (correta: undefined) enviada ao Respondedor,
-            // fazendo o host errar toda pergunta em que ele mesmo era o Respondedor.
             if (!state.isHost) {
                 state.currentRound.pergunta = msg;
             }
@@ -269,12 +260,10 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'answer':
-            if (
-                state.isHost &&
+            if (state.isHost &&
                 state.currentRound &&
                 !state.currentRound.respondeu &&
-                msg.playerName === state.currentRound.respondedor
-            ) {
+                msg.playerName === state.currentRound.respondedor) {
                 Game.core.handleAnswer(msg);
             }
             break;
@@ -293,11 +282,9 @@ function handleMessage(msg, fromPeerId) {
             if (msg.players) {
                 state.players = msg.players;
             }
-
             Game.ui.showEventoModal(msg.evento);
             Game.ui.updatePlayersOnlineList();
             Game.ui.updateRankingList();
-
             const me = Game.getPlayerByName(state.playerName);
             if (me) {
                 document.getElementById('myRecursos').textContent = me.recursos;
@@ -305,6 +292,7 @@ function handleMessage(msg, fromPeerId) {
             }
             break;
 
+        // --- ASSESSORIA ---
         case 'assessoria-request':
             if (state.isHost) Game.core.handleAssessoriaRequest(msg);
             break;
@@ -326,17 +314,8 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         // --- VENDA ---
-        /*case 'venda-request':
-            if (state.isHost) {
-                Game.core.processVenda(msg.vendedorName, msg.compradorName);
-            }
-            break;
-        */
-        // --- VENDA ---
         case 'venda-offer-request':
-            if (state.isHost) {
-                Game.core.handleVendaOfertaRequest(msg);
-            }
+            if (state.isHost) Game.core.handleVendaOfertaRequest(msg);
             break;
 
         case 'venda-offer':
@@ -344,9 +323,7 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'venda-offer-response':
-            if (state.isHost) {
-                Game.core.handleVendaOfertaResponse(msg);
-            }
+            if (state.isHost) Game.core.handleVendaOfertaResponse(msg);
             break;
 
         case 'venda-rejected':
@@ -367,17 +344,11 @@ function handleMessage(msg, fromPeerId) {
             }
             Game.ui.updatePlayersOnlineList();
             Game.ui.updateRankingList();
-            // 🔧 Atualiza UI do próprio jogador se envolvido na venda
             const me2 = Game.getPlayerByName(state.playerName);
             if (me2) {
                 document.getElementById('myRecursos').textContent = me2.recursos;
                 document.getElementById('myKPI').textContent = me2.kpi;
             }
-            // CORRIGIDO: agora que confirmarVenda() em game-ui.js não fecha
-            // mais o modal de forma otimista (ver comentário lá), é aqui —
-            // na confirmação real vinda do host — que o fechamento deve
-            // acontecer de fato. Sem isso o modal de venda ficaria aberto
-            // indefinidamente após uma venda bem-sucedida.
             if (state.playerName === msg.vendedor) {
                 Game.ui.fecharVendaModal();
             }
@@ -390,6 +361,9 @@ function handleMessage(msg, fromPeerId) {
 // GERENCIAR JOGADORES (HOST)
 // ============================================
 
+/**
+ * Adiciona um jogador à sala (host). Verifica duplicidade de nome e limite.
+ */
 function addPlayer(msg, fromPeerId) {
     const state = Game.state;
 
@@ -402,9 +376,6 @@ function addPlayer(msg, fromPeerId) {
         return;
     }
 
-    // Impede que dois jogadores diferentes assumam o mesmo nome.
-    // Só tratamos como reconexão quando o peerId antigo NÃO está mais
-    // conectado (ou seja, é de fato uma queda/retomada do mesmo jogador).
     const existingIdx = state.players.findIndex(p => p.name === msg.playerName);
     if (existingIdx >= 0) {
         const existingPlayer = state.players[existingIdx];
@@ -445,12 +416,6 @@ function addPlayer(msg, fromPeerId) {
 
     const conn = connections[fromPeerId];
     if (conn && conn.open) {
-        // CORRIGIDO: nunca reenvie o gabarito (`correta`) para quem não é o
-        // Perguntador da rodada atual. Antes, `state.currentRound` era enviado
-        // sem qualquer filtro em todo state-sync (entrada/reconexão), vazando a
-        // resposta correta para o Respondedor (ou espectadores) que reconectasse
-        // no meio de uma rodada — contrariando a regra já aplicada no envio
-        // normal da pergunta em pickNewPair().
         let currentRoundForSync = state.currentRound;
         if (currentRoundForSync && currentRoundForSync.pergunta) {
             const isPerguntadorDaRodada = msg.playerName === currentRoundForSync.perguntador;
@@ -478,25 +443,11 @@ function addPlayer(msg, fromPeerId) {
     Game.saveState();
 }
 
-/*function removePlayerByPeerId(peerId) {
-    const state = Game.state;
-    state.players = state.players.filter(p => p.peerId !== peerId);
-
-    if (state.backupPeerId === peerId && state.players.length > 1) {
-        state.backupPeerId = state.players[1]?.peerId;
-    }
-
-    broadcastAll({ type: 'player-list', players: state.players });
-    Game.ui.updatePlayersList();
-    Game.ui.checkStartCondition();
-    Game.saveState();
-}*/
-// DEPOIS
+/**
+ * Remove um jogador da sala (host) e aborta a rodada se ele for participante.
+ */
 function removePlayerByPeerId(peerId) {
     const state = Game.state;
-
-    // NOVO: guarda o jogador antes de removê-lo, para poder checar se ele
-    // fazia parte da rodada atual.
     const removedPlayer = state.players.find(p => p.peerId === peerId);
     state.players = state.players.filter(p => p.peerId !== peerId);
 
@@ -508,21 +459,20 @@ function removePlayerByPeerId(peerId) {
     Game.ui.updatePlayersList();
     Game.ui.checkStartCondition();
 
-    // CORRIGIDO: uma desconexão involuntária (queda de rede, aba fechada)
-    // do Perguntador ou Respondedor da rodada em curso travava a partida
-    // indefinidamente — nada mais avançava o jogo até o timer de 90min
-    // zerar. Aplica aqui o mesmo tratamento já usado para saída voluntária
-    // (handleLeaveMatchRequest em game-core.js).
     if (removedPlayer && state.gameStarted && !state.gameOver) {
         Game.core.abortRoundIfParticipant(removedPlayer.name);
     }
 
     Game.saveState();
 }
+
 // ============================================
 // RECONEXÃO E HOST MIGRATION
 // ============================================
 
+/**
+ * Restaura o estado completo vindo do host (usado após reconexão).
+ */
 function restoreState(fullState) {
     const state = Game.state;
     state.players = fullState.players;
@@ -533,8 +483,6 @@ function restoreState(fullState) {
     if (fullState.hostVersion !== undefined) state.hostVersion = fullState.hostVersion;
 
     if (state.gameStarted) {
-        // Garante que a tela correta seja exibida após reconexão/reload,
-        // e não deixa o jogador preso visualmente no lobby.
         Game.ui.showScreen('game');
         Game.ui.updateTimerDisplay();
         Game.ui.updatePlayersOnlineList();
@@ -556,7 +504,6 @@ function restoreState(fullState) {
             const isParticipant =
                 state.playerName === state.currentRound.perguntador ||
                 state.playerName === state.currentRound.respondedor;
-
             if (isParticipant) {
                 Game.ui.displayRoundStart();
                 if (state.currentRound.pergunta) {
@@ -576,6 +523,10 @@ function restoreState(fullState) {
     Game.saveState();
 }
 
+/**
+ * Lida com a desconexão do host: tenta se tornar host (se for o backup)
+ * ou tenta reconectar ao novo host.
+ */
 function handleHostDisconnect() {
     console.warn('⚠️ Host desconectado! Aguardando...');
     Game.ui.updateConnectionStatus('error', 'Host desconectado — tentando reconectar...');
@@ -597,21 +548,13 @@ function handleHostDisconnect() {
             console.log('👑 Assumindo como novo host!');
             becomeHost();
         } else {
-            // Não sou o backup. Em vez de só esperar por uma mensagem
-            // 'host-changed' que pode nunca chegar (o backup zera as
-            // próprias conexões no exato momento em que faz o broadcast),
-            // calculo sozinho o próximo peerId de host possível e tento
-            // me conectar diretamente a ele.
             attemptReconnectToNewHost();
         }
     }, CONFIG.JOGO.HOST_TIMEOUT);
 }
 
 /**
- * Tenta se conectar diretamente ao peerId do próximo host, calculado
- * deterministicamente a partir de baseRoomPeerId + hostVersion+1.
- * Repete algumas vezes com backoff, já que o backup pode levar alguns
- * instantes para terminar de subir o próprio Peer.
+ * Tenta se conectar ao novo host (calculado deterministicamente).
  */
 function attemptReconnectToNewHost(attempt = 1) {
     const state = Game.state;
@@ -638,9 +581,6 @@ function attemptReconnectToNewHost(attempt = 1) {
         console.log('✅ Reconectado ao novo host:', candidateId);
         Game.ui.updateConnectionStatus('connected', 'Reconectado');
 
-        // handleConnection registra os handlers de data/close/error, mas seu
-        // handler de 'open' não dispara mais (o evento já ocorreu), então
-        // reenviamos o player-join manualmente aqui.
         handleConnection(conn);
         sendToHost({ type: 'player-join', playerName: state.playerName, peerId: state.peerId });
         Game.saveState();
@@ -652,8 +592,6 @@ function attemptReconnectToNewHost(attempt = 1) {
         retryOrGiveUp(attempt, MAX_ATTEMPTS);
     });
 
-    // PeerJS às vezes não dispara 'error' para um peerId inexistente
-    // dentro de um tempo razoável — força um timeout de segurança.
     setTimeout(() => {
         if (settled) return;
         settled = true;
@@ -674,13 +612,12 @@ function retryOrGiveUp(attempt, maxAttempts) {
     setTimeout(() => attemptReconnectToNewHost(attempt + 1), 2000);
 }
 
+/**
+ * Torna-se o novo host (executado pelo backup).
+ */
 function becomeHost() {
     const state = Game.state;
 
-    // ID determinístico: calculado a partir do peerId BASE da sala, não do
-    // hostPeerId atual (que já pode ter sido migrado antes). Isso permite
-    // que qualquer jogador, mesmo sem receber o broadcast abaixo, calcule
-    // o mesmo ID e tente se conectar diretamente (ver attemptReconnectToNewHost).
     const newVersion = state.hostVersion + 1;
     const newHostId = Game.computeHostPeerId(state.baseRoomPeerId, newVersion);
 
@@ -696,10 +633,6 @@ function becomeHost() {
     myPeer.on('open', (id) => {
         state.peerId = id;
 
-        // Remove tanto uma possível entrada duplicada de mim mesmo quanto,
-        // principalmente, o registro do host ANTIGO (que caiu e nunca sai
-        // sozinho da lista) — sem isso a sala fica com dois "HOST" e o
-        // ranking/contagem de jogadores ativos ficam errados para sempre.
         state.players = state.players.filter(p =>
             p.name === state.playerName || !p.isHost
         );
@@ -710,19 +643,11 @@ function becomeHost() {
         const proximoBackup = state.players.find(p => p.name !== state.playerName);
         state.backupPeerId = proximoBackup ? proximoBackup.peerId : '';
 
-        // Os demais jogadores ainda estão conectados ao antigo peerId do host
-        // (a conexão deles caiu junto com o peer antigo). Cada guest, ao
-        // perceber a queda, calcula este MESMO newHostId sozinho (via
-        // attemptReconnectToNewHost) e se conecta diretamente — não depende
-        // mais só deste broadcast. Ainda assim tentamos, útil se alguma
-        // conexão tiver sobrevivido.
         broadcastAll({ type: 'host-changed', newHostPeerId: id, hostVersion: newVersion, players: state.players });
 
         Game.ui.setupUI();
 
         if (state.gameStarted && !state.gameOver) {
-            // Retoma a partida em andamento em vez de voltar ao lobby:
-            // reinicia o motor do timer local e mantém a rodada atual.
             Game.ui.showScreen('game');
             Game.ui.updatePlayersOnlineList();
             Game.ui.updateRankingList();
@@ -741,7 +666,6 @@ function becomeHost() {
                 }
             }, 1000);
 
-            // game-network.js — becomeHost(), corrigido
             if (!state.currentRound) {
                 Game.core.pickNewPair();
             } else {
@@ -749,9 +673,6 @@ function becomeHost() {
                 if (state.currentRound.pergunta) {
                     Game.ui.displayQuestion(state.currentRound.pergunta);
                 }
-                // Rearma a rede de segurança: o timeout do host antigo morreu junto
-                // com ele. Sem isso, se o Respondedor da rodada em curso sumir após
-                // a migração, ninguém mais libera a vez até o fim dos 90 minutos.
                 Game.core.armarRespostaTimeout(state.currentRound.respondedor);
             }
         } else {
@@ -771,12 +692,12 @@ function becomeHost() {
     myPeer.on('error', (err) => {
         console.error('❌ Erro ao assumir como host:', err);
         Game.ui.updateConnectionStatus('error', 'Falha ao assumir a sala como host.');
-        // Não há um fallback automático seguro aqui (poderia gerar dois
-        // hosts concorrentes); a sessão fica marcada com erro visível para
-        // o jogador decidir recarregar a página.
     });
 }
 
+/**
+ * Reconecta a um novo host (usado após receber host-changed).
+ */
 function reconnectToNewHost(newHostPeerId) {
     Game.state.hostPeerId = newHostPeerId;
     Object.values(connections).forEach(c => c.close());
@@ -785,6 +706,9 @@ function reconnectToNewHost(newHostPeerId) {
     handleConnection(conn);
 }
 
+/**
+ * Limpa conexões e estado local (ao sair da sessão).
+ */
 function cleanup() {
     clearInterval(Game.state.timerInterval);
     if (myPeer && !myPeer.destroyed) myPeer.destroy();

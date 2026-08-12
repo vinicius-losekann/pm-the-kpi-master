@@ -1,14 +1,9 @@
 // ============================================
-// PM: The KPI Master - FERRAMENTAS DE DEBUG
+// PM: The KPI Master - Ferramentas de Debug
 // ============================================
-// Responsabilidades:
-//   - Simular jogadores e partidas para teste
-//   - Testar funções de core sem precisar de 2 pessoas
-//   - Expor estado e funções no console (F12)
-//   - Venda de recursos
-//
-// ⚠️ APENAS PARA DESENVOLVIMENTO
-// Comente a linha no game.html para produção
+// Exclusivo para desenvolvimento. Use no console (F12) para simular
+// jogadores, partidas e testar funcionalidades.
+// Comente a linha de inclusão em game.html para produção.
 // ============================================
 
 window.Game = window.Game || {};
@@ -16,7 +11,8 @@ window.Game = window.Game || {};
 window.Game.debug = {
 
     /**
-     * Cria jogadores falsos para testar sem precisar conectar
+     * Cria jogadores falsos para testar sem conectar outros dispositivos.
+     * @param {number} count – número de jogadores (máx 6)
      */
     fakePlayers(count = 3) {
         const state = Game.state;
@@ -50,7 +46,8 @@ window.Game.debug = {
     },
 
     /**
-     * Simula início de partida
+     * Simula o início de uma partida com os jogadores existentes.
+     * É necessário ter carregado as perguntas previamente.
      */
     fakeStartGame() {
         const state = Game.state;
@@ -66,19 +63,10 @@ window.Game.debug = {
         }
 
         state.gameStarted = true;
-        state.gameOver = false; // CORRIGIDO — sem isso, endGame() anterior deixava
-        // gameOver=true para sempre, e simularPartidaCompleta()
-        // não tinha como saber que precisa reiniciar do zero.
-
+        state.gameOver = false;
         state.usedRespondedorThisRound = [];
         state.timer = CONFIG.JOGO.SESSION_DURATION;
 
-        state.players.forEach(p => p.recursos = CONFIG.RECURSOS_INICIAIS);
-        // CORRIGIDO — antes só `recursos` era resetado aqui. Igual ao bug já
-        // corrigido em game-core.js/startGame(): sem resetar kpi/phase/activities,
-        // rodar uma simulação depois de outra reaproveitava KPI, fase e atividades
-        // da partida simulada anterior, quebrando a premissa de que toda
-        // partida começa do zero.
         Game.resetAllPlayers();
 
         Game.ui.showScreen('game');
@@ -89,7 +77,9 @@ window.Game.debug = {
     },
 
     /**
-     * Testa o sorteio de perguntas
+     * Testa o sorteio de perguntas, mostrando a distribuição por área.
+     * @param {number} times – número de sorteios a realizar
+     * @param {string} fase – fase para filtrar as perguntas
      */
     testSortear(times = 20, fase = 'planejamento') {
         const state = Game.state;
@@ -117,7 +107,9 @@ window.Game.debug = {
     },
 
     /**
-     * Simula N respostas para um jogador (com recursos)
+     * Simula N respostas para um jogador, avançando no KPI e fases.
+     * @param {number} count – número de respostas simuladas
+     * @param {string} playerName – nome do jogador (opcional, padrão = próprio)
      */
     testKPI(count = 5, playerName = null) {
         const state = Game.state;
@@ -173,7 +165,7 @@ window.Game.debug = {
     },
 
     /**
-     * Força um jogador a pular para uma fase específica
+     * Força um jogador a pular para uma fase específica (útil para testes).
      */
     skipToPhase(phaseId, playerName) {
         const name = playerName || Game.state.playerName;
@@ -189,11 +181,11 @@ window.Game.debug = {
     },
 
     // ============================================
-    // VENDA DE RECURSOS
+    // TESTES DE VENDA
     // ============================================
 
     /**
-     * Simula uma venda de recurso entre dois jogadores
+     * Simula uma venda entre dois jogadores (sem passar pelo host).
      */
     testVenda(vendedorName, compradorName) {
         const vendedor = Game.getPlayerByName(vendedorName);
@@ -231,7 +223,7 @@ window.Game.debug = {
     },
 
     /**
-     * Simula várias vendas automáticas
+     * Simula várias vendas automáticas entre jogadores.
      */
     testVendasAutomaticas(quantidade = 3) {
         const state = Game.state;
@@ -275,13 +267,13 @@ window.Game.debug = {
     },
 
     // ============================================
-    // SIMULAÇÃO COMPLETA (Com Vendas)
+    // SIMULAÇÃO COMPLETA DE PARTIDA
     // ============================================
 
     /**
-     * Simula uma partida completa com vendas automáticas
-     * Cada jogador avança no seu próprio ritmo
-     * Inclui vendas aleatórias durante a partida
+     * Simula uma partida completa com acertos aleatórios e vendas automáticas.
+     * @param {number} numJogadores – número de jogadores (usa os existentes ou cria)
+     * @param {number} chanceAcerto – probabilidade de acerto (0..1)
      */
     async simularPartidaCompleta(numJogadores = 3, chanceAcerto = 0.5) {
         const MAX_RODADAS = 500;
@@ -291,7 +283,6 @@ window.Game.debug = {
         console.log(`👥 Jogadores: ${numJogadores} | 🎯 Chance de acerto: ${Math.round(chanceAcerto * 100)}%`);
         console.log(`📦 Recursos iniciais: ${CONFIG.RECURSOS_INICIAIS} | ⭐ KPI por acerto: ${CONFIG.KPI.ACERTO_BASE}`);
         console.log(`💰 Valor de venda: ${CONFIG.KPI.VALOR_VENDA_RECURSO} KPI por recurso`);
-        console.log('📋 Regras: Venda de recursos entre jogadores');
         console.log('🛑 Termina quando o PRIMEIRO completar o Encerramento\n');
 
         if (Game.state.players.length < 2) {
@@ -299,10 +290,6 @@ window.Game.debug = {
             this.fakePlayers(numJogadores);
         }
 
-        // CORRIGIDO — checar só `gameStarted` não bastava, pois endGame() nunca
-        // volta esse campo para false (só seta gameOver=true). Resultado: rodar
-        // simularPartidaCompleta() uma segunda vez pulava fakeStartGame() por
-        // completo e reaproveitava KPI/fase/recursos da simulação anterior.
         if (!Game.state.gameStarted || Game.state.gameOver) {
             console.log('💡 Iniciando partida automaticamente...');
             this.fakeStartGame();
@@ -325,10 +312,10 @@ window.Game.debug = {
                 break;
             }
 
-            //const evento = Game.state.questionsData.eventos[Math.floor(Math.random() * Game.state.questionsData.eventos.length)];
-            const evento = Game.core.sortearEvento();Game.core.aplicarEfeitosEvento(evento);
+            const evento = Game.core.sortearEvento();
+            Game.core.aplicarEfeitosEvento(evento);
 
-            // Chance de venda automática a cada rodada (15%)
+            // Chance de venda automática
             if (Math.random() < 0.15 && rodada > 3) {
                 const vendedores = jogadores.filter(p => p.recursos > 1);
                 const compradores = jogadores.filter(p => p.kpi >= CONFIG.KPI.VALOR_VENDA_RECURSO);
@@ -336,7 +323,6 @@ window.Game.debug = {
                 if (vendedores.length > 0 && compradores.length > 0) {
                     const vendedor = vendedores[Math.floor(Math.random() * vendedores.length)];
                     const comprador = compradores.filter(c => c.name !== vendedor.name)[0];
-
                     if (comprador) {
                         vendedor.recursos--;
                         vendedor.kpi += CONFIG.KPI.VALOR_VENDA_RECURSO;
@@ -362,10 +348,8 @@ window.Game.debug = {
                 }
 
                 alguemRespondeu = true;
-
                 const faseAtual = Game.getFaseById(jogador.phase);
                 const pergunta = Game.core.sortearPergunta(jogador.phase);
-
                 if (!pergunta) { continue; }
 
                 const acertou = Math.random() < chanceAcerto;
@@ -476,7 +460,7 @@ window.Game.debug = {
     },
 
     /**
-     * Mostra o estado atual completo no console
+     * Exibe todo o estado atual no console.
      */
     dumpState() {
         const state = Game.state;
@@ -496,7 +480,7 @@ window.Game.debug = {
     },
 
     /**
-     * Reseta completamente o estado
+     * Reseta completamente o estado (limpa jogadores e partida).
      */
     resetAll() {
         Game.resetAllPlayers();

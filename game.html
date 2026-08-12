@@ -1,30 +1,28 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PM: The KPI Master</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PM: The KPI Master – Jogo</title>
 
     <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@500;600;700;800&display=swap"
-        rel="stylesheet">
+        rel="stylesheet"
+    />
 
     <!-- Favicon (emoji como ícone) -->
-    <link rel="icon"
-        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>" />
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css" />
 </head>
-
 <body class="page-game">
 
     <!-- ============================================ -->
-    <!-- LOBBY -->
+    <!-- LOBBY                                        -->
     <!-- ============================================ -->
     <div id="screenLobby" class="screen active">
         <div class="game-container">
@@ -78,17 +76,17 @@
                 <!-- Player waiting -->
                 <div id="playerWaiting" class="player-waiting" style="display:none;">
                     <div class="waiting-animation">
-                        <span class="waiting-dot"></span><span class="waiting-dot"></span><span
-                            class="waiting-dot"></span>
+                        <span class="waiting-dot"></span>
+                        <span class="waiting-dot"></span>
+                        <span class="waiting-dot"></span>
                     </div>
                     <p>Aguardando o host iniciar a partida...</p>
                 </div>
 
-                <!-- Ações -->
+                <!-- Ações do Lobby -->
                 <div class="lobby-actions" style="margin-top:16px; display:flex; gap:10px; justify-content:center;">
                     <button id="btnEndSession" class="btn btn-glass btn-sm"
-                        style="display:none; color:#ff4757; border-color:rgba(255,71,87,0.3);">⛔ Encerrar
-                        Sessão</button>
+                            style="display:none; color:#ff4757; border-color:rgba(255,71,87,0.3);">⛔ Encerrar Sessão</button>
                     <button id="btnLeaveSession" class="btn btn-glass btn-sm">🚪 Sair da Sessão</button>
                 </div>
             </div>
@@ -100,12 +98,14 @@
     </div>
 
     <!-- ============================================ -->
-    <!-- JOGO -->
+    <!-- JOGO                                        -->
     <!-- ============================================ -->
     <div id="screenGame" class="screen">
         <div class="game-container game-layout">
 
+            <!-- Sidebar Esquerda -->
             <aside class="sidebar sidebar-left">
+                <!-- Card do Jogador -->
                 <div class="player-card glass-card">
                     <div class="player-avatar" id="myAvatar">?</div>
                     <h3 class="player-name" id="myName">Jogador</h3>
@@ -119,48 +119,48 @@
 
                     <!-- Recursos -->
                     <div class="recursos-display"
-                        style="display:flex; align-items:center; justify-content:center; gap:6px; margin-bottom:12px;">
+                         style="display:flex; align-items:center; justify-content:center; gap:6px; margin-bottom:12px;">
                         <span style="font-size:1.2rem;">📦</span>
                         <span id="myRecursos"
-                            style="font-family:'Poppins',sans-serif; font-size:1.5rem; font-weight:800; color:#ffd700;">20</span>
-                        <span
-                            style="font-size:0.75rem; color:#a0a0b8; text-transform:uppercase; letter-spacing:1px;">Recursos</span>
+                              style="font-family:'Poppins',sans-serif; font-size:1.5rem; font-weight:800; color:#ffd700;">20</span>
+                        <span style="font-size:0.75rem; color:#a0a0b8; text-transform:uppercase; letter-spacing:1px;">Recursos</span>
                     </div>
 
-                    <!-- Fase -->
+                    <!-- Fase Atual -->
                     <div class="phase-indicator">
                         <span class="phase-icon" id="myPhaseIcon">🚀</span>
                         <span class="phase-name" id="myPhaseName">Iniciação</span>
                     </div>
 
-                    <!-- Progresso -->
+                    <!-- Progresso de Atividades -->
                     <div class="activity-progress">
-                        <div class="progress-text">Atividade <span id="myActivity">0</span>/<span
-                                id="myActivityTotal">2</span></div>
+                        <div class="progress-text">Atividade <span id="myActivity">0</span>/<span id="myActivityTotal">2</span></div>
                         <div class="progress-bar">
                             <div class="progress-fill" id="myProgressFill" style="width:0%;"></div>
                         </div>
                     </div>
                 </div>
 
+                <!-- Lista de Fases -->
                 <div class="phases-card glass-card">
                     <h4>📊 Fases</h4>
                     <div class="phases-list" id="phasesList"></div>
                 </div>
 
+                <!-- Botões de Ação -->
                 <button id="btnEndMatch" class="btn btn-glass btn-sm btn-block"
-                    style="display:none; color:#ffa502; border-color:rgba(255,165,2,0.3);">🏁 Encerrar Partida</button>
-                <button id="btnLeaveMatch" class="btn btn-glass btn-sm btn-block" style="margin-top:4px;">🚶 Sair da
-                    Partida</button>
-                <!-- Venda de Recurso (V3) -->
+                        style="display:none; color:#ffa502; border-color:rgba(255,165,2,0.3);">🏁 Encerrar Partida</button>
+                <button id="btnLeaveMatch" class="btn btn-glass btn-sm btn-block" style="margin-top:4px;">🚶 Sair da Partida</button>
                 <button id="btnVenderRecurso" class="btn btn-glass btn-sm btn-block"
-                    style="margin-top:4px; color:#ffd700; border-color:rgba(255,215,0,0.3);">
+                        style="margin-top:4px; color:#ffd700; border-color:rgba(255,215,0,0.3);">
                     💰 Vender Recurso
                 </button>
             </aside>
 
+            <!-- Área Principal -->
             <main class="main-area">
 
+                <!-- Barra Superior (Timer + Evento) -->
                 <div class="top-bar">
                     <div class="timer-card glass-card" id="timerCard">
                         <span class="timer-icon">⏱️</span>
@@ -175,14 +175,17 @@
                     </div>
                 </div>
 
+                <!-- Área da Pergunta -->
                 <div class="question-area glass-card" id="questionArea" style="display:none;">
 
+                    <!-- Informações da Rodada -->
                     <div class="round-info" id="roundInfo">
                         <span class="round-label">Rodada:</span>
                         <span class="round-detail">🗣️ <strong id="perguntadorName">---</strong> pergunta para</span>
                         <span class="round-detail">🎯 <strong id="respondedorName">---</strong></span>
                     </div>
 
+                    <!-- Badges (Área e Grupo) -->
                     <div class="question-badges">
                         <span class="badge badge-area" id="badgeArea">Área</span>
                         <span class="badge badge-group" id="badgeGrupo">Grupo</span>
@@ -190,32 +193,32 @@
 
                     <h3 class="question-text" id="questionText">Pergunta aqui...</h3>
 
-                    <!-- Respondedor -->
+                    <!-- Alternativas (Respondedor) -->
                     <div class="alternatives-grid" id="alternativesGrid" style="display:none;">
-                        <button class="alternative-btn" data-alt="a"><span class="alt-letter">A</span><span
-                                class="alt-text" id="altA">---</span></button>
-                        <button class="alternative-btn" data-alt="b"><span class="alt-letter">B</span><span
-                                class="alt-text" id="altB">---</span></button>
-                        <button class="alternative-btn" data-alt="c"><span class="alt-letter">C</span><span
-                                class="alt-text" id="altC">---</span></button>
-                        <button class="alternative-btn" data-alt="d"><span class="alt-letter">D</span><span
-                                class="alt-text" id="altD">---</span></button>
+                        <button class="alternative-btn" data-alt="a"><span class="alt-letter">A</span><span class="alt-text" id="altA">---</span></button>
+                        <button class="alternative-btn" data-alt="b"><span class="alt-letter">B</span><span class="alt-text" id="altB">---</span></button>
+                        <button class="alternative-btn" data-alt="c"><span class="alt-letter">C</span><span class="alt-text" id="altC">---</span></button>
+                        <button class="alternative-btn" data-alt="d"><span class="alt-letter">D</span><span class="alt-text" id="altD">---</span></button>
                     </div>
 
-                    <!-- Perguntador -->
+                    <!-- Alternativas (Perguntador – somente leitura) -->
                     <div class="all-alternatives" id="allAlternativesArea" style="display:none;">
                         <h4 style="margin-bottom:12px; color:#a0a0b8;">📋 Alternativas:</h4>
                         <div id="allAlternativesList" style="display:flex; flex-direction:column; gap:8px;"></div>
                     </div>
 
+                    <!-- Notificação de Papel -->
                     <div class="role-notice" id="roleNotice" style="display:none;"></div>
+
+                    <!-- Área de Assessoria -->
                     <div class="assessoria-area" id="assessoriaArea"
-                        style="display:none; margin-top:16px; text-align:center;">
+                         style="display:none; margin-top:16px; text-align:center;">
                         <button id="btnPedirAssessoria" class="btn btn-glass btn-sm">📞 Pedir Assessoria</button>
                         <div id="assessoriaStatus" style="margin-top:8px; font-size:0.85rem; color:#a0a0b8;"></div>
                     </div>
                 </div>
 
+                <!-- Área de Espectador (quando não participa da rodada) -->
                 <div class="spectator-area glass-card" id="spectatorArea">
                     <div class="spectator-content">
                         <span class="spectator-icon">⏳</span>
@@ -225,6 +228,7 @@
 
             </main>
 
+            <!-- Sidebar Direita (Ranking e Jogadores) -->
             <aside class="sidebar sidebar-right">
                 <div class="ranking-card glass-card">
                     <h4>🏆 Ranking</h4>
@@ -239,7 +243,7 @@
     </div>
 
     <!-- ============================================ -->
-    <!-- FIM DE JOGO -->
+    <!-- FIM DE JOGO                                 -->
     <!-- ============================================ -->
     <div id="screenGameOver" class="screen">
         <div class="game-container">
@@ -254,20 +258,24 @@
     </div>
 
     <!-- ============================================ -->
-    <!-- MODAL EVENTO -->
+    <!-- MODAIS                                       -->
     <!-- ============================================ -->
+
+    <!-- Modal de Evento -->
     <div id="modalEvento" class="modal" style="display:none;">
         <div class="modal-overlay"></div>
         <div class="modal-card glass-card"
-            style="text-align:center; border-color: #ffd700; box-shadow: 0 0 40px rgba(255,215,0,0.4); max-width: 420px;">
+             style="text-align:center; border-color: #ffd700; box-shadow: 0 0 40px rgba(255,215,0,0.4); max-width: 420px;">
             <span style="font-size:3rem; display:block; margin-bottom:8px;">📋</span>
             <h2 id="eventoModalTitulo" style="color:#ffd700; margin:8px 0; font-size:1.3rem;">Evento</h2>
             <p id="eventoModalDesc" style="color:#e0e0e0; font-size:1rem; margin-bottom:20px; line-height:1.5;">
-                Descrição do evento</p>
+                Descrição do evento
+            </p>
             <button id="btnFecharEvento" class="btn btn-primary btn-lg" style="min-width:140px;">✕ Fechar</button>
         </div>
     </div>
-    <!-- MODAL VENDA -->
+
+    <!-- Modal de Venda (visão do vendedor) -->
     <div id="modalVenda" class="modal" style="display:none;">
         <div class="modal-overlay"></div>
         <div class="modal-card glass-card" style="max-width:420px; text-align:center;">
@@ -280,29 +288,29 @@
                 Seus recursos: 📦 10
             </p>
             <div id="vendaCompradores" style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
-                <!-- Lista de compradores preenchida dinamicamente -->
+                <!-- Lista preenchida dinamicamente -->
             </div>
             <button id="btnFecharVenda" class="btn btn-glass">✕ Cancelar</button>
         </div>
     </div>
-    <!-- MODAL OFERTA DE VENDA (visão do comprador) -->
-     <div id="modalVendaOferta" class="modal" style="display:none;">
-         <div class="modal-overlay"></div>
-         <div class="modal-card glass-card" style="max-width:420px; text-align:center;">
-             <span style="font-size:2rem;">💰</span>
-             <h2 style="color:#ffd700; margin:8px 0;">Oferta de Compra</h2>
-             <p style="color:#e0e0e0; margin-bottom:16px;" id="vendaOfertaTexto">
-                 Jogador oferece 1📦 por 10 KPI
-                 </p>
-             <div style="display:flex; gap:10px; justify-content:center;">
-                 <button id="btnAceitarVendaOferta" class="btn btn-primary">✅ Aceitar</button>
-                 <button id="btnRecusarVendaOferta" class="btn btn-glass">❌ Recusar</button>
-                 </div>
-             </div>
-         </div>
-    <!-- ============================================ -->
-    <!-- MODAL RESULTADO -->
-    <!-- ============================================ -->
+
+    <!-- Modal de Oferta de Venda (visão do comprador) -->
+    <div id="modalVendaOferta" class="modal" style="display:none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-card glass-card" style="max-width:420px; text-align:center;">
+            <span style="font-size:2rem;">💰</span>
+            <h2 style="color:#ffd700; margin:8px 0;">Oferta de Compra</h2>
+            <p style="color:#e0e0e0; margin-bottom:16px;" id="vendaOfertaTexto">
+                Jogador oferece 1📦 por 10 KPI
+            </p>
+            <div style="display:flex; gap:10px; justify-content:center;">
+                <button id="btnAceitarVendaOferta" class="btn btn-primary">✅ Aceitar</button>
+                <button id="btnRecusarVendaOferta" class="btn btn-glass">❌ Recusar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Resultado (acerto/erro) -->
     <div id="modalResult" class="modal" style="display:none;">
         <div class="modal-overlay"></div>
         <div class="modal-card glass-card">
@@ -311,7 +319,8 @@
             <button id="btnCloseResult" class="btn btn-primary">OK</button>
         </div>
     </div>
-    <!-- MODAL SELEÇÃO DE ASSESSOR -->
+
+    <!-- Modal de Seleção de Assessor -->
     <div id="modalAssessoriaSelect" class="modal" style="display:none;">
         <div class="modal-overlay"></div>
         <div class="modal-card glass-card" style="max-width:420px; text-align:center;">
@@ -319,12 +328,13 @@
             <h2 style="color:#00d9ff; margin:8px 0;">Pedir Assessoria</h2>
             <p style="color:#a0a0b8; margin-bottom:12px;">Escolha um jogador para consultar:</p>
             <div id="assessoriaJogadoresList" style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+                <!-- Lista preenchida dinamicamente -->
             </div>
             <button id="btnFecharAssessoriaSelect" class="btn btn-glass">✕ Cancelar</button>
         </div>
     </div>
 
-    <!-- MODAL PERGUNTA DE ASSESSORIA -->
+    <!-- Modal de Pergunta para o Assessor -->
     <div id="modalAssessoriaQuestion" class="modal" style="display:none;">
         <div class="modal-overlay"></div>
         <div class="modal-card glass-card" style="max-width:480px; text-align:center;">
@@ -333,13 +343,16 @@
             <p style="color:#a0a0b8; margin-bottom:8px;" id="assessoriaTimerText">⏱️ 20s</p>
             <p style="color:#e0e0e0; margin-bottom:16px;" id="assessoriaQuestionText">Pergunta...</p>
             <div id="assessoriaAlternativesList"
-                style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;"></div>
+                 style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+                <!-- Lista de alternativas preenchida dinamicamente -->
+            </div>
             <button id="btnRecusarAssessoria" class="btn btn-glass"
-                style="color:#ff4757; border-color:rgba(255,71,87,0.3);">❌ Recusar</button>
+                    style="color:#ff4757; border-color:rgba(255,71,87,0.3);">❌ Recusar</button>
         </div>
     </div>
+
     <!-- ============================================ -->
-    <!-- SCRIPTS (ordem importa!) -->
+    <!-- SCRIPTS (ordem importa!)                    -->
     <!-- ============================================ -->
 
     <!-- 1. Dependências externas -->
@@ -354,12 +367,11 @@
     <script src="js/game-core.js"></script>
     <script src="js/game-ui.js"></script>
 
-    <!-- 4. Debug (comentar no GitHub) -->
+    <!-- 4. Debug (comentar para produção) -->
     <!-- <script src="js/game-debug.js"></script> -->
 
     <!-- 5. Orquestrador (sempre por último) -->
     <script src="js/game-main.js"></script>
 
 </body>
-
 </html>

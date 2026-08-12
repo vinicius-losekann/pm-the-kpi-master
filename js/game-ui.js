@@ -1,16 +1,11 @@
 // ============================================
-// PM: The KPI Master - INTERFACE DO USUÁRIO
+// PM: The KPI Master - Interface do Usuário
 // ============================================
 // Responsabilidades:
 //   - Configurar event listeners (setupUI)
-//   - Navegar entre telas (lobby, jogo, gameover)
-//   - Renderizar perguntas, alternativas, ranking
-//   - Atualizar timer, lista de jogadores, KPI
-//   - Mostrar recursos 
-//   - Modal de evento
-//   - Exibir modais e mensagens
-//
-// Namespace: Game.ui
+//   - Navegação entre telas (lobby, jogo, gameover)
+//   - Renderizar perguntas, alternativas, ranking, timer
+//   - Exibir modais (evento, venda, assessoria, resultado)
 // ============================================
 
 const DOM = {
@@ -21,48 +16,18 @@ const DOM = {
     modalEvento: document.getElementById('modalEvento'),
 };
 
-// ============================================
-// SETUP INICIAL
-// ============================================
-
-// Guards contra listeners duplicados. setupUI() é chamado mais de uma vez
-// na vida da página sempre que um guest assume como host no meio da
-// partida (becomeHost() chama Game.ui.setupUI() de novo para religar a UI
-// de host). Sem esses guards, cada clique em botões como "Sair", "Iniciar
-// Partida" ou nas alternativas de resposta disparava a ação múltiplas
-// vezes (confirm()/alert() duplicados, broadcasts em dobro, etc).
 let commonListenersBound = false;
 let hostOnlyListenersBound = false;
 let ofertaVendaAtual = null;
 
-/** Exibe ao comprador a oferta recebida de outro jogador. */
-function showVendaOfertaModal(msg) {
-    ofertaVendaAtual = msg;
-    document.getElementById('vendaOfertaTexto').innerHTML =
-        `<strong>${msg.vendedorName}</strong> oferece 1📦 por <strong style="color:#ffd700;">${msg.valor} KPI</strong>`;
-    document.getElementById('modalVendaOferta').style.display = 'flex';
-}
+// ============================================
+// SETUP INICIAL
+// ============================================
 
-/** Envia a resposta do comprador (aceite/recusa) ao host. */
-function responderOfertaVenda(aceito) {
-    document.getElementById('modalVendaOferta').style.display = 'none';
-    if (!ofertaVendaAtual) return;
-
-    const msg = {
-        type: 'venda-offer-response',
-        vendedorName: ofertaVendaAtual.vendedorName,
-        compradorName: ofertaVendaAtual.compradorName,
-        aceito: !!aceito
-    };
-
-    if (Game.state.isHost) {
-        Game.core.handleVendaOfertaResponse(msg);
-    } else {
-        Game.network.sendToHost(msg);
-    }
-    ofertaVendaAtual = null;
-}
-
+/**
+ * Configura todos os listeners da UI. É chamada uma vez na inicialização
+ * e novamente quando um guest se torna host (para ativar controles de host).
+ */
 function setupUI() {
     const state = Game.state;
 
@@ -90,18 +55,9 @@ function setupUI() {
         }
         updatePlayersList();
 
-        // Só liga uma vez: este bloco roda de novo quando um guest vira
-        // host no meio da partida (primeira vez que ELE precisa desses
-        // listeners), mas nunca deve religar para quem já era host.
         if (!hostOnlyListenersBound) {
             document.getElementById('btnStartGame').addEventListener('click', () => {
-                // NOVO: garante que o timer enviado no broadcast (e usado
-                // localmente pelo host) seja sempre o tempo cheio da sessão —
-                // sem isso, reiniciar uma partida após uma anterior ter
-                // terminado antes do tempo esgotar propagava um timer quase
-                // zerado para todos os jogadores.
                 Game.state.timer = CONFIG.JOGO.SESSION_DURATION;
-
                 Game.network.broadcastAll({ type: 'game-start', timer: Game.state.timer });
                 Game.core.startGame();
             });
@@ -111,7 +67,7 @@ function setupUI() {
                     const btn = document.getElementById('btnCopyId');
                     btn.textContent = '✅ Copiado!';
                     setTimeout(() => { btn.textContent = '📋 Copiar'; }, 2000);
-                }).catch(() => { });
+                }).catch(() => {});
             });
 
             hostOnlyListenersBound = true;
@@ -126,11 +82,9 @@ function setupUI() {
         document.getElementById('btnLeaveMatch').style.display = 'block';
     }
 
-    // Os listeners abaixo existem independente do papel (host/guest) e não
-    // precisam ser religados quando o papel muda — só a primeira vez.
     if (commonListenersBound) return;
 
-    // Botões de sessão/partida
+    // Listeners comuns (host e guest)
     document.getElementById('btnEndSession').addEventListener('click', Game.core.endSession);
     document.getElementById('btnEndMatch').addEventListener('click', Game.core.endMatch);
     document.getElementById('btnLeaveSession').addEventListener('click', Game.core.leaveSession);
@@ -139,19 +93,7 @@ function setupUI() {
         Game.network.cleanup();
         window.location.href = 'index.html';
     });
-    /*document.getElementById('btnBackToLobby').addEventListener('click', () => {
-        showScreen('lobby');
-        showLobbyNormal();
-        updatePlayersList();
-        Game.saveState();
-    });*/
     document.getElementById('btnBackToLobby').addEventListener('click', () => {
-        // NOVO: sem isso, 'gameStarted'/'gameOver' continuavam true após o
-        // fim natural de uma partida, e o baralho de perguntas usadas não
-        // era resetado neste fluxo (só era resetado em "Encerrar Partida").
-        // A correção em startGame() já reseta KPI/fase/atividades/timer,
-        // mas manter esses campos de estado coerentes evita comportamentos
-        // estranhos na tela de lobby entre uma partida e outra.
         Game.state.gameStarted = false;
         Game.state.gameOver = false;
         Game.state.currentRound = null;
@@ -166,40 +108,40 @@ function setupUI() {
         DOM.modalResult.style.display = 'none';
     });
 
-    // Modal de evento
     document.getElementById('btnFecharEvento').addEventListener('click', () => {
         DOM.modalEvento.style.display = 'none';
     });
 
-    // Alternativas clicáveis
     document.querySelectorAll('.alternative-btn').forEach(btn => {
         btn.addEventListener('click', function () {
             handleAlternativeClick(this.getAttribute('data-alt'), this);
         });
     });
-    // Venda de recurso
+
     document.getElementById('btnVenderRecurso').addEventListener('click', () => {
         Game.ui.showVendaModal();
     });
-    // CORRIGIDO: listener estava comentado — o botão "✕ Cancelar" do modal
-    // de Venda de Recurso não fazia nada, deixando o jogador preso na tela
-    // até a venda ser confirmada/rejeitada pelo host.
+
     document.getElementById('btnFecharVenda').addEventListener('click', () => {
         Game.ui.fecharVendaModal();
     });
+
     document.getElementById('btnAceitarVendaOferta').addEventListener('click', () => {
         Game.ui.responderOfertaVenda(true);
     });
+
     document.getElementById('btnRecusarVendaOferta').addEventListener('click', () => {
         Game.ui.responderOfertaVenda(false);
-    });    
-    // Assessoria
+    });
+
     document.getElementById('btnPedirAssessoria').addEventListener('click', () => {
         Game.ui.showAssessoriaSelectModal();
     });
+
     document.getElementById('btnFecharAssessoriaSelect').addEventListener('click', () => {
         document.getElementById('modalAssessoriaSelect').style.display = 'none';
     });
+
     document.getElementById('btnRecusarAssessoria').addEventListener('click', () => {
         Game.ui.responderAssessoria(null, true);
     });
@@ -211,10 +153,6 @@ function setupUI() {
 // MODAL DE EVENTO
 // ============================================
 
-/**
- * Exibe o modal de evento para todos os jogadores
- * @param {object} evento - Dados do evento sorteado
- */
 function showEventoModal(evento) {
     if (!evento) return;
     document.getElementById('eventoModalTitulo').textContent = evento.titulo;
@@ -227,9 +165,6 @@ function showEventoModal(evento) {
 // ============================================
 
 function showScreen(screen) {
-    // Garante que nenhum modal (evento, venda, assessoria, resultado) fique
-    // visível "por cima" ao trocar de tela — ex.: jogador clica em
-    // Sair/Encerrar com o modal de evento ainda aberto na tela.
     closeAllModals();
 
     DOM.screenLobby.classList.remove('active');
@@ -243,7 +178,6 @@ function showScreen(screen) {
     }
 }
 
-/** Fecha todos os modais do jogo. */
 function closeAllModals() {
     ['modalResult', 'modalEvento', 'modalVenda', 'modalVendaOferta',
      'modalAssessoriaSelect', 'modalAssessoriaQuestion'].forEach(id => {
@@ -365,7 +299,7 @@ function displayRoundStart() {
         document.getElementById('eventCard').style.display = 'none';
     }
 
-    // Reseta UI de assessoria a cada nova rodada
+    // Reseta UI de assessoria
     document.getElementById('modalAssessoriaSelect').style.display = 'none';
     document.getElementById('modalAssessoriaQuestion').style.display = 'none';
     const assessoriaArea = document.getElementById('assessoriaArea');
@@ -390,9 +324,6 @@ function displayQuestion(q) {
         document.getElementById('altC').textContent = q.alternativas[2];
         document.getElementById('altD').textContent = q.alternativas[3];
 
-        // Reflete o estado real da rodada em vez de sempre habilitar —
-        // relevante após reload (F5) ou reconexão, quando a rodada já pode
-        // ter sido respondida ou ter uma assessoria em andamento.
         const round = Game.state.currentRound;
         const jaRespondeu = !!round?.respondeu;
         const assessoriaPendente = round?.assessoria?.status === 'pending';
@@ -401,7 +332,6 @@ function displayQuestion(q) {
             b.className = 'alternative-btn';
         });
 
-        // Botão de Assessoria — oculto na fase de Encerramento
         const me = Game.getPlayerByName(Game.state.playerName);
         const emEncerramento = me && Game.getFaseIndex(me.phase) === CONFIG.FASES.length - 1;
         const semAssessorDisponivel = Game.getActivePlayers().length < 3;
@@ -413,8 +343,6 @@ function displayQuestion(q) {
                 assessoriaArea.style.display = 'block';
             }
 
-            // Reconstrói o status de assessoria (pedido já feito, aceito,
-            // recusado etc.) em vez de assumir que nenhum pedido existe.
             if (round?.assessoria) {
                 document.getElementById('btnPedirAssessoria').disabled = true;
                 const st = round.assessoria;
@@ -443,8 +371,6 @@ function displayQuestion(q) {
             return `<div style="padding:12px 16px; background:${isCorrect ? 'rgba(0,255,136,0.12)' : 'rgba(255,255,255,0.03)'}; border:2px solid ${isCorrect ? 'rgba(0,255,136,0.4)' : 'rgba(255,255,255,0.08)'}; border-radius:10px; color:${isCorrect ? '#00ff88' : '#e0e0e0'}; font-size:0.9rem; ${isCorrect ? 'font-weight:600;' : ''}">${isCorrect ? '✅ ' : ''}${alt}</div>`;
         }).join('');
 
-        // Perguntador é somente leitura: garante que a área de assessoria
-        // (exclusiva do Respondedor) fique escondida na tela dele.
         const assessoriaAreaPerg = document.getElementById('assessoriaArea');
         if (assessoriaAreaPerg) assessoriaAreaPerg.style.display = 'none';
     }
@@ -497,10 +423,6 @@ function updatePlayersOnlineList() {
 }
 
 function updateRankingList() {
-    // O ranking exibido durante a partida reflete apenas jogadores ativos,
-    // consistente com a lista de "Jogadores" (updatePlayersOnlineList).
-    // Jogadores que saíram da partida (waitingInLobby) só reaparecem no
-    // ranking final de fim de jogo (displayFinalRanking).
     const ranking = Game.core.buildRanking().filter(p => !p.waitingInLobby);
     const medalhas = ['🥇', '🥈', '🥉'];
     document.getElementById('rankingList').innerHTML = ranking.map((p, i) => `
@@ -511,7 +433,6 @@ function updateRankingList() {
 function displayFinalRanking(ranking) {
     const medalhas = ['🥇', '🥈', '🥉'];
     const formula = document.getElementById('kpiFinalFormula');
-
     if (formula) {
         formula.textContent =
             `KPI Final = KPI acumulado + (Recursos restantes × ${CONFIG.KPI.VALOR_RECURSO_FINAL})`;
@@ -531,9 +452,6 @@ function displayFinalRanking(ranking) {
 // VENDA DE RECURSOS
 // ============================================
 
-/**
- * Abre o modal de venda de recursos
- */
 function showVendaModal() {
     const state = Game.state;
     const me = Game.getPlayerByName(state.playerName);
@@ -544,20 +462,15 @@ function showVendaModal() {
     }
 
     const compradores = Game.core.getCompradores();
-
     if (compradores.length === 0) {
         alert('⚠️ Nenhum jogador disponível para comprar (precisa ter pelo menos ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI).');
         return;
     }
-    // NOVO: mantém o preço exibido sempre em sincronia com CONFIG,
-    // em vez de depender de um valor fixo escrito no HTML.
-    document.getElementById('vendaValorKPI').textContent = CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI';
 
-    // Atualiza informações
+    document.getElementById('vendaValorKPI').textContent = CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI';
     document.getElementById('vendaSeusRecursos').textContent =
         'Seus recursos: 📦 ' + me.recursos;
 
-    // Lista de compradores
     document.getElementById('vendaCompradores').innerHTML = compradores.map(c => `
         <button class="btn btn-glass" onclick="Game.ui.confirmarVenda('${c.name}')" 
                 style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px;">
@@ -569,40 +482,51 @@ function showVendaModal() {
     document.getElementById('modalVenda').style.display = 'flex';
 }
 
-/**
- * Confirma a venda para um comprador.
- *
- * CORRIGIDO: o modal NÃO é mais fechado aqui de forma otimista — o próprio
- * comentário original já dizia que o fechamento deveria vir só via
- * broadcast ('venda-confirmed') ou rejeição ('venda-rejected'), processados
- * em game-network.js, mas uma linha residual de um refactor anterior ainda
- * fechava o modal imediatamente após o clique, contradizendo essa intenção.
- * Deixamos só um estado de "processando" para dar feedback sem esconder
- * uma possível rejeição do host.
- */
 function confirmarVenda(compradorName) {
-    // if (confirm('Vender 1📦 para ' + compradorName + ' por ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI?')) {
     if (confirm('Enviar oferta de venda de 1📦 para ' + compradorName + ' por ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI?')) {
         Game.core.venderRecurso(compradorName);
-
-        // Feedback não-destrutivo: desabilita os botões e avisa que está
-        // aguardando confirmação do host, mas mantém o modal aberto até
-        // que 'venda-confirmed' (fecha e atualiza UI) ou 'venda-rejected'
-        // (alerta o motivo) cheguem via game-network.js.
         document.querySelectorAll('#vendaCompradores button').forEach(b => b.disabled = true);
         const seusRecursosEl = document.getElementById('vendaSeusRecursos');
         if (seusRecursosEl) {
-            //seusRecursosEl.textContent = '🔄 Processando venda...';
             seusRecursosEl.textContent = '🔄 Aguardando ' + compradorName + ' aceitar a oferta...';
         }
     }
 }
 
-/**
- * Fecha o modal de venda
- */
 function fecharVendaModal() {
     document.getElementById('modalVenda').style.display = 'none';
+}
+
+/**
+ * Exibe ao comprador a oferta recebida de outro jogador.
+ */
+function showVendaOfertaModal(msg) {
+    ofertaVendaAtual = msg;
+    document.getElementById('vendaOfertaTexto').innerHTML =
+        `<strong>${msg.vendedorName}</strong> oferece 1📦 por <strong style="color:#ffd700;">${msg.valor} KPI</strong>`;
+    document.getElementById('modalVendaOferta').style.display = 'flex';
+}
+
+/**
+ * Envia a resposta do comprador (aceite/recusa) ao host.
+ */
+function responderOfertaVenda(aceito) {
+    document.getElementById('modalVendaOferta').style.display = 'none';
+    if (!ofertaVendaAtual) return;
+
+    const msg = {
+        type: 'venda-offer-response',
+        vendedorName: ofertaVendaAtual.vendedorName,
+        compradorName: ofertaVendaAtual.compradorName,
+        aceito: !!aceito
+    };
+
+    if (Game.state.isHost) {
+        Game.core.handleVendaOfertaResponse(msg);
+    } else {
+        Game.network.sendToHost(msg);
+    }
+    ofertaVendaAtual = null;
 }
 
 // ============================================
@@ -611,9 +535,6 @@ function fecharVendaModal() {
 
 let assessoriaCountdownInterval = null;
 
-/**
- * Abre o modal de seleção de assessor (visão do Respondedor)
- */
 function showAssessoriaSelectModal() {
     const state = Game.state;
     const round = state.currentRound;
@@ -639,27 +560,14 @@ function showAssessoriaSelectModal() {
     document.getElementById('modalAssessoriaSelect').style.display = 'flex';
 }
 
-/**
- * Confirma a escolha do assessor e envia o pedido
- */
 function escolherAssessor(assessorName) {
     document.getElementById('modalAssessoriaSelect').style.display = 'none';
     const ok = Game.core.requestAssessoria(assessorName);
     if (ok) {
         document.getElementById('btnPedirAssessoria').disabled = true;
         document.getElementById('assessoriaStatus').textContent = `📞 Aguardando resposta de ${assessorName}...`;
-        // Evita clicar em uma alternativa enquanto a assessoria está pendente
         document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = true);
 
-        // CORRIGIDO: registra a assessoria também no estado local (não só
-        // no host), incluindo quando o próprio jogador é o host. Antes,
-        // 'currentRound.assessoria' só era populado no objeto de estado do
-        // host dentro de handleAssessoriaRequest(); nos clientes (guests)
-        // esse campo nunca era setado localmente ao pedir — só o texto na
-        // tela mudava. Isso quebrava o guard local em requestAssessoria()
-        // (`state.currentRound.assessoria` nunca bloqueava um 2º pedido no
-        // client) e a reconstrução de estado em displayQuestion() após F5,
-        // reconexão ou migração de host durante uma assessoria pendente.
         if (Game.state.currentRound) {
             Game.state.currentRound.assessoria = {
                 assessorName,
@@ -670,20 +578,12 @@ function escolherAssessor(assessorName) {
     }
 }
 
-/**
- * Notifica o Respondedor que o pedido foi iniciado (broadcast do host)
- */
 function showAssessoriaStarted(msg) {
     const state = Game.state;
     if (state.playerName === state.currentRound?.respondedor) {
         document.getElementById('btnPedirAssessoria').disabled = true;
         document.getElementById('assessoriaStatus').textContent = `📞 Aguardando resposta de ${msg.assessorName}...`;
 
-        // CORRIGIDO: mesma razão do bloco em escolherAssessor() — mantém o
-        // estado local coerente com o que o host já tem, para que reload,
-        // reconexão ou migração de host durante o pedido reconstruam a UI
-        // corretamente a partir de state.currentRound.assessoria em vez de
-        // assumir que nenhum pedido existe.
         if (state.currentRound) {
             state.currentRound.assessoria = {
                 assessorName: msg.assessorName,
@@ -694,9 +594,6 @@ function showAssessoriaStarted(msg) {
     }
 }
 
-/**
- * Exibe o modal de pergunta para o jogador chamado como assessor
- */
 function showAssessoriaQuestionModal(msg) {
     document.getElementById('assessoriaQuestionText').textContent = msg.pergunta;
     document.getElementById('assessoriaAlternativesList').innerHTML = msg.alternativas.map(alt => {
@@ -721,9 +618,6 @@ function showAssessoriaQuestionModal(msg) {
     document.getElementById('modalAssessoriaQuestion').style.display = 'flex';
 }
 
-/**
- * Envia a sugestão (ou recusa) do assessor ao host
- */
 function responderAssessoria(alternativa, recusado) {
     clearInterval(assessoriaCountdownInterval);
     document.getElementById('modalAssessoriaQuestion').style.display = 'none';
@@ -738,9 +632,6 @@ function responderAssessoria(alternativa, recusado) {
     }
 }
 
-/**
- * Mostra o resultado da assessoria na tela do Respondedor
- */
 function showAssessoriaResult(msg) {
     const state = Game.state;
     if (state.playerName !== state.currentRound?.respondedor) return;
@@ -748,10 +639,6 @@ function showAssessoriaResult(msg) {
     const statusEl = document.getElementById('assessoriaStatus');
     if (!statusEl) return;
 
-    // CORRIGIDO: sincroniza o estado local (status/sugestão) com o
-    // resultado vindo do host, pela mesma razão dos blocos acima —
-    // sem isso, `state.currentRound.assessoria` ficava com status
-    // 'pending' para sempre no client, mesmo após a resolução real.
     if (state.currentRound?.assessoria) {
         state.currentRound.assessoria.status = msg.recusado ? 'declined' : 'accepted';
         state.currentRound.assessoria.sugestao = msg.recusado ? null : msg.sugestao;
@@ -759,9 +646,6 @@ function showAssessoriaResult(msg) {
 
     if (msg.recusado) {
         if (msg.invalido && msg.motivo === 'fase-encerramento') {
-            // NOVO: mensagem específica quando o host rejeita o pedido por
-            // o Respondedor estar na fase de Encerramento (regra validada
-            // no host, não só no cliente — ver handleAssessoriaRequest).
             statusEl.textContent = '⚠️ Jogadores na fase de Encerramento não podem pedir assessoria.';
         } else if (msg.invalido) {
             statusEl.textContent = `⚠️ Não foi possível chamar ${msg.assessorName}. Escolha uma alternativa.`;
@@ -774,33 +658,20 @@ function showAssessoriaResult(msg) {
         statusEl.textContent = `🧭 ${msg.assessorName} sugere: ${msg.sugestao.toUpperCase()}`;
     }
 
-    // Reabilita as alternativas agora que a assessoria foi resolvida
-    // (só se ainda não houver resposta enviada nesta rodada)
     if (!state.currentRound.respondeu) {
         document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = false);
     }
 
-    // Se o pedido foi rejeitado por regra (fase de Encerramento ou assessor
-    // inválido), o botão de pedir assessoria continua desabilitado só se
-    // a partida ainda impedir novo pedido; caso contrário, reabilita para
-    // permitir tentar novamente com outro jogador.
     if (msg.invalido && msg.motivo !== 'fase-encerramento') {
         const btnPedir = document.getElementById('btnPedirAssessoria');
         if (btnPedir && !state.currentRound.respondeu) btnPedir.disabled = false;
 
-        // CORRIGIDO: se o pedido foi invalidado (ex.: assessor saiu da
-        // partida), limpa o registro local para permitir um novo pedido
-        // nesta mesma rodada — sem isso o guard local em
-        // requestAssessoria() bloquearia indevidamente uma nova tentativa.
         if (state.currentRound) {
             state.currentRound.assessoria = null;
         }
     }
 }
 
-/**
- * Modal simples de bônus de KPI para o assessor
- */
 function showAssessoriaBonusModal(bonus) {
     document.getElementById('resultTitle').textContent = '🧭 Assessoria!';
     document.getElementById('resultTitle').className = 'result-title result-success';

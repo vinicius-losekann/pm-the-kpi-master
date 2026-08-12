@@ -1,9 +1,2 @@
-- evento neutro (evento neutro deve ser + 50% das ocorrências) - feito
-- Vender Recursos não está funcionando corretamente. O comprador deve aceitar a compra de recurso. - feito
-- Eliminar modal de eventos quando jogador clica em sair (tratar melhor esta situação) - feito
-- Assessoria deve permitir para o host tambem. - pedente (não fazer por enquanto)
-- Garantir que todos os jogadores do jogo respondam ao menos uma vez antes que algum jogador responda novamente - feito
-  (jogadores sem recursos agora são marcados como "turno usado" em pickNewPair())
-- README.md desatualizado quanto ao número de eventos (5 → 6, evento neutro e6 não documentado) - feito
-- Botão "✕ Cancelar" do modal de Venda de Recurso (btnFecharVenda) sem funcionalidade - feito
-- Caracteres "+" de diff vazando como texto visível no game.html (bloco #modalVendaOferta) - feito
+- Assessoria deve permitir para o host tambem. - pendente (não fazer por enquanto)
+- adicionar o timer de resposta para o jogador veja seu tempo
