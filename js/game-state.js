@@ -87,4 +87,4 @@ window.Game.getPlayerByName = getPlayerByName;
 window.Game.getActivePlayers = getActivePlayers;
 window.Game.resetAllPlayers = resetAllPlayers;
 window.Game.resetGameState = resetGameState;
-window.Game.computeHostPeerId = computeHostPeerId;*/
+window.Game.computeHostPeerId = computeHostPeerId;
