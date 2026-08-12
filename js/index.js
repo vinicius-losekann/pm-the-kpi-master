@@ -1,5 +1,7 @@
 // ============================================
-// PM: The KPI Master - Index Script
+// PM: The KPI Master - Index Script (Entrada)
+// ============================================
+// Gerencia a criação e entrada em salas via PeerJS.
 // ============================================
 
 console.log('[INDEX] Inicializando...');
@@ -35,7 +37,6 @@ const btnJoinRoom = document.getElementById('btnJoinRoom');
 const btnBackFromJoin = document.getElementById('btnBackFromJoin');
 const joinFeedback = document.getElementById('joinFeedback');
 
-// --- Estado ---
 let createdRoomFullId = '';
 let createdPlayerNameValue = '';
 
