@@ -61,6 +61,16 @@ const gameState = {
     // venda pendente simultaneamente (uma por vendedor), então cada uma
     // tem seu próprio timeout independente.
     vendaOfertaTimeouts: {},
+
+    // BUGFIX (perda de progresso ao reconectar): quando a conexão de um
+    // guest cai (queda de rede, F5), o HOST não remove mais o jogador
+    // imediatamente de `players` — em vez disso marca `disconnected: true`
+    // e concede um período de graça (ver armarDisconnectTimeout em
+    // game-network.js) para ele reconectar sem perder KPI/fase/recursos.
+    // disconnectTimeouts guarda, por NOME de jogador (não por peerId — o
+    // guest recebe um peerId novo a cada reconexão), o timeout que
+    // efetivamente o remove da sala caso ele não volte a tempo.
+    disconnectTimeouts: {},
 };
 
 // --- Helpers ---
@@ -77,8 +87,16 @@ function getPlayerByName(name) {
     return gameState.players.find(p => p.name === name);
 }
 
+/**
+ * BUGFIX: passa a excluir também jogadores marcados como `disconnected`
+ * (ver disconnectTimeouts acima). Durante o período de graça de
+ * reconexão, o jogador continua em `gameState.players` (para não perder
+ * KPI/fase/recursos), mas não deve ser elegível para sorteio de
+ * perguntador/respondedor, assessor, comprador, nem contar para o mínimo
+ * de jogadores — exatamente o mesmo tratamento já dado a waitingInLobby.
+ */
 function getActivePlayers() {
-    return gameState.players.filter(p => !p.waitingInLobby);
+    return gameState.players.filter(p => !p.waitingInLobby && !p.disconnected);
 }
 
 function resetAllPlayers() {

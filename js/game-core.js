@@ -715,6 +715,7 @@ function handleAssessoriaRequest(msg, fromPeerId) {
     const invalido =
         !assessor ||
         assessor.waitingInLobby ||
+        assessor.disconnected ||
         requesterEmEncerramento ||
         msg.assessorName === state.currentRound.perguntador ||
         msg.assessorName === state.currentRound.respondedor;
@@ -910,6 +911,14 @@ function endGame(ranking) {
     // do jogo já ter terminado.
     Object.values(state.vendaOfertaTimeouts || {}).forEach(t => clearTimeout(t));
     state.vendaOfertaTimeouts = {};
+
+    // BUGFIX: antes, só o TIMEOUT da oferta era limpo acima — a entrada em
+    // si ficava em pendingVendaOfertas. Se o host voltasse ao lobby
+    // ("Voltar ao Lobby") e iniciasse uma nova partida sem passar por
+    // "Encerrar Partida" (que já limpava isso via resetGameState()), essa
+    // oferta órfã da partida anterior sobrevivia para a partida seguinte.
+    state.pendingVendaOfertas = {};
+
     state.currentRound = null;
 
     if (state.isHost) {
@@ -1053,7 +1062,7 @@ function handleVendaOfertaRequest(msg, fromPeerId) {
     const erro =
         (!vendedor || !comprador) ? 'Vendedor ou comprador não encontrado.' :
             (vendedor.name === comprador.name) ? 'Você não pode vender para si mesmo.' :
-                (vendedor.waitingInLobby || comprador.waitingInLobby) ? 'Jogador não está mais ativo na partida.' :
+                (vendedor.waitingInLobby || comprador.waitingInLobby || vendedor.disconnected || comprador.disconnected) ? 'Jogador não está mais ativo na partida.' :
                     (vendedor.recursos < 1) ? 'Vendedor não tem recursos para vender.' :
                         (comprador.kpi < CONFIG.KPI.VALOR_VENDA_RECURSO) ? 'Comprador não tem KPI suficiente.' :
                             null;
@@ -1176,7 +1185,7 @@ function processVenda(vendedorName, compradorName) {
     const erro =
         (!vendedor || !comprador) ? 'Vendedor ou comprador não encontrado.' :
             (vendedor.name === comprador.name) ? 'Você não pode vender para si mesmo.' :
-                (vendedor.waitingInLobby || comprador.waitingInLobby) ? 'Jogador não está mais ativo na partida.' :
+                (vendedor.waitingInLobby || comprador.waitingInLobby || vendedor.disconnected || comprador.disconnected) ? 'Jogador não está mais ativo na partida.' :
                     (vendedor.recursos < 1) ? 'Vendedor não tem recursos para vender.' :
                         (comprador.kpi < CONFIG.KPI.VALOR_VENDA_RECURSO) ? 'Comprador não tem KPI suficiente.' :
                             null;
@@ -1228,6 +1237,7 @@ function getCompradores() {
     return state.players.filter(p =>
         p.name !== state.playerName &&
         !p.waitingInLobby &&
+        !p.disconnected &&
         p.kpi >= CONFIG.KPI.VALOR_VENDA_RECURSO
     );
 }
@@ -1273,7 +1283,7 @@ function leaveMatch() {
  * Aborta a rodada atual (se ainda não respondida) quando um dos
  * participantes (perguntador ou respondedor) deixa de estar disponível —
  * seja por sair voluntariamente da partida (leaveMatch) ou por
- * desconexão involuntária (queda de conexão, ver removePlayerByPeerId em
+ * desconexão involuntária (queda de conexão, ver handleGuestDisconnected em
  * game-network.js). Extraído para reutilização em handleLeaveMatchRequest.
  */
 function abortRoundIfParticipant(playerName) {
@@ -1301,7 +1311,7 @@ function abortRoundIfParticipant(playerName) {
  * HOST: processa o pedido de um guest para sair da partida em andamento.
  * É a fonte da verdade — marca o jogador como waitingInLobby na cópia
  * oficial de state.players e propaga via broadcast, igual ao padrão já
- * usado para entrada/saída de jogadores (addPlayer/removePlayerByPeerId).
+ * usado para entrada/saída de jogadores (addPlayer/handleGuestDisconnected).
  */
 function handleLeaveMatchRequest(msg, fromPeerId) {
     const state = Game.state;

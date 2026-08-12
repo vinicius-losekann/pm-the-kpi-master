@@ -204,7 +204,7 @@ function handleConnection(conn) {
         }
 
         if (state.isHost) {
-            Game.network.removePlayerByPeerId(conn.peer);
+            Game.network.handleGuestDisconnected(conn.peer);
         }
     });
 
@@ -561,6 +561,18 @@ function addPlayer(msg, fromPeerId) {
         }
 
         state.players[existingIdx].peerId = fromPeerId;
+
+        // Reconectou dentro do período de graça (ver handleGuestDisconnected):
+        // limpa a marca de desconectado e cancela o timeout que o removeria,
+        // preservando KPI/fase/atividades/recursos que ele já tinha.
+        if (state.players[existingIdx].disconnected) {
+            state.players[existingIdx].disconnected = false;
+        }
+        if (state.disconnectTimeouts && state.disconnectTimeouts[msg.playerName]) {
+            clearTimeout(state.disconnectTimeouts[msg.playerName]);
+            delete state.disconnectTimeouts[msg.playerName];
+        }
+
         console.log('🔄 Reconectado:', msg.playerName);
     } else {
         state.players.push({
@@ -632,27 +644,115 @@ function addPlayer(msg, fromPeerId) {
     Game.saveState();
 }
 
-function removePlayerByPeerId(peerId) {
+/**
+ * HOST: chamado quando a conexão de um guest fecha (queda de rede, aba
+ * fechada, F5). Marca o jogador como `disconnected` e concede um período
+ * de graça para ele reconectar, em vez de removê-lo imediatamente de
+ * `state.players`.
+ *
+ * BUGFIX (perda de progresso ao reconectar): antes, esta função removia o
+ * jogador de `state.players` na hora. Como o guest recebe um peerId NOVO
+ * do PeerJS a cada reconexão (não reaproveita o antigo), addPlayer() não
+ * encontrava mais nenhum registro com o mesmo nome ao processar o
+ * 'player-join' de reconexão e criava um jogador do zero (KPI, fase,
+ * atividades e recursos todos resetados) — e o 'player-list' resultante,
+ * ao ser propagado, sobrescrevia até o estado que o próprio jogador tinha
+ * acabado de restaurar do localStorage (ver tryRestoreState em
+ * game-main.js). Agora o registro é preservado durante o período de
+ * graça; só é removido de fato se o jogador não reconectar a tempo (ver
+ * purgePlayer, abaixo).
+ */
+function handleGuestDisconnected(peerId) {
     const state = Game.state;
 
-    // Guarda o jogador antes de removê-lo, para poder checar se ele fazia
-    // parte da rodada atual.
-    const removedPlayer = state.players.find(p => p.peerId === peerId);
-    state.players = state.players.filter(p => p.peerId !== peerId);
+    const player = state.players.find(p => p.peerId === peerId);
+    if (!player) return; // já removido/desconhecido — nada a fazer
 
-    if (state.backupPeerId === peerId && state.players.length > 1) {
-        state.backupPeerId = state.players[1]?.peerId;
-    }
+    console.warn('⚠️ ' + player.name + ' desconectou — aguardando reconexão antes de removê-lo.');
+    player.disconnected = true;
 
     broadcastAll({ type: 'player-list', players: state.players });
     Game.ui.updatePlayersList();
+    Game.ui.updatePlayersOnlineList();
+    Game.ui.updateRankingList();
     Game.ui.checkStartCondition();
 
-    // Uma desconexão involuntária (queda de rede, aba fechada) do
-    // Perguntador ou Respondedor da rodada em curso travava a partida
-    // indefinidamente — nada mais avançava o jogo até o timer de 90min
-    // zerar. Aplica aqui o mesmo tratamento já usado para saída voluntária
-    // (handleLeaveMatchRequest em game-core.js).
+    // Uma desconexão involuntária do Perguntador ou Respondedor da rodada
+    // em curso travava a partida indefinidamente — nada mais avançava o
+    // jogo até o timer da sessão zerar. Aplica aqui o mesmo tratamento já
+    // usado para saída voluntária (handleLeaveMatchRequest em
+    // game-core.js). Diferente da remoção em si, isso NÃO espera o
+    // período de graça: não faz sentido travar a rodada de todo mundo só
+    // porque um participante pode ou não voltar nos próximos segundos.
+    if (state.gameStarted && !state.gameOver) {
+        Game.core.abortRoundIfParticipant(player.name);
+    }
+
+    armarDisconnectTimeout(player.name, peerId);
+    Game.saveState();
+}
+
+/**
+ * HOST: arma (ou rearma) o período de graça de reconexão de um jogador
+ * desconectado. Se `msg 'player-join'` chegar com o mesmo nome antes do
+ * timeout disparar, addPlayer() cancela este timeout e limpa
+ * `disconnected` — o jogador nunca chega a ser removido. Exportada para
+ * reuso em becomeHost() (herda jogadores já desconectados do host
+ * anterior) e em game-main.js (host que recarrega a própria página
+ * enquanto alguém está no período de graça precisa rearmar do zero, já
+ * que o timeout antigo, em memória, morre junto com o reload).
+ */
+function armarDisconnectTimeout(playerName, peerId) {
+    const state = Game.state;
+    state.disconnectTimeouts = state.disconnectTimeouts || {};
+
+    if (state.disconnectTimeouts[playerName]) {
+        clearTimeout(state.disconnectTimeouts[playerName]);
+    }
+
+    const graceMs = (CONFIG.JOGO && CONFIG.JOGO.RECONNECT_GRACE_TIMEOUT) || 30000;
+
+    state.disconnectTimeouts[playerName] = setTimeout(() => {
+        delete state.disconnectTimeouts[playerName];
+
+        // Só remove de fato se ainda estiver marcado como desconectado —
+        // se ele reconectou, addPlayer() já cancelou este timeout, mas a
+        // checagem extra é uma segunda linha de defesa contra qualquer
+        // condição de corrida.
+        const player = state.players.find(p => p.name === playerName);
+        if (!player || !player.disconnected) return;
+
+        purgePlayer(playerName, peerId);
+    }, graceMs);
+}
+
+/**
+ * HOST: remove definitivamente um jogador que não reconectou dentro do
+ * período de graça. Equivalente ao antigo removePlayerByPeerId(), mas
+ * disparado só depois da espera, não na hora da queda de conexão.
+ */
+function purgePlayer(playerName, peerIdAtDisconnect) {
+    const state = Game.state;
+
+    const removedPlayer = state.players.find(p => p.name === playerName);
+    state.players = state.players.filter(p => p.name !== playerName);
+
+    if (state.backupPeerId === peerIdAtDisconnect && state.players.length > 1) {
+        state.backupPeerId = state.players[1]?.peerId;
+    }
+
+    console.warn('🗑️ ' + playerName + ' não reconectou a tempo — removido da sala.');
+
+    broadcastAll({ type: 'player-list', players: state.players });
+    Game.ui.updatePlayersList();
+    Game.ui.updatePlayersOnlineList();
+    Game.ui.updateRankingList();
+    Game.ui.checkStartCondition();
+
+    // Cobre o caso raro de o jogador ter voltado a ser participante de uma
+    // NOVA rodada sorteada depois da desconexão original (não deveria
+    // acontecer, já que getActivePlayers() o exclui enquanto
+    // `disconnected` for true, mas fica como segunda linha de defesa).
     if (removedPlayer && state.gameStarted && !state.gameOver) {
         Game.core.abortRoundIfParticipant(removedPlayer.name);
     }
@@ -736,7 +836,7 @@ function restoreState(fullState) {
  * BUGFIX: souOBackup era calculado reordenando state.players (host
  * primeiro) e olhando o índice resultante — um segundo mecanismo paralelo
  * a state.backupPeerId (já mantido à parte, atualizado em addPlayer,
- * removePlayerByPeerId e becomeHost). Os dois podiam divergir (ex.: a
+ * handleGuestDisconnected/purgePlayer e becomeHost). Os dois podiam divergir (ex.: a
  * ordem de state.players nem sempre reflete quem foi designado como
  * backup), e depender de reordenação implícita é frágil e difícil de
  * auditar. Agora usamos diretamente state.backupPeerId como fonte única
@@ -966,6 +1066,16 @@ function becomeHost() {
             Game.ui.checkStartCondition();
         }
 
+        // Rearma o período de graça de qualquer jogador que já estivesse
+        // marcado como `disconnected` sob o host anterior — o timeout dele
+        // era local ao processo do host antigo e morreu junto com ele. Sem
+        // isso, esse jogador ficaria "preso" como desconectado para
+        // sempre, nunca sendo removido nem contando como ativo de novo
+        // (mesmo se ele nunca mais reconectar).
+        state.players
+            .filter(p => p.disconnected && p.name !== state.playerName)
+            .forEach(p => armarDisconnectTimeout(p.name, p.peerId));
+
         document.getElementById('roomPeerId').textContent = id;
         document.getElementById('hostRoomIdSection').style.display = 'block';
         alert('👑 Você agora é o host!');
@@ -993,6 +1103,10 @@ function reconnectToNewHost(newHostPeerId) {
 
 function cleanup() {
     clearInterval(Game.state.timerInterval);
+    // Evita que um timeout de graça de reconexão (ver armarDisconnectTimeout)
+    // dispare depois que esta sessão/aba já foi encerrada.
+    Object.values(Game.state.disconnectTimeouts || {}).forEach(t => clearTimeout(t));
+    Game.state.disconnectTimeouts = {};
     if (myPeer && !myPeer.destroyed) myPeer.destroy();
     localStorage.removeItem('pmKPI_roomState');
     localStorage.removeItem('pmKPI_myData');
@@ -1009,7 +1123,8 @@ window.Game.network = {
     handleHostDisconnect,
     souOBackup,
     attemptReconnectToNewHost,
-    removePlayerByPeerId,
+    handleGuestDisconnected,
+    armarDisconnectTimeout,
     becomeHost,
     reconnectToNewHost,
     broadcastAll,

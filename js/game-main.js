@@ -303,6 +303,21 @@ async function init() {
     // 6. Configura UI
     Game.ui.setupUI();
 
+    // 6.05 Se este é o HOST e o estado restaurado (localStorage) trouxe
+    // algum jogador ainda marcado como `disconnected` (período de graça de
+    // reconexão em aberto — ver handleGuestDisconnected/armarDisconnectTimeout
+    // em game-network.js), o timeout que o removeria automaticamente era
+    // local ao processo anterior e se perdeu neste reload (F5 do host).
+    // Sem isso, esse jogador ficaria marcado como desconectado para
+    // sempre — nunca purgado, nunca contando como ativo de novo — mesmo
+    // que ele já tenha desistido de voltar. Rearma um novo período de
+    // graça completo a partir de agora.
+    if (restaurou && state.isHost) {
+        state.players
+            .filter(p => p.disconnected && p.name !== state.playerName)
+            .forEach(p => Game.network.armarDisconnectTimeout(p.name, p.peerId));
+    }
+
     // 6.1 Se o estado restaurado indica partida em andamento, garante que
     // a tela correta seja exibida (não fica preso no lobby) e, sendo host,
     // retoma o motor da partida (timer + rodadas). Para guests, a tela

@@ -333,6 +333,7 @@ function updatePlayersList() {
             <span class="player-item-name">${escapeHtml(p.name)}</span>
             ${p.isHost ? '<span class="host-badge">HOST</span>' : ''}
             ${p.waitingInLobby ? '<span style="font-size:0.7rem; color:#ffa502;">(aguardando)</span>' : ''}
+            ${p.disconnected ? '<span style="font-size:0.7rem; color:#ff4757;">(reconectando...)</span>' : ''}
             <span class="player-status-dot status-connected"></span>
         </div>
     `).join('') || `<div class="player-empty"><span class="empty-icon">🎯</span><p>Aguardando jogadores...</p></div>`;
