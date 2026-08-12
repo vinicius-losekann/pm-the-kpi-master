@@ -21,32 +21,6 @@ const DOM = {
     modalEvento: document.getElementById('modalEvento'),
 };
 
-/**
- * BUGFIX (XSS): playerName vem da URL (?playerName=...) e é propagado via
- * P2P para todos os clientes sem qualquer sanitização. Vários pontos deste
- * arquivo usavam innerHTML interpolando `${p.name}` (ou outros textos
- * vindos da rede, como evento/oferta de venda) diretamente — um jogador
- * mal-intencionado podia usar um nome como "<img src=x onerror=...>" e
- * executar script na tela de todos os outros participantes. Além disso,
- * alguns pontos montavam `onclick="fn('${nome}')"` como string, o que
- * também quebra (ou pior, permite escapar do literal) se o nome tiver
- * aspas simples.
- *
- * escapeHtml() converte caracteres perigosos para entidades HTML antes de
- * qualquer interpolação em innerHTML. É usada em TODO texto vindo de rede
- * (nomes de jogador, títulos/descrições de evento, sugestões de
- * assessoria) que é inserido via innerHTML neste arquivo.
- */
-function escapeHtml(str) {
-    if (str === undefined || str === null) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
 // ============================================
 // SETUP INICIAL
 // ============================================
@@ -65,7 +39,7 @@ let ofertaVendaAtual = null;
 function showVendaOfertaModal(msg) {
     ofertaVendaAtual = msg;
     document.getElementById('vendaOfertaTexto').innerHTML =
-        `<strong>${escapeHtml(msg.vendedorName)}</strong> oferece 1📦 por <strong style="color:#ffd700;">${escapeHtml(msg.valor)} KPI</strong>`;
+        `<strong>${msg.vendedorName}</strong> oferece 1📦 por <strong style="color:#ffd700;">${msg.valor} KPI</strong>`;
     document.getElementById('modalVendaOferta').style.display = 'flex';
 }
 
@@ -121,11 +95,11 @@ function setupUI() {
         // listeners), mas nunca deve religar para quem já era host.
         if (!hostOnlyListenersBound) {
             document.getElementById('btnStartGame').addEventListener('click', () => {
-                // Garante que o timer enviado no broadcast (e usado
-                // localmente pelo host) seja sempre o tempo cheio da
-                // sessão — sem isso, reiniciar uma partida após uma
-                // anterior ter terminado antes do tempo esgotar propagava
-                // um timer quase zerado para todos os jogadores.
+                // NOVO: garante que o timer enviado no broadcast (e usado
+                // localmente pelo host) seja sempre o tempo cheio da sessão —
+                // sem isso, reiniciar uma partida após uma anterior ter
+                // terminado antes do tempo esgotar propagava um timer quase
+                // zerado para todos os jogadores.
                 Game.state.timer = CONFIG.JOGO.SESSION_DURATION;
 
                 Game.network.broadcastAll({ type: 'game-start', timer: Game.state.timer });
@@ -165,12 +139,18 @@ function setupUI() {
         Game.network.cleanup();
         window.location.href = 'index.html';
     });
+    /*document.getElementById('btnBackToLobby').addEventListener('click', () => {
+        showScreen('lobby');
+        showLobbyNormal();
+        updatePlayersList();
+        Game.saveState();
+    });*/
     document.getElementById('btnBackToLobby').addEventListener('click', () => {
-        // Sem isso, 'gameStarted'/'gameOver' continuavam true após o fim
-        // natural de uma partida, e o baralho de perguntas usadas não era
-        // resetado neste fluxo (só era resetado em "Encerrar Partida"). A
-        // correção em startGame() já reseta KPI/fase/atividades/timer, mas
-        // manter esses campos de estado coerentes evita comportamentos
+        // NOVO: sem isso, 'gameStarted'/'gameOver' continuavam true após o
+        // fim natural de uma partida, e o baralho de perguntas usadas não
+        // era resetado neste fluxo (só era resetado em "Encerrar Partida").
+        // A correção em startGame() já reseta KPI/fase/atividades/timer,
+        // mas manter esses campos de estado coerentes evita comportamentos
         // estranhos na tela de lobby entre uma partida e outra.
         Game.state.gameStarted = false;
         Game.state.gameOver = false;
@@ -197,11 +177,13 @@ function setupUI() {
             handleAlternativeClick(this.getAttribute('data-alt'), this);
         });
     });
-
     // Venda de recurso
     document.getElementById('btnVenderRecurso').addEventListener('click', () => {
         Game.ui.showVendaModal();
     });
+    // CORRIGIDO: listener estava comentado — o botão "✕ Cancelar" do modal
+    // de Venda de Recurso não fazia nada, deixando o jogador preso na tela
+    // até a venda ser confirmada/rejeitada pelo host.
     document.getElementById('btnFecharVenda').addEventListener('click', () => {
         Game.ui.fecharVendaModal();
     });
@@ -210,8 +192,7 @@ function setupUI() {
     });
     document.getElementById('btnRecusarVendaOferta').addEventListener('click', () => {
         Game.ui.responderOfertaVenda(false);
-    });
-
+    });    
     // Assessoria
     document.getElementById('btnPedirAssessoria').addEventListener('click', () => {
         Game.ui.showAssessoriaSelectModal();
@@ -236,9 +217,6 @@ function setupUI() {
  */
 function showEventoModal(evento) {
     if (!evento) return;
-    // titulo/descricao vêm do JSON de perguntas (confiável, não de rede
-    // controlada por outro jogador), mas usamos textContent de qualquer
-    // forma — já era o comportamento original e continua correto/seguro.
     document.getElementById('eventoModalTitulo').textContent = evento.titulo;
     document.getElementById('eventoModalDesc').textContent = evento.descricao;
     DOM.modalEvento.style.display = 'flex';
@@ -309,8 +287,8 @@ function showLobbyWaitingView() {
     `;
 
     document.getElementById('playersList').innerHTML = `
-        <div style="margin-bottom:8px;"><strong>👥 Em jogo (${playing.length})</strong>${playing.map(p => `<div>• ${escapeHtml(p.name)}</div>`).join('')}</div>
-        <div><strong>👤 Aguardando (${waiting.length})</strong>${waiting.map(p => `<div>• ${escapeHtml(p.name)}</div>`).join('')}</div>
+        <div style="margin-bottom:8px;"><strong>👥 Em jogo (${playing.length})</strong>${playing.map(p => `<div>• ${p.name}</div>`).join('')}</div>
+        <div><strong>👤 Aguardando (${waiting.length})</strong>${waiting.map(p => `<div>• ${p.name}</div>`).join('')}</div>
     `;
 }
 
@@ -329,11 +307,10 @@ function updatePlayersList() {
     document.getElementById('playerCount').textContent = state.players.length;
     document.getElementById('playersList').innerHTML = state.players.map(p => `
         <div class="player-item">
-            <div class="player-avatar-sm">${escapeHtml(p.name.charAt(0).toUpperCase())}</div>
-            <span class="player-item-name">${escapeHtml(p.name)}</span>
+            <div class="player-avatar-sm">${p.name.charAt(0).toUpperCase()}</div>
+            <span class="player-item-name">${p.name}</span>
             ${p.isHost ? '<span class="host-badge">HOST</span>' : ''}
             ${p.waitingInLobby ? '<span style="font-size:0.7rem; color:#ffa502;">(aguardando)</span>' : ''}
-            ${p.disconnected ? '<span style="font-size:0.7rem; color:#ff4757;">(reconectando...)</span>' : ''}
             <span class="player-status-dot status-connected"></span>
         </div>
     `).join('') || `<div class="player-empty"><span class="empty-icon">🎯</span><p>Aguardando jogadores...</p></div>`;
@@ -378,8 +355,6 @@ function displayRoundStart() {
     if (!round) return;
     document.getElementById('questionArea').style.display = 'block';
     document.getElementById('spectatorArea').style.display = 'none';
-    // Nomes de jogador via textContent (seguro por padrão, sem precisar de
-    // escapeHtml — mantido assim pois já era textContent no original).
     document.getElementById('perguntadorName').textContent = round.perguntador;
     document.getElementById('respondedorName').textContent = round.respondedor;
     if (round.evento) {
@@ -462,12 +437,10 @@ function displayQuestion(q) {
         document.getElementById('roleNotice').style.display = 'block';
         document.getElementById('roleNotice').innerHTML = '👀 <strong>Você está perguntando!</strong> Tela somente leitura.';
         document.getElementById('roleNotice').className = 'role-notice role-perguntador';
-        // Alternativas vêm do baralho local de perguntas (JSON confiável),
-        // não de outro jogador — innerHTML aqui já era seguro no original.
         document.getElementById('allAlternativesList').innerHTML = q.alternativas.map(alt => {
             const letter = alt.charAt(0).toLowerCase();
             const isCorrect = letter === q.correta;
-            return `<div style="padding:12px 16px; background:${isCorrect ? 'rgba(0,255,136,0.12)' : 'rgba(255,255,255,0.03)'}; border:2px solid ${isCorrect ? 'rgba(0,255,136,0.4)' : 'rgba(255,255,255,0.08)'}; border-radius:10px; color:${isCorrect ? '#00ff88' : '#e0e0e0'}; font-size:0.9rem; ${isCorrect ? 'font-weight:600;' : ''}">${isCorrect ? '✅ ' : ''}${escapeHtml(alt)}</div>`;
+            return `<div style="padding:12px 16px; background:${isCorrect ? 'rgba(0,255,136,0.12)' : 'rgba(255,255,255,0.03)'}; border:2px solid ${isCorrect ? 'rgba(0,255,136,0.4)' : 'rgba(255,255,255,0.08)'}; border-radius:10px; color:${isCorrect ? '#00ff88' : '#e0e0e0'}; font-size:0.9rem; ${isCorrect ? 'font-weight:600;' : ''}">${isCorrect ? '✅ ' : ''}${alt}</div>`;
         }).join('');
 
         // Perguntador é somente leitura: garante que a área de assessoria
@@ -480,25 +453,11 @@ function displayQuestion(q) {
 function displaySpectatorView(perguntador, respondedor) {
     document.getElementById('questionArea').style.display = 'none';
     document.getElementById('spectatorArea').style.display = 'block';
-    // textContent — seguro por padrão, sem necessidade de escapeHtml.
     document.getElementById('spectatorMessage').textContent = `⏳ ${perguntador} pergunta para ${respondedor}...`;
     const assessoriaArea = document.getElementById('assessoriaArea');
     if (assessoriaArea) assessoriaArea.style.display = 'none';
 }
 
-/**
- * BUGFIX: `state.currentRound.respondeu = true` só é setado aqui no ramo
- * do GUEST (feedback local otimista antes da confirmação do host chegar
- * via rede). Quando o próprio HOST é o Respondedor, handleAnswer() (em
- * game-core.js) é chamado de forma síncrona sobre a MESMA instância de
- * state.currentRound — e se houver uma assessoria pendente, handleAnswer
- * deliberadamente NÃO marca respondeu=true (a resposta fica em
- * pendingAnswer até a assessoria ser resolvida). Antes desta correção,
- * esta função sobrescrevia respondeu=true logo em seguida de qualquer
- * forma, fazendo handleAnswer() descartar a resposta pendente quando
- * reprocessada ("Rodada já foi respondida!") e travando a rodada para
- * sempre nesse cenário (host = Respondedor + assessoria solicitada).
- */
 function handleAlternativeClick(alt, btn) {
     const state = Game.state;
     if (!state.currentRound || state.currentRound.respondeu) return;
@@ -509,8 +468,8 @@ function handleAlternativeClick(alt, btn) {
         Game.core.handleAnswer({ alternativa: alt, playerName: state.playerName });
     } else {
         Game.network.sendToHost({ type: 'answer', alternativa: alt, playerName: state.playerName });
-        state.currentRound.respondeu = true;
     }
+    state.currentRound.respondeu = true;
 }
 
 // ============================================
@@ -533,7 +492,7 @@ function showResultModal(acertou, kpiGanho, recursosRestantes) {
 function updatePlayersOnlineList() {
     document.getElementById('playersOnlineList').innerHTML = Game.getActivePlayers().map(p => {
         const fase = Game.getFaseById(p.phase);
-        return `<div class="online-player"><div class="player-avatar-xs">${escapeHtml(p.name.charAt(0))}</div><span>${escapeHtml(p.name)}</span><span style="font-size:0.7rem; color:#ffd700;">📦${p.recursos || 0}</span><span class="mini-phase">${fase.emoji}</span></div>`;
+        return `<div class="online-player"><div class="player-avatar-xs">${p.name.charAt(0)}</div><span>${p.name}</span><span style="font-size:0.7rem; color:#ffd700;">📦${p.recursos || 0}</span><span class="mini-phase">${fase.emoji}</span></div>`;
     }).join('') || '<div style="color:#6a6a80; font-size:0.8rem;">Nenhum jogador ativo</div>';
 }
 
@@ -545,7 +504,7 @@ function updateRankingList() {
     const ranking = Game.core.buildRanking().filter(p => !p.waitingInLobby);
     const medalhas = ['🥇', '🥈', '🥉'];
     document.getElementById('rankingList').innerHTML = ranking.map((p, i) => `
-        <div class="rank-item"><span class="rank-pos">${medalhas[i] || '#' + (i + 1)}</span><span class="rank-name">${escapeHtml(p.name)}</span><span class="rank-kpi">${p.kpiFinal} ⭐</span></div>
+        <div class="rank-item"><span class="rank-pos">${medalhas[i] || '#' + (i + 1)}</span><span class="rank-name">${p.name}</span><span class="rank-kpi">${p.kpiFinal} ⭐</span></div>
     `).join('');
 }
 
@@ -561,7 +520,7 @@ function displayFinalRanking(ranking) {
         const kpiRecursos = p.recursos * CONFIG.KPI.VALOR_RECURSO_FINAL;
         return `<div class="final-rank-item ${i < 3 ? 'top-' + (i + 1) : ''}">
         <span class="final-rank-pos">${medalhas[i] || '#' + p.posicao}</span>
-        <span class="final-rank-name">${escapeHtml(p.name)}</span>
+        <span class="final-rank-name">${p.name}</span>
         <span class="final-rank-kpi">${p.kpiFinal} ⭐</span>
         <div class="final-rank-detail" style="font-size:0.75rem; color:#a0a0b8; margin-top:4px;">KPI acumulado (acertos, vendas, compras e assessorias): ${p.kpi} | Recursos: ${p.recursos}📦 × ${CONFIG.KPI.VALOR_RECURSO_FINAL} = ${kpiRecursos} KPI</div>
     </div>`;
@@ -574,14 +533,6 @@ function displayFinalRanking(ranking) {
 
 /**
  * Abre o modal de venda de recursos
- *
- * BUGFIX: a lista de compradores usava
- * `onclick="Game.ui.confirmarVenda('${c.name}')"` montado como string —
- * além de vulnerável a XSS, um nome contendo aspas simples (') quebrava
- * literalmente o atributo onclick gerado. Agora os botões são criados sem
- * onclick inline: o nome vai num atributo `data-name` (sempre seguro,
- * pois atributos não são interpretados como HTML) e um único listener
- * delegado lê esse atributo ao clicar.
  */
 function showVendaModal() {
     const state = Game.state;
@@ -598,30 +549,22 @@ function showVendaModal() {
         alert('⚠️ Nenhum jogador disponível para comprar (precisa ter pelo menos ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI).');
         return;
     }
-
-    // Mantém o preço exibido sempre em sincronia com CONFIG, em vez de
-    // depender de um valor fixo escrito no HTML.
+    // NOVO: mantém o preço exibido sempre em sincronia com CONFIG,
+    // em vez de depender de um valor fixo escrito no HTML.
     document.getElementById('vendaValorKPI').textContent = CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI';
 
     // Atualiza informações
     document.getElementById('vendaSeusRecursos').textContent =
         'Seus recursos: 📦 ' + me.recursos;
 
-    // Lista de compradores — sem onclick inline (ver comentário acima).
-    const compradoresEl = document.getElementById('vendaCompradores');
-    compradoresEl.innerHTML = compradores.map(c => `
-        <button class="btn btn-glass" data-comprador-name="${escapeHtml(c.name)}"
+    // Lista de compradores
+    document.getElementById('vendaCompradores').innerHTML = compradores.map(c => `
+        <button class="btn btn-glass" onclick="Game.ui.confirmarVenda('${c.name}')" 
                 style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px;">
-            <span>${escapeHtml(c.name)}</span>
+            <span>${c.name}</span>
             <span style="color:#ffd700; font-size:0.8rem;">⭐${c.kpi} KPI</span>
         </button>
     `).join('');
-
-    compradoresEl.querySelectorAll('button[data-comprador-name]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            Game.ui.confirmarVenda(btn.getAttribute('data-comprador-name'));
-        });
-    });
 
     document.getElementById('modalVenda').style.display = 'flex';
 }
@@ -629,13 +572,16 @@ function showVendaModal() {
 /**
  * Confirma a venda para um comprador.
  *
- * O modal não é fechado aqui de forma otimista — o fechamento vem só via
- * broadcast ('venda-confirmed') ou rejeição ('venda-rejected'),
- * processados em game-network.js. Aqui só mostramos um estado de
- * "processando" para dar feedback sem esconder uma possível rejeição do
- * host.
+ * CORRIGIDO: o modal NÃO é mais fechado aqui de forma otimista — o próprio
+ * comentário original já dizia que o fechamento deveria vir só via
+ * broadcast ('venda-confirmed') ou rejeição ('venda-rejected'), processados
+ * em game-network.js, mas uma linha residual de um refactor anterior ainda
+ * fechava o modal imediatamente após o clique, contradizendo essa intenção.
+ * Deixamos só um estado de "processando" para dar feedback sem esconder
+ * uma possível rejeição do host.
  */
 function confirmarVenda(compradorName) {
+    // if (confirm('Vender 1📦 para ' + compradorName + ' por ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI?')) {
     if (confirm('Enviar oferta de venda de 1📦 para ' + compradorName + ' por ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI?')) {
         Game.core.venderRecurso(compradorName);
 
@@ -646,6 +592,7 @@ function confirmarVenda(compradorName) {
         document.querySelectorAll('#vendaCompradores button').forEach(b => b.disabled = true);
         const seusRecursosEl = document.getElementById('vendaSeusRecursos');
         if (seusRecursosEl) {
+            //seusRecursosEl.textContent = '🔄 Processando venda...';
             seusRecursosEl.textContent = '🔄 Aguardando ' + compradorName + ' aceitar a oferta...';
         }
     }
@@ -666,9 +613,6 @@ let assessoriaCountdownInterval = null;
 
 /**
  * Abre o modal de seleção de assessor (visão do Respondedor)
- *
- * BUGFIX: mesma questão de segurança/robustez de showVendaModal() — troca
- * de onclick inline por data-attribute + listener delegado.
  */
 function showAssessoriaSelectModal() {
     const state = Game.state;
@@ -684,20 +628,13 @@ function showAssessoriaSelectModal() {
         return;
     }
 
-    const listaEl = document.getElementById('assessoriaJogadoresList');
-    listaEl.innerHTML = candidatos.map(p => `
-        <button class="btn btn-glass" data-assessor-name="${escapeHtml(p.name)}"
+    document.getElementById('assessoriaJogadoresList').innerHTML = candidatos.map(p => `
+        <button class="btn btn-glass" onclick="Game.ui.escolherAssessor('${p.name}')"
                 style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px;">
-            <span>${escapeHtml(p.name)}</span>
+            <span>${p.name}</span>
             <span style="font-size:0.8rem; color:#a0a0b8;">${Game.getFaseById(p.phase).emoji}</span>
         </button>
     `).join('');
-
-    listaEl.querySelectorAll('button[data-assessor-name]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            Game.ui.escolherAssessor(btn.getAttribute('data-assessor-name'));
-        });
-    });
 
     document.getElementById('modalAssessoriaSelect').style.display = 'flex';
 }
@@ -714,8 +651,8 @@ function escolherAssessor(assessorName) {
         // Evita clicar em uma alternativa enquanto a assessoria está pendente
         document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = true);
 
-        // Registra a assessoria também no estado local (não só no host),
-        // incluindo quando o próprio jogador é o host. Sem isso,
+        // CORRIGIDO: registra a assessoria também no estado local (não só
+        // no host), incluindo quando o próprio jogador é o host. Antes,
         // 'currentRound.assessoria' só era populado no objeto de estado do
         // host dentro de handleAssessoriaRequest(); nos clientes (guests)
         // esse campo nunca era setado localmente ao pedir — só o texto na
@@ -738,41 +675,34 @@ function escolherAssessor(assessorName) {
  */
 function showAssessoriaStarted(msg) {
     const state = Game.state;
-
-    // Atualiza o estado local em TODOS os clientes — não só no
-    // Respondedor. Sem isso, um espectador/backup que assuma como host
-    // (becomeHost) no meio de uma Assessoria pendente não sabe que ela
-    // existe: o timeout de segurança correspondente nunca é rearmado (ver
-    // becomeHost) e a resposta do assessor, ao chegar no novo host, é
-    // descartada pelo guard `!state.currentRound.assessoria` em
-    // handleAssessoriaAnswer(), travando o Respondedor indefinidamente.
-    if (state.currentRound) {
-        state.currentRound.assessoria = {
-            assessorName: msg.assessorName,
-            status: 'pending',
-            sugestao: null
-        };
-    }
-
     if (state.playerName === state.currentRound?.respondedor) {
         document.getElementById('btnPedirAssessoria').disabled = true;
         document.getElementById('assessoriaStatus').textContent = `📞 Aguardando resposta de ${msg.assessorName}...`;
+
+        // CORRIGIDO: mesma razão do bloco em escolherAssessor() — mantém o
+        // estado local coerente com o que o host já tem, para que reload,
+        // reconexão ou migração de host durante o pedido reconstruam a UI
+        // corretamente a partir de state.currentRound.assessoria em vez de
+        // assumir que nenhum pedido existe.
+        if (state.currentRound) {
+            state.currentRound.assessoria = {
+                assessorName: msg.assessorName,
+                status: 'pending',
+                sugestao: null
+            };
+        }
     }
 }
 
 /**
  * Exibe o modal de pergunta para o jogador chamado como assessor
- *
- * Alternativas vêm do baralho local de perguntas (fonte confiável), não
- * de outro jogador — o onclick aqui usa apenas a letra ('a'/'b'/'c'/'d'),
- * um valor controlado internamente, não texto arbitrário de rede.
  */
 function showAssessoriaQuestionModal(msg) {
     document.getElementById('assessoriaQuestionText').textContent = msg.pergunta;
     document.getElementById('assessoriaAlternativesList').innerHTML = msg.alternativas.map(alt => {
         const letra = alt.charAt(0).toLowerCase();
         return `<button class="btn btn-glass" onclick="Game.ui.responderAssessoria('${letra}', false)"
-                    style="text-align:left; padding:10px 14px;">${escapeHtml(alt)}</button>`;
+                    style="text-align:left; padding:10px 14px;">${alt}</button>`;
     }).join('');
 
     let seconds = Math.floor(CONFIG.JOGO.ASSESSORIA_TIMEOUT / 1000);
@@ -813,27 +743,25 @@ function responderAssessoria(alternativa, recusado) {
  */
 function showAssessoriaResult(msg) {
     const state = Game.state;
-
-    // As duas atualizações de ESTADO (status/sugestão da assessoria e sua
-    // limpeza quando inválida) rodam em TODOS os clientes, antes de
-    // qualquer early-return — mesma razão de showAssessoriaStarted acima.
-    // Só o restante da função (atualização de UI) continua restrito à
-    // tela do Respondedor.
-    if (state.currentRound?.assessoria) {
-        state.currentRound.assessoria.status = msg.recusado ? 'declined' : 'accepted';
-        state.currentRound.assessoria.sugestao = msg.recusado ? null : msg.sugestao;
-    }
-    if (msg.invalido && state.currentRound) {
-        state.currentRound.assessoria = null;
-    }
-
     if (state.playerName !== state.currentRound?.respondedor) return;
 
     const statusEl = document.getElementById('assessoriaStatus');
     if (!statusEl) return;
 
+    // CORRIGIDO: sincroniza o estado local (status/sugestão) com o
+    // resultado vindo do host, pela mesma razão dos blocos acima —
+    // sem isso, `state.currentRound.assessoria` ficava com status
+    // 'pending' para sempre no client, mesmo após a resolução real.
+    if (state.currentRound?.assessoria) {
+        state.currentRound.assessoria.status = msg.recusado ? 'declined' : 'accepted';
+        state.currentRound.assessoria.sugestao = msg.recusado ? null : msg.sugestao;
+    }
+
     if (msg.recusado) {
         if (msg.invalido && msg.motivo === 'fase-encerramento') {
+            // NOVO: mensagem específica quando o host rejeita o pedido por
+            // o Respondedor estar na fase de Encerramento (regra validada
+            // no host, não só no cliente — ver handleAssessoriaRequest).
             statusEl.textContent = '⚠️ Jogadores na fase de Encerramento não podem pedir assessoria.';
         } else if (msg.invalido) {
             statusEl.textContent = `⚠️ Não foi possível chamar ${msg.assessorName}. Escolha uma alternativa.`;
@@ -846,21 +774,27 @@ function showAssessoriaResult(msg) {
         statusEl.textContent = `🧭 ${msg.assessorName} sugere: ${msg.sugestao.toUpperCase()}`;
     }
 
-    // Reabilita as alternativas agora que a assessoria foi resolvida (só
-    // se ainda não houver resposta enviada nesta rodada)
+    // Reabilita as alternativas agora que a assessoria foi resolvida
+    // (só se ainda não houver resposta enviada nesta rodada)
     if (!state.currentRound.respondeu) {
         document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = false);
     }
 
-    // Se o pedido foi rejeitado por regra (fase de Encerramento ou
-    // assessor inválido), o registro local da assessoria já foi limpo
-    // acima independente do motivo. O botão "Pedir Assessoria" é que só é
-    // reabilitado quando a regra permitiria um novo pedido nesta mesma
-    // rodada (não é o caso da fase de Encerramento, cuja restrição vale
-    // para a rodada inteira).
+    // Se o pedido foi rejeitado por regra (fase de Encerramento ou assessor
+    // inválido), o botão de pedir assessoria continua desabilitado só se
+    // a partida ainda impedir novo pedido; caso contrário, reabilita para
+    // permitir tentar novamente com outro jogador.
     if (msg.invalido && msg.motivo !== 'fase-encerramento') {
         const btnPedir = document.getElementById('btnPedirAssessoria');
         if (btnPedir && !state.currentRound.respondeu) btnPedir.disabled = false;
+
+        // CORRIGIDO: se o pedido foi invalidado (ex.: assessor saiu da
+        // partida), limpa o registro local para permitir um novo pedido
+        // nesta mesma rodada — sem isso o guard local em
+        // requestAssessoria() bloquearia indevidamente uma nova tentativa.
+        if (state.currentRound) {
+            state.currentRound.assessoria = null;
+        }
     }
 }
 
@@ -881,7 +815,6 @@ window.Game = window.Game || {};
 window.Game.ui = {
     setupUI, showScreen, showLobbyNormal, showLobbyWaitingView,
     closeAllModals,
-    escapeHtml,
     updateConnectionStatus, updatePlayersList, checkStartCondition,
     updateTimerDisplay, displayRoundStart, displayQuestion, displaySpectatorView,
     showResultModal, showEventoModal,

@@ -25,21 +25,6 @@ const CONFIG = {
         // Respondedor, e não só como salvaguarda contra
         // desconexão, quebrando o fluxo de resposta
         // descrito no README.
-
-        VENDA_OFERTA_TIMEOUT: 30000,     // NOVO — explicitado. game-core.js
-        // (armarVendaOfertaTimeout) já usava `|| 30000` como
-        // fallback, então a ausência daqui não era um bug
-        // (diferente de RESPOSTA_TIMEOUT acima, que era passado
-        // direto ao setTimeout sem fallback) — mas deixamos
-        // explícito para não depender de um número mágico
-        // escondido no código e facilitar ajustar o valor aqui.
-
-        RECONNECT_GRACE_TIMEOUT: 30000,  // NOVO — período de graça (ms) que um
-        // guest tem para reconectar após uma queda de conexão
-        // antes de ser removido definitivamente da sala (ver
-        // armarDisconnectTimeout em game-network.js). Também usa
-        // `|| 30000` como fallback no código; explicitado aqui
-        // pelo mesmo motivo do VENDA_OFERTA_TIMEOUT acima.
     },
 
     FASES: [
