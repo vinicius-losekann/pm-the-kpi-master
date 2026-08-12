@@ -118,22 +118,3 @@
 ### Alterado
 - `todo.md`: adicionados os itens acima como concluídos; item de Assessoria
   para o host atualizado de "pendente" para "verificado — já funcionava".
-
-## 10/08/2026 - 15:45
-
-### Corrigido
-- **`css/style.css` não definia diversas classes usadas em `index.html`** (`.screen-choose`,
-  `.screen-form`, `.screen-title`, `.screen-desc`, `.choose-buttons`, `.room-id-input-group`,
-  `.room-id-prefix`, `.form-input-inline`, `.success-icon`, `.room-id-display`,
-  `.room-id-display-label`, `.room-id-display-box`). O bloco "PÁGINA: ENTRY (index.html)" do CSS
-  cobria apenas o cabeçalho/logo/rodapé da tela de entrada, deixando as telas "Criar Nova Sala",
-  "Sala Criada" e "Entrar em uma Sala" — o primeiro contato do jogador com o app, conforme o fluxo
-  descrito no README ("Host cria uma sala..." / "Jogadores entram na sala") — sem estilo algum:
-  título/descrição em fonte padrão do navegador, o agrupamento de prefixo (`pm-the-kpi-master-`) +
-  input do ID da sala desalinhado, e a caixa de ID da sala criada sem o tema dark/glassmorphism do
-  restante do jogo. Adicionado o bloco de regras faltante, reaproveitando as variáveis de design já
-  existentes (`--purple`, `--cyan`, `--text-secondary`, `--border-subtle`, `--radius-md`/`--radius-sm`,
-  `--font-display`) para manter consistência visual com `game.html`.
-
-### Alterado
-- `todo.md`: adicionado o item acima como concluído.

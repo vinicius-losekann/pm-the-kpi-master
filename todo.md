@@ -7,4 +7,3 @@
 - README.md desatualizado quanto ao número de eventos (5 → 6, evento neutro e6 não documentado) - feito
 - Botão "✕ Cancelar" do modal de Venda de Recurso (btnFecharVenda) sem funcionalidade - feito
 - Caracteres "+" de diff vazando como texto visível no game.html (bloco #modalVendaOferta) - feito
-- Garantir que todos os jogadores do jogo respondam ao menos uma vez antes que algum jogador responda novamente (apesar de estar marcado como feito, a solução anterior não funcionou... rever forma para garantir isso, de repente fazer um contador provisorio de quantas vezes cada jogador respondeu, a diferença nunca pode ser maior que 1... notei que quando um jogador erra uma resposta chamou novamente, pode ser coincidencia ou indicio de algo)
