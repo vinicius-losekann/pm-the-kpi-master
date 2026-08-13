@@ -47,12 +47,9 @@
 
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
-| 5.1 | **Feedback sonoro** | Sons para início de rodada, acerto/erro, eventos, fim de jogo, melhorando imersão. |
 | 5.2 | **Animações mais suaves** | Transições entre telas e modais com animações CSS já existem, mas podem ser aprimoradas (ex: uso de `will-change`). |
 | 5.3 | **Indicadores de carregamento** | Mostrar spinners durante reconexão, carregamento de perguntas, etc. |
-| 5.4 | **Acessibilidade** | Adicionar atributos ARIA, navegação por teclado (TAB, Enter), contraste adequado para daltonismo. |
 | 5.5 | **Modo noturno** | Já tem tema escuro; poderia ter opção de claro. |
-| 5.6 | **Tutorial interativo** | Para novos jogadores, um passo a passo explicando mecânicas (recursos, KPI, fases). |
 
 ---
 
@@ -83,15 +80,11 @@
 
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
-| 8.1 | **Salvamento do histórico da partida** | Armazenar logs de ações para replay ou análise posterior. |
-| 8.2 | **Modo de jogo avançado** | Diferentes cenários (ex: tempo reduzido, recursos variáveis). |
-| 8.3 | **Integração com backend** | Para ranking global, estatísticas, salas persistentes. |
-| 8.4 | **Suporte a múltiplos idiomas (i18n)** | Preparar arquivos de tradução para português, inglês, etc. |
-| 8.5 | **Compartilhamento de tela ou chat** | Melhorar interação social entre jogadores. |
-
 - Botão iniciar rodada antes de o evento surgir magicamente na tela
 - kpi quem acerta pergunta + 5 e quem assessora + 5
 - arrumar assessoria
 - qrcode no tabuleiro
 - corte de verbas -2 pra todo mundo, menos 1 para quem acerta a pergunta
 - apoio da alta gestão (+1 recurso somente para quem acerta)
+| 8.4 | **Suporte a múltiplos idiomas (i18n)** | Preparar arquivos de tradução para português, inglês, etc. |
+
