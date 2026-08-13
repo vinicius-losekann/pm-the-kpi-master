@@ -1,0 +1,1 @@
+// buildRanking(listaJogadores) → ranking ordenado
