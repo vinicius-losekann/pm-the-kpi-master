@@ -226,8 +226,7 @@ Respondedor recebe pergunta
 
 ### Desenvolvimento
 ```bash
-python3 -m http.server 8000
-
+python -m http.server 8080
 # http://localhost:8080
 ```
 

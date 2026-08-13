@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,16 +10,15 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@500;600;700;800&display=swap"
-        rel="stylesheet" />
+        rel="stylesheet"
+    />
 
     <!-- Favicon (emoji como ícone) -->
-    <link rel="icon"
-        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>" />
 
     <!-- CSS -->
     <link rel="stylesheet" href="css/style.css" />
 </head>
-
 <body class="page-game">
 
     <!-- ============================================ -->
@@ -88,8 +86,7 @@
                 <!-- Ações do Lobby -->
                 <div class="lobby-actions" style="margin-top:16px; display:flex; gap:10px; justify-content:center;">
                     <button id="btnEndSession" class="btn btn-glass btn-sm"
-                        style="display:none; color:#ff4757; border-color:rgba(255,71,87,0.3);">⛔ Encerrar
-                        Sessão</button>
+                            style="display:none; color:#ff4757; border-color:rgba(255,71,87,0.3);">⛔ Encerrar Sessão</button>
                     <button id="btnLeaveSession" class="btn btn-glass btn-sm">🚪 Sair da Sessão</button>
                 </div>
             </div>
@@ -122,12 +119,11 @@
 
                     <!-- Recursos -->
                     <div class="recursos-display"
-                        style="display:flex; align-items:center; justify-content:center; gap:6px; margin-bottom:12px;">
+                         style="display:flex; align-items:center; justify-content:center; gap:6px; margin-bottom:12px;">
                         <span style="font-size:1.2rem;">📦</span>
                         <span id="myRecursos"
-                            style="font-family:'Poppins',sans-serif; font-size:1.5rem; font-weight:800; color:#ffd700;">20</span>
-                        <span
-                            style="font-size:0.75rem; color:#a0a0b8; text-transform:uppercase; letter-spacing:1px;">Recursos</span>
+                              style="font-family:'Poppins',sans-serif; font-size:1.5rem; font-weight:800; color:#ffd700;">20</span>
+                        <span style="font-size:0.75rem; color:#a0a0b8; text-transform:uppercase; letter-spacing:1px;">Recursos</span>
                     </div>
 
                     <!-- Fase Atual -->
@@ -138,8 +134,7 @@
 
                     <!-- Progresso de Atividades -->
                     <div class="activity-progress">
-                        <div class="progress-text">Atividade <span id="myActivity">0</span>/<span
-                                id="myActivityTotal">2</span></div>
+                        <div class="progress-text">Atividade <span id="myActivity">0</span>/<span id="myActivityTotal">2</span></div>
                         <div class="progress-bar">
                             <div class="progress-fill" id="myProgressFill" style="width:0%;"></div>
                         </div>
@@ -154,11 +149,10 @@
 
                 <!-- Botões de Ação -->
                 <button id="btnEndMatch" class="btn btn-glass btn-sm btn-block"
-                    style="display:none; color:#ffa502; border-color:rgba(255,165,2,0.3);">🏁 Encerrar Partida</button>
-                <button id="btnLeaveMatch" class="btn btn-glass btn-sm btn-block" style="margin-top:4px;">🚶 Sair da
-                    Partida</button>
+                        style="display:none; color:#ffa502; border-color:rgba(255,165,2,0.3);">🏁 Encerrar Partida</button>
+                <button id="btnLeaveMatch" class="btn btn-glass btn-sm btn-block" style="margin-top:4px;">🚶 Sair da Partida</button>
                 <button id="btnVenderRecurso" class="btn btn-glass btn-sm btn-block"
-                    style="margin-top:4px; color:#ffd700; border-color:rgba(255,215,0,0.3);">
+                        style="margin-top:4px; color:#ffd700; border-color:rgba(255,215,0,0.3);">
                     💰 Vender Recurso
                 </button>
             </aside>
@@ -201,14 +195,10 @@
 
                     <!-- Alternativas (Respondedor) -->
                     <div class="alternatives-grid" id="alternativesGrid" style="display:none;">
-                        <button class="alternative-btn" data-alt="a"><span class="alt-letter">A</span><span
-                                class="alt-text" id="altA">---</span></button>
-                        <button class="alternative-btn" data-alt="b"><span class="alt-letter">B</span><span
-                                class="alt-text" id="altB">---</span></button>
-                        <button class="alternative-btn" data-alt="c"><span class="alt-letter">C</span><span
-                                class="alt-text" id="altC">---</span></button>
-                        <button class="alternative-btn" data-alt="d"><span class="alt-letter">D</span><span
-                                class="alt-text" id="altD">---</span></button>
+                        <button class="alternative-btn" data-alt="a"><span class="alt-letter">A</span><span class="alt-text" id="altA">---</span></button>
+                        <button class="alternative-btn" data-alt="b"><span class="alt-letter">B</span><span class="alt-text" id="altB">---</span></button>
+                        <button class="alternative-btn" data-alt="c"><span class="alt-letter">C</span><span class="alt-text" id="altC">---</span></button>
+                        <button class="alternative-btn" data-alt="d"><span class="alt-letter">D</span><span class="alt-text" id="altD">---</span></button>
                     </div>
 
                     <!-- Alternativas (Perguntador – somente leitura) -->
@@ -222,7 +212,7 @@
 
                     <!-- Área de Assessoria -->
                     <div class="assessoria-area" id="assessoriaArea"
-                        style="display:none; margin-top:16px; text-align:center;">
+                         style="display:none; margin-top:16px; text-align:center;">
                         <button id="btnPedirAssessoria" class="btn btn-glass btn-sm">📞 Pedir Assessoria</button>
                         <div id="assessoriaStatus" style="margin-top:8px; font-size:0.85rem; color:#a0a0b8;"></div>
                     </div>
@@ -275,7 +265,7 @@
     <div id="modalEvento" class="modal" style="display:none;">
         <div class="modal-overlay"></div>
         <div class="modal-card glass-card"
-            style="text-align:center; border-color: #ffd700; box-shadow: 0 0 40px rgba(255,215,0,0.4); max-width: 420px;">
+             style="text-align:center; border-color: #ffd700; box-shadow: 0 0 40px rgba(255,215,0,0.4); max-width: 420px;">
             <span style="font-size:3rem; display:block; margin-bottom:8px;">📋</span>
             <h2 id="eventoModalTitulo" style="color:#ffd700; margin:8px 0; font-size:1.3rem;">Evento</h2>
             <p id="eventoModalDesc" style="color:#e0e0e0; font-size:1rem; margin-bottom:20px; line-height:1.5;">
@@ -353,11 +343,11 @@
             <p style="color:#a0a0b8; margin-bottom:8px;" id="assessoriaTimerText">⏱️ 20s</p>
             <p style="color:#e0e0e0; margin-bottom:16px;" id="assessoriaQuestionText">Pergunta...</p>
             <div id="assessoriaAlternativesList"
-                style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+                 style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
                 <!-- Lista de alternativas preenchida dinamicamente -->
             </div>
             <button id="btnRecusarAssessoria" class="btn btn-glass"
-                style="color:#ff4757; border-color:rgba(255,71,87,0.3);">❌ Recusar</button>
+                    style="color:#ff4757; border-color:rgba(255,71,87,0.3);">❌ Recusar</button>
         </div>
     </div>
 
@@ -368,34 +358,14 @@
     <!-- 1. Dependências externas -->
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
 
-    <!-- Configuração -->
-    <script src="js/config/game-config.js"></script>
-
-    <!-- Locale -->
-    <script src="js/locales/pt-BR.js"></script>
-
-    <!-- Utils -->
-    <script src="js/utils/i18n.js"></script> <!-- NOVO -->
-
-    <!-- Estado -->
-    <script src="js/state/game-state.js"></script>
-
-    <!-- Core -->
-    <script src="js/core/event.js"></script>
-
-    <!-- UI -->
-    <script src="js/ui/setup.js"></script>
-     <script src="js/ui/lobby.js"></script>
-    <script src="js/ui/game.js"></script>
-    <script src="js/ui/modals.js"></script>
-    <script src="js/ui/ranking.js"></script>
-
+    <!-- 2. Configuração -->
+    <script src="config/game-config.js"></script>
 
     <!-- 3. Módulos do jogo -->
     <script src="js/game-state.js"></script>
     <script src="js/game-network.js"></script>
     <script src="js/game-core.js"></script>
-    <!-- <script src="js/game-ui.js"></script> -->
+    <script src="js/game-ui.js"></script>
 
     <!-- 4. Debug (comentar para produção) -->
     <!-- <script src="js/game-debug.js"></script> -->
@@ -404,5 +374,4 @@
     <script src="js/game-main.js"></script>
 
 </body>
-
 </html>

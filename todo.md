@@ -87,4 +87,3 @@
 - corte de verbas -2 pra todo mundo, menos 1 para quem acerta a pergunta
 - apoio da alta gestão (+1 recurso somente para quem acerta)
 | 8.4 | **Suporte a múltiplos idiomas (i18n)** | Preparar arquivos de tradução para português, inglês, etc. |
-
