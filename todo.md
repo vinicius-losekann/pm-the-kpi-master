@@ -88,3 +88,10 @@
 | 8.3 | **Integração com backend** | Para ranking global, estatísticas, salas persistentes. |
 | 8.4 | **Suporte a múltiplos idiomas (i18n)** | Preparar arquivos de tradução para português, inglês, etc. |
 | 8.5 | **Compartilhamento de tela ou chat** | Melhorar interação social entre jogadores. |
+
+- Botão iniciar rodada antes de o evento surgir magicamente na tela
+- kpi quem acerta pergunta + 5 e quem assessora + 5
+- arrumar assessoria
+- qrcode no tabuleiro
+- corte de verbas -2 pra todo mundo, menos 1 para quem acerta a pergunta
+- apoio da alta gestão (+1 recurso somente para quem acerta)
