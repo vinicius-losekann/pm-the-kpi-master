@@ -165,6 +165,24 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
         respondedor: respondedor.name
     });
 
+    // 🐛 Correção (ver ISSUES.md BUG-006): para os GUESTS, 'round-start'
+    // chega pela rede ANTES de 'question' (mensagens em sequência no
+    // mesmo canal). Só que para o HOST, sendToPlayer() ao enviar pra si
+    // mesmo processa a mensagem NA HORA (sem passar pela rede) — então
+    // se a tela de "início de rodada" (displayRoundStart/
+    // displaySpectatorView) só fosse montada DEPOIS do envio das
+    // perguntas, ela sobrescrevia o que displayQuestion() acabara de
+    // configurar (ex: apagava a área de assessoria que tinha acabado de
+    // aparecer, ou revertia a visão de espectador de volta pra tela de
+    // pergunta vazia). Por isso a tela do host é montada ANTES de enviar
+    // as mensagens — replicando a ordem que os guests já recebem
+    // naturalmente pela rede.
+    if (state.playerName !== perguntador.name && state.playerName !== respondedor.name) {
+        Game.ui.displaySpectatorView(perguntador.name, respondedor.name);
+    } else {
+        Game.ui.displayRoundStart();
+    }
+
     const areaNome = state.questionsData.areas[pergunta.area_key]?.nome || pergunta.area_key;
     const grupoNome = Game.getFaseById(respondedor.phase).nome;
 
@@ -183,13 +201,6 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
 
     // Envia a pergunta (sem gabarito) para o Respondedor
     Game.network.sendToPlayer(respondedor.peerId, { ...perguntaData, isRespondedor: true, correta: undefined });
-
-    // Espectadores veem a tela de espera
-    if (state.playerName !== perguntador.name && state.playerName !== respondedor.name) {
-        Game.ui.displaySpectatorView(perguntador.name, respondedor.name);
-    }
-
-    Game.ui.displayRoundStart();
 
     // Timeout de segurança para o Respondedor
     armarRespostaTimeout(respondedor.name);
