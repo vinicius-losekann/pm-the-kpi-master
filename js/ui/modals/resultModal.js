@@ -7,18 +7,18 @@
 
 function showResultModal(acertou, kpiGanho, recursosRestantes) {
     const modal = document.getElementById('modalResult');
-    document.getElementById('resultTitle').textContent = acertou ? '✅ Acertou!' : '❌ Errou!';
+    document.getElementById('resultTitle').textContent = Game.i18n.t(acertou ? 'result.acertou' : 'result.errou');
     document.getElementById('resultTitle').className = 'result-title ' + (acertou ? 'result-success' : 'result-error');
-    let msg = acertou ? `+${kpiGanho} KPI` : '0 KPI';
-    if (recursosRestantes !== undefined) msg += ` | 📦 ${recursosRestantes} recursos`;
+    let msg = acertou ? Game.i18n.t('result.kpiGanho', { kpi: kpiGanho }) : Game.i18n.t('result.kpiZero');
+    if (recursosRestantes !== undefined) msg += Game.i18n.t('result.comRecursos', { recursos: recursosRestantes });
     document.getElementById('resultMessage').textContent = msg;
     modal.style.display = 'flex';
 }
 
 function showAssessoriaBonusModal(bonus) {
-    document.getElementById('resultTitle').textContent = '🧭 Assessoria!';
+    document.getElementById('resultTitle').textContent = Game.i18n.t('result.assessoriaTitulo');
     document.getElementById('resultTitle').className = 'result-title result-success';
-    document.getElementById('resultMessage').textContent = `+${bonus} KPI (sugestão correta)`;
+    document.getElementById('resultMessage').textContent = Game.i18n.t('result.assessoriaBonus', { bonus });
     document.getElementById('modalResult').style.display = 'flex';
 }
 

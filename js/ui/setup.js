@@ -1,15 +1,26 @@
 // ============================================
 // PM: The KPI Master - UI: Setup
 // ============================================
-// Configura todos os listeners da UI. Fase 5.2 do roadmap.
+// Alterna a visibilidade dos elementos conforme o papel do jogador
+// (host/guest) e delega o bind dos botões de ação para
+// ui/components/controlsComponent.js (Game.ui.bindControls()).
+// Fase 5.2 do roadmap.
+//
+// Reorganizado para resolver a sobreposição de responsabilidade com
+// controlsComponent.js (ver NOTA-001 em ARCHITECTURE.md): antes, os
+// listeners dos botões de ação (vender, assessoria, sessão, partida,
+// nova rodada) estavam aqui; agora moraram para controlsComponent.js,
+// que passa a ser o dono de fato da "barra de ações". Este arquivo
+// cuida só de: (1) mostrar/esconder elementos conforme o papel, e
+// (2) navegação de tela / fechamento de modais que não são,
+// estritamente, "ações do jogo".
 // ============================================
 
 let commonListenersBound = false;
-let hostOnlyListenersBound = false;
 
 /**
- * Configura todos os listeners da UI. É chamada uma vez na inicialização
- * e novamente quando um guest se torna host (para ativar controles de host).
+ * Configura a UI. É chamada uma vez na inicialização e novamente
+ * quando um guest se torna host (para ativar controles de host).
  */
 function setupUI() {
     const state = Game.state;
@@ -21,6 +32,8 @@ function setupUI() {
         document.getElementById('roomPeerId').textContent = state.peerId;
         document.getElementById('btnEndSession').style.display = 'inline-block';
         document.getElementById('btnEndMatch').style.display = 'block';
+        document.getElementById('btnNovaRodada').style.display = 'block';
+        document.getElementById('btnNovaRodada').disabled = true;
         document.getElementById('btnLeaveSession').style.display = 'none';
         document.getElementById('btnLeaveMatch').style.display = 'none';
 
@@ -37,41 +50,29 @@ function setupUI() {
             });
         }
         Game.ui.updatePlayersList();
-
-        if (!hostOnlyListenersBound) {
-            document.getElementById('btnStartGame').addEventListener('click', () => {
-                Game.state.timer = CONFIG.JOGO.SESSION_DURATION;
-                Game.network.broadcastAll({ type: 'game-start', timer: Game.state.timer });
-                Game.core.startGame();
-            });
-
-            document.getElementById('btnCopyId').addEventListener('click', () => {
-                navigator.clipboard.writeText(Game.state.peerId).then(() => {
-                    const btn = document.getElementById('btnCopyId');
-                    btn.textContent = '✅ Copiado!';
-                    setTimeout(() => { btn.textContent = '📋 Copiar'; }, 2000);
-                }).catch(() => {});
-            });
-
-            hostOnlyListenersBound = true;
-        }
     } else {
         document.getElementById('hostControls').style.display = 'none';
         document.getElementById('playerWaiting').style.display = 'block';
         document.getElementById('hostRoomIdSection').style.display = 'none';
         document.getElementById('btnEndSession').style.display = 'none';
         document.getElementById('btnEndMatch').style.display = 'none';
+        document.getElementById('btnNovaRodada').style.display = 'none';
         document.getElementById('btnLeaveSession').style.display = 'inline-block';
         document.getElementById('btnLeaveMatch').style.display = 'block';
     }
 
+    // Botões de ação (vender, assessoria, sessão, partida, nova rodada)
+    // agora são responsabilidade de controlsComponent.js.
+    Game.ui.bindControls();
+
+    // Recalcula o estado real do botão "Nova Rodada" (ciclo completo ou
+    // não) — cobre tanto a inicialização normal quanto becomeHost()
+    // (guest assumindo como host no meio de uma partida em andamento).
+    Game.ui.refreshNovaRodadaButton();
+
     if (commonListenersBound) return;
 
-    // Listeners comuns (host e guest)
-    document.getElementById('btnEndSession').addEventListener('click', Game.core.endSession);
-    document.getElementById('btnEndMatch').addEventListener('click', Game.core.endMatch);
-    document.getElementById('btnLeaveSession').addEventListener('click', Game.core.leaveSession);
-    document.getElementById('btnLeaveMatch').addEventListener('click', Game.core.leaveMatch);
+    // Navegação de tela e fechamento de modais.
     document.getElementById('btnExitGameOver').addEventListener('click', () => {
         Game.network.cleanup();
         window.location.href = 'index.html';
@@ -101,10 +102,6 @@ function setupUI() {
         });
     });
 
-    document.getElementById('btnVenderRecurso').addEventListener('click', () => {
-        Game.ui.showVendaModal();
-    });
-
     document.getElementById('btnFecharVenda').addEventListener('click', () => {
         Game.ui.fecharVendaModal();
     });
@@ -115,10 +112,6 @@ function setupUI() {
 
     document.getElementById('btnRecusarVendaOferta').addEventListener('click', () => {
         Game.ui.responderOfertaVenda(false);
-    });
-
-    document.getElementById('btnPedirAssessoria').addEventListener('click', () => {
-        Game.ui.showAssessoriaSelectModal();
     });
 
     document.getElementById('btnFecharAssessoriaSelect').addEventListener('click', () => {

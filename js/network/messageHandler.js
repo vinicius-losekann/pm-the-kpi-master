@@ -9,6 +9,28 @@
 // ============================================
 
 /**
+ * 🔴 CORREÇÃO DE SEGURANÇA (ver ISSUES.md): verifica se o peer que
+ * enviou a mensagem (fromPeerId) é de fato o jogador que a mensagem
+ * alega representar (claimedName). Sem isso, qualquer guest conectado
+ * podia enviar mensagens alegando ser outro jogador — respondendo no
+ * lugar dele, expulsando-o da partida, etc.
+ * Usada apenas no HOST, no momento do despacho das mensagens que
+ * executam uma ação EM NOME de um jogador específico.
+ */
+function isSenderVerified(claimedName, fromPeerId) {
+    const player = Game.getPlayerByName(claimedName);
+    if (!player) {
+        console.warn(`⚠️ Mensagem rejeitada: jogador "${claimedName}" não encontrado.`);
+        return false;
+    }
+    if (player.peerId !== fromPeerId) {
+        console.warn(`⚠️ Mensagem rejeitada: "${claimedName}" foi reivindicado por um peer diferente do registrado (possível falsificação de identidade).`);
+        return false;
+    }
+    return true;
+}
+
+/**
  * Roteia as mensagens recebidas para as funções apropriadas.
  */
 function handleMessage(msg, fromPeerId) {
@@ -82,7 +104,9 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'leave-match-request':
-            if (state.isHost) Game.core.handleLeaveMatchRequest(msg);
+            if (state.isHost && isSenderVerified(msg.playerName, fromPeerId)) {
+                Game.core.handleLeaveMatchRequest(msg);
+            }
             break;
 
         case 'match-ended':
@@ -121,7 +145,8 @@ function handleMessage(msg, fromPeerId) {
             if (state.isHost &&
                 state.currentRound &&
                 !state.currentRound.respondeu &&
-                msg.playerName === state.currentRound.respondedor) {
+                msg.playerName === state.currentRound.respondedor &&
+                isSenderVerified(msg.playerName, fromPeerId)) {
                 Game.core.handleAnswer(msg);
             }
             break;
@@ -152,7 +177,9 @@ function handleMessage(msg, fromPeerId) {
 
         // --- ASSESSORIA ---
         case 'assessoria-request':
-            if (state.isHost) Game.core.handleAssessoriaRequest(msg);
+            if (state.isHost && isSenderVerified(msg.requesterName, fromPeerId)) {
+                Game.core.handleAssessoriaRequest(msg);
+            }
             break;
 
         case 'assessoria-started':
@@ -164,7 +191,14 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'assessoria-answer':
-            if (state.isHost) Game.core.handleAssessoriaAnswer(msg);
+            if (state.isHost) {
+                const assessorName = state.currentRound?.assessoria?.assessorName;
+                if (assessorName && isSenderVerified(assessorName, fromPeerId)) {
+                    Game.core.handleAssessoriaAnswer(msg);
+                } else {
+                    console.warn('⚠️ Resposta de assessoria rejeitada: remetente não é o assessor designado da rodada.');
+                }
+            }
             break;
 
         case 'assessoria-result':
@@ -173,7 +207,9 @@ function handleMessage(msg, fromPeerId) {
 
         // --- VENDA ---
         case 'venda-offer-request':
-            if (state.isHost) Game.core.handleVendaOfertaRequest(msg);
+            if (state.isHost && isSenderVerified(msg.vendedorName, fromPeerId)) {
+                Game.core.handleVendaOfertaRequest(msg);
+            }
             break;
 
         case 'venda-offer':
@@ -181,7 +217,9 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'venda-offer-response':
-            if (state.isHost) Game.core.handleVendaOfertaResponse(msg);
+            if (state.isHost && isSenderVerified(msg.compradorName, fromPeerId)) {
+                Game.core.handleVendaOfertaResponse(msg);
+            }
             break;
 
         case 'venda-rejected':

@@ -24,7 +24,7 @@ function requestAssessoria(assessorName) {
     }
     const me = Game.getPlayerByName(state.playerName);
     if (me && Game.getFaseIndex(me.phase) === CONFIG.FASES.length - 1) {
-        alert('⚠️ Jogadores na fase de Encerramento não podem pedir assessoria.');
+        alert(Game.i18n.t('advisory.faseEncerramento'));
         return false;
     }
 

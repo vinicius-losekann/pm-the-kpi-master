@@ -13,38 +13,45 @@ function showVendaModal() {
     const me = Game.getPlayerByName(state.playerName);
 
     if (!me || me.recursos < 1) {
-        alert('⚠️ Você não tem recursos para vender.');
+        alert(Game.i18n.t('trade.semRecursos'));
         return;
     }
 
     const compradores = Game.core.getCompradores();
     if (compradores.length === 0) {
-        alert('⚠️ Nenhum jogador disponível para comprar (precisa ter pelo menos ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI).');
+        alert(Game.i18n.t('trade.nenhumComprador', { valor: CONFIG.KPI.VALOR_VENDA_RECURSO }));
         return;
     }
 
     document.getElementById('vendaValorKPI').textContent = CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI';
     document.getElementById('vendaSeusRecursos').textContent =
-        'Seus recursos: 📦 ' + me.recursos;
+        Game.i18n.t('trade.seusRecursos', { recursos: me.recursos });
 
     document.getElementById('vendaCompradores').innerHTML = compradores.map(c => `
-        <button class="btn btn-glass" onclick="Game.ui.confirmarVenda('${c.name}')" 
+        <button class="btn btn-glass comprador-select-btn" data-comprador-name="${Game.sanitize.escapeHtml(c.name)}"
                 style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px;">
-            <span>${c.name}</span>
+            <span>${Game.sanitize.escapeHtml(c.name)}</span>
             <span style="color:#ffd700; font-size:0.8rem;">⭐${c.kpi} KPI</span>
         </button>
     `).join('');
+
+    // 🔴 Correção de segurança: mesmo caso do advisoryModal.js — nome de
+    // jogador não pode ir interpolado em onclick="...", pois o navegador
+    // decodifica entidades HTML antes de rodar o JS do handler.
+    document.querySelectorAll('#vendaCompradores .comprador-select-btn').forEach(btn => {
+        btn.addEventListener('click', () => confirmarVenda(btn.dataset.compradorName));
+    });
 
     document.getElementById('modalVenda').style.display = 'flex';
 }
 
 function confirmarVenda(compradorName) {
-    if (confirm('Enviar oferta de venda de 1📦 para ' + compradorName + ' por ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI?')) {
+    if (confirm(Game.i18n.t('trade.confirmarOferta', { comprador: compradorName, valor: CONFIG.KPI.VALOR_VENDA_RECURSO }))) {
         Game.core.venderRecurso(compradorName);
         document.querySelectorAll('#vendaCompradores button').forEach(b => b.disabled = true);
         const seusRecursosEl = document.getElementById('vendaSeusRecursos');
         if (seusRecursosEl) {
-            seusRecursosEl.textContent = '🔄 Aguardando ' + compradorName + ' aceitar a oferta...';
+            seusRecursosEl.textContent = Game.i18n.t('trade.aguardandoAceite', { comprador: compradorName });
         }
     }
 }
@@ -59,7 +66,7 @@ function fecharVendaModal() {
 function showVendaOfertaModal(msg) {
     ofertaVendaAtual = msg;
     document.getElementById('vendaOfertaTexto').innerHTML =
-        `<strong>${msg.vendedorName}</strong> oferece 1📦 por <strong style="color:#ffd700;">${msg.valor} KPI</strong>`;
+        Game.i18n.t('trade.ofertaRecebida', { vendedor: Game.sanitize.escapeHtml(msg.vendedorName), valor: msg.valor });
     document.getElementById('modalVendaOferta').style.display = 'flex';
 }
 

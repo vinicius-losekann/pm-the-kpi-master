@@ -35,6 +35,8 @@ window.Game.locales['pt-BR'] = {
     controls: {
         prontoParaIniciar: '{{count}} jogadores ativos - pronto!',
         minimoJogadores: 'Mínimo de {{min}} jogadores ativos',
+        copiado: '✅ Copiado!',
+        copiar: '📋 Copiar',
     },
 
     question: {
@@ -54,6 +56,7 @@ window.Game.locales['pt-BR'] = {
         timeout: '⌛ {{assessor}} não respondeu a tempo.',
         invalido: '⚠️ Não foi possível chamar {{assessor}}. Escolha uma alternativa.',
         faseEncerramento: '⚠️ Jogadores na fase de Encerramento não podem pedir assessoria.',
+        tempoRestante: '⏱️ {{seconds}}s',
     },
 
     trade: {
@@ -86,5 +89,13 @@ window.Game.locales['pt-BR'] = {
         conectado: 'Conectado',
         desconectado: 'Desconectado',
         erro: 'Erro de conexão',
+        naoFoiPossivelConectar: 'Não foi possível conectar. Recarregue a página.',
+        reconectando: 'Reconectando ({{attempt}}/{{max}})...',
+        hostDesconectado: 'Host desconectado — tentando reconectar...',
+        reconectandoHost: 'Reconectando ao host ({{attempt}}/{{max}})...',
+        reconectado: 'Reconectado',
+        procurandoNovoHost: 'Procurando novo host ({{attempt}}/{{max}})...',
+        naoFoiPossivelReconectar: 'Não foi possível reconectar. Recarregue a página.',
+        falhaAssumirHost: 'Falha ao assumir a sala como host.',
     },
 };

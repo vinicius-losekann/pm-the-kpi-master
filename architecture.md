@@ -58,7 +58,7 @@ pm-the-kpi-master/
     │   │   ├── lobbyComponent.js
     │   │   ├── questionComponent.js
     │   │   ├── profileComponent.js    # card do jogador (KPI, fase, progresso)
-    │   │   ├── controlsComponent.js   # ⚠️ hoje bem magro — ver NOTA-001
+    │   │   ├── controlsComponent.js   # ✅ dono da barra de ações (NOTA-001 resolvida)
     │   │   ├── timerComponent.js
     │   │   └── rankingComponent.js
     │   └── modals/
@@ -94,42 +94,61 @@ pm-the-kpi-master/
 | 3 — Orquestração | ✅ Completa | `engine/*.js` (5 arquivos), `game-core.js` removido. **BUG-001** corrigido |
 | 4 — Rede | ✅ Completa | `network/*.js` (4 arquivos), `game-network.js` removido. **BUG-002** corrigido |
 | 5 — Interface | ✅ Completa | `ui/*.js` (12 arquivos), `game-ui.js` removido. **BUG-003** corrigido, **REGRESSÃO-001** encontrada e corrigida |
-| 6 — Internacionalização | 🟡 Parcial | `utils/i18n.js` + `locales/pt-BR.js` criados (infraestrutura funcional). UI ainda não religada — ver **NOTA-003** |
+| 6 — Internacionalização | ✅ pt-BR religado | `utils/i18n.js` + `locales/pt-BR.js` religados em `ui/*.js`, `engine/*.js` e `network/*.js` (51 chaves, todas em uso). Falta `en-US.js`/`es-ES.js` e seletor de idioma — ver **NOTA-003** |
 | 7 — Infraestrutura e Limpeza | 🟡 Parcial | `utils/logger.js` (infra, não religado — **NOTA-004**), `utils/persistence.js` (religado e em uso), `dev/debugTools.js` migrado (**REGRESSÃO-002** corrigida), `data/` separado em `questions.pt-BR.json` + `events.json`. Falta apenas apagar os arquivos antigos do projeto — ver checklist abaixo |
 
-Bugs corrigidos ao longo da migração estão detalhados em `ISSUES.md`.
+Bugs, regressões e correções de segurança encontrados ao longo da migração e das revisões posteriores (BUG-001 a 004, REGRESSÃO-001/002, SEC-001/002) estão detalhados em `ISSUES.md`.
 
 ---
 
 ## Notas de arquitetura pendentes (não são bugs — decisões registradas para decidir depois)
 
-### NOTA-001 — `controlsComponent.js` ficou mais magro que o esperado (Fase 5)
+### NOTA-001 — `controlsComponent.js`/`setup.js`: sobreposição resolvida
 
-Hoje só tem `checkStartCondition()` (habilita o botão "Iniciar Partida"). Os botões de vender/assessoria/sair/encerrar continuam com listener registrado em `ui/setup.js`, chamando `Game.ui.showXModal()` / `Game.core.X()` direto — não passam por `controlsComponent.js` nem pelo `EventBus`.
-
-Decisão tomada: deixar como está por ora. Opções para quando revisitarmos:
-- **(a)** Só mover os listeners de `setup.js` para `controlsComponent.js` (puramente estrutural, mesma chamada direta)
-- **(b)** Fazer (a) e também rotear essas ações pelo `EventBus` (`Game.bus.emit`/`on`) — seria o primeiro uso real do bus
+**Status: ✅ Resolvido.** `controlsComponent.js` agora é dono de fato da "barra de ações" (iniciar partida, copiar ID, nova rodada, vender, pedir assessoria, sair/encerrar sessão e partida) via `Game.ui.bindControls()`. `setup.js` ficou só com alternância de visibilidade host/guest e navegação de tela/fechamento de modal. Chamada direta (`Game.ui.showXModal()`/`Game.core.X()`) foi mantida — não passou a usar o `EventBus` (isso seria a opção "b" abaixo, não implementada).
 
 ### NOTA-002 — `eventBus.js` existe desde a Fase 0 mas nunca foi usado de fato
 
-Nenhum arquivo chama `Game.bus.emit()`/`on()` até agora. Toda comunicação entre módulos é via chamada direta (`Game.ui.X()`, `Game.core.X()`, `Game.network.X()`). Ligado à NOTA-001: se decidirmos rotear ações pelo bus, esse seria o primeiro caso de uso real.
+Nenhum arquivo chama `Game.bus.emit()`/`on()` até agora (confirmado novamente após a NOTA-001 ser resolvida). Toda comunicação entre módulos é via chamada direta (`Game.ui.X()`, `Game.core.X()`, `Game.network.X()`). Se decidirmos rotear ações pelo bus algum dia, esse seria o primeiro caso de uso real — item de backlog, esforço alto (toca `engine/` e `ui/` inteiros), sem bug associado hoje.
 
-### NOTA-003 — i18n: infraestrutura pronta, UI ainda não religada (Fase 6)
+### NOTA-003 — i18n: UI religada em pt-BR, faltam os outros idiomas
 
-`utils/i18n.js` e `locales/pt-BR.js` existem e funcionam de forma isolada (`Game.i18n.t('chave')` já funciona se chamado), mas os 12 arquivos de `ui/*.js` continuam com strings em português direto no código. O dicionário `pt-BR.js` foi escrito espelhando essas strings atuais, então a troca é mecânica — mas ainda precisa ser feita, arquivo por arquivo. Falta também criar `en-US.js` e `es-ES.js`.
+**Atualizado:** a UI foi religada. Todas as strings de usuário em `ui/*.js`, `engine/answerEngine.js`, `engine/advisoryEngine.js`, `network/peerService.js`, `network/hostMigration.js` e `main.js` agora chamam `Game.i18n.t('namespace.chave')` em vez de texto fixo. O dicionário `pt-BR.js` tem 51 chaves, todas em uso (conferido via script que carrega o dicionário de verdade em Node e cruza com todas as chamadas `Game.i18n.t(...)` do código — zero chaves quebradas).
 
-Quando decidirmos religar:
-1. Trocar cada string fixa em `ui/*.js` por `Game.i18n.t('...')`
-2. Criar `en-US.js` e `es-ES.js` com as mesmas chaves de `pt-BR.js`
+O que ainda falta:
+1. ~~Trocar cada string fixa em `ui/*.js` por `Game.i18n.t('...')`~~ ✅ feito
+2. Criar `en-US.js` e `es-ES.js` com as mesmas 51 chaves de `pt-BR.js`
 3. Adicionar um seletor de idioma na UI que chama `Game.i18n.setLocale()`
 4. Testar troca de idioma em tempo real (critério do checklist final do roadmap)
+
+**Fora do escopo por ora:** `index.html`/`entry/roomEntry.js` (tela inicial de criar/entrar em sala) não carrega `i18n.js`/`locales/pt-BR.js` e continua com strings fixas — só `game.html` foi religado.
+
+### Funcionalidade nova: botão "Nova Rodada" para o host
+
+Não fazia parte do roadmap original. O botão `btnNovaRodada` já existia no HTML (oculto, sem listener — provavelmente esquecido do design original). Ligado em `ui/setup.js`: visível apenas para o host durante a partida, chama `Game.core.nextTurn()` ao ser clicado — o mesmo fluxo que já roda automaticamente 3s depois de cada resposta (`engine/answerEngine.js`). Não pula rodada em andamento nem força nada fora do fluxo normal — só permite ao host avançar manualmente sem esperar o timer automático.
 
 ### NOTA-004 — logger: infraestrutura pronta, resto do código ainda não religado (Fase 7)
 
 `utils/logger.js` existe e funciona isoladamente (`Game.logger.info(...)`, `Game.logger.warn(...)` etc. já funcionam se chamados), mas **nenhum arquivo do projeto foi religado** para usar `Game.logger.*` no lugar de `console.log`/`console.warn`/`console.error` diretos — e são centenas de ocorrências espalhadas por `domain/`, `engine/`, `network/` e `ui/`.
 
 Mesmo padrão da NOTA-003 (i18n): infraestrutura funcional, wiring pendente. Diferente do i18n, aqui não há "chave" para trocar — é substituição direta de `console.X(...)` por `Game.logger.X(...)`, então o trabalho é mecânico mas espalhado por praticamente todo arquivo `.js` do projeto. Fica para decidir depois se vale a pena.
+
+### NOTA-005 — `domain/` muta em vez de retornar deltas; `state/mutations.js` subdesenvolvido
+
+O roadmap mais detalhado (fornecido pelo usuário após a Fase 5) descreve o contrato de `domain/` como: "recebem estado (ou fatia dele) e retornam um RESULTADO/DELTA, nunca mutam diretamente" e "SÓ o mutations.js pode escrever no store, domain/ nunca muta diretamente". **Esse contrato não foi seguido.**
+
+- `domain/eventRules.js` → `aplicarEfeitosEvento()` muta os objetos de jogador recebidos diretamente (`p.recursos += ...`) em vez de retornar um delta
+- `domain/deckRules.js` → `sortearPergunta()` muta o baralho recebido diretamente (`pergunta.usada = true`, `baralho.disponiveis--`)
+- `state/mutations.js` só tem `resetAllPlayers()`/`resetGameState()` — nunca ganhou os setters por campo (`applyKpiDelta`, `setPlayerPhase` etc.) que o roadmap detalhado previa
+- Os `engine/*.js` escrevem direto em `Game.state.players` (ex: `respondedor.kpi = resultado.novoKpi` em `answerEngine.js`) em vez de passar por `mutations.js`
+
+**Por que isso aconteceu:** a estratégia de todas as 7 fases foi extrair a lógica do `game-core.js` original **preservando o comportamento exato**, sem reescrever para o padrão funcional mais rigoroso descrito no roadmap detalhado (que só chegou depois da Fase 5, e nunca foi reconciliado com o que já tinha sido migrado). Essa divergência não tinha sido sinalizada antes de uma revisão de arquitetura pedida explicitamente pelo usuário.
+
+**Vale a pena corrigir?** Só se o objetivo for testabilidade de verdade do `domain/` (testes unitários que não dependem de mutação de estado compartilhado) ou preparar terreno para algo tipo Redux/undo-redo. O jogo funciona corretamente hoje sem isso — é puramente uma questão de rigor arquitetural, não um bug. Esforço alto: reescrever `eventRules.js`/`deckRules.js`, expandir `mutations.js`, atualizar todos os pontos de chamada em `engine/*.js`, e testar o cálculo de KPI/recursos extensivamente (é a lógica mais sensível do jogo).
+
+### Por que o projeto não usa ES Modules
+
+Nunca foi decidido usar — o projeto inteiro usa `<script>` simples + namespace global `window.Game`, o mesmo padrão do código original antes da migração. Avaliação ao ser questionado sobre isso: ES Modules exigem servidor HTTP (não funcionam abrindo o HTML direto via `file://`, o que este jogo provavelmente faz em uso casual), tocariam os ~40 arquivos `.js` do projeto, e removeriam toda a camada de compatibilidade `Game.core`/`Game.engine`/`Game.domain` construída ao longo da migração — sem corrigir nenhum bug existente. Recomendação: não migrar, a menos que haja um plano de investir bem mais tempo no projeto com tooling de build.
 
 ### `connectionState.js` — por que existe (Fase 4)
 

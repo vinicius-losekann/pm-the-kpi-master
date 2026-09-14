@@ -35,7 +35,7 @@ async function initPeer() {
                 document.getElementById('roomPeerId').textContent = id;
             }
             console.log('🔗 Peer aberto:', id);
-            Game.ui.updateConnectionStatus('connected', 'Conectado');
+            Game.ui.updateConnectionStatus('connected', Game.i18n.t('connection.conectado'));
 
             if (!state.isHost) {
                 connectToHost();
@@ -47,13 +47,13 @@ async function initPeer() {
 
         peer.on('error', (err) => {
             console.error('❌ PeerJS Error:', err);
-            Game.ui.updateConnectionStatus('error', 'Erro de conexão');
+            Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.erro'));
             try { peer.destroy(); } catch (e) { /* ignora */ }
             reject(err);
         });
 
         peer.on('disconnected', () => {
-            Game.ui.updateConnectionStatus('disconnected', 'Desconectado');
+            Game.ui.updateConnectionStatus('disconnected', Game.i18n.t('connection.desconectado'));
             setTimeout(() => {
                 const current = cs.getPeer();
                 if (current && !current.destroyed) current.reconnect();

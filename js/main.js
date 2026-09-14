@@ -129,6 +129,7 @@ function resumeGameEngineIfHost() {
             Game.ui.displayQuestion(state.currentRound.pergunta);
         }
         Game.core.armarRespostaTimeout(state.currentRound.respondedor);
+        Game.ui.refreshNovaRodadaButton();
     }
 }
 
@@ -149,11 +150,11 @@ async function initPeerWithRetry(maxAttempts = 4, delayMs = 2000) {
             console.warn(`⚠️ Falha ao iniciar Peer (tentativa ${attempt}/${maxAttempts}):`, err?.message || err);
 
             if (isLastAttempt) {
-                Game.ui.updateConnectionStatus('error', 'Não foi possível conectar. Recarregue a página.');
+                Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.naoFoiPossivelConectar'));
                 throw err;
             }
 
-            Game.ui.updateConnectionStatus('disconnected', `Reconectando (${attempt}/${maxAttempts})...`);
+            Game.ui.updateConnectionStatus('disconnected', Game.i18n.t('connection.reconectando', { attempt, max: maxAttempts }));
             await new Promise(res => setTimeout(res, delayMs));
         }
     }

@@ -39,7 +39,7 @@ function displayQuestion(q) {
         document.getElementById('alternativesGrid').style.display = 'grid';
         document.getElementById('allAlternativesArea').style.display = 'none';
         document.getElementById('roleNotice').style.display = 'block';
-        document.getElementById('roleNotice').innerHTML = '🎯 <strong>Você está respondendo!</strong> Escolha uma alternativa.';
+        document.getElementById('roleNotice').innerHTML = Game.i18n.t('question.voceEstaRespondendo');
         document.getElementById('roleNotice').className = 'role-notice role-respondedor';
         document.getElementById('altA').textContent = q.alternativas[0];
         document.getElementById('altB').textContent = q.alternativas[1];
@@ -70,11 +70,11 @@ function displayQuestion(q) {
                 const st = round.assessoria;
                 const statusEl = document.getElementById('assessoriaStatus');
                 if (st.status === 'pending') {
-                    statusEl.textContent = `📞 Aguardando resposta de ${st.assessorName}...`;
+                    statusEl.textContent = Game.i18n.t('advisory.aguardandoResposta', { assessor: st.assessorName });
                 } else if (st.status === 'accepted') {
-                    statusEl.textContent = `🧭 ${st.assessorName} sugere: ${st.sugestao.toUpperCase()}`;
+                    statusEl.textContent = Game.i18n.t('advisory.sugestao', { assessor: st.assessorName, sugestao: st.sugestao.toUpperCase() });
                 } else if (st.status === 'declined') {
-                    statusEl.textContent = `❌ ${st.assessorName} recusou o pedido de assessoria.`;
+                    statusEl.textContent = Game.i18n.t('advisory.recusado', { assessor: st.assessorName });
                 }
             } else if (!jaRespondeu) {
                 document.getElementById('btnPedirAssessoria').disabled = false;
@@ -85,7 +85,7 @@ function displayQuestion(q) {
         document.getElementById('alternativesGrid').style.display = 'none';
         document.getElementById('allAlternativesArea').style.display = 'block';
         document.getElementById('roleNotice').style.display = 'block';
-        document.getElementById('roleNotice').innerHTML = '👀 <strong>Você está perguntando!</strong> Tela somente leitura.';
+        document.getElementById('roleNotice').innerHTML = Game.i18n.t('question.voceEstaPerguntando');
         document.getElementById('roleNotice').className = 'role-notice role-perguntador';
         document.getElementById('allAlternativesList').innerHTML = q.alternativas.map(alt => {
             const letter = alt.charAt(0).toLowerCase();
@@ -101,7 +101,7 @@ function displayQuestion(q) {
 function displaySpectatorView(perguntador, respondedor) {
     document.getElementById('questionArea').style.display = 'none';
     document.getElementById('spectatorArea').style.display = 'block';
-    document.getElementById('spectatorMessage').textContent = `⏳ ${perguntador} pergunta para ${respondedor}...`;
+    document.getElementById('spectatorMessage').textContent = Game.i18n.t('spectator.aguardandoPergunta', { perguntador, respondedor });
     const assessoriaArea = document.getElementById('assessoriaArea');
     if (assessoriaArea) assessoriaArea.style.display = 'none';
 }

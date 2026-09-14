@@ -150,6 +150,8 @@
                 <!-- Botões de Ação -->
                 <button id="btnEndMatch" class="btn btn-glass btn-sm btn-block"
                         style="display:none; color:#ffa502; border-color:rgba(255,165,2,0.3);">🏁 Encerrar Partida</button>
+                <button id="btnNovaRodada" class="btn btn-glass btn-sm btn-block"
+                        style="display:none; margin-top:4px; color:#00d9ff; border-color:rgba(0,217,255,0.3);">🔄 Nova Rodada</button>
                 <button id="btnLeaveMatch" class="btn btn-glass btn-sm btn-block" style="margin-top:4px;">🚶 Sair da Partida</button>
                 <button id="btnVenderRecurso" class="btn btn-glass btn-sm btn-block"
                         style="margin-top:4px; color:#ffd700; border-color:rgba(255,215,0,0.3);">
@@ -371,6 +373,9 @@
     <!-- 2.7. Logger e Persistência (Fase 7 do roadmap) -->
     <script src="js/utils/logger.js"></script>
     <script src="js/utils/persistence.js"></script>
+
+    <!-- 2.8. Sanitização (correção de segurança — ver ISSUES.md SEC-001) -->
+    <script src="js/utils/sanitize.js"></script>
 
     <!-- 3. Módulos do jogo -->
     <script src="js/state/selectors.js"></script>

@@ -186,6 +186,162 @@ Cada issue tem uma fase prevista de correção.
 
 ---
 
+## SEC-001: XSS armazenado via nome de jogador
+
+- **Status:** ✅ Corrigido
+- **Detectado em:** revisão de segurança solicitada pelo usuário, fora do fluxo normal de migração
+- **Local:** `js/entry/roomEntry.js` (validação de entrada) + 8 pontos em `js/ui/components/lobbyComponent.js`, `rankingComponent.js`, `js/ui/modals/advisoryModal.js`, `tradeModal.js` (renderização)
+- **Sintoma:** o campo de nome de jogador só valida **tamanho** (3–20
+  caracteres) — sem restrição de caracteres. Esse nome é interpolado
+  direto em `innerHTML` em pelo menos 8 lugares (lista de jogadores do
+  lobby, ranking online, ranking parcial, ranking final, seleção de
+  assessor, lista de compradores, texto de oferta de venda). Um jogador
+  poderia se cadastrar com um nome como `<svg/onload=alert(1)>` (cabe
+  nos 20 caracteres) e executar JavaScript na tela de outros jogadores
+  conectados na mesma sala.
+- **Agravante encontrado durante a correção:** em 2 desses pontos
+  (seleção de assessor e seleção de comprador), o nome também era
+  interpolado dentro de um atributo `onclick="...('${nome}')"`. Nesse
+  caso, **escapar entidades HTML não é suficiente** — o navegador
+  decodifica as entidades do atributo antes de executar o JavaScript do
+  `onclick`, reintroduzindo a aspas simples e permitindo quebrar para
+  fora da string e injetar código arbitrário mesmo com o nome escapado.
+- **Correção aplicada:**
+  1. Criado `js/utils/sanitize.js` com `Game.sanitize.escapeHtml(str)`,
+     aplicado nos 8 pontos de renderização que usam `innerHTML` com
+     nome de jogador.
+  2. Nos 2 pontos com `onclick` inline (`advisoryModal.js` e
+     `tradeModal.js`), trocado por `data-*` attribute +
+     `addEventListener` — elimina completamente o problema de
+     contexto duplo (HTML + JS), em vez de tentar escapar para os dois
+     contextos ao mesmo tempo.
+  3. Pontos que já usavam `.textContent` (não `.innerHTML`) foram
+     conferidos e confirmados como já seguros por natureza — não
+     precisaram de alteração.
+- **Não corrigido (fora do escopo, risco menor):**
+  `advisoryModal.js` → `showAssessoriaQuestionModal()` ainda tem
+  `onclick="Game.ui.responderAssessoria('${letra}', false)"`, onde
+  `letra` vem do conteúdo da pergunta (`msg.alternativas`, dado enviado
+  pelo host via rede) — não é nome de jogador digitado livremente.
+  Mesma classe de problema, mas superfície de ataque menor (o host já
+  tem controle amplo sobre a partida nessa arquitetura P2P). Registrar
+  como item de backlog se decidirem endurecer esse ponto também.
+
+---
+
+## SEC-002: Falsificação de identidade em mensagens de rede
+
+- **Status:** ✅ Corrigido
+- **Detectado em:** mesma revisão de segurança do SEC-001
+- **Local:** `js/network/messageHandler.js`
+- **Sintoma:** o host processava várias mensagens confiando cegamente
+  no campo de nome informado na própria mensagem (`msg.playerName`,
+  `msg.requesterName`, `msg.vendedorName`, `msg.compradorName`), sem
+  verificar se o peer que **de fato enviou** a mensagem (`fromPeerId`)
+  correspondia àquele jogador. Qualquer guest conectado podia enviar
+  uma mensagem alegando ser outro jogador. Vetores confirmados:
+  - `answer` — responder a pergunta no lugar de outro jogador, roubando a vez dele
+  - `leave-match-request` — expulsar qualquer jogador da partida
+  - `assessoria-request` — pedir assessoria fingindo ser o respondedor da rodada
+  - `assessoria-answer` — responder a assessoria no lugar do assessor designado
+  - `venda-offer-request` — iniciar uma venda em nome de outro jogador
+  - `venda-offer-response` — aceitar/recusar uma oferta de compra em nome de outro jogador
+- **Correção aplicada:** criada `isSenderVerified(claimedName, fromPeerId)`
+  em `messageHandler.js`, que confirma que `Game.getPlayerByName(claimedName).peerId === fromPeerId`
+  antes de despachar a ação. Aplicada nos 6 `case`s listados acima, no
+  ponto de despacho da mensagem — sem precisar alterar a assinatura de
+  nenhuma função dos 4 arquivos de `engine/` que processam essas ações.
+  Mensagens rejeitadas geram um `console.warn` no host, mas não
+  quebram a sessão (a mensagem é simplesmente ignorada).
+- **Não afetado:** as chamadas em que o próprio host aciona a função
+  diretamente para si mesmo (ex: `tradeEngine.venderRecurso()` quando
+  quem vende é o próprio host) não passam por `handleMessage()` — não
+  precisam de `fromPeerId` porque não vêm da rede.
+- **Testado:** simulação isolada da função `isSenderVerified` confirmando
+  que um peer tentando agir como outro jogador é rejeitado, e o
+  jogador legítimo continua funcionando normalmente.
+
+---
+
+## BUG-004/BUG-005: Modal de evento reaparecendo a cada pergunta + rodada avançando sozinha
+
+- **Status:** ✅ Corrigido (correção definitiva — a primeira tentativa, registrada aqui como BUG-004, foi incompleta)
+- **Detectado em:** revisão de arquitetura solicitada pelo usuário, em duas rodadas de feedback
+- **Local:** `js/engine/turnEngine.js` (`pickNewPair()`, `nextTurn()`, `startNewRound()`) + `js/ui/components/controlsComponent.js` (botão "Nova Rodada")
+
+### Sintoma 1 (BUG-004, correção incompleta na 1ª tentativa)
+Dentro do mesmo ciclo de rodada, cada nova pergunta sorteava um evento
+novo, quando o esperado é o evento persistir durante toda a rodada.
+
+**Causa raiz:** `nextTurn()` chamava `pickNewPair()` sem argumento, e
+`pickNewPair(evento = null, ...)` sorteia um evento novo sempre que não
+recebe um.
+
+**Primeira correção (insuficiente):** fazer `nextTurn()` passar
+`state.currentRound?.evento` para `pickNewPair()`. Isso parou de
+**sortear** um evento novo, mas **não parou o modal de reaparecer** —
+a condição que decidia mostrar o modal (`depth > 0`) não tinha nenhuma
+relação com "esse evento já foi mostrado". Reportado de volta pelo
+usuário como ainda incorreto.
+
+### Sintoma 2 (design corrigido a pedido do usuário)
+Além do modal reaparecendo, o fluxo esperado é diferente do que o
+código fazia: o evento deve aparecer **só no início de uma rodada**, e
+quando todos os jogadores da rodada vigente respondem, o jogo **não**
+deve iniciar a próxima rodada sozinho — o host precisa clicar
+explicitamente em "Nova Rodada" para então sortear e mostrar o
+próximo evento.
+
+### Correção definitiva aplicada
+1. `pickNewPair(evento, depth, mostrarModal = true)` ganhou um terceiro
+   parâmetro explícito para controlar a exibição do modal, substituindo
+   a checagem por `depth`. `startNewRound()` chama com o padrão (`true`);
+   `nextTurn()` chama explicitamente com `false`; a recursão interna de
+   retry também propaga `false`.
+2. `startNewRound()` agora reseta `state.usedRespondedorThisRound = []`
+   defensivamente logo no início, independente de quem a chamou.
+3. `nextTurn()` não chama mais `startNewRound()` automaticamente ao
+   detectar que o ciclo terminou — apenas loga e retorna, deixando o
+   jogo parado aguardando o host.
+4. O botão "Nova Rodada" (`controlsComponent.js`) passou a chamar
+   `Game.core.startNewRound()` diretamente, em vez de
+   `Game.core.nextTurn()` — é ele quem de fato inicia uma rodada nova
+   (sorteia evento, mostra modal, reseta o rodízio).
+
+**Nota de design:** com essa mudança, o botão "Nova Rodada" pode ser
+clicado pelo host a qualquer momento, inclusive no meio de um ciclo em
+andamento — nesse caso ele força o início de uma rodada nova
+(descartando o ciclo vigente). Isso não foi explicitamente pedido nem
+proibido; se for indesejado, uma melhoria futura seria desabilitar o
+botão até o ciclo atual realmente terminar.
+
+**Atualização:** implementado exatamente isso. `state/selectors.js`
+ganhou `isCycleComplete(activePlayers, usedRespondedorThisRound)` —
+verifica se TODOS os jogadores ativos já responderam nesta rodada, sem
+número fixo (funciona com 2, 6 ou qualquer quantidade dentro do limite
+configurado). `controlsComponent.js` ganhou `refreshNovaRodadaButton()`,
+que usa esse selector para habilitar/desabilitar o botão, chamada em 4
+pontos: início de rodada (desabilita), a cada par escolhido dentro do
+ciclo (reavalia), quando o ciclo fecha em `nextTurn()` (habilita), e ao
+restaurar sessão via F5 ou assumir como host (`main.js`/`setup.js`,
+recalcula do zero). Testado com simulação de 5 jogadores confirmando
+que o botão só habilita depois que o último responde.
+
+**Confirmado como pré-existente (a causa raiz original):** sim — o
+comportamento de sortear evento a cada pergunta já vinha do
+`game-core.js` original; foi preservado fielmente nas Fases 1 e 3 da
+migração. O comportamento de "avançar rodada sozinho" também era do
+código original — a exigência de que isso vire uma ação manual do host
+foi uma mudança de design pedida agora, não a restauração de um
+comportamento anterior.
+
+**Testado:** simulação isolada da sequência completa (partida inicia →
+3 jogadores respondem em sequência → ciclo completo → host clica em
+"Nova Rodada") confirmando exatamente 2 exibições do modal (início da
+partida + clique manual) e nenhum avanço automático de rodada.
+
+---
+
 ## Como usar este arquivo
 
 - Ao encontrar um bug durante os testes de qualquer fase, adicione uma entrada

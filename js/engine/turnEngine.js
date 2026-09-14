@@ -11,9 +11,22 @@
 /**
  * Inicia uma nova rodada: sorteia um evento, aplica seus efeitos e
  * escolhe um par Perguntador/Respondedor.
+ *
+ * Chamada em 3 situações: (1) início da partida (sessionEngine.startGame),
+ * (2) clique manual do host no botão "Nova Rodada" (ver ISSUES.md BUG-005
+ * — antes disso era automático ao final do ciclo, agora é sempre uma
+ * ação explícita do host), (3) recovery paths (resumeGameEngineIfHost,
+ * becomeHost) quando não há state.currentRound nenhum.
  */
 function startNewRound() {
     const state = Game.state;
+
+    // Reset defensivo: toda vez que uma rodada de verdade começa, o
+    // rodízio de quem já respondeu precisa estar zerado — independente
+    // de quem chamou esta função.
+    state.usedRespondedorThisRound = [];
+    Game.ui.refreshNovaRodadaButton();
+
     const evento = Game.domain.event.sortearEvento(state.questionsData?.eventos || []);
     if (!evento) {
         console.error('❌ Nenhum evento disponível!');
@@ -39,10 +52,14 @@ function startNewRound() {
 /**
  * Escolhe aleatoriamente um Perguntador e um Respondedor entre os
  * jogadores ativos, respeitando o rodízio e a disponibilidade de recursos.
- * @param {object} evento – o evento da rodada (pode ser reutilizado em chamadas recursivas)
+ * @param {object} evento – o evento da rodada (reaproveitado entre perguntas da mesma rodada)
  * @param {number} depth – profundidade da recursão (previne loops infinitos)
+ * @param {boolean} mostrarModal – se true, exibe o modal de evento agora
+ *   (só deve ser true no INÍCIO de uma rodada nova — startNewRound() usa
+ *   o padrão `true`; continuações dentro da mesma rodada, vindas de
+ *   nextTurn(), passam `false` explicitamente)
  */
-function pickNewPair(evento = null, depth = 0) {
+function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
     const state = Game.state;
 
     if (depth > CONFIG.JOGO.MAX_PLAYERS * 2) {
@@ -52,7 +69,6 @@ function pickNewPair(evento = null, depth = 0) {
     }
 
     // Se não foi passado um evento, sorteia um novo
-    const eventoJaExibidoNestaRodada = depth > 0;
     if (!evento) {
         evento = Game.domain.event.sortearEvento(state.questionsData?.eventos || []);
         if (!evento) return;
@@ -70,8 +86,13 @@ function pickNewPair(evento = null, depth = 0) {
         }
     }
 
-    // Mostra o modal do evento apenas na primeira vez que ele é exibido
-    if (!eventoJaExibidoNestaRodada) {
+    // 🐛 Correção (ver ISSUES.md BUG-005): antes, a condição de exibir o
+    // modal era baseada em `depth > 0` — o que não tem relação nenhuma
+    // com "o evento já foi mostrado nesta rodada". Isso fazia o modal
+    // reaparecer a cada pergunta dentro do mesmo ciclo. Agora é um
+    // parâmetro explícito: só mostra quando de fato é o início de uma
+    // rodada nova.
+    if (mostrarModal) {
         Game.network.broadcastAll({ type: 'show-evento', evento: evento, players: state.players });
         Game.ui.showEventoModal(evento);
     }
@@ -111,7 +132,7 @@ function pickNewPair(evento = null, depth = 0) {
     );
     if (available.length === 0) {
         state.usedRespondedorThisRound = [];
-        return pickNewPair(evento, depth + 1);
+        return pickNewPair(evento, depth + 1, false);
     }
 
     const respondedor = available[Math.floor(Math.random() * available.length)];
@@ -173,6 +194,7 @@ function pickNewPair(evento = null, depth = 0) {
     // Timeout de segurança para o Respondedor
     armarRespostaTimeout(respondedor.name);
 
+    Game.ui.refreshNovaRodadaButton();
     Game.saveState();
 }
 
@@ -193,19 +215,27 @@ function armarRespostaTimeout(respondedorName) {
 }
 
 /**
- * Avança para a próxima rodada ou, se todos já responderam, inicia uma nova rodada.
+ * Avança para o próximo par dentro da rodada vigente.
+ *
+ * 🐛 Correção (ver ISSUES.md BUG-005): antes, quando todos os jogadores
+ * ativos já tinham respondido (ciclo completo), esta função chamava
+ * startNewRound() automaticamente — o que também disparava o modal de
+ * evento sozinho. Agora, ao completar o ciclo, o jogo apenas PARA e
+ * aguarda: é o host quem precisa clicar em "Nova Rodada"
+ * (Game.core.startNewRound(), ligado em controlsComponent.js) para
+ * sortear o próximo evento e mostrar o modal.
  */
 function nextTurn() {
     const state = Game.state;
     const activePlayers = Game.getActivePlayers();
-    const allDone = activePlayers.every(p => state.usedRespondedorThisRound.includes(p.name));
 
-    if (allDone) {
-        state.usedRespondedorThisRound = [];
-        startNewRound();
-    } else {
-        pickNewPair();
+    if (Game.selectors.isCycleComplete(activePlayers, state.usedRespondedorThisRound)) {
+        console.log('✅ Todos os jogadores ativos já responderam nesta rodada. Aguardando o host clicar em "Nova Rodada".');
+        Game.ui.refreshNovaRodadaButton();
+        return;
     }
+
+    pickNewPair(state.currentRound?.evento, 0, false);
 }
 
 // ============================================

@@ -21,7 +21,7 @@
  */
 function handleHostDisconnect() {
     console.warn('⚠️ Host desconectado! Aguardando...');
-    Game.ui.updateConnectionStatus('error', 'Host desconectado — tentando reconectar...');
+    Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.hostDesconectado'));
 
     setTimeout(() => {
         if (Game.state.isHost) return;
@@ -45,7 +45,7 @@ function attemptReconnectToSameHost(attempt = 1) {
     const currentHostId = Game.computeHostPeerId(state.baseRoomPeerId, state.hostVersion);
 
     console.log(`🔁 Tentativa ${attempt}/${MAX_ATTEMPTS}: reconectando ao host atual (${currentHostId})...`);
-    Game.ui.updateConnectionStatus('disconnected', `Reconectando ao host (${attempt}/${MAX_ATTEMPTS})...`);
+    Game.ui.updateConnectionStatus('disconnected', Game.i18n.t('connection.reconectandoHost', { attempt, max: MAX_ATTEMPTS }));
 
     let settled = false;
     const cs = Game.network.connectionState;
@@ -57,7 +57,7 @@ function attemptReconnectToSameHost(attempt = 1) {
 
         cs.setConnection(currentHostId, conn);
         console.log('✅ Reconectado ao mesmo host (sem migração):', currentHostId);
-        Game.ui.updateConnectionStatus('connected', 'Reconectado');
+        Game.ui.updateConnectionStatus('connected', Game.i18n.t('connection.reconectado'));
 
         Game.network.handleConnection(conn);
         Game.network.sendToHost({ type: 'player-join', playerName: state.playerName, peerId: state.peerId });
@@ -133,7 +133,7 @@ function attemptReconnectToNewHost(attempt = 1) {
     const candidateId = Game.computeHostPeerId(state.baseRoomPeerId, nextVersion);
 
     console.log(`🔁 Tentativa ${attempt}/${MAX_ATTEMPTS}: procurando novo host em ${candidateId}...`);
-    Game.ui.updateConnectionStatus('disconnected', `Procurando novo host (${attempt}/${MAX_ATTEMPTS})...`);
+    Game.ui.updateConnectionStatus('disconnected', Game.i18n.t('connection.procurandoNovoHost', { attempt, max: MAX_ATTEMPTS }));
 
     let settled = false;
     const cs = Game.network.connectionState;
@@ -148,7 +148,7 @@ function attemptReconnectToNewHost(attempt = 1) {
         cs.setConnection(candidateId, conn);
 
         console.log('✅ Reconectado ao novo host:', candidateId);
-        Game.ui.updateConnectionStatus('connected', 'Reconectado');
+        Game.ui.updateConnectionStatus('connected', Game.i18n.t('connection.reconectado'));
 
         Game.network.handleConnection(conn);
         Game.network.sendToHost({ type: 'player-join', playerName: state.playerName, peerId: state.peerId });
@@ -174,7 +174,7 @@ function retryOrGiveUp(attempt, maxAttempts) {
 
     if (attempt >= maxAttempts) {
         console.error('❌ Não foi possível localizar um novo host.');
-        Game.ui.updateConnectionStatus('error', 'Não foi possível reconectar. Recarregue a página.');
+        Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.naoFoiPossivelReconectar'));
         return;
     }
 
@@ -263,7 +263,7 @@ function becomeHost() {
 
     newPeer.on('error', (err) => {
         console.error('❌ Erro ao assumir como host:', err);
-        Game.ui.updateConnectionStatus('error', 'Falha ao assumir a sala como host.');
+        Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.falhaAssumirHost'));
     });
 }
 

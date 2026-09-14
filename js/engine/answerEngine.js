@@ -197,7 +197,7 @@ function updatePlayerKPI(msg) {
         if (msg.semRecursos) {
             Game.ui.showResultModal(false, 0, msg.recursos);
             const resultMsg = document.getElementById('resultMessage');
-            if (resultMsg) resultMsg.textContent = '⚠️ Sem recursos — vez pulada';
+            if (resultMsg) resultMsg.textContent = Game.i18n.t('result.semRecursosVezPulada');
         } else if (msg.acertou !== undefined) {
             Game.ui.showResultModal(msg.acertou, msg.kpiGanho, msg.recursos);
         } else if (msg.assessoriaBonus) {
