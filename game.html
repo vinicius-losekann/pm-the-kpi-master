@@ -195,14 +195,6 @@
 
                     <h3 class="question-text" id="questionText">Pergunta aqui...</h3>
 
-                    <!-- Alternativas (Respondedor) -->
-                    <div class="alternatives-grid" id="alternativesGrid" style="display:none;">
-                        <button class="alternative-btn" data-alt="a"><span class="alt-letter">A</span><span class="alt-text" id="altA">---</span></button>
-                        <button class="alternative-btn" data-alt="b"><span class="alt-letter">B</span><span class="alt-text" id="altB">---</span></button>
-                        <button class="alternative-btn" data-alt="c"><span class="alt-letter">C</span><span class="alt-text" id="altC">---</span></button>
-                        <button class="alternative-btn" data-alt="d"><span class="alt-letter">D</span><span class="alt-text" id="altD">---</span></button>
-                    </div>
-
                     <!-- Alternativas (Perguntador – somente leitura) -->
                     <div class="all-alternatives" id="allAlternativesArea" style="display:none;">
                         <h4 style="margin-bottom:12px; color:#a0a0b8;">📋 Alternativas:</h4>
@@ -211,13 +203,6 @@
 
                     <!-- Notificação de Papel -->
                     <div class="role-notice" id="roleNotice" style="display:none;"></div>
-
-                    <!-- Área de Assessoria -->
-                    <div class="assessoria-area" id="assessoriaArea"
-                         style="display:none; margin-top:16px; text-align:center;">
-                        <button id="btnPedirAssessoria" class="btn btn-glass btn-sm">📞 Pedir Assessoria</button>
-                        <div id="assessoriaStatus" style="margin-top:8px; font-size:0.85rem; color:#a0a0b8;"></div>
-                    </div>
                 </div>
 
                 <!-- Área de Espectador (quando não participa da rodada) -->
@@ -262,6 +247,30 @@
     <!-- ============================================ -->
     <!-- MODAIS                                       -->
     <!-- ============================================ -->
+
+    <!-- Modal de Resposta (exibida para o Respondedor) — mesma estrutura
+         visual da modal de assessoria (ícone + título + timer + pergunta
+         + alternativas), para que a experiência de responder seja
+         consistente entre o Respondedor e o Assessor. -->
+    <div id="modalResponderPergunta" class="modal" style="display:none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-card glass-card" style="max-width:520px; text-align:center;">
+            <span style="font-size:2rem;">🎯</span>
+            <h2 style="color:#00d9ff; margin:8px 0;">Sua vez de responder!</h2>
+            <p id="respostaTimerText" style="display:none; color:#a0a0b8; margin-bottom:8px; font-size:0.9rem;">⏱️ 30s</p>
+            <p id="respModalQuestionText" style="color:#e0e0e0; margin-bottom:16px; font-size:1.05rem;">Pergunta aqui...</p>
+            <div class="alternatives-grid" id="alternativesGrid" style="margin-bottom:12px;">
+                <button class="alternative-btn" data-alt="a"><span class="alt-letter">A</span><span class="alt-text" id="altA">---</span></button>
+                <button class="alternative-btn" data-alt="b"><span class="alt-letter">B</span><span class="alt-text" id="altB">---</span></button>
+                <button class="alternative-btn" data-alt="c"><span class="alt-letter">C</span><span class="alt-text" id="altC">---</span></button>
+                <button class="alternative-btn" data-alt="d"><span class="alt-letter">D</span><span class="alt-text" id="altD">---</span></button>
+            </div>
+            <div class="assessoria-area" id="assessoriaArea" style="display:none; margin-top:8px;">
+                <button id="btnPedirAssessoria" class="btn btn-glass btn-sm">📞 Pedir Assessoria</button>
+                <div id="assessoriaStatus" style="margin-top:8px; font-size:0.85rem; color:#a0a0b8;"></div>
+            </div>
+        </div>
+    </div>
 
     <!-- Modal de Evento -->
     <div id="modalEvento" class="modal" style="display:none;">
@@ -350,6 +359,17 @@
             </div>
             <button id="btnRecusarAssessoria" class="btn btn-glass"
                     style="color:#ff4757; border-color:rgba(255,71,87,0.3);">❌ Recusar</button>
+        </div>
+    </div>
+
+    <!-- Modal de Sugestão do Assessor (exibido para o Respondedor) -->
+    <div id="modalAssessoriaSugestao" class="modal" style="display:none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-card glass-card" style="max-width:420px; text-align:center;">
+            <span style="font-size:2rem;">🧭</span>
+            <h2 id="assessoriaSugestaoTitulo" style="color:#6c63ff; margin:8px 0;">Sugestão do Assessor</h2>
+            <p id="assessoriaSugestaoMensagem" style="color:#e0e0e0; margin-bottom:16px; font-size:1.05rem;"></p>
+            <button id="btnFecharAssessoriaSugestao" class="btn btn-primary">OK</button>
         </div>
     </div>
 

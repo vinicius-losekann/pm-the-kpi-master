@@ -27,8 +27,8 @@ function showScreen(screen) {
 }
 
 function closeAllModals() {
-    ['modalResult', 'modalEvento', 'modalVenda', 'modalVendaOferta',
-     'modalAssessoriaSelect', 'modalAssessoriaQuestion'].forEach(id => {
+    ['modalResponderPergunta', 'modalResult', 'modalEvento', 'modalVenda', 'modalVendaOferta',
+     'modalAssessoriaSelect', 'modalAssessoriaQuestion', 'modalAssessoriaSugestao'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';
     });
