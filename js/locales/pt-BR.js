@@ -42,6 +42,9 @@ window.Game.locales['pt-BR'] = {
     question: {
         voceEstaRespondendo: '🎯 <strong>Você está respondendo!</strong> Escolha uma alternativa.',
         voceEstaPerguntando: '👀 <strong>Você está perguntando!</strong> Tela somente leitura.',
+        tempoRestante: '⏱️ {{seconds}}s',
+        rodadaEncerradaHost: '🏁 Rodada encerrada! Clique em "Nova Rodada" para continuar.',
+        rodadaEncerradaGuest: '🏁 Rodada encerrada! Aguardando o host iniciar uma nova rodada.',
     },
 
     spectator: {
@@ -56,6 +59,8 @@ window.Game.locales['pt-BR'] = {
         timeout: '⌛ {{assessor}} não respondeu a tempo.',
         invalido: '⚠️ Não foi possível chamar {{assessor}}. Escolha uma alternativa.',
         faseEncerramento: '⚠️ Jogadores na fase de Encerramento não podem pedir assessoria.',
+        sugestaoModalTitulo: 'Sugestão do Assessor',
+        sugestaoModalMensagem: '<strong>{{assessor}}</strong> sugere a alternativa <strong style="color:#00d9ff; font-size:1.3em;">{{sugestao}}</strong>',
         tempoRestante: '⏱️ {{seconds}}s',
     },
 

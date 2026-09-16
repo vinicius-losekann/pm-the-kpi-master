@@ -87,3 +87,9 @@
 - corte de verbas -2 pra todo mundo, menos 1 para quem acerta a pergunta
 - apoio da alta gestão (+1 recurso somente para quem acerta)
 | 8.4 | **Suporte a múltiplos idiomas (i18n)** | Preparar arquivos de tradução para português, inglês, etc. |
+
+
+
+- O KPI do respondedor não está somando certo, está somando com a pontuação do assessor (5 kpi), deveria somar com o kpi do respondedor (10 kpi)
+- Quando todos responderem colocar alguma mensagem que a rodada encerrou e o host deve iniciar uma nova rodada
+- está exibindo no modal 'question.tempoRestante' e não o tempo de fato

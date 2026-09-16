@@ -342,6 +342,78 @@ partida + clique manual) e nenhum avanço automático de rodada.
 
 ---
 
+## BUG-006: Tela do host não atualizava quando ele era Perguntador, Respondedor ou Espectador
+
+- **Status:** ✅ Corrigido
+- **Detectado em:** relatado pelo usuário ("a atualização da tela do
+  host, seja quando é perguntador, ou assessor, nada atualiza")
+- **Local:** `js/engine/turnEngine.js` → `pickNewPair()`
+- **Causa raiz:** `sendToPlayer(peerId, data)` (`peerService.js`), ao
+  detectar que o destinatário é o **próprio host**
+  (`peerId === state.peerId && state.isHost`), processa a mensagem
+  **na hora, de forma síncrona** — sem passar pela rede. Já para os
+  guests, a mesma sequência de mensagens (`round-start` depois
+  `question`) chega pela rede **em ordem**, com atraso real entre elas.
+
+  `pickNewPair()` enviava a mensagem `question` (via `sendToPlayer`)
+  **antes** de chamar `Game.ui.displayRoundStart()`. Para os guests
+  isso não importa (a ordem de chegada pela rede já é a correta). Mas
+  para o host, como o auto-envio é imediato, a sequência de execução
+  ficava invertida: `displayQuestion()` rodava primeiro (configurando
+  corretamente a pergunta, incluindo a área de assessoria quando
+  elegível), e **`displayRoundStart()` rodava depois, sobrescrevendo**
+  o que acabara de ser configurado — em especial, resetando
+  `assessoriaArea` de volta para escondida.
+
+  Um segundo bug relacionado: quando o host era **espectador** (nem
+  perguntador, nem respondedor), o código chamava
+  `Game.ui.displaySpectatorView()` e, logo em seguida,
+  **incondicionalmente** chamava `Game.ui.displayRoundStart()` — que
+  reexibia a área de pergunta (vazia, já que nenhuma mensagem de
+  pergunta foi enviada ao host nesse caso) e escondia de volta a área
+  de espectador.
+- **Correção aplicada:** invertida a ordem em `pickNewPair()` — a
+  montagem da tela do host (`displayRoundStart()` ou
+  `displaySpectatorView()`, dependendo do papel) agora acontece
+  **antes** do envio das mensagens de pergunta, replicando a ordem que
+  os guests já recebem naturalmente pela rede. `displaySpectatorView()`
+  e `displayRoundStart()` viraram um `if/else` mutuamente exclusivo,
+  em vez de o segundo rodar sempre incondicionalmente.
+- **Testado:** simulação isolada dos 3 papéis do host (perguntador,
+  respondedor, espectador) confirmando que a função certa é sempre a
+  última a rodar, com o resultado final correto em todos os casos.
+
+---
+
+## ESCLARECIMENTO-001 (não é bug): "+10 KPI" na modal, mas só "+5" no ranking
+
+- **Status:** ✅ Investigado, confirmado como comportamento intencional
+- **Relatado pelo usuário como:** "O KPI do respondedor não está somando
+  certo, está somando com a pontuação do assessor (5 kpi), deveria
+  somar com o kpi do respondedor (10 kpi)"
+- **Investigação:** confirmado que `CONFIG.KPI.ACERTO_BASE = 10` e
+  `ASSESSORIA_ACERTO = 5` estão corretos e não trocados. O cálculo em
+  `domain/kpiRules.js` e `engine/answerEngine.js` está correto — o
+  respondedor realmente ganha +10 KPI bruto por acerto, sem misturar
+  com o valor do assessor. Confirmado com o usuário que **nenhuma
+  assessoria estava envolvida** na rodada relatada, e que a modal de
+  resultado mostrava corretamente "+10 KPI" — só o **ranking** (barra
+  lateral) refletia apenas +5.
+- **Explicação (não é bug):** toda resposta gasta 1 recurso para
+  participar (`respondedor.recursos--`, exceto no evento "Reserva de
+  Contingência"). O ranking não usa o KPI acumulado puro — usa
+  `kpiFinal = kpi + (recursos × CONFIG.KPI.VALOR_RECURSO_FINAL)`
+  (`domain/rankingRules.js`). Como `VALOR_RECURSO_FINAL = 5`, gastar 1
+  recurso para responder tira 5 pontos do `kpiFinal`, mesmo enquanto o
+  `kpi` bruto sobe 10 — resultado líquido no ranking: **+5**. A modal
+  de resultado mostra o ganho bruto (+10); o ranking mostra o efeito
+  líquido (+5) considerando o custo do recurso gasto. Ambos estão
+  corretos, são métricas diferentes.
+- **Decisão do usuário:** manter como está — é uma regra intencional
+  de equilíbrio entre acumular KPI e gerir recursos.
+
+---
+
 ## Como usar este arquivo
 
 - Ao encontrar um bug durante os testes de qualquer fase, adicione uma entrada

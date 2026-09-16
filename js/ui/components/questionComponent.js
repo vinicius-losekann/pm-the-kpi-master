@@ -168,6 +168,23 @@ function displayQuestion(q) {
     }
 }
 
+/**
+ * Exibe uma mensagem informando que a rodada vigente terminou (todos os
+ * jogadores ativos já responderam) e que o host precisa iniciar uma
+ * nova rodada. Mostrada para TODOS (perguntador, respondedor e
+ * espectadores) — reaproveita a área de espectador como um mural
+ * comum, já que não há mais papéis distintos até a próxima rodada.
+ */
+function showRoundEndedMessage() {
+    stopRespostaCountdown();
+    document.getElementById('modalResponderPergunta').style.display = 'none';
+    document.getElementById('questionArea').style.display = 'none';
+    document.getElementById('spectatorArea').style.display = 'block';
+    document.getElementById('spectatorMessage').textContent = Game.state.isHost
+        ? Game.i18n.t('question.rodadaEncerradaHost')
+        : Game.i18n.t('question.rodadaEncerradaGuest');
+}
+
 function displaySpectatorView(perguntador, respondedor) {
     document.getElementById('questionArea').style.display = 'none';
     document.getElementById('spectatorArea').style.display = 'block';
@@ -205,5 +222,6 @@ Object.assign(window.Game.ui, {
     displaySpectatorView,
     handleAlternativeClick,
     startRespostaCountdown,
-    stopRespostaCountdown
+    stopRespostaCountdown,
+    showRoundEndedMessage
 });

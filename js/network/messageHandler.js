@@ -133,6 +133,10 @@ function handleMessage(msg, fromPeerId) {
             }
             break;
 
+        case 'round-ended':
+            Game.ui.showRoundEndedMessage();
+            break;
+
         case 'question':
             if (!state.isHost) {
                 state.currentRound.pergunta = msg;

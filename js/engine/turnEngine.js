@@ -243,6 +243,8 @@ function nextTurn() {
     if (Game.selectors.isCycleComplete(activePlayers, state.usedRespondedorThisRound)) {
         console.log('✅ Todos os jogadores ativos já responderam nesta rodada. Aguardando o host clicar em "Nova Rodada".');
         Game.ui.refreshNovaRodadaButton();
+        Game.network.broadcastAll({ type: 'round-ended' });
+        Game.ui.showRoundEndedMessage();
         return;
     }
 
