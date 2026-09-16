@@ -130,6 +130,14 @@ function handleAnswer(msg) {
         });
     }
 
+    // 🐛 Correção (ver ISSUES.md BUG-007): broadcastAll() não manda a
+    // mensagem de volta pro próprio host — updatePlayerKPI() só rodava
+    // localmente quando o HOST era quem tinha respondido. Quando um
+    // guest respondia, os dados internos do host ficavam corretos, mas
+    // o ranking exibido na tela do host nunca era redesenhado. A
+    // atualização de tela abaixo (perto do fim da função) cobre tanto
+    // o respondedor quanto o bônus de assessoria.
+
     // Bônus de assessoria (se a sugestão foi seguida e correta) — cálculo
     // puro delegado a domain/advisoryRules.js
     const assessoria = state.currentRound.assessoria;
@@ -164,6 +172,15 @@ function handleAnswer(msg) {
     }
 
     state.usedRespondedorThisRound.push(respondedorName);
+
+    // Atualização de tela do host (ver ISSUES.md BUG-007): cobre tanto o
+    // respondedor quanto o bônus de assessoria acima, para os casos em
+    // que nenhum dos dois é o próprio host (broadcastAll não se
+    // auto-envia, então sem isso o ranking do host fica desatualizado).
+    if (state.isHost) {
+        Game.ui.updatePlayersOnlineList();
+        Game.ui.updateRankingList();
+    }
 
     const faseIdx = Game.getFaseIndex(respondedor.phase);
     if (faseIdx === CONFIG.FASES.length - 1 && respondedor.activities >= CONFIG.JOGO.ACTIVITIES_PER_PHASE) {
