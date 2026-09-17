@@ -9,10 +9,10 @@
 > `engine/`, `network/` e `ui/` como camadas separadas. Detalhes completos em
 > `ARCHITECTURE.md`.
 >
-> Único ponto de rigor arquitetural ainda pendente dessa frente: **NOTA-005**
-> em `ARCHITECTURE.md` (`domain/` muta o estado recebido em vez de retornar
-> deltas). Não é um bug — só vale a pena corrigir se o objetivo for
-> testabilidade unitária de verdade.
+> **NOTA-005** em `ARCHITECTURE.md` (`domain/` muta o estado recebido em vez
+> de retornar deltas) foi avaliada e fechada como "não será corrigida" —
+> decisão do usuário de não escrever testes automatizados, que era a única
+> situação em que valeria o risco de mexer nessa lógica.
 
 ---
 
@@ -22,7 +22,7 @@
 |---|----------|---------------|
 | 2.1 | **Política de retry mais inteligente** | Em `initPeerWithRetry`, as tentativas são fixas. Poderiam ser exponenciais com jitter para evitar sobrecarga do servidor. |
 | 2.2 | **Timeouts em todas as operações de rede** | Além do timeout de resposta, implementar timeouts para envio de mensagens, reconexão, etc. |
-| 2.3 | **Logs com níveis (debug, info, warn, error)** | 🟡 Infraestrutura já pronta (`utils/logger.js`), mas nenhum arquivo do projeto foi religado para usar `Game.logger.*` no lugar de `console.log` direto — ver **NOTA-004** em `ARCHITECTURE.md`. |
+| 2.3 | **Religar `Game.logger.*` no lugar de `console.*`** | Infraestrutura já pronta (`utils/logger.js`). Prioritário: com múltiplas salas simultâneas em produção, não dá para depurar via `console.log` de uma sala que ninguém está observando ao vivo. Trabalho mecânico, mas espalhado por praticamente todo arquivo `.js` — ver **NOTA-004** em `ARCHITECTURE.md`. |
 | 2.4 | **Validação de dados recebidos via rede** | Mensagens de outros peers podem estar malformadas; validar com esquemas (ex: JSON Schema) para evitar crashes. |
 | 2.5 | **Fallback para quando o host migra** | Garantir que a migração de host seja atômica e que o novo host sincronize completamente o estado com todos os peers. |
 
@@ -80,7 +80,6 @@
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
 | 7.1 | **JSDoc completo** | Muitas funções já têm comentários, mas faltam parâmetros e retornos detalhados. Padronizar. |
-| 7.2 | **Testes unitários e de integração** | Implementar testes com Jest + Testing Library para UI e lógica. A falta de testes torna o código frágil. |
 | 7.3 | **Linter (ESLint) e formatter (Prettier)** | Manter estilo consistente e evitar erros comuns. |
 | 7.5 | **Separar helpers em arquivos próprios** | Funções como `buildRanking` poderiam estar em um arquivo `ranking-utils.js`. |
 
