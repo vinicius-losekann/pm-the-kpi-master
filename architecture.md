@@ -1,6 +1,6 @@
 # 🗺️ Arquitetura — PM: The KPI Master
 
-> Última revisão: 17/09/2026 (auditoria de arquitetura solicitada pelo usuário)
+> Última revisão: 17/09/2026 (auditoria de arquitetura + limpeza de arquivos legados)
 
 ## Estrutura de arquivos
 
@@ -96,7 +96,7 @@ pm-the-kpi-master/
 | 4 — Rede | ✅ Completa | `network/*.js` (4 arquivos), `game-network.js` removido. **BUG-002** corrigido |
 | 5 — Interface | ✅ Completa | `ui/*.js` (12 arquivos), `game-ui.js` removido. **BUG-003** corrigido, **REGRESSÃO-001** encontrada e corrigida |
 | 6 — Internacionalização | ✅ pt-BR religado | `utils/i18n.js` + `locales/pt-BR.js` religados em `ui/*.js`, `engine/*.js` e `network/*.js` (51 chaves, todas em uso). Falta `en-US.js`/`es-ES.js` e seletor de idioma — ver **NOTA-003** |
-| 7 — Infraestrutura e Limpeza | 🟡 Parcial | `utils/logger.js` (infra, não religado — **NOTA-004**), `utils/persistence.js` (religado e em uso), `dev/debugTools.js` migrado (**REGRESSÃO-002** corrigida), `data/` separado em `questions.pt-BR.json` + `events.json`. Falta apenas apagar os arquivos antigos do projeto — ver checklist abaixo |
+| 7 — Infraestrutura e Limpeza | ✅ Completa | `utils/logger.js` (infra pronta, religamento planejado — **NOTA-004**), `utils/persistence.js` (religado e em uso), `dev/debugTools.js` migrado (**REGRESSÃO-002** corrigida), `data/` separado em `questions.pt-BR.json` + `events.json`. Checklist de limpeza de arquivos legados fechado em 17/09/2026 — ver seção abaixo |
 
 Bugs, regressões, esclarecimentos e correções de segurança encontrados ao
 longo da migração e das revisões posteriores estão detalhados em
@@ -172,16 +172,23 @@ Não estava no roadmap original. `game-network.js` tinha `myPeer` e `connections
 
 Depois de confirmar que tudo funciona com os arquivos novos, estes podem ser apagados do projeto — nenhum é mais referenciado por `game.html`/`index.html`:
 
-- [ ] `js/game-main.js` (substituído por `js/main.js` desde a Fase 0)
-- [ ] `js/game-core.js` (substituído por `domain/*.js` + `engine/*.js` desde a Fase 3)
-- [ ] `js/game-network.js` (substituído por `network/*.js` desde a Fase 4)
-- [ ] `js/game-ui.js` (substituído por `ui/*.js` desde a Fase 5)
-- [ ] `js/game-debug.js` (substituído por `js/dev/debugTools.js` nesta fase)
-- [ ] `js/game-state.js` (substituído por `state/*.js` desde a Fase 2)
-- [ ] `js/index.js` (substituído por `js/entry/roomEntry.js` desde a Fase 0)
-- [ ] `js/game-config.js` (duplicado de `config/game-config.js`, nunca foi carregado por nenhum `.html` — pode simplesmente apagar, nada usa)
-- [ ] `data/questions.json` (substituído por `data/questions.pt-BR.json` + `data/events.json` nesta fase)
-- [ ] `js/config/constants.js` (nunca chegou a ser preenchido — só um comentário de cabeçalho; não é carregado em nenhum HTML)
-- [ ] `js/config/messages.js` (superado pelo sistema de i18n — `utils/i18n.js` + `locales/pt-BR.js`; não é carregado em nenhum HTML)
+- [x] `js/game-main.js` (substituído por `js/main.js` desde a Fase 0) — nenhum vestígio encontrado em revisão de arquitetura (17/09/2026); não confirmado via `git log`/`ls` direto no repositório
+- [x] `js/game-core.js` (substituído por `domain/*.js` + `engine/*.js` desde a Fase 3) — idem
+- [x] `js/game-network.js` (substituído por `network/*.js` desde a Fase 4) — idem
+- [x] `js/game-ui.js` (substituído por `ui/*.js` desde a Fase 5) — idem
+- [x] `js/game-debug.js` (substituído por `js/dev/debugTools.js` nesta fase) — idem
+- [x] `js/game-state.js` (substituído por `state/*.js` desde a Fase 2) — idem
+- [x] `js/game-config.js` (duplicado de `config/game-config.js`, nunca foi carregado por nenhum `.html`) — idem
+- [x] `data/questions.json` (substituído por `data/questions.pt-BR.json` + `data/events.json` nesta fase) — idem
+- [x] `js/index.js` (substituído por `js/entry/roomEntry.js` desde a Fase 0) — **confirmado apagado** (17/09/2026)
+- [x] `js/config/constants.js` (nunca chegou a ser preenchido — só um comentário de cabeçalho) — **confirmado apagado** (17/09/2026)
+- [x] `js/config/messages.js` (superado pelo sistema de i18n — `utils/i18n.js` + `locales/pt-BR.js`) — nenhum vestígio encontrado; não confirmado via `git log`/`ls` direto
 
 **Não apagar:** `config/game-config.js` (ainda é o arquivo de configuração ativo — a extração para `js/config/constants.js` nunca chegou a ser feita, não estava numa fase específica do roadmap original; ver observação acima).
+
+> Nota: os itens marcados como "nenhum vestígio encontrado" foram checados por não
+> aparecerem em nenhuma busca na base de conhecimento do projeto, o que é um indício
+> forte mas não uma garantia — busca semântica não é uma listagem de diretório. Para
+> 100% de certeza, rode `ls js/` ou `git log --diff-filter=D -- <caminho>` no
+> repositório. Se algum desses arquivos reaparecer, desmarque a caixinha
+> correspondente e trate como pendência real de novo.
