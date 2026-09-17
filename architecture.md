@@ -1,5 +1,7 @@
 # 🗺️ Arquitetura — PM: The KPI Master
 
+> Última revisão: 17/09/2026 (auditoria de arquitetura solicitada pelo usuário)
+
 ## Estrutura de arquivos
 
 ```
@@ -97,7 +99,10 @@ pm-the-kpi-master/
 | 6 — Internacionalização | ✅ pt-BR religado | `utils/i18n.js` + `locales/pt-BR.js` religados em `ui/*.js`, `engine/*.js` e `network/*.js` (51 chaves, todas em uso). Falta `en-US.js`/`es-ES.js` e seletor de idioma — ver **NOTA-003** |
 | 7 — Infraestrutura e Limpeza | 🟡 Parcial | `utils/logger.js` (infra, não religado — **NOTA-004**), `utils/persistence.js` (religado e em uso), `dev/debugTools.js` migrado (**REGRESSÃO-002** corrigida), `data/` separado em `questions.pt-BR.json` + `events.json`. Falta apenas apagar os arquivos antigos do projeto — ver checklist abaixo |
 
-Bugs, regressões e correções de segurança encontrados ao longo da migração e das revisões posteriores (BUG-001 a 004, REGRESSÃO-001/002, SEC-001/002) estão detalhados em `ISSUES.md`.
+Bugs, regressões, esclarecimentos e correções de segurança encontrados ao
+longo da migração e das revisões posteriores estão detalhados em
+`ISSUES.md` — que é sempre a fonte da verdade sobre isso; a lista de IDs
+não é replicada aqui de propósito, para não ficar desatualizada.
 
 ---
 
@@ -146,6 +151,10 @@ O roadmap mais detalhado (fornecido pelo usuário após a Fase 5) descreve o con
 
 **Vale a pena corrigir?** Só se o objetivo for testabilidade de verdade do `domain/` (testes unitários que não dependem de mutação de estado compartilhado) ou preparar terreno para algo tipo Redux/undo-redo. O jogo funciona corretamente hoje sem isso — é puramente uma questão de rigor arquitetural, não um bug. Esforço alto: reescrever `eventRules.js`/`deckRules.js`, expandir `mutations.js`, atualizar todos os pontos de chamada em `engine/*.js`, e testar o cálculo de KPI/recursos extensivamente (é a lógica mais sensível do jogo).
 
+### Observação: `config/game-config.js` → `js/config/constants.js` nunca foi feito
+
+O roadmap original lista essa migração na tabela-resumo, mas nenhuma das Fases 0–7 detalhadas a atribui explicitamente. Ficou de fora da migração até aqui. Se quiser fazer essa extração, é um bom próximo passo depois de fechar o checklist abaixo — mas não bloqueia nada, o jogo funciona normalmente com `config/game-config.js` no lugar onde sempre esteve. Hoje `js/config/constants.js` existe apenas como um comentário de cabeçalho (nenhum código real) e não é carregado por nenhum HTML.
+
 ### Por que o projeto não usa ES Modules
 
 Nunca foi decidido usar — o projeto inteiro usa `<script>` simples + namespace global `window.Game`, o mesmo padrão do código original antes da migração. Avaliação ao ser questionado sobre isso: ES Modules exigem servidor HTTP (não funcionam abrindo o HTML direto via `file://`, o que este jogo provavelmente faz em uso casual), tocariam os ~40 arquivos `.js` do projeto, e removeriam toda a camada de compatibilidade `Game.core`/`Game.engine`/`Game.domain` construída ao longo da migração — sem corrigir nenhum bug existente. Recomendação: não migrar, a menos que haja um plano de investir bem mais tempo no projeto com tooling de build.
@@ -169,9 +178,7 @@ Depois de confirmar que tudo funciona com os arquivos novos, estes podem ser apa
 - [ ] `js/index.js` (substituído por `js/entry/roomEntry.js` desde a Fase 0)
 - [ ] `js/game-config.js` (duplicado de `config/game-config.js`, nunca foi carregado por nenhum `.html` — pode simplesmente apagar, nada usa)
 - [ ] `data/questions.json` (substituído por `data/questions.pt-BR.json` + `data/events.json` nesta fase)
+- [ ] `js/config/constants.js` (nunca chegou a ser preenchido — só um comentário de cabeçalho; não é carregado em nenhum HTML)
+- [ ] `js/config/messages.js` (superado pelo sistema de i18n — `utils/i18n.js` + `locales/pt-BR.js`; não é carregado em nenhum HTML)
 
-**Não apagar:** `config/game-config.js` (ainda é o arquivo de configuração ativo — a extração para `js/config/constants.js` nunca chegou a ser feita, não estava numa fase específica do roadmap original; ver observação abaixo).
-
-### Observação: `config/game-config.js` → `js/config/constants.js` nunca foi feito
-
-O roadmap original lista essa migração na tabela-resumo, mas nenhuma das Fases 0–7 detalhadas a atribui explicitamente. Ficou de fora da migração até aqui. Se quiser fazer essa extração, é um bom próximo passo depois de fechar o checklist acima — mas não bloqueia nada, o jogo funciona normalmente com `config/game-config.js` no lugar onde sempre esteve.
+**Não apagar:** `config/game-config.js` (ainda é o arquivo de configuração ativo — a extração para `js/config/constants.js` nunca chegou a ser feita, não estava numa fase específica do roadmap original; ver observação acima).

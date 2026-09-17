@@ -385,6 +385,29 @@ partida + clique manual) e nenhum avanço automático de rodada.
 
 ---
 
+## BUG-007: Ranking do host não atualizava quando um guest respondia
+
+- **Status:** ✅ Corrigido
+- **Detectado em:** revisão de arquitetura solicitada pelo usuário
+- **Local:** `js/engine/answerEngine.js` → `handleAnswer()`
+- **Sintoma:**
+  - Quando um **guest** respondia a pergunta (ou recebia bônus de assessoria),
+    os dados internos do host ficavam corretos, mas o **ranking exibido na
+    tela do host** nunca era redesenhado.
+- **Causa raiz:** `Game.network.broadcastAll()` não reenvia a mensagem de
+  volta para o próprio remetente. `updatePlayerKPI()` só rodava localmente
+  quando o **host** era quem tinha respondido
+  (`if (state.isHost && respondedorName === state.playerName)`) — não havia
+  nenhum caminho que atualizasse a tela do host quando o respondedor (ou o
+  assessor bonificado) era outra pessoa.
+- **Correção aplicada:** adicionada uma chamada incondicional a
+  `Game.ui.updatePlayersOnlineList()` + `Game.ui.updateRankingList()` no fim
+  de `handleAnswer()`, executada sempre que `state.isHost` é verdadeiro —
+  cobrindo tanto o caso do respondedor quanto o do bônus de assessoria,
+  independente de quem seja o jogador que gerou a atualização.
+
+---
+
 ## ESCLARECIMENTO-001 (não é bug): "+10 KPI" na modal, mas só "+5" no ranking
 
 - **Status:** ✅ Investigado, confirmado como comportamento intencional

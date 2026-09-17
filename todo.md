@@ -2,12 +2,17 @@
 
 ## 1. Arquitetura e Organização
 
-| # | Melhoria | Justificativa |
-|---|----------|---------------|
-| 1.1 | **Desacoplar UI da lógica de negócio** | `game-core.js` atualiza diretamente o DOM (ex: `document.getElementById('myRecursos')`). Isso dificulta testes e manutenção. Adotar padrão **Observer** ou **Event Bus** para notificar a UI sobre mudanças de estado. |
-| 1.2 | **Gerenciamento de estado centralizado** | O estado global `Game.state` é mutável e acessado por todos os módulos. Utilizar uma **store** com imutabilidade (ex: via `Object.freeze` ou biblioteca como Redux) e ações específicas para alterações, facilitando rastreamento de mudanças. |
-| 1.3 | **Injeção de dependências** | Módulos referenciam `Game` globalmente. Usar um container de injeção ou passar dependências explicitamente nas funções, melhorando testabilidade. |
-| 1.4 | **Separação de camadas** | Criar camadas claras: **Model** (estado), **Controller** (regras de negócio), **View** (UI), **Network** (comunicação). Atualmente, `game-core` mistura lógica de jogo com manipulação de rede e UI. |
+> ✅ **Resolvida pela migração de arquitetura (Fases 0–7).** Os itens que
+> estavam aqui (desacoplar UI da lógica, estado centralizado, separação de
+> camadas) descreviam problemas do antigo `game-core.js`/`game-ui.js`
+> monolítico — já não existem: hoje o projeto tem `domain/`, `state/`,
+> `engine/`, `network/` e `ui/` como camadas separadas. Detalhes completos em
+> `ARCHITECTURE.md`.
+>
+> Único ponto de rigor arquitetural ainda pendente dessa frente: **NOTA-005**
+> em `ARCHITECTURE.md` (`domain/` muta o estado recebido em vez de retornar
+> deltas). Não é um bug — só vale a pena corrigir se o objetivo for
+> testabilidade unitária de verdade.
 
 ---
 
@@ -17,7 +22,7 @@
 |---|----------|---------------|
 | 2.1 | **Política de retry mais inteligente** | Em `initPeerWithRetry`, as tentativas são fixas. Poderiam ser exponenciais com jitter para evitar sobrecarga do servidor. |
 | 2.2 | **Timeouts em todas as operações de rede** | Além do timeout de resposta, implementar timeouts para envio de mensagens, reconexão, etc. |
-| 2.3 | **Logs com níveis (debug, info, warn, error)** | Em produção, muitos logs poluem o console. Utilizar uma biblioteca de log ou implementar níveis. |
+| 2.3 | **Logs com níveis (debug, info, warn, error)** | 🟡 Infraestrutura já pronta (`utils/logger.js`), mas nenhum arquivo do projeto foi religado para usar `Game.logger.*` no lugar de `console.log` direto — ver **NOTA-004** em `ARCHITECTURE.md`. |
 | 2.4 | **Validação de dados recebidos via rede** | Mensagens de outros peers podem estar malformadas; validar com esquemas (ex: JSON Schema) para evitar crashes. |
 | 2.5 | **Fallback para quando o host migra** | Garantir que a migração de host seja atômica e que o novo host sincronize completamente o estado com todos os peers. |
 
@@ -35,9 +40,15 @@
 
 ## 4. Segurança
 
+> Nota: itens abaixo tratam de superfícies gerais de segurança que ainda não
+> foram endereçadas. Para o que **já foi corrigido** (XSS via nome de
+> jogador, falsificação de identidade em mensagens de rede), ver `SEC-001` e
+> `SEC-002` em `ISSUES.md` — mitigam parte do risco descrito em 4.1/4.2, mas
+> não substituem uma autenticação real.
+
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
-| 4.1 | **Autenticação de jogadores** | Impedir que um usuário se passe por outro. Usar tokens gerados pelo host ou chave de sala. |
+| 4.1 | **Autenticação de jogadores** | Impedir que um usuário se passe por outro de forma mais robusta que a verificação atual de `peerId` (ver `SEC-002`). Usar tokens gerados pelo host ou chave de sala. |
 | 4.2 | **Validação de ações do host** | O host é a fonte da verdade, mas suas ações devem ser validadas (ex: não pode conceder KPI indevidamente). Atualmente já há alguma validação, mas pode ser reforçada. |
 | 4.3 | **Criptografia de ponta a ponta** | PeerJS suporta `secure: true` para conexões WebRTC criptografadas. Ativar para proteção de dados sensíveis. |
 
@@ -71,7 +82,6 @@
 | 7.1 | **JSDoc completo** | Muitas funções já têm comentários, mas faltam parâmetros e retornos detalhados. Padronizar. |
 | 7.2 | **Testes unitários e de integração** | Implementar testes com Jest + Testing Library para UI e lógica. A falta de testes torna o código frágil. |
 | 7.3 | **Linter (ESLint) e formatter (Prettier)** | Manter estilo consistente e evitar erros comuns. |
-| 7.4 | **Extrair constantes e mensagens** | Strings de UI (ex: "Aguardando o host...") centralizadas em um arquivo de localização para facilitar internacionalização. |
 | 7.5 | **Separar helpers em arquivos próprios** | Funções como `buildRanking` poderiam estar em um arquivo `ranking-utils.js`. |
 
 ---
@@ -80,16 +90,18 @@
 
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
-- Botão iniciar rodada antes de o evento surgir magicamente na tela
-- kpi quem acerta pergunta + 5 e quem assessora + 5
-- arrumar assessoria
-- qrcode no tabuleiro
-- corte de verbas -2 pra todo mundo, menos 1 para quem acerta a pergunta
-- apoio da alta gestão (+1 recurso somente para quem acerta)
-| 8.4 | **Suporte a múltiplos idiomas (i18n)** | Preparar arquivos de tradução para português, inglês, etc. |
+| 8.1 | **QR code no tabuleiro** | Facilitar a entrada de jogadores em sala física, sem precisar digitar o código manualmente. |
+| 8.4 | **Suporte a múltiplos idiomas (i18n)** | Criar `en-US.js` e `es-ES.js` seguindo o mesmo dicionário de `pt-BR.js` (51 chaves) e adicionar seletor de idioma na UI — infraestrutura já pronta, ver **NOTA-003** em `ARCHITECTURE.md`. |
 
+### Ideias de rebalanceamento a avaliar
 
+> ⚠️ Estas três ideias **divergem das regras hoje implementadas e
+> documentadas no README** (evento e2 "Corte de Orçamento" tira -1 recurso
+> de todos incondicionalmente; e1 "Apoio da Alta Gestão" dá +1 para todos;
+> acerto dá +10 KPI e bônus de assessoria +5 KPI, sem depender um do outro —
+> ver `ESCLARECIMENTO-001` em `ISSUES.md`). Mantidas aqui como propostas de
+> mudança de design, não como bugs.
 
-- O KPI do respondedor não está somando certo, está somando com a pontuação do assessor (5 kpi), deveria somar com o kpi do respondedor (10 kpi)
-- Quando todos responderem colocar alguma mensagem que a rodada encerrou e o host deve iniciar uma nova rodada
-- está exibindo no modal 'question.tempoRestante' e não o tempo de fato
+- Corte de Orçamento: -2 para todos, exceto -1 para quem acertar a pergunta da rodada.
+- Apoio da Alta Gestão: +1 recurso apenas para quem acertar a pergunta (hoje é para todos os ativos).
+- KPI: acerto e assessoria valendo +5 cada, em vez do atual +10 (acerto) / +5 (assessoria).
