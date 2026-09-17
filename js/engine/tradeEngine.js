@@ -150,7 +150,8 @@ window.Game.engine.trade = {
     getCompradores
 };
 
-// Compatibilidade: Game.core.* continua funcionando enquanto game-ui.js e
-// game-network.js não migram para chamar Game.engine.trade diretamente.
+// Game.core.* é o namespace usado por ui/ e network/ para chamar as
+// funções deste engine — convenção de chamada entre camadas, não é
+// compatibilidade temporária nem trabalho pendente (ver ARCHITECTURE.md).
 window.Game.core = window.Game.core || {};
 Object.assign(window.Game.core, window.Game.engine.trade);

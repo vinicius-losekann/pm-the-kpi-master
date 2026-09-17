@@ -18,11 +18,6 @@
 // ============================================
 window.Game = window.Game || {};
 
-// Fase 0.3: injeta o EventBus global no namespace do jogo.
-// A partir daqui, qualquer módulo pode usar Game.bus.on(...) / Game.bus.emit(...)
-// em vez de chamar outros módulos diretamente.
-window.Game.bus = window.bus;
-
 // ============================================
 // CARREGAR PERGUNTAS
 // ============================================
@@ -90,14 +85,8 @@ function resumeGameEngineIfHost() {
     console.log('🔁 Retomando motor da partida após reload do host...');
 
     Game.ui.showScreen('game');
-    Game.ui.updatePlayersOnlineList();
-    Game.ui.updateRankingList();
+    Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
     Game.ui.updateTimerDisplay();
-
-    // BUG-003 (ver ISSUES.md): faltava atualizar o card de perfil do
-    // próprio host (KPI, fase, atividades) após o F5 — os dados já
-    // estavam corretos em memória, só a tela não refletia isso.
-    Game.ui.renderProfileCard(Game.getPlayerByName(state.playerName));
 
     clearInterval(state.timerInterval);
     state.timerInterval = setInterval(() => {

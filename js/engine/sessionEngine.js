@@ -24,9 +24,6 @@ function startGame() {
 
     Game.resetAllPlayers();
 
-    const me = Game.getPlayerByName(state.playerName);
-    Game.ui.renderProfileCard(me);
-
     clearInterval(state.timerInterval);
     state.timerInterval = setInterval(() => {
         state.timer--;
@@ -43,7 +40,7 @@ function startGame() {
     }, 1000);
 
     Game.ui.showScreen('game');
-    Game.ui.updatePlayersOnlineList();
+    Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
     Game.ui.updateTimerDisplay();
 
     if (state.isHost) Game.engine.turn.startNewRound();
@@ -258,7 +255,8 @@ window.Game.engine.session = {
     leaveSession
 };
 
-// Compatibilidade: Game.core.* continua funcionando enquanto game-ui.js e
-// game-network.js não migram para chamar Game.engine.session diretamente.
+// Game.core.* é o namespace usado por ui/ e network/ para chamar as
+// funções deste engine — convenção de chamada entre camadas, não é
+// compatibilidade temporária nem trabalho pendente (ver ARCHITECTURE.md).
 window.Game.core = window.Game.core || {};
 Object.assign(window.Game.core, window.Game.engine.session);

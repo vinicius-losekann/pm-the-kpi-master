@@ -5,12 +5,14 @@
 // atividades e barra de progresso).
 // Fase 5.5 do roadmap.
 //
-// 🐛 BUG-003 (ver ISSUES.md): essa lógica estava duplicada em 3 lugares
-// diferentes (sessionEngine.startGame, answerEngine.updatePlayerKPI,
-// messageHandler.restoreState) e um quarto lugar que PRECISAVA dela
-// (main.js → resumeGameEngineIfHost) nunca a chamava — por isso o card
-// do host ficava desatualizado após F5. Esta função consolida os 3
-// blocos duplicados; os 4 pontos agora chamam Game.ui.renderProfileCard().
+// 🐛 BUG-003 / BUG-007 (ver ISSUES.md): a sequência "atualizar card de
+// perfil + lista de jogadores + ranking" estava duplicada manualmente
+// em 7 lugares diferentes do código, cada um com uma variação sutil
+// (alguns só atualizavam myKPI/myRecursos direto no DOM, sem passar
+// por renderProfileCard). Isso já causou dois bugs de tela
+// desatualizada por esquecimento de replicar a chamada em algum ponto
+// novo. Game.ui.syncPlayerViews() consolida essa sequência num único
+// ponto — os 7 lugares agora chamam ela em vez de duplicar a lógica.
 // ============================================
 
 /**
@@ -37,11 +39,31 @@ function renderProfileCard(player) {
         (player.activities / CONFIG.JOGO.ACTIVITIES_PER_PHASE * 100) + '%';
 }
 
+/**
+ * Sincroniza TODAS as views afetadas por uma mudança no estado de um
+ * jogador: card de perfil (se for o jogador local), lista de jogadores
+ * online e ranking. Consolida a sequência que estava duplicada em 7
+ * lugares diferentes do código (ver BUG-003 e BUG-007 em ISSUES.md) —
+ * cada duplicação era um risco de ficar esquecida num ponto novo.
+ * @param {object|null} player - jogador cujo card deve ser atualizado,
+ *   se for o jogador local (Game.state.playerName). Passe null para
+ *   apenas atualizar as listas compartilhadas (online/ranking), sem
+ *   mexer no card de perfil.
+ */
+function syncPlayerViews(player) {
+    if (player && player.name === Game.state.playerName) {
+        renderProfileCard(player);
+    }
+    Game.ui.updatePlayersOnlineList();
+    Game.ui.updateRankingList();
+}
+
 // ============================================
 // EXPORTAÇÃO
 // ============================================
 window.Game = window.Game || {};
 window.Game.ui = window.Game.ui || {};
 Object.assign(window.Game.ui, {
-    renderProfileCard
+    renderProfileCard,
+    syncPlayerViews
 });

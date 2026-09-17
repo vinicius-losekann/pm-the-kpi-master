@@ -170,13 +170,7 @@ function handleMessage(msg, fromPeerId) {
                 state.players = msg.players;
             }
             Game.ui.showEventoModal(msg.evento);
-            Game.ui.updatePlayersOnlineList();
-            Game.ui.updateRankingList();
-            const me = Game.getPlayerByName(state.playerName);
-            if (me) {
-                document.getElementById('myRecursos').textContent = me.recursos;
-                document.getElementById('myKPI').textContent = me.kpi;
-            }
+            Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
             break;
 
         // --- ASSESSORIA ---
@@ -242,13 +236,7 @@ function handleMessage(msg, fromPeerId) {
                 comprador.kpi = msg.compradorKPI;
                 comprador.recursos = msg.compradorRecursos;
             }
-            Game.ui.updatePlayersOnlineList();
-            Game.ui.updateRankingList();
-            const me2 = Game.getPlayerByName(state.playerName);
-            if (me2) {
-                document.getElementById('myRecursos').textContent = me2.recursos;
-                document.getElementById('myKPI').textContent = me2.kpi;
-            }
+            Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
             if (state.playerName === msg.vendedor) {
                 Game.ui.fecharVendaModal();
             }
@@ -386,11 +374,7 @@ function restoreState(fullState) {
     if (state.gameStarted) {
         Game.ui.showScreen('game');
         Game.ui.updateTimerDisplay();
-        Game.ui.updatePlayersOnlineList();
-        Game.ui.updateRankingList();
-
-        const me = Game.getPlayerByName(state.playerName);
-        Game.ui.renderProfileCard(me);
+        Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
 
         if (state.currentRound) {
             const isParticipant =

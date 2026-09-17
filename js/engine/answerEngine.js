@@ -178,8 +178,7 @@ function handleAnswer(msg) {
     // que nenhum dos dois é o próprio host (broadcastAll não se
     // auto-envia, então sem isso o ranking do host fica desatualizado).
     if (state.isHost) {
-        Game.ui.updatePlayersOnlineList();
-        Game.ui.updateRankingList();
+        Game.ui.syncPlayerViews(null);
     }
 
     const faseIdx = Game.getFaseIndex(respondedor.phase);
@@ -208,9 +207,9 @@ function updatePlayerKPI(msg) {
         if (msg.recursos !== undefined) player.recursos = msg.recursos;
     }
 
-    if (msg.playerName === state.playerName) {
-        Game.ui.renderProfileCard(msg);
+    Game.ui.syncPlayerViews({ ...msg, name: msg.playerName });
 
+    if (msg.playerName === state.playerName) {
         if (msg.semRecursos) {
             Game.ui.showResultModal(false, 0, msg.recursos);
             const resultMsg = document.getElementById('resultMessage');
@@ -221,9 +220,6 @@ function updatePlayerKPI(msg) {
             Game.ui.showAssessoriaBonusModal(msg.assessoriaBonus);
         }
     }
-
-    Game.ui.updatePlayersOnlineList();
-    Game.ui.updateRankingList();
 }
 
 // ============================================
@@ -236,7 +232,8 @@ window.Game.engine.answer = {
     updatePlayerKPI
 };
 
-// Compatibilidade: Game.core.* continua funcionando enquanto game-ui.js e
-// game-network.js não migram para chamar Game.engine.answer diretamente.
+// Game.core.* é o namespace usado por ui/ e network/ para chamar as
+// funções deste engine — convenção de chamada entre camadas, não é
+// compatibilidade temporária nem trabalho pendente (ver ARCHITECTURE.md).
 window.Game.core = window.Game.core || {};
 Object.assign(window.Game.core, window.Game.engine.answer);

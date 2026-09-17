@@ -37,14 +37,7 @@ function startNewRound() {
     const logs = Game.domain.event.aplicarEfeitosEvento(evento, ativos);
     logs.forEach(msg => console.log(msg));
 
-    Game.ui.updatePlayersOnlineList();
-    Game.ui.updateRankingList();
-
-    const me = Game.getPlayerByName(state.playerName);
-    if (me) {
-        document.getElementById('myRecursos').textContent = me.recursos;
-        document.getElementById('myKPI').textContent = me.kpi;
-    }
+    Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
 
     pickNewPair(evento);
 }
@@ -77,13 +70,7 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
         const logs = Game.domain.event.aplicarEfeitosEvento(evento, ativos);
         logs.forEach(msg => console.log(msg));
 
-        Game.ui.updatePlayersOnlineList();
-        Game.ui.updateRankingList();
-        const me = Game.getPlayerByName(state.playerName);
-        if (me) {
-            document.getElementById('myRecursos').textContent = me.recursos;
-            document.getElementById('myKPI').textContent = me.kpi;
-        }
+        Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
     }
 
     // 🐛 Correção (ver ISSUES.md BUG-005): antes, a condição de exibir o
@@ -263,7 +250,8 @@ window.Game.engine.turn = {
     nextTurn
 };
 
-// Compatibilidade: Game.core.* continua funcionando enquanto game-ui.js e
-// game-network.js não migram para chamar Game.engine.turn diretamente.
+// Game.core.* é o namespace usado por ui/ e network/ para chamar as
+// funções deste engine — convenção de chamada entre camadas, não é
+// compatibilidade temporária nem trabalho pendente (ver ARCHITECTURE.md).
 window.Game.core = window.Game.core || {};
 Object.assign(window.Game.core, window.Game.engine.turn);
