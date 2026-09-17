@@ -204,18 +204,68 @@ Respondedor recebe pergunta
 📁 pm-the-kpi-master/
 ├── 📄 index.html
 ├── 📄 game.html
-├── 📁 css/style.css
-├── 📁 config/game-config.js
-├── 📁 data/questions.json
+├── 📁 css/
+│   └── style.css
+├── 📁 config/
+│   └── game-config.js
+├── 📁 data/
+│   ├── questions.pt-BR.json
+│   └── events.json
 └── 📁 js/
-    ├── index.js
-    ├── game-state.js
-    ├── game-network.js
-    ├── game-core.js
-    ├── game-ui.js
-    ├── game-debug.js
-    └── game-main.js
+    ├── main.js
+    ├── entry/
+    │   └── roomEntry.js
+    ├── domain/
+    │   ├── kpiRules.js
+    │   ├── eventRules.js
+    │   ├── deckRules.js
+    │   ├── tradeRules.js
+    │   ├── advisoryRules.js
+    │   └── rankingRules.js
+    ├── state/
+    │   ├── store.js
+    │   ├── selectors.js
+    │   └── mutations.js
+    ├── engine/
+    │   ├── sessionEngine.js
+    │   ├── turnEngine.js
+    │   ├── answerEngine.js
+    │   ├── tradeEngine.js
+    │   └── advisoryEngine.js
+    ├── network/
+    │   ├── connectionState.js
+    │   ├── peerService.js
+    │   ├── messageHandler.js
+    │   └── hostMigration.js
+    ├── ui/
+    │   ├── screenManager.js
+    │   ├── setup.js
+    │   ├── components/
+    │   │   ├── lobbyComponent.js
+    │   │   ├── questionComponent.js
+    │   │   ├── profileComponent.js
+    │   │   ├── controlsComponent.js
+    │   │   ├── timerComponent.js
+    │   │   └── rankingComponent.js
+    │   └── modals/
+    │       ├── resultModal.js
+    │       ├── eventModal.js
+    │       ├── tradeModal.js
+    │       └── advisoryModal.js
+    ├── locales/
+    │   └── pt-BR.js
+    ├── dev/
+    │   └── debugTools.js
+    └── utils/
+        ├── eventBus.js
+        ├── logger.js
+        ├── persistence.js
+        ├── sanitize.js
+        └── i18n.js
 ```
+
+> Para o histórico da migração, decisões de arquitetura e o que ainda está pendente em cada
+> módulo, veja `ARCHITECTURE.md`.
 
 ---
 
@@ -227,7 +277,7 @@ Respondedor recebe pergunta
 ### Desenvolvimento
 ```bash
 python3 -m http.server 8000
-# http://localhost:8080
+# http://localhost:8000
 ```
 
 ---
