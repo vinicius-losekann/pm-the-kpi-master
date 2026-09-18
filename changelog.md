@@ -31,6 +31,23 @@ não é mais um arquivo de arquivo morto.
   `correta`→`correct`, chaves de domínio como `governanca`→`governance`).
   Prepara o terreno para `questions.en-US.json`/`questions.es-ES.json`
   futuros sem precisar re-trabalhar o schema depois.
+- `ISSUES.md` reduzido de 477 para 47 linhas: as 12 entradas da migração
+  inicial (Fases 0–7) foram resumidas e movidas para este arquivo
+  (seção "Migração de Arquitetura" abaixo), preservando o histórico
+  técnico completo. `ISSUES.md` passa a focar só em bugs atuais.
+- `ARCHITECTURE.md`: tabela "Status da Migração" e checklist de limpeza
+  (ambos 100% concluídos) resumidos para poucas linhas + pointer pra
+  este changelog. NOTA-001 e NOTA-002 removidas (já resolvidas, sem
+  pendência real a documentar).
+
+### Added
+- Modais de resposta do Respondedor (`#modalResponderPergunta`) e do
+  Assessor (`#modalAssessoriaQuestion`) agora mostram quem pergunta e
+  quem responde na rodada — antes essa informação só existia no
+  `#roundInfo` por trás do modal, pouco visível com o overlay aberto.
+  Sem mudança de payload de rede (os dois já tinham acesso a
+  `Game.state.currentRound.perguntador`/`.respondedor` via
+  `'round-start'`).
 
 ### Fixed
 - Corrigido um ponto em `messageHandler.js` que ainda blindava o gabarito

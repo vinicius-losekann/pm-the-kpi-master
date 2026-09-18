@@ -98,6 +98,8 @@ function displayQuestion(q) {
         document.getElementById('altD').textContent = q.alternatives[3];
 
         const round = Game.state.currentRound;
+        document.getElementById('respModalPerguntador').textContent = round?.perguntador || '---';
+        document.getElementById('respModalRespondedor').textContent = round?.respondedor || '---';
         const jaRespondeu = !!round?.respondeu;
         const assessoriaPendente = round?.assessoria?.status === 'pending';
         document.querySelectorAll('.alternative-btn').forEach(b => {

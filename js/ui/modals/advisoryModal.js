@@ -77,6 +77,9 @@ function showAssessoriaStarted(msg) {
 }
 
 function showAssessoriaQuestionModal(msg) {
+    const round = Game.state.currentRound;
+    document.getElementById('assessoriaModalPerguntador').textContent = round?.perguntador || '---';
+    document.getElementById('assessoriaModalRespondedor').textContent = round?.respondedor || '---';
     document.getElementById('assessoriaQuestionText').textContent = msg.question;
     document.getElementById('assessoriaAlternativesList').innerHTML = msg.alternatives.map(alt => {
         const letra = alt.charAt(0).toLowerCase();
