@@ -3,8 +3,9 @@
 Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
-Bugs individuais, com causa raiz e correção, ficam detalhados em `ISSUES.md`;
-este arquivo é um resumo de alto nível por período.
+Bugs da migração inicial (Fases 0–7) estão resumidos aqui permanentemente.
+`ISSUES.md` foca em bugs atuais — causa raiz, correção aplicada, status —
+não é mais um arquivo de arquivo morto.
 
 ---
 
@@ -55,9 +56,19 @@ este arquivo é um resumo de alto nível por período.
   podem ser chamados para ajudar quem está respondendo.
 
 ### Fixed
-- Diversos bugs de sincronização entre host e guests após reconexão (F5),
-  tela do host não atualizando corretamente, e modal de evento reaparecendo
-  indevidamente. Ver `BUG-001` a `BUG-007` em `ISSUES.md`.
+- **BUG-001**: F5 no host trocava a pergunta da rodada em andamento em vez de restaurá-la.
+- **BUG-002**: guest virava host indevidamente após F5 no host (falha de reconexão).
+- **BUG-003**: card de perfil do host não atualizava (KPI/fase/atividades) após F5.
+- **REGRESSÃO-001**: `resetAllBaralhos()` esquecida na extração de `game-core.js` (Fase 3), encontrada antes de gerar bug visível.
+- **BUG-004/BUG-005**: modal de evento reaparecendo a cada pergunta; rodada avançando sozinha em vez de esperar o host clicar em "Nova Rodada".
+- **REGRESSÃO-002**: wrappers de sorteio (`sortearPergunta`/`sortearEvento`) esquecidos na extração de `game-core.js`, quebravam `debugTools.js` silenciosamente.
+- **BUG-006**: tela do host não atualizava quando ele era Perguntador, Respondedor ou Espectador.
+- **BUG-007**: ranking do host não atualizava quando um guest respondia.
+- **ESCLARECIMENTO-001**: diferença entre "+10 KPI" na modal e "+5" no ranking — comportamento intencional (custo de recurso descontado no ranking), não bug.
+
+### Security
+- **SEC-001**: XSS armazenado via nome de jogador, em 8 pontos de renderização.
+- **SEC-002**: falsificação de identidade em mensagens de rede (um guest podia agir como outro jogador).
 
 ### Security
 - Corrigida vulnerabilidade de XSS armazenado via nome de jogador (`SEC-001`).
