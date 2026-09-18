@@ -8,6 +8,37 @@ este arquivo é um resumo de alto nível por período.
 
 ---
 
+## [Sem versão] - 2026-09-18
+
+### Changed
+- Reorganização de infraestrutura interna: consolidada a atualização de
+  tela pós-mudança de estado de jogador (card de perfil, lista online,
+  ranking), antes duplicada manualmente em 7 pontos do código, numa
+  função única (`Game.ui.syncPlayerViews()`).
+- Removido `js/utils/eventBus.js` (nunca usado). `js/utils/logger.js`
+  mantido — religamento planejado para antes de rodar com múltiplas
+  salas simultâneas em produção.
+- `Game.core.*` documentado como a API pública oficial entre camadas de
+  engine (comentários antigos sugeriam ser "compatibilidade temporária",
+  o que não era mais verdade).
+- Removidos arquivos órfãos: `js/index.js` (duplicado de
+  `js/entry/roomEntry.js`) e `js/config/constants.js` (nunca preenchido).
+- `data/questions.pt-BR.json`: schema renomeado para alinhar com a
+  terminologia da 8ª edição do PMBOK e usar chaves em inglês,
+  independentes do idioma do conteúdo (`areas`→`domains`,
+  `grupos`→`areas`, `pergunta`→`question`, `alternativas`→`alternatives`,
+  `correta`→`correct`, chaves de domínio como `governanca`→`governance`).
+  Prepara o terreno para `questions.en-US.json`/`questions.es-ES.json`
+  futuros sem precisar re-trabalhar o schema depois.
+
+### Fixed
+- Corrigido um ponto em `messageHandler.js` que ainda blindava o gabarito
+  pelo nome de campo antigo (`correta`) após o rename acima — sem a
+  correção, a resposta certa vazaria para jogadores entrando no meio de
+  uma rodada em andamento. Ver `REGRESSÃO-003` em `ISSUES.md`.
+
+---
+
 ## [Não datado] — Migração de Arquitetura (Fases 0–7)
 
 ### Changed

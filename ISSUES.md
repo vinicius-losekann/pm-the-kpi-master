@@ -437,6 +437,35 @@ partida + clique manual) e nenhum avanço automático de rodada.
 
 ---
 
+## REGRESSÃO-003 (encontrada e corrigida antes de causar bug visível): campo de gabarito ainda blindado pelo nome antigo após rename do schema
+
+- **Status:** ✅ Corrigido na Fase 8, antes de qualquer impacto ao usuário
+- **Detectado em:** Fase 8 (rename de nomenclatura PMBOK 8ª ed.), ao caçar
+  cada ocorrência do campo antigo `correta` pelo código inteiro após a
+  migração de `data/questions.pt-BR.json` para chaves em inglês
+  (`correta` → `correct`, entre outras — ver `ARCHITECTURE.md`)
+- **Local:** `js/network/messageHandler.js` → `addPlayer()`, montagem de
+  `currentRoundForSync`
+- **O que aconteceu:** ao sincronizar o estado da partida para um jogador
+  entrando durante uma rodada já em andamento, o código blinda a resposta
+  correta antes de enviar (pra quem não é o Perguntador não receber o
+  gabarito). Essa blindagem apagava explicitamente o campo `correta:
+  undefined` — só que o rename do schema já tinha trocado esse campo para
+  `correct` em todo o resto do código. Como o `{...spread, correta:
+  undefined}` cria um campo `correta` NOVO (que não existe mais no
+  objeto) em vez de apagar o `correct` existente, o campo `correct` com o
+  gabarito real continuaria presente no objeto enviado — a resposta certa
+  vazaria para qualquer jogador entrando no meio de uma rodada.
+- **Correção aplicada:** `correta: undefined` → `correct: undefined` no
+  mesmo ponto.
+- **Lição reforçada:** mesmo padrão de risco das REGRESSÃO-001/002 —
+  renomear um campo usado em vários arquivos tem um jeito de deixar para
+  trás um ponto que "apaga o campo errado" em vez de dar erro visível.
+  Buscar cada ocorrência do nome antigo pelo código inteiro depois de um
+  rename continua sendo o jeito de pegar isso antes de virar bug real.
+
+---
+
 ## Como usar este arquivo
 
 - Ao encontrar um bug durante os testes de qualquer fase, adicione uma entrada

@@ -90,7 +90,7 @@
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
 | 8.1 | **QR code no tabuleiro** | Facilitar a entrada de jogadores em sala física, sem precisar digitar o código manualmente. |
-| 8.4 | **Suporte a múltiplos idiomas (i18n)** | Criar `en-US.js` e `es-ES.js` seguindo o mesmo dicionário de `pt-BR.js` (51 chaves) e adicionar seletor de idioma na UI — infraestrutura já pronta, ver **NOTA-003** em `ARCHITECTURE.md`. |
+| 8.4 | **Suporte a múltiplos idiomas (i18n)** | Criar `en-US.js` e `es-ES.js` seguindo o mesmo dicionário de `pt-BR.js` (51 chaves) e adicionar seletor de idioma na UI — infraestrutura já pronta, ver **NOTA-003** em `ARCHITECTURE.md`. Conteúdo das perguntas: `data/questions.pt-BR.json` já usa chaves de schema em inglês (Fase 8), então um `questions.en-US.json`/`questions.es-ES.json` futuro só precisa traduzir os valores, reusando as mesmas chaves de domínio — ver `ARCHITECTURE.md`. |
 
 ### Ideias de rebalanceamento a avaliar
 
