@@ -68,7 +68,7 @@ window.Game.debug = {
             return;
         }
 
-        if (!state.questionsData || Object.keys(state.questionsData.areas || {}).length === 0) {
+        if (!state.questionsData || Object.keys(state.questionsData.domains || {}).length === 0) {
             console.warn('⚠️ Perguntas não carregadas.');
             return;
         }
@@ -103,14 +103,14 @@ window.Game.debug = {
         for (let i = 0; i < times; i++) {
             const p = Game.domain.deck.sortearPergunta(state.baralhos, state.questionsData, fase);
             if (p) {
-                contagem[p.area_key] = (contagem[p.area_key] || 0) + 1;
+                contagem[p.domain_key] = (contagem[p.domain_key] || 0) + 1;
                 perguntasSorteadas.push(p.id);
             }
         }
 
-        console.log('📊 Distribuição por área:');
-        for (const [area, count] of Object.entries(contagem)) {
-            console.log(`   ${area}: ${count}x ${'█'.repeat(Math.max(1, count))}`);
+        console.log('📊 Distribuição por domínio:');
+        for (const [domain, count] of Object.entries(contagem)) {
+            console.log(`   ${domain}: ${count}x ${'█'.repeat(Math.max(1, count))}`);
         }
 
         const unicas = new Set(perguntasSorteadas);

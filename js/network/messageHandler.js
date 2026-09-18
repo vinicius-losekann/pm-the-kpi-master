@@ -311,7 +311,7 @@ function addPlayer(msg, fromPeerId) {
             if (!isPerguntadorDaRodada) {
                 currentRoundForSync = {
                     ...currentRoundForSync,
-                    pergunta: { ...currentRoundForSync.pergunta, correta: undefined }
+                    pergunta: { ...currentRoundForSync.pergunta, correct: undefined }
                 };
             }
         }

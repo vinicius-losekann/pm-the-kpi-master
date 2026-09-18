@@ -106,13 +106,13 @@ function handleAssessoriaRequest(msg) {
     });
 
     const pergunta = state.currentRound.pergunta;
-    const areaNome = state.questionsData.areas[pergunta.area_key]?.nome || pergunta.area_key;
+    const domainNome = state.questionsData.domains[pergunta.domain_key]?.name || pergunta.domain_key;
 
     Game.network.sendToPlayer(assessor.peerId, {
         type: 'assessoria-question',
-        pergunta: pergunta.pergunta,
-        area: areaNome,
-        alternativas: pergunta.alternativas,
+        question: pergunta.question,
+        domain: domainNome,
+        alternatives: pergunta.alternatives,
         id: pergunta.id
     });
 

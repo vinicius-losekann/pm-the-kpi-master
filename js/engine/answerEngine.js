@@ -50,7 +50,7 @@ function handleAnswer(msg) {
     state.currentRound.respondeu = true;
 
     const { pergunta, evento } = state.currentRound;
-    const acertou = msg.alternativa === pergunta.correta;
+    const acertou = msg.alternativa === pergunta.correct;
     const respondedor = Game.getPlayerByName(respondedorName);
 
     if (!respondedor) {
@@ -90,7 +90,7 @@ function handleAnswer(msg) {
     // Cálculo puro delegado a domain/kpiRules.js
     const resultado = Game.domain.kpi.calcularResultadoResposta({
         alternativaEscolhida: msg.alternativa,
-        correta: pergunta.correta,
+        correct: pergunta.correct,
         kpiAtual: respondedor.kpi,
         phaseId: respondedor.phase,
         activities: respondedor.activities,

@@ -9,8 +9,12 @@
 // Fase 7: saveState()/tryRestoreState() foram extraídos para
 // js/utils/persistence.js. Fase 6/7.8: loadQuestions() agora busca
 // data/questions.pt-BR.json + data/events.json (antes um único
-// data/questions.json), remontando a mesma forma {areas, eventos}
+// data/questions.json), remontando a mesma forma {domains, eventos}
 // para não quebrar domain/deckRules.js e domain/eventRules.js.
+// Fase 8 (nomenclatura PMBOK 8ª ed.): chaves do JSON de perguntas
+// migradas para inglês (domains/name/areas/questions/question/
+// alternatives/correct) — schema de dados fica independente do
+// idioma do conteúdo, preparando o terreno para questions.en-US.json.
 // ============================================
 
 // ============================================
@@ -24,7 +28,7 @@ window.Game = window.Game || {};
 
 /**
  * Carrega data/questions.pt-BR.json (perguntas) e data/events.json
- * (eventos) via fetch, remontando o mesmo formato {areas, eventos}
+ * (eventos) via fetch, remontando o mesmo formato {domains, eventos}
  * que o resto do código espera. Em caso de falha, tenta usar um
  * fallback local (se definido).
  */
@@ -44,7 +48,7 @@ async function loadQuestions() {
         const eventsJson = await eventsRes.json();
 
         state.questionsData = {
-            areas: questionsJson.areas || {},
+            domains: questionsJson.domains || {},
             eventos: eventsJson.eventos || []
         };
         console.log('✅ questions.pt-BR.json e events.json carregados!');
@@ -55,24 +59,24 @@ async function loadQuestions() {
             state.questionsData = FALLBACK_QUESTIONS;
         } else {
             console.error('❌ Nenhuma fonte de perguntas!');
-            state.questionsData = { areas: {}, eventos: [] };
+            state.questionsData = { domains: {}, eventos: [] };
         }
     }
 
     // Inicializa os baralhos, preservando progresso se já existir
     const baralhosRestaurados = state.baralhos && Object.keys(state.baralhos).length > 0;
     if (!baralhosRestaurados) {
-        for (const [key, area] of Object.entries(state.questionsData.areas || {})) {
+        for (const [key, domain] of Object.entries(state.questionsData.domains || {})) {
             state.baralhos[key] = {
-                perguntas: area.perguntas.map(p => ({ ...p, usada: false })),
-                disponiveis: area.perguntas.length,
-                total: area.perguntas.length
+                perguntas: domain.questions.map(p => ({ ...p, usada: false })),
+                disponiveis: domain.questions.length,
+                total: domain.questions.length
             };
         }
     }
 
-    const areas = Object.keys(state.questionsData.areas || {});
-    console.log('📚 Áreas carregadas:', areas.length);
+    const domains = Object.keys(state.questionsData.domains || {});
+    console.log('📚 Domínios carregados:', domains.length);
 }
 
 // ============================================
