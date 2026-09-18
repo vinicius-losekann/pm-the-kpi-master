@@ -44,7 +44,7 @@ pm-the-kpi-master/
     │   ├── sessionEngine.js     # startGame, endGame, endMatch, endSession, leaveMatch...
     │   ├── turnEngine.js        # startNewRound, pickNewPair, nextTurn
     │   ├── answerEngine.js      # handleAnswer, updatePlayerKPI
-    │   ├── tradeEngine.js       # venderRecurso, processVenda
+    │   ├── tradeEngine.js       # pedirAjuda, processAjuda (ex-venderRecurso/processVenda — Fase 9)
     │   └── advisoryEngine.js    # requestAssessoria, handleAssessoriaAnswer
     │
     ├── network/
@@ -66,7 +66,7 @@ pm-the-kpi-master/
     │   └── modals/
     │       ├── resultModal.js
     │       ├── eventModal.js
-    │       ├── tradeModal.js          # oferta + resposta de venda
+    │       ├── tradeModal.js          # status do pedido + aceitar/recusar ajuda (ex-venda, Fase 9)
     │       └── advisoryModal.js       # seleção + pergunta + resultado
     │
     ├── locales/
@@ -133,6 +133,14 @@ O roadmap mais detalhado (fornecido pelo usuário após a Fase 5) descreve o con
 ### `Game.core.*` é a API pública oficial, não "compatibilidade temporária"
 
 Os comentários de exportação em `engine/*.js` (`sessionEngine.js`, `turnEngine.js`, `answerEngine.js`, `tradeEngine.js`, `advisoryEngine.js`) diziam "Game.core.* continua funcionando enquanto game-ui.js e game-network.js não migram para chamar Game.engine.X diretamente" — só que `game-ui.js` e `game-network.js` já foram apagados desde as Fases 4-5, substituídos por `ui/*.js` e `network/*.js`, e esses arquivos novos **nunca migraram** para `Game.engine.X.Y()`; continuam chamando tudo via `Game.core.*`. Avaliado explicitamente: terminar essa migração seria trabalho mecânico em ~15-20 arquivos, sem ganho funcional, e risco desnecessário num projeto entrando em modo de estabilização. Decisão do usuário: `Game.core.*` passa a ser a API pública oficial entre camadas; os comentários enganosos foram corrigidos para refletir isso, em vez de sugerir uma migração que não vai acontecer.
+
+### Sistema de recursos: "Pedido de Ajuda" em vez de mercado livre (Fase 9)
+
+Motivado por feedback do piloto com alunos: o botão "Vender Recurso" ficava sempre visível pra qualquer jogador, virando distração paralela ao objetivo do jogo (quiz de PMBOK) — gente ficando de olho no mercado sem necessidade real.
+
+Reescrito em `engine/tradeEngine.js` (comentário de cabeçalho do arquivo tem o racional completo): o botão só aparece pra quem está com **0 recursos** (`profileComponent.js` controla a visibilidade via `syncPlayerViews()`). Ao pedir ajuda, o host monta uma fila automática — jogadores ativos com recurso, do que tem mais pro que tem menos — e pergunta um de cada vez, avançando sozinho a cada recusa/timeout, até alguém aceitar ou a fila acabar. Não há mais escolha manual de "vender pra quem".
+
+A matemática da troca em si não mudou (`domain/tradeRules.js` reaproveitado sem alteração) — só quem inicia e quando a ação fica disponível. Detalhes de implementação (mensagens de rede, arquivos tocados) em `CHANGELOG.md`.
 
 ### Schema de `data/questions.*.json` — chaves em inglês, estáveis entre idiomas (Fase 8)
 

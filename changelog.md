@@ -39,6 +39,20 @@ não é mais um arquivo de arquivo morto.
   (ambos 100% concluídos) resumidos para poucas linhas + pointer pra
   este changelog. NOTA-001 e NOTA-002 removidas (já resolvidas, sem
   pendência real a documentar).
+- Sistema de venda de recursos reescrito como "Pedido de Ajuda"
+  (Fase 9). Motivado por feedback do piloto: o botão "Vender Recurso"
+  ficava sempre visível e virou distração paralela ao quiz. Agora só
+  quem está com 0 recursos vê o botão; ao pedir, o host monta uma fila
+  automática (jogadores ativos com recurso, do maior pro menor) e
+  pergunta um de cada vez, avançando sozinho a cada recusa/timeout —
+  sem escolha manual de quem vender/comprar. Matemática da troca
+  inalterada; `domain/tradeRules.js` reaproveitado sem mudança.
+  Mensagem amigável (nunca "fim de jogo") quando ninguém pode ajudar ou
+  falta KPI pra pedir, explicando os caminhos alternativos (Perguntador,
+  Assessor, evento de Reserva de Contingência). Arquivos: `tradeEngine.js`,
+  `tradeModal.js`, `controlsComponent.js`, `setup.js`,
+  `profileComponent.js`, `messageHandler.js`, `debugTools.js`,
+  `locales/pt-BR.js`, `game.html`, `sessionEngine.js`.
 
 ### Added
 - Modais de resposta do Respondedor (`#modalResponderPergunta`) e do
