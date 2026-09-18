@@ -203,44 +203,47 @@ function handleMessage(msg, fromPeerId) {
             Game.ui.showAssessoriaResult(msg);
             break;
 
-        // --- VENDA ---
-        case 'venda-offer-request':
-            if (state.isHost && isSenderVerified(msg.vendedorName, fromPeerId)) {
-                Game.core.handleVendaOfertaRequest(msg);
+        // --- PEDIDO DE AJUDA (ex-VENDA — Fase 9, ver ARCHITECTURE.md) ---
+        case 'ajuda-request':
+            if (state.isHost && isSenderVerified(msg.requesterName, fromPeerId)) {
+                Game.core.handleAjudaRequest(msg);
             }
             break;
 
-        case 'venda-offer':
-            Game.ui.showVendaOfertaModal(msg);
+        case 'ajuda-tentando':
+            Game.ui.showAjudaTentando(msg);
             break;
 
-        case 'venda-offer-response':
-            if (state.isHost && isSenderVerified(msg.compradorName, fromPeerId)) {
-                Game.core.handleVendaOfertaResponse(msg);
+        case 'ajuda-oferta':
+            Game.ui.showAjudaOfertaModal(msg);
+            break;
+
+        case 'ajuda-oferta-response':
+            if (state.isHost && isSenderVerified(msg.candidatoName, fromPeerId)) {
+                Game.core.handleAjudaOfertaResponse(msg);
             }
             break;
 
-        case 'venda-rejected':
-            alert('⚠️ ' + msg.motivo);
-            Game.ui.fecharVendaModal();
+        case 'ajuda-sem-candidatos':
+            Game.ui.showAjudaSemCandidatos(msg);
             break;
 
-        case 'venda-confirmed':
-            const vendedor = Game.getPlayerByName(msg.vendedor);
-            const comprador = Game.getPlayerByName(msg.comprador);
-            if (vendedor) {
-                vendedor.kpi = msg.vendedorKPI;
-                vendedor.recursos = msg.vendedorRecursos;
+        case 'ajuda-confirmada':
+            const doador = Game.getPlayerByName(msg.doador);
+            const requester = Game.getPlayerByName(msg.requester);
+            if (doador) {
+                doador.kpi = msg.doadorKPI;
+                doador.recursos = msg.doadorRecursos;
             }
-            if (comprador) {
-                comprador.kpi = msg.compradorKPI;
-                comprador.recursos = msg.compradorRecursos;
+            if (requester) {
+                requester.kpi = msg.requesterKPI;
+                requester.recursos = msg.requesterRecursos;
             }
             Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
-            if (state.playerName === msg.vendedor) {
-                Game.ui.fecharVendaModal();
+            if (state.playerName === msg.requester) {
+                Game.ui.fecharPedirAjudaModal();
             }
-            console.log('💰 Venda confirmada:', msg.vendedor, '→', msg.comprador);
+            console.log('🆘 Ajuda confirmada:', msg.doador, '→', msg.requester);
             break;
     }
 }

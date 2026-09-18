@@ -192,89 +192,77 @@ window.Game.debug = {
     },
 
     // ============================================
-    // TESTES DE VENDA
+    // TESTES DE PEDIDO DE AJUDA (ex-VENDA — Fase 9)
     // ============================================
+    // Reescritos para refletir o novo fluxo: só quem está com 0
+    // recursos pede ajuda; quem doa ganha KPI. Chamam diretamente
+    // Game.core.processAjuda() (o host, sem passar pela fila/rede) —
+    // mesma matemática de sempre, só sem o passo de escolha manual.
 
     /**
-     * Simula uma venda entre dois jogadores (sem passar pelo host).
+     * Simula uma doação entre dois jogadores (sem passar pela fila).
      */
-    testVenda(vendedorName, compradorName) {
-        const vendedor = Game.getPlayerByName(vendedorName);
-        const comprador = Game.getPlayerByName(compradorName);
+    testAjuda(doadorName, requesterName) {
+        const doador = Game.getPlayerByName(doadorName);
+        const requester = Game.getPlayerByName(requesterName);
 
-        if (!vendedor || !comprador) {
+        if (!doador || !requester) {
             console.warn('⚠️ Jogador não encontrado.');
             console.log('💡 Jogadores disponíveis:', Game.state.players.map(p => p.name).join(', '));
             return;
         }
 
-        console.log('💰 Simulando venda...');
+        console.log('🆘 Simulando ajuda...');
         console.log('   ANTES:');
-        console.log('   ' + vendedor.name + ': ⭐' + vendedor.kpi + ' | 📦' + vendedor.recursos);
-        console.log('   ' + comprador.name + ': ⭐' + comprador.kpi + ' | 📦' + comprador.recursos);
+        console.log('   ' + doador.name + ': ⭐' + doador.kpi + ' | 📦' + doador.recursos);
+        console.log('   ' + requester.name + ': ⭐' + requester.kpi + ' | 📦' + requester.recursos);
 
-        if (vendedor.recursos < 1) { console.warn('⚠️ Vendedor sem recursos!'); return; }
-        if (comprador.kpi < CONFIG.KPI.VALOR_VENDA_RECURSO) {
-            console.warn('⚠️ Comprador sem KPI suficiente! (precisa de ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ')');
-            return;
-        }
-
-        vendedor.recursos--;
-        vendedor.kpi += CONFIG.KPI.VALOR_VENDA_RECURSO;
-        comprador.recursos++;
-        comprador.kpi -= CONFIG.KPI.VALOR_VENDA_RECURSO;
+        const ok = Game.core.processAjuda(doadorName, requesterName);
+        if (!ok) { console.warn('⚠️ Ajuda rejeitada (ver validarVenda em domain/tradeRules.js).'); return; }
 
         console.log('   DEPOIS:');
-        console.log('   ' + vendedor.name + ': ⭐' + vendedor.kpi + ' | 📦' + vendedor.recursos + ' (+' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI)');
-        console.log('   ' + comprador.name + ': ⭐' + comprador.kpi + ' | 📦' + comprador.recursos + ' (+1📦)');
-        console.log('✅ Venda simulada com sucesso!');
-
-        Game.ui.updatePlayersOnlineList();
-        Game.ui.updateRankingList();
+        console.log('   ' + doador.name + ': ⭐' + doador.kpi + ' | 📦' + doador.recursos + ' (+' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI)');
+        console.log('   ' + requester.name + ': ⭐' + requester.kpi + ' | 📦' + requester.recursos + ' (+1📦)');
+        console.log('✅ Ajuda simulada com sucesso!');
     },
 
     /**
-     * Simula várias vendas automáticas entre jogadores.
+     * Simula várias doações automáticas — sempre de quem tem mais
+     * recurso pra quem está com 0 (reflete a ordem real da fila).
      */
-    testVendasAutomaticas(quantidade = 3) {
+    testAjudasAutomaticas(quantidade = 3) {
         const state = Game.state;
         if (!state.gameStarted) { console.warn('⚠️ Inicie a partida primeiro.'); return; }
 
-        console.log('💰 Simulando ' + quantidade + ' vendas automáticas...\n');
+        console.log('🆘 Simulando ' + quantidade + ' pedidos de ajuda automáticos...\n');
 
         for (let i = 0; i < quantidade; i++) {
-            const vendedores = [...state.players]
-                .filter(p => p.recursos > 1 && !p.waitingInLobby)
+            const requesters = [...state.players]
+                .filter(p => p.recursos <= 0 && p.kpi >= CONFIG.KPI.VALOR_VENDA_RECURSO && !p.waitingInLobby);
+
+            const doadores = [...state.players]
+                .filter(p => p.recursos >= 1 && !p.waitingInLobby)
                 .sort((a, b) => b.recursos - a.recursos);
 
-            const compradores = [...state.players]
-                .filter(p => p.kpi >= CONFIG.KPI.VALOR_VENDA_RECURSO && !p.waitingInLobby)
-                .sort((a, b) => b.kpi - a.kpi);
-
-            if (vendedores.length === 0 || compradores.length === 0) {
-                console.warn('⚠️ Sem vendedores ou compradores disponíveis.');
+            if (requesters.length === 0 || doadores.length === 0) {
+                console.warn('⚠️ Sem jogadores pedindo ajuda ou sem doadores disponíveis.');
                 break;
             }
 
-            const vendedor = vendedores[0];
-            const comprador = compradores.find(c => c.name !== vendedor.name) || compradores[0];
+            const requester = requesters[0];
+            const doador = doadores.find(d => d.name !== requester.name);
 
-            if (vendedor.name === comprador.name) { console.warn('⚠️ Apenas um jogador.'); break; }
+            if (!doador) { console.warn('⚠️ Nenhum doador elegível.'); break; }
 
-            vendedor.recursos--;
-            vendedor.kpi += CONFIG.KPI.VALOR_VENDA_RECURSO;
-            comprador.recursos++;
-            comprador.kpi -= CONFIG.KPI.VALOR_VENDA_RECURSO;
+            const ok = Game.core.processAjuda(doador.name, requester.name);
+            if (!ok) { console.warn('⚠️ Ajuda rejeitada nessa rodada de teste.'); break; }
 
-            console.log('   💰 ' + vendedor.name + ' → ' + comprador.name + ' | +' + CONFIG.KPI.VALOR_VENDA_RECURSO + '⭐ / +1📦');
+            console.log('   🆘 ' + doador.name + ' → ' + requester.name + ' | +' + CONFIG.KPI.VALOR_VENDA_RECURSO + '⭐ / +1📦 pra quem pediu');
         }
 
-        console.log('\n📊 Estado após vendas:');
+        console.log('\n📊 Estado após ajudas:');
         state.players.forEach(p => console.log('   ' + p.name + ': ⭐' + p.kpi + ' | 📦' + p.recursos));
-
-        Game.ui.updatePlayersOnlineList();
-        Game.ui.updateRankingList();
-        console.log('✅ Vendas automáticas concluídas!');
+        console.log('✅ Ajudas automáticas concluídas!');
     },
 
     // ============================================
@@ -293,7 +281,7 @@ window.Game.debug = {
         console.log('🚀 Iniciando simulação de partida completa...');
         console.log(`👥 Jogadores: ${numJogadores} | 🎯 Chance de acerto: ${Math.round(chanceAcerto * 100)}%`);
         console.log(`📦 Recursos iniciais: ${CONFIG.RECURSOS_INICIAIS} | ⭐ KPI por acerto: ${CONFIG.KPI.ACERTO_BASE}`);
-        console.log(`💰 Valor de venda: ${CONFIG.KPI.VALOR_VENDA_RECURSO} KPI por recurso`);
+        console.log(`🆘 Valor do pedido de ajuda: ${CONFIG.KPI.VALOR_VENDA_RECURSO} KPI por recurso`);
         console.log('🛑 Termina quando o PRIMEIRO completar o Encerramento\n');
 
         if (Game.state.players.length < 2) {
@@ -312,7 +300,7 @@ window.Game.debug = {
         let vencedor = null;
         let rodadasSemNinguemResponder = 0;
         let interrompidoPorTrava = false;
-        let totalVendas = 0;
+        let totalAjudas = 0;
 
         while (!jogoFinalizado) {
             rodada++;
@@ -326,22 +314,26 @@ window.Game.debug = {
             const evento = Game.domain.event.sortearEvento(Game.state.questionsData?.eventos || []);
             Game.domain.event.aplicarEfeitosEvento(evento, jogadores);
 
-            // Chance de venda automática
-            if (Math.random() < 0.15 && rodada > 3) {
-                const vendedores = jogadores.filter(p => p.recursos > 1);
-                const compradores = jogadores.filter(p => p.kpi >= CONFIG.KPI.VALOR_VENDA_RECURSO);
-
-                if (vendedores.length > 0 && compradores.length > 0) {
-                    const vendedor = vendedores[Math.floor(Math.random() * vendedores.length)];
-                    const comprador = compradores.filter(c => c.name !== vendedor.name)[0];
-                    if (comprador) {
-                        vendedor.recursos--;
-                        vendedor.kpi += CONFIG.KPI.VALOR_VENDA_RECURSO;
-                        comprador.recursos++;
-                        comprador.kpi -= CONFIG.KPI.VALOR_VENDA_RECURSO;
-                        totalVendas++;
-                    }
-                }
+            // Pedido de ajuda automático — só dispara pra quem está com
+            // 0 recursos e tem KPI suficiente (Fase 9: rede de
+            // segurança em vez de mercado livre, ver ARCHITECTURE.md).
+            // Sem chance aleatória: reflete a regra real, onde o pedido
+            // só acontece quando há necessidade genuína.
+            if (rodada > 3) {
+                jogadores
+                    .filter(p => p.recursos <= 0 && p.kpi >= CONFIG.KPI.VALOR_VENDA_RECURSO)
+                    .forEach(requester => {
+                        const doador = jogadores
+                            .filter(p => p.name !== requester.name && p.recursos >= 1)
+                            .sort((a, b) => b.recursos - a.recursos)[0];
+                        if (doador) {
+                            doador.recursos--;
+                            doador.kpi += CONFIG.KPI.VALOR_VENDA_RECURSO;
+                            requester.recursos++;
+                            requester.kpi -= CONFIG.KPI.VALOR_VENDA_RECURSO;
+                            totalAjudas++;
+                        }
+                    });
             }
 
             console.log(`\n🔄 RODADA ${rodada} | 📋 ${evento.titulo}: ${evento.descricao}`);
@@ -463,7 +455,7 @@ window.Game.debug = {
             phase: p.phase
         })));
 
-        console.log(`\n💰 Total de vendas realizadas: ${totalVendas}`);
+        console.log(`\n🆘 Total de pedidos de ajuda atendidos: ${totalAjudas}`);
         console.log(`🎯 Quem disparou o fim: ${vencedor}`);
         console.log(`🏆 Vencedor (maior KPI final): ${ranking[0].name} (${ranking[0].kpiFinal} KPI)`);
         console.log(`🔄 Total de rodadas: ${rodada}`);
@@ -507,10 +499,10 @@ window.Game.debug = {
 
 console.log('🔍 Game Debug carregado! Use Game.debug.* no console (F12)');
 console.log('💡 Comandos principais:');
-console.log('   simularPartidaCompleta()     - Partida completa (com vendas) ⭐');
+console.log('   simularPartidaCompleta()     - Partida completa (com ajudas) ⭐');
 console.log('   simularPartidaCompleta(4, 0.3) - 4 jogadores, 30% acerto');
-console.log('   testVenda("Host_Debug", "Guest1_Debug") - Testa venda 💰');
-console.log('   testVendasAutomaticas(3)    - Simula 3 vendas 💰');
+console.log('   testAjuda("Host_Debug", "Guest1_Debug") - Testa ajuda 🆘');
+console.log('   testAjudasAutomaticas(3)    - Simula 3 ajudas 🆘');
 console.log('   fakePlayers(3)              - Cria jogadores (📦' + CONFIG.RECURSOS_INICIAIS + ' recursos)');
 console.log('   dumpState()                 - Estado completo');
 console.log('   resetAll()                  - Reseta tudo');

@@ -153,9 +153,9 @@
                 <button id="btnNovaRodada" class="btn btn-glass btn-sm btn-block"
                         style="display:none; margin-top:4px; color:#00d9ff; border-color:rgba(0,217,255,0.3);">🔄 Nova Rodada</button>
                 <button id="btnLeaveMatch" class="btn btn-glass btn-sm btn-block" style="margin-top:4px;">🚶 Sair da Partida</button>
-                <button id="btnVenderRecurso" class="btn btn-glass btn-sm btn-block"
-                        style="margin-top:4px; color:#ffd700; border-color:rgba(255,215,0,0.3);">
-                    💰 Vender Recurso
+                <button id="btnPedirAjuda" class="btn btn-glass btn-sm btn-block"
+                        style="display:none; margin-top:4px; color:#ffd700; border-color:rgba(255,215,0,0.3);">
+                    🆘 Pedir Ajuda
                 </button>
             </aside>
 
@@ -289,37 +289,34 @@
         </div>
     </div>
 
-    <!-- Modal de Venda (visão do vendedor) -->
-    <div id="modalVenda" class="modal" style="display:none;">
+    <!-- Modal de Pedido de Ajuda (visão de quem está sem recursos) -->
+    <div id="modalPedirAjuda" class="modal" style="display:none;">
         <div class="modal-overlay"></div>
         <div class="modal-card glass-card" style="max-width:420px; text-align:center;">
-            <span style="font-size:2rem;">💰</span>
-            <h2 style="color:#ffd700; margin:8px 0;">Vender Recurso</h2>
+            <span style="font-size:2rem;">🆘</span>
+            <h2 style="color:#ffd700; margin:8px 0;">Pedindo Ajuda</h2>
             <p style="color:#a0a0b8; margin-bottom:8px;">
-                Vender 1📦 por <strong id="vendaValorKPI" style="color:#ffd700;">10 KPI</strong>
+                Perguntando: <strong id="ajudaTentandoCom" style="color:#e0e0e0;">...</strong>
             </p>
-            <p style="color:#e0e0e0; margin-bottom:12px;" id="vendaSeusRecursos">
-                Seus recursos: 📦 10
+            <p style="color:#a0a0b8; font-size:0.85rem; margin-bottom:16px;">
+                Custa <strong style="color:#ffd700;" id="ajudaValorKPI">10 KPI</strong> — em troca de 1📦
             </p>
-            <div id="vendaCompradores" style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
-                <!-- Lista preenchida dinamicamente -->
-            </div>
-            <button id="btnFecharVenda" class="btn btn-glass">✕ Cancelar</button>
+            <button id="btnFecharPedirAjuda" class="btn btn-glass">✕ Fechar</button>
         </div>
     </div>
 
-    <!-- Modal de Oferta de Venda (visão do comprador) -->
-    <div id="modalVendaOferta" class="modal" style="display:none;">
+    <!-- Modal de Oferta de Ajuda (visão de quem foi perguntado) -->
+    <div id="modalAjudaOferta" class="modal" style="display:none;">
         <div class="modal-overlay"></div>
         <div class="modal-card glass-card" style="max-width:420px; text-align:center;">
-            <span style="font-size:2rem;">💰</span>
-            <h2 style="color:#ffd700; margin:8px 0;">Oferta de Compra</h2>
-            <p style="color:#e0e0e0; margin-bottom:16px;" id="vendaOfertaTexto">
-                Jogador oferece 1📦 por 10 KPI
+            <span style="font-size:2rem;">🆘</span>
+            <h2 style="color:#ffd700; margin:8px 0;">Pedido de Ajuda</h2>
+            <p style="color:#e0e0e0; margin-bottom:16px;" id="ajudaOfertaTexto">
+                Jogador pediu ajuda
             </p>
             <div style="display:flex; gap:10px; justify-content:center;">
-                <button id="btnAceitarVendaOferta" class="btn btn-primary">✅ Aceitar</button>
-                <button id="btnRecusarVendaOferta" class="btn btn-glass">❌ Recusar</button>
+                <button id="btnAceitarAjudaOferta" class="btn btn-primary">✅ Aceitar</button>
+                <button id="btnRecusarAjudaOferta" class="btn btn-glass">❌ Recusar</button>
             </div>
         </div>
     </div>

@@ -2,9 +2,9 @@
 // PM: The KPI Master - UI Component: Controles
 // ============================================
 // Dona da "barra de ações": inicia partida, copia ID da sala, avança
-// rodada manualmente, vende recurso, pede assessoria, sai/encerra
-// sessão e partida. Também libera/bloqueia o botão de iniciar partida
-// conforme o número de jogadores ativos.
+// rodada manualmente, pede ajuda (recurso), pede assessoria,
+// sai/encerra sessão e partida. Também libera/bloqueia o botão de
+// iniciar partida conforme o número de jogadores ativos.
 //
 // Reorganizado para resolver a sobreposição de responsabilidade com
 // ui/setup.js (ver NOTA-001 em ARCHITECTURE.md): antes, os listeners
@@ -95,10 +95,15 @@ function bindControls() {
     document.getElementById('btnLeaveSession').addEventListener('click', Game.core.leaveSession);
     document.getElementById('btnLeaveMatch').addEventListener('click', Game.core.leaveMatch);
 
-    // --- Abrir modais de venda/assessoria (a lógica de cada fluxo
+    // --- Abrir modais de ajuda/assessoria (a lógica de cada fluxo
     // continua em ui/modals/tradeModal.js e advisoryModal.js) ---
-    document.getElementById('btnVenderRecurso').addEventListener('click', () => {
-        Game.ui.showVendaModal();
+    // Fase 9: botão só fica visível quando o jogador está com 0
+    // recursos — ver Game.ui.renderProfileCard() em profileComponent.js.
+    // Não abre mais uma modal de escolha (era "Vender Recurso", com
+    // lista de compradores) — o pedido é automático, a fila é montada
+    // pelo host.
+    document.getElementById('btnPedirAjuda').addEventListener('click', () => {
+        Game.ui.iniciarPedidoAjuda();
     });
 
     document.getElementById('btnPedirAssessoria').addEventListener('click', () => {

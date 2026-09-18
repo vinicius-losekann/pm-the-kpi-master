@@ -29,6 +29,15 @@ function renderProfileCard(player) {
     // recursos é opcional em alguns payloads (ex: bônus de assessoria isolado)
     if (player.recursos !== undefined) {
         document.getElementById('myRecursos').textContent = player.recursos;
+
+        // Fase 9: botão "Pedir Ajuda" só aparece quando o jogador está
+        // com 0 recursos — rede de segurança, não mercado livre (ver
+        // engine/tradeEngine.js e ARCHITECTURE.md). Atualizado sempre
+        // que os recursos mudam, via syncPlayerViews().
+        const btnPedirAjuda = document.getElementById('btnPedirAjuda');
+        if (btnPedirAjuda) {
+            btnPedirAjuda.style.display = player.recursos <= 0 ? 'block' : 'none';
+        }
     }
 
     const fase = Game.getFaseById(player.phase);

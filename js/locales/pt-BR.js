@@ -64,13 +64,16 @@ window.Game.locales['pt-BR'] = {
         tempoRestante: '⏱️ {{seconds}}s',
     },
 
+    // Fase 9: reescrito de "mercado livre" (vendedor escolhe comprador)
+    // para "pedido de ajuda" (só quem está sem recurso pode pedir; fila
+    // automática, sem escolha manual) — ver engine/tradeEngine.js e
+    // ARCHITECTURE.md. Chaves antigas (semRecursos, nenhumComprador,
+    // seusRecursos, aguardandoAceite, confirmarOferta, ofertaRecebida)
+    // removidas — não fazem mais sentido no novo fluxo.
     trade: {
-        semRecursos: '⚠️ Você não tem recursos para vender.',
-        nenhumComprador: '⚠️ Nenhum jogador disponível para comprar (precisa ter pelo menos {{valor}} KPI).',
-        seusRecursos: 'Seus recursos: 📦 {{recursos}}',
-        aguardandoAceite: '🔄 Aguardando {{comprador}} aceitar a oferta...',
-        confirmarOferta: 'Enviar oferta de venda de 1📦 para {{comprador}} por {{valor}} KPI?',
-        ofertaRecebida: '<strong>{{vendedor}}</strong> oferece 1📦 por <strong style="color:#ffd700;">{{valor}} KPI</strong>',
+        pedidoRecebido: '<strong>{{requester}}</strong> está sem recursos e pediu ajuda — topa dar 1📦?',
+        semKpiParaPedirAjuda: '⚠️ Você está sem recursos e sem KPI suficiente para pedir ajuda agora. Continue jogando como Perguntador ou Assessor para conseguir mais KPI — assim que tiver o suficiente, tenta pedir ajuda de novo.',
+        ninguemPodeAjudar: '⚠️ Ninguém pôde te ajudar agora. Você ainda ganha KPI sendo Perguntador ou Assessor — tenta pedir ajuda de novo daqui a pouco.',
     },
 
     result: {

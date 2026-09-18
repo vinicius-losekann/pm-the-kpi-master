@@ -61,7 +61,7 @@ function setupUI() {
         document.getElementById('btnLeaveMatch').style.display = 'block';
     }
 
-    // Botões de ação (vender, assessoria, sessão, partida, nova rodada)
+    // Botões de ação (ajuda, assessoria, sessão, partida, nova rodada)
     // agora são responsabilidade de controlsComponent.js.
     Game.ui.bindControls();
 
@@ -102,16 +102,16 @@ function setupUI() {
         });
     });
 
-    document.getElementById('btnFecharVenda').addEventListener('click', () => {
-        Game.ui.fecharVendaModal();
+    document.getElementById('btnFecharPedirAjuda').addEventListener('click', () => {
+        Game.ui.fecharPedirAjudaModal();
     });
 
-    document.getElementById('btnAceitarVendaOferta').addEventListener('click', () => {
-        Game.ui.responderOfertaVenda(true);
+    document.getElementById('btnAceitarAjudaOferta').addEventListener('click', () => {
+        Game.ui.responderOfertaAjuda(true);
     });
 
-    document.getElementById('btnRecusarVendaOferta').addEventListener('click', () => {
-        Game.ui.responderOfertaVenda(false);
+    document.getElementById('btnRecusarAjudaOferta').addEventListener('click', () => {
+        Game.ui.responderOfertaAjuda(false);
     });
 
     document.getElementById('btnFecharAssessoriaSelect').addEventListener('click', () => {
