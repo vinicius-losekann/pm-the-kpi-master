@@ -16,7 +16,7 @@
  *
  * @param {object} params
  * @param {string} params.alternativaEscolhida - alternativa marcada ('a'|'b'|'c'|'d'|null)
- * @param {string} params.correta - alternativa correta da pergunta
+ * @param {string} params.correct - alternativa correta da pergunta (ex-"correta", ver ARCHITECTURE.md Fase 8)
  * @param {number} params.kpiAtual - KPI atual do respondedor
  * @param {string} params.phaseId - fase atual do respondedor (CONFIG.FASES[i].id)
  * @param {number} params.activities - atividades concluídas na fase atual
@@ -25,8 +25,8 @@
  * @param {Array} params.fases - CONFIG.FASES
  * @returns {{acertou: boolean, kpiGanho: number, novoKpi: number, novaFase: string, novasActivities: number, gastaRecurso: boolean}}
  */
-function calcularResultadoResposta({ alternativaEscolhida, correta, kpiAtual, phaseId, activities, temReserva, config, fases }) {
-    const acertou = alternativaEscolhida === correta;
+function calcularResultadoResposta({ alternativaEscolhida, correct, kpiAtual, phaseId, activities, temReserva, config, fases }) {
+    const acertou = alternativaEscolhida === correct;
 
     let kpiGanho = 0;
     let novoKpi = kpiAtual;

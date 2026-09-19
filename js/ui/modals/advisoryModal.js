@@ -77,8 +77,11 @@ function showAssessoriaStarted(msg) {
 }
 
 function showAssessoriaQuestionModal(msg) {
-    document.getElementById('assessoriaQuestionText').textContent = msg.pergunta;
-    document.getElementById('assessoriaAlternativesList').innerHTML = msg.alternativas.map(alt => {
+    const round = Game.state.currentRound;
+    document.getElementById('assessoriaModalPerguntador').textContent = round?.perguntador || '---';
+    document.getElementById('assessoriaModalRespondedor').textContent = round?.respondedor || '---';
+    document.getElementById('assessoriaQuestionText').textContent = msg.question;
+    document.getElementById('assessoriaAlternativesList').innerHTML = msg.alternatives.map(alt => {
         const letra = alt.charAt(0).toLowerCase();
         return `<button class="btn btn-glass" onclick="Game.ui.responderAssessoria('${letra}', false)"
                     style="text-align:left; padding:10px 14px;">${alt}</button>`;

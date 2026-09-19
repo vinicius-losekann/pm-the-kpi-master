@@ -44,7 +44,7 @@ pm-the-kpi-master/
     │   ├── sessionEngine.js     # startGame, endGame, endMatch, endSession, leaveMatch...
     │   ├── turnEngine.js        # startNewRound, pickNewPair, nextTurn
     │   ├── answerEngine.js      # handleAnswer, updatePlayerKPI
-    │   ├── tradeEngine.js       # venderRecurso, processVenda
+    │   ├── tradeEngine.js       # pedirAjuda, processAjuda (ex-venderRecurso/processVenda — Fase 9)
     │   └── advisoryEngine.js    # requestAssessoria, handleAssessoriaAnswer
     │
     ├── network/
@@ -66,7 +66,7 @@ pm-the-kpi-master/
     │   └── modals/
     │       ├── resultModal.js
     │       ├── eventModal.js
-    │       ├── tradeModal.js          # oferta + resposta de venda
+    │       ├── tradeModal.js          # status do pedido + aceitar/recusar ajuda (ex-venda, Fase 9)
     │       └── advisoryModal.js       # seleção + pergunta + resultado
     │
     ├── locales/
@@ -87,33 +87,13 @@ pm-the-kpi-master/
 
 ## Status da migração
 
-| Fase | Status | Resultado |
-|---|---|---|
-| 0 — Preparação | ✅ Completa | `utils/eventBus.js`, `entry/roomEntry.js`, `main.js` |
-| 1 — Regras Puras | ✅ Completa | `domain/*.js` (6 arquivos) |
-| 2 — Estado Centralizado | ✅ Completa | `state/store.js`, `selectors.js`, `mutations.js` |
-| 3 — Orquestração | ✅ Completa | `engine/*.js` (5 arquivos), `game-core.js` removido. **BUG-001** corrigido |
-| 4 — Rede | ✅ Completa | `network/*.js` (4 arquivos), `game-network.js` removido. **BUG-002** corrigido |
-| 5 — Interface | ✅ Completa | `ui/*.js` (12 arquivos), `game-ui.js` removido. **BUG-003** corrigido, **REGRESSÃO-001** encontrada e corrigida |
-| 6 — Internacionalização | ✅ pt-BR religado | `utils/i18n.js` + `locales/pt-BR.js` religados em `ui/*.js`, `engine/*.js` e `network/*.js` (51 chaves, todas em uso). Falta `en-US.js`/`es-ES.js` e seletor de idioma — ver **NOTA-003** |
-| 7 — Infraestrutura e Limpeza | ✅ Completa | `utils/logger.js` (infra pronta, religamento planejado — **NOTA-004**), `utils/persistence.js` (religado e em uso), `dev/debugTools.js` migrado (**REGRESSÃO-002** corrigida), `data/` separado em `questions.pt-BR.json` + `events.json`. Checklist de limpeza de arquivos legados fechado em 17/09/2026 — ver seção abaixo |
+A migração da arquitetura monolítica original (`game-core.js`, `game-ui.js`, `game-network.js`, `game-state.js`) para a estrutura em camadas atual (`domain/`, `state/`, `engine/`, `network/`, `ui/`) foi concluída em 7 fases, todas completas. Histórico detalhado de cada fase, bugs encontrados e corrigidos ao longo do processo: ver `CHANGELOG.md`.
 
-Bugs, regressões, esclarecimentos e correções de segurança encontrados ao
-longo da migração e das revisões posteriores estão detalhados em
-`ISSUES.md` — que é sempre a fonte da verdade sobre isso; a lista de IDs
-não é replicada aqui de propósito, para não ficar desatualizada.
+Pendência remanescente dessa frente: internacionalização (pt-BR religado, faltam outros idiomas) — ver **NOTA-003** abaixo.
 
 ---
 
 ## Notas de arquitetura pendentes (não são bugs — decisões registradas para decidir depois)
-
-### NOTA-001 — `controlsComponent.js`/`setup.js`: sobreposição resolvida
-
-**Status: ✅ Resolvido.** `controlsComponent.js` agora é dono de fato da "barra de ações" (iniciar partida, copiar ID, nova rodada, vender, pedir assessoria, sair/encerrar sessão e partida) via `Game.ui.bindControls()`. `setup.js` ficou só com alternância de visibilidade host/guest e navegação de tela/fechamento de modal. Chamada direta (`Game.ui.showXModal()`/`Game.core.X()`) foi mantida — não passou a usar o `EventBus` (isso seria a opção "b" abaixo, não implementada).
-
-### NOTA-002 — `eventBus.js`: removido
-
-**Status: ✅ Resolvido (removido).** Nenhum arquivo jamais chamou `Game.bus.emit()`/`on()` — toda comunicação entre módulos sempre foi via chamada direta (`Game.ui.X()`, `Game.core.X()`, `Game.network.X()`). Com o jogo em ~90% pronto e sem expectativa de crescimento que justifique desacoplamento via pub/sub, `js/utils/eventBus.js` foi apagado, junto com a linha `window.Game.bus = window.bus` em `main.js` e a tag `<script>` em `game.html`. Decisão do usuário.
 
 ### NOTA-003 — i18n: UI religada em pt-BR, faltam os outros idiomas
 
@@ -154,6 +134,44 @@ O roadmap mais detalhado (fornecido pelo usuário após a Fase 5) descreve o con
 
 Os comentários de exportação em `engine/*.js` (`sessionEngine.js`, `turnEngine.js`, `answerEngine.js`, `tradeEngine.js`, `advisoryEngine.js`) diziam "Game.core.* continua funcionando enquanto game-ui.js e game-network.js não migram para chamar Game.engine.X diretamente" — só que `game-ui.js` e `game-network.js` já foram apagados desde as Fases 4-5, substituídos por `ui/*.js` e `network/*.js`, e esses arquivos novos **nunca migraram** para `Game.engine.X.Y()`; continuam chamando tudo via `Game.core.*`. Avaliado explicitamente: terminar essa migração seria trabalho mecânico em ~15-20 arquivos, sem ganho funcional, e risco desnecessário num projeto entrando em modo de estabilização. Decisão do usuário: `Game.core.*` passa a ser a API pública oficial entre camadas; os comentários enganosos foram corrigidos para refletir isso, em vez de sugerir uma migração que não vai acontecer.
 
+### Sistema de recursos: "Pedido de Ajuda" em vez de mercado livre (Fase 9)
+
+Motivado por feedback do piloto com alunos: o botão "Vender Recurso" ficava sempre visível pra qualquer jogador, virando distração paralela ao objetivo do jogo (quiz de PMBOK) — gente ficando de olho no mercado sem necessidade real.
+
+Reescrito em `engine/tradeEngine.js` (comentário de cabeçalho do arquivo tem o racional completo): o botão só aparece pra quem está com **0 recursos** (`profileComponent.js` controla a visibilidade via `syncPlayerViews()`). Ao pedir ajuda, o host monta uma fila automática — jogadores ativos com recurso, do que tem mais pro que tem menos — e pergunta um de cada vez, avançando sozinho a cada recusa/timeout, até alguém aceitar ou a fila acabar. Não há mais escolha manual de "vender pra quem".
+
+A matemática da troca em si não mudou (`domain/tradeRules.js` reaproveitado sem alteração) — só quem inicia e quando a ação fica disponível. Detalhes de implementação (mensagens de rede, arquivos tocados) em `CHANGELOG.md`.
+
+### Schema de `data/questions.*.json` — chaves em inglês, estáveis entre idiomas (Fase 8)
+
+Migração de nomenclatura pedida pelo usuário, alinhando com a terminologia da 8ª edição do PMBOK e preparando o terreno para `questions.en-US.json`/`questions.es-ES.json` futuros.
+
+**Chaves de schema** (estrutura do documento, iguais em qualquer idioma):
+```
+{
+  "domains": {
+    "<domain_key>": {
+      "name": "...",
+      "areas": ["iniciacao", "planejamento", ...],
+      "questions": [
+        { "id": "...", "question": "...", "alternatives": [...], "correct": "a" }
+      ]
+    }
+  }
+}
+```
+- `domains` (era `areas`) — os 7 Domínios de Desempenho
+- `name` (era `nome`), `areas` (era `grupos` — PMBOK8 renomeou "Grupos de Processos" para "Áreas de Foco"), `questions` (era `perguntas`)
+- `question` (era `pergunta`), `alternatives` (era `alternativas`), `correct` (era `correta`)
+
+**Chaves de domínio** (`governance`, `scope`, `schedule`, `finance`, `stakeholders`, `resources`, `risks` — antes `governanca`, `escopo`, `cronograma`, `financas`, `partes_interessadas`, `recursos`, `riscos`): funcionam como identificador estável, no mesmo papel do `id` de cada pergunta — **devem ser as mesmas em qualquer arquivo de idioma**, já que também viram chave de `state.baralhos` (persistido em `localStorage`). Um `questions.en-US.json` futuro deve reusar exatamente essas mesmas chaves, só traduzindo os valores (`name`, `question`, `alternatives`).
+
+**Não migrado, de propósito:** os valores dentro do array `areas` de cada domínio (`iniciacao`, `planejamento`, `execucao`...) continuam como estão — são os IDs de `CONFIG.FASES`, usados em todo o resto do jogo (fase do jogador, progresso, etc.), fora do escopo desta mudança.
+
+**Arquivos afetados pela propagação:** `main.js`, `domain/deckRules.js` (`area_key` → `domain_key`), `domain/kpiRules.js` (parâmetro `correta` → `correct`), `engine/turnEngine.js` e `engine/advisoryEngine.js` (mensagens de rede — o campo que mostra o nome do domínio na tela era `area`, virou `domain`; o que mostra o nome da fase era `grupo`, virou `area`), `ui/questionComponent.js` e `ui/modals/advisoryModal.js` (exibição), `dev/debugTools.js`, `game.html` (badges `#badgeArea`/`#badgeGrupo` → `#badgeDomain`/`#badgeArea`), `network/messageHandler.js` (ver **REGRESSÃO-003** em `ISSUES.md` — um ponto blindava o gabarito pelo nome de campo antigo).
+
+A migração do JSON em si foi feita por um script (`rename-schema.js`, fora da árvore do jogo — ferramenta de uso único, pode ser descartada após o merge) que confere a contagem de perguntas antes/depois e só grava se bater, com backup automático.
+
 ### Observação: `config/game-config.js` → `js/config/constants.js` nunca foi feito
 
 O roadmap original lista essa migração na tabela-resumo, mas nenhuma das Fases 0–7 detalhadas a atribui explicitamente. Ficou de fora da migração até aqui. Se quiser fazer essa extração, é um bom próximo passo depois de fechar o checklist abaixo — mas não bloqueia nada, o jogo funciona normalmente com `config/game-config.js` no lugar onde sempre esteve. Hoje `js/config/constants.js` existe apenas como um comentário de cabeçalho (nenhum código real) e não é carregado por nenhum HTML.
@@ -168,27 +186,8 @@ Não estava no roadmap original. `game-network.js` tinha `myPeer` e `connections
 
 ---
 
-## Checklist de limpeza final (Fase 7)
+## Limpeza de arquivos legados
 
-Depois de confirmar que tudo funciona com os arquivos novos, estes podem ser apagados do projeto — nenhum é mais referenciado por `game.html`/`index.html`:
+Concluída em 17/09/2026 — todos os arquivos da arquitetura monolítica original (`game-*.js`, `data/questions.json` antigo) e dois órfãos encontrados depois (`js/index.js`, `js/config/constants.js`) foram removidos. Detalhes de cada arquivo e como foi confirmado: ver `CHANGELOG.md`.
 
-- [x] `js/game-main.js` (substituído por `js/main.js` desde a Fase 0) — nenhum vestígio encontrado em revisão de arquitetura (17/09/2026); não confirmado via `git log`/`ls` direto no repositório
-- [x] `js/game-core.js` (substituído por `domain/*.js` + `engine/*.js` desde a Fase 3) — idem
-- [x] `js/game-network.js` (substituído por `network/*.js` desde a Fase 4) — idem
-- [x] `js/game-ui.js` (substituído por `ui/*.js` desde a Fase 5) — idem
-- [x] `js/game-debug.js` (substituído por `js/dev/debugTools.js` nesta fase) — idem
-- [x] `js/game-state.js` (substituído por `state/*.js` desde a Fase 2) — idem
-- [x] `js/game-config.js` (duplicado de `config/game-config.js`, nunca foi carregado por nenhum `.html`) — idem
-- [x] `data/questions.json` (substituído por `data/questions.pt-BR.json` + `data/events.json` nesta fase) — idem
-- [x] `js/index.js` (substituído por `js/entry/roomEntry.js` desde a Fase 0) — **confirmado apagado** (17/09/2026)
-- [x] `js/config/constants.js` (nunca chegou a ser preenchido — só um comentário de cabeçalho) — **confirmado apagado** (17/09/2026)
-- [x] `js/config/messages.js` (superado pelo sistema de i18n — `utils/i18n.js` + `locales/pt-BR.js`) — nenhum vestígio encontrado; não confirmado via `git log`/`ls` direto
-
-**Não apagar:** `config/game-config.js` (ainda é o arquivo de configuração ativo — a extração para `js/config/constants.js` nunca chegou a ser feita, não estava numa fase específica do roadmap original; ver observação acima).
-
-> Nota: os itens marcados como "nenhum vestígio encontrado" foram checados por não
-> aparecerem em nenhuma busca na base de conhecimento do projeto, o que é um indício
-> forte mas não uma garantia — busca semântica não é uma listagem de diretório. Para
-> 100% de certeza, rode `ls js/` ou `git log --diff-filter=D -- <caminho>` no
-> repositório. Se algum desses arquivos reaparecer, desmarque a caixinha
-> correspondente e trate como pendência real de novo.
+**Não apagar:** `config/game-config.js` (ainda é o arquivo de configuração ativo).

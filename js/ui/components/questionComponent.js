@@ -84,20 +84,22 @@ function displayRoundStart() {
 function displayQuestion(q) {
     const isPerg = Game.state.playerName === Game.state.currentRound?.perguntador;
     const isResp = Game.state.playerName === Game.state.currentRound?.respondedor;
-    document.getElementById('questionText').textContent = q.pergunta;
+    document.getElementById('questionText').textContent = q.question;
+    document.getElementById('badgeDomain').textContent = q.domain;
     document.getElementById('badgeArea').textContent = q.area;
-    document.getElementById('badgeGrupo').textContent = q.grupo;
 
     if (isResp && q.isRespondedor !== false) {
         document.getElementById('allAlternativesArea').style.display = 'none';
         document.getElementById('roleNotice').style.display = 'none';
-        document.getElementById('respModalQuestionText').textContent = q.pergunta;
-        document.getElementById('altA').textContent = q.alternativas[0];
-        document.getElementById('altB').textContent = q.alternativas[1];
-        document.getElementById('altC').textContent = q.alternativas[2];
-        document.getElementById('altD').textContent = q.alternativas[3];
+        document.getElementById('respModalQuestionText').textContent = q.question;
+        document.getElementById('altA').textContent = q.alternatives[0];
+        document.getElementById('altB').textContent = q.alternatives[1];
+        document.getElementById('altC').textContent = q.alternatives[2];
+        document.getElementById('altD').textContent = q.alternatives[3];
 
         const round = Game.state.currentRound;
+        document.getElementById('respModalPerguntador').textContent = round?.perguntador || '---';
+        document.getElementById('respModalRespondedor').textContent = round?.respondedor || '---';
         const jaRespondeu = !!round?.respondeu;
         const assessoriaPendente = round?.assessoria?.status === 'pending';
         document.querySelectorAll('.alternative-btn').forEach(b => {
@@ -156,9 +158,9 @@ function displayQuestion(q) {
         document.getElementById('roleNotice').style.display = 'block';
         document.getElementById('roleNotice').innerHTML = Game.i18n.t('question.voceEstaPerguntando');
         document.getElementById('roleNotice').className = 'role-notice role-perguntador';
-        document.getElementById('allAlternativesList').innerHTML = q.alternativas.map(alt => {
+        document.getElementById('allAlternativesList').innerHTML = q.alternatives.map(alt => {
             const letter = alt.charAt(0).toLowerCase();
-            const isCorrect = letter === q.correta;
+            const isCorrect = letter === q.correct;
             return `<div style="padding:12px 16px; background:${isCorrect ? 'rgba(0,255,136,0.12)' : 'rgba(255,255,255,0.03)'}; border:2px solid ${isCorrect ? 'rgba(0,255,136,0.4)' : 'rgba(255,255,255,0.08)'}; border-radius:10px; color:${isCorrect ? '#00ff88' : '#e0e0e0'}; font-size:0.9rem; ${isCorrect ? 'font-weight:600;' : ''}">${isCorrect ? '✅ ' : ''}${alt}</div>`;
         }).join('');
 

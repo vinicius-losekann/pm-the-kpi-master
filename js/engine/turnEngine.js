@@ -170,16 +170,16 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
         Game.ui.displayRoundStart();
     }
 
-    const areaNome = state.questionsData.areas[pergunta.area_key]?.nome || pergunta.area_key;
-    const grupoNome = Game.getFaseById(respondedor.phase).nome;
+    const domainNome = state.questionsData.domains[pergunta.domain_key]?.name || pergunta.domain_key;
+    const areaNome = Game.getFaseById(respondedor.phase).nome;
 
     const perguntaData = {
         type: 'question',
-        pergunta: pergunta.pergunta,
+        question: pergunta.question,
+        domain: domainNome,
         area: areaNome,
-        grupo: grupoNome,
-        alternativas: pergunta.alternativas,
-        correta: pergunta.correta,
+        alternatives: pergunta.alternatives,
+        correct: pergunta.correct,
         id: pergunta.id
     };
 
@@ -187,7 +187,7 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
     Game.network.sendToPlayer(perguntador.peerId, { ...perguntaData, isPerguntador: true });
 
     // Envia a pergunta (sem gabarito) para o Respondedor
-    Game.network.sendToPlayer(respondedor.peerId, { ...perguntaData, isRespondedor: true, correta: undefined });
+    Game.network.sendToPlayer(respondedor.peerId, { ...perguntaData, isRespondedor: true, correct: undefined });
 
     // Timeout de segurança para o Respondedor
     armarRespostaTimeout(respondedor.name);

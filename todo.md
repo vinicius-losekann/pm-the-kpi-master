@@ -48,7 +48,7 @@
 
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
-| 4.1 | **Autenticação de jogadores** | Impedir que um usuário se passe por outro de forma mais robusta que a verificação atual de `peerId` (ver `SEC-002`). Usar tokens gerados pelo host ou chave de sala. |
+| 4.1 | **Autenticação de jogadores** | Impedir que um usuário se passe por outro de forma mais robusta que a verificação atual de `peerId` (ver `SEC-002`). Desenho detalhado (token por sala em `localStorage`) já feito — ver **Fase D** na seção 9, adiada por decisão do usuário. |
 | 4.2 | **Validação de ações do host** | O host é a fonte da verdade, mas suas ações devem ser validadas (ex: não pode conceder KPI indevidamente). Atualmente já há alguma validação, mas pode ser reforçada. |
 | 4.3 | **Criptografia de ponta a ponta** | PeerJS suporta `secure: true` para conexões WebRTC criptografadas. Ativar para proteção de dados sensíveis. |
 
@@ -82,6 +82,7 @@
 | 7.1 | **JSDoc completo** | Muitas funções já têm comentários, mas faltam parâmetros e retornos detalhados. Padronizar. |
 | 7.3 | **Linter (ESLint) e formatter (Prettier)** | Manter estilo consistente e evitar erros comuns. |
 | 7.5 | **Separar helpers em arquivos próprios** | Funções como `buildRanking` poderiam estar em um arquivo `ranking-utils.js`. |
+| 7.6 | **Extrair helper compartilhado de renderização de alternativas** | `questionComponent.js` (Respondedor) e `advisoryModal.js` (Assessor) duplicam a lógica de montar a lista de alternativas + timer — visualmente quase idênticas, mas disparam ações diferentes no clique (`handleAnswer` vs `responderAssessoria`). Não fundir os dois modais (são interações conceitualmente diferentes), só extrair a parte genuinamente igual (montagem da lista + texto do timer) para uma função compartilhada tipo `Game.ui.renderAlternativesList(container, alternativas, onEscolher)`. Baixo risco, ganho pequeno — não é bug, é redução de duplicação. |
 
 ---
 
@@ -90,17 +91,56 @@
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
 | 8.1 | **QR code no tabuleiro** | Facilitar a entrada de jogadores em sala física, sem precisar digitar o código manualmente. |
-| 8.4 | **Suporte a múltiplos idiomas (i18n)** | Criar `en-US.js` e `es-ES.js` seguindo o mesmo dicionário de `pt-BR.js` (51 chaves) e adicionar seletor de idioma na UI — infraestrutura já pronta, ver **NOTA-003** em `ARCHITECTURE.md`. |
+| 8.4 | **Suporte a múltiplos idiomas (i18n)** | Criar `en-US.js` e `es-ES.js` seguindo o mesmo dicionário de `pt-BR.js` (51 chaves) e adicionar seletor de idioma na UI — infraestrutura já pronta, ver **NOTA-003** em `ARCHITECTURE.md`. Conteúdo das perguntas: `data/questions.pt-BR.json` já usa chaves de schema em inglês (Fase 8), então um `questions.en-US.json`/`questions.es-ES.json` futuro só precisa traduzir os valores, reusando as mesmas chaves de domínio — ver `ARCHITECTURE.md`. |
 
-### Ideias de rebalanceamento a avaliar
+---
 
-> ⚠️ Estas três ideias **divergem das regras hoje implementadas e
-> documentadas no README** (evento e2 "Corte de Orçamento" tira -1 recurso
-> de todos incondicionalmente; e1 "Apoio da Alta Gestão" dá +1 para todos;
-> acerto dá +10 KPI e bônus de assessoria +5 KPI, sem depender um do outro —
-> ver `ESCLARECIMENTO-001` em `ISSUES.md`). Mantidas aqui como propostas de
-> mudança de design, não como bugs.
+## 9. Feedback do Piloto (Set/2026)
 
-- Corte de Orçamento: -2 para todos, exceto -1 para quem acertar a pergunta da rodada.
-- Apoio da Alta Gestão: +1 recurso apenas para quem acertar a pergunta (hoje é para todos os ativos).
-- KPI: acerto e assessoria valendo +5 cada, em vez do atual +10 (acerto) / +5 (assessoria).
+> Lote de ideias trazidas após o primeiro teste piloto com alunos. Organizado
+> em fases de execução — ver `ARCHITECTURE.md` para o racional completo de
+> cada decisão. Substitui a antiga seção "Ideias de rebalanceamento a
+> avaliar" (as 3 propostas antigas foram descartadas em favor da Fase C
+> abaixo, decidida com o usuário).
+
+### Fase A — ajustes rápidos (prontos para implementar, sem pendência de decisão)
+
+| # | Melhoria | Justificativa |
+|---|----------|---------------|
+| 9.1 | **Reordenar botões: Nova Rodada acima de Encerrar Partida** | Ordem atual (`btnEndMatch` antes de `btnNovaRodada` no HTML) convida a clique errado no mobile — Nova Rodada é clicado toda hora, Encerrar Partida é raro e destrutivo (zera KPI de todos). Reordenar + separar visualmente. |
+| 9.2 | **URL limpa (sem `/index.html`)** | `window.location.href = 'index.html'` (usado em sair da sessão, host encerrando, erro de conexão) força o navegador a mostrar o nome do arquivo na URL. Trocar por `'./'` resolve, sem depender de configuração do GitHub Pages. |
+| 9.3 | **Modal de lembrete "avance no tabuleiro" após acerto** | O jogo tem um componente físico (tabuleiro) — estender `resultModal.js` com um aviso quando `acertou === true`, lembrando o jogador de mover a peça. |
+
+### Fase B — card de fases consolidado (falta confirmar layout com o usuário)
+
+| # | Melhoria | Justificativa |
+|---|----------|---------------|
+| 9.4 | **Unificar KPI/recursos/fase/progresso dentro do card de Fases** | Em vez de um card de perfil separado, mostrar por fase: completo / X de 2 / não iniciado. Derivável do estado que já existe (`player.phase` + `player.activities`, progressão é sempre linear) — não precisa de campo novo. **Bloqueado em:** confirmar com o usuário o layout exato (como fica o cabeçalho com KPI/recursos, como cada fase mostra o status). |
+
+### Fase C — economia de recursos (decidido em 18/09/2026, pronto para implementar)
+
+| Regra | Valor |
+|---|---|
+| Recursos iniciais | **10** |
+| Resposta certa | **não gasta recurso** |
+| Resposta errada | -1 recurso (como hoje) |
+| Evento Corte de Orçamento | **-1 para todos (mantido como está hoje — não muda)** |
+| Evento Reserva de Contingência | reinterpretado: protege quem **errar** de perder recurso nesta rodada (acerto já não gasta nada, então o evento passa a valer só pro cenário que ainda existe) |
+| Apoio da Alta Gestão / Patrocinador Generoso / Reestruturação | sem mudança |
+
+Objetivo confirmado com o usuário: recurso vira punição só por errar, não mais um custo incondicional de participar.
+
+### Fase D — sala travada + identidade única + robustez de conexão (desenhado, adiado por ora)
+
+> Usuário decidiu deixar como está por enquanto — vai querer ajustar algumas
+> coisas antes de implementar. Mantido aqui como referência de desenho, não
+> como item pronto pra pegar.
+
+- Travar sala: `addPlayer()` passa a rejeitar `'player-join'` de nome novo quando `state.gameStarted === true` — só permite reconexão de quem já está na lista.
+- Token de identidade por sala (gerado e guardado em `localStorage` na primeira entrada, específico daquela sala) — reconexão passa a exigir o token bater, não só o nome (hoje `addPlayer()` confia só em nome + conexão antiga parecer fechada). Limitação aceita: trocar de aba/navegador ou limpar dados no meio da partida perde a identidade.
+- Robustez de conexão: reduzir `HOST_TIMEOUT` (hoje 30s), adicionar handler de `beforeunload` para detectar saída mais rápido, revisar dependência do broker público do PeerJS — relacionado aos itens **2.1**, **2.2** e **2.5** acima.
+
+### Fase E — tradução completa de identificadores para inglês (por último)
+
+- Todas as funções e variáveis do código (ex: `sortearPergunta` → `drawQuestion`) traduzidas para inglês; comentários continuam em português.
+- Decisão do usuário: varredura completa, risco aceito — mas só **depois** das Fases A–D estarem implementadas e estáveis. Rename de identificador não deve ser misturado com mudança de comportamento (mesmo princípio já registrado no cabeçalho do `ISSUES.md`), e essa é a maior mudança de superfície do lote — vale isolar.
