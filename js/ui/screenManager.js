@@ -27,8 +27,13 @@ function showScreen(screen) {
 }
 
 function closeAllModals() {
-    ['modalResponderPergunta', 'modalResult', 'modalEvento', 'modalVenda', 'modalVendaOferta',
-     'modalAssessoriaSelect', 'modalAssessoriaQuestion', 'modalAssessoriaSugestao'].forEach(id => {
+    // 🐛 Correção: 'modalVenda'/'modalVendaOferta' são os IDs antigos do
+    // mercado livre de recursos, substituídos por 'modalPedirAjuda'/
+    // 'modalAjudaOferta' na Fase 9 (ver ARCHITECTURE.md) — esta lista
+    // não tinha sido atualizada junto, então os modais novos nunca
+    // fechavam ao trocar de tela.
+    ['modalResponderPergunta', 'modalResult', 'modalEvento', 'modalPedirAjuda', 'modalAjudaOferta',
+     'modalAssessoriaSelect', 'modalAssessoriaQuestion'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';
     });

@@ -63,6 +63,11 @@ function endGame(ranking) {
         clearTimeout(state.respostaTimeout);
         state.respostaTimeout = null;
     }
+    if (state.ajudaTimeout) {
+        clearTimeout(state.ajudaTimeout);
+        state.ajudaTimeout = null;
+    }
+    state.ajudaFila = null;
     state.currentRound = null;
 
     if (state.isHost) {
@@ -89,6 +94,11 @@ function endMatch() {
         clearTimeout(Game.state.respostaTimeout);
         Game.state.respostaTimeout = null;
     }
+    if (Game.state.ajudaTimeout) {
+        clearTimeout(Game.state.ajudaTimeout);
+        Game.state.ajudaTimeout = null;
+    }
+    Game.state.ajudaFila = null;
 
     Game.resetAllPlayers();
     Game.resetGameState();
@@ -155,7 +165,7 @@ function endSession() {
     Game.ui.closeAllModals();
     Game.network.broadcastAll({ type: 'session-ended' });
     Game.network.cleanup();
-    window.location.href = 'index.html';
+    window.location.href = './';
 }
 
 /**
@@ -233,7 +243,7 @@ function leaveSession() {
 
     Game.ui.closeAllModals();
     Game.network.cleanup();
-    window.location.href = 'index.html';
+    window.location.href = './';
 }
 
 // ============================================

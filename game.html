@@ -148,15 +148,23 @@
                 </div>
 
                 <!-- Botões de Ação -->
-                <button id="btnEndMatch" class="btn btn-glass btn-sm btn-block"
-                        style="display:none; color:#ffa502; border-color:rgba(255,165,2,0.3);">🏁 Encerrar Partida</button>
                 <button id="btnNovaRodada" class="btn btn-glass btn-sm btn-block"
-                        style="display:none; margin-top:4px; color:#00d9ff; border-color:rgba(0,217,255,0.3);">🔄 Nova Rodada</button>
+                        style="display:none; color:#00d9ff; border-color:rgba(0,217,255,0.3);">🔄 Nova Rodada</button>
                 <button id="btnLeaveMatch" class="btn btn-glass btn-sm btn-block" style="margin-top:4px;">🚶 Sair da Partida</button>
-                <button id="btnVenderRecurso" class="btn btn-glass btn-sm btn-block"
-                        style="margin-top:4px; color:#ffd700; border-color:rgba(255,215,0,0.3);">
-                    💰 Vender Recurso
+                <button id="btnPedirAjuda" class="btn btn-glass btn-sm btn-block"
+                        style="display:none; margin-top:4px; color:#ffd700; border-color:rgba(255,215,0,0.3);">
+                    🆘 Pedir Ajuda
                 </button>
+
+                <!-- Ação destrutiva: separada visualmente e discreta de
+                     propósito (ver todo.md 9.1) — Nova Rodada é clicado
+                     toda hora, Encerrar Partida é raro e zera o KPI de
+                     todos, então não deve competir pela mesma posição
+                     de dedo no mobile. -->
+                <div style="margin-top:16px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.08);">
+                    <button id="btnEndMatch" class="btn btn-glass btn-sm btn-block"
+                            style="display:none; font-size:0.8rem; opacity:0.75; color:#ffa502; border-color:rgba(255,165,2,0.25);">🏁 Encerrar Partida</button>
+                </div>
             </aside>
 
             <!-- Área Principal -->
@@ -187,10 +195,10 @@
                         <span class="round-detail">🎯 <strong id="respondedorName">---</strong></span>
                     </div>
 
-                    <!-- Badges (Área e Grupo) -->
+                    <!-- Badges (Domínio e Área) -->
                     <div class="question-badges">
-                        <span class="badge badge-area" id="badgeArea">Área</span>
-                        <span class="badge badge-group" id="badgeGrupo">Grupo</span>
+                        <span class="badge badge-area" id="badgeDomain">Domínio</span>
+                        <span class="badge badge-group" id="badgeArea">Área</span>
                     </div>
 
                     <h3 class="question-text" id="questionText">Pergunta aqui...</h3>
@@ -258,6 +266,9 @@
             <span style="font-size:2rem;">🎯</span>
             <h2 style="color:#00d9ff; margin:8px 0;">Sua vez de responder!</h2>
             <p id="respostaTimerText" style="display:none; color:#a0a0b8; margin-bottom:8px; font-size:0.9rem;">⏱️ 30s</p>
+            <p id="respModalRoundInfo" style="color:#a0a0b8; font-size:0.85rem; margin-bottom:8px;">
+                🗣️ <strong id="respModalPerguntador">---</strong> pergunta para <strong id="respModalRespondedor">---</strong>
+            </p>
             <p id="respModalQuestionText" style="color:#e0e0e0; margin-bottom:16px; font-size:1.05rem;">Pergunta aqui...</p>
             <div class="alternatives-grid" id="alternativesGrid" style="margin-bottom:12px;">
                 <button class="alternative-btn" data-alt="a"><span class="alt-letter">A</span><span class="alt-text" id="altA">---</span></button>
@@ -286,37 +297,34 @@
         </div>
     </div>
 
-    <!-- Modal de Venda (visão do vendedor) -->
-    <div id="modalVenda" class="modal" style="display:none;">
+    <!-- Modal de Pedido de Ajuda (visão de quem está sem recursos) -->
+    <div id="modalPedirAjuda" class="modal" style="display:none;">
         <div class="modal-overlay"></div>
         <div class="modal-card glass-card" style="max-width:420px; text-align:center;">
-            <span style="font-size:2rem;">💰</span>
-            <h2 style="color:#ffd700; margin:8px 0;">Vender Recurso</h2>
+            <span style="font-size:2rem;">🆘</span>
+            <h2 style="color:#ffd700; margin:8px 0;">Pedindo Ajuda</h2>
             <p style="color:#a0a0b8; margin-bottom:8px;">
-                Vender 1📦 por <strong id="vendaValorKPI" style="color:#ffd700;">10 KPI</strong>
+                Perguntando: <strong id="ajudaTentandoCom" style="color:#e0e0e0;">...</strong>
             </p>
-            <p style="color:#e0e0e0; margin-bottom:12px;" id="vendaSeusRecursos">
-                Seus recursos: 📦 10
+            <p style="color:#a0a0b8; font-size:0.85rem; margin-bottom:16px;">
+                Custa <strong style="color:#ffd700;" id="ajudaValorKPI">10 KPI</strong> — em troca de 1📦
             </p>
-            <div id="vendaCompradores" style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
-                <!-- Lista preenchida dinamicamente -->
-            </div>
-            <button id="btnFecharVenda" class="btn btn-glass">✕ Cancelar</button>
+            <button id="btnFecharPedirAjuda" class="btn btn-glass">✕ Fechar</button>
         </div>
     </div>
 
-    <!-- Modal de Oferta de Venda (visão do comprador) -->
-    <div id="modalVendaOferta" class="modal" style="display:none;">
+    <!-- Modal de Oferta de Ajuda (visão de quem foi perguntado) -->
+    <div id="modalAjudaOferta" class="modal" style="display:none;">
         <div class="modal-overlay"></div>
         <div class="modal-card glass-card" style="max-width:420px; text-align:center;">
-            <span style="font-size:2rem;">💰</span>
-            <h2 style="color:#ffd700; margin:8px 0;">Oferta de Compra</h2>
-            <p style="color:#e0e0e0; margin-bottom:16px;" id="vendaOfertaTexto">
-                Jogador oferece 1📦 por 10 KPI
+            <span style="font-size:2rem;">🆘</span>
+            <h2 style="color:#ffd700; margin:8px 0;">Pedido de Ajuda</h2>
+            <p style="color:#e0e0e0; margin-bottom:16px;" id="ajudaOfertaTexto">
+                Jogador pediu ajuda
             </p>
             <div style="display:flex; gap:10px; justify-content:center;">
-                <button id="btnAceitarVendaOferta" class="btn btn-primary">✅ Aceitar</button>
-                <button id="btnRecusarVendaOferta" class="btn btn-glass">❌ Recusar</button>
+                <button id="btnAceitarAjudaOferta" class="btn btn-primary">✅ Aceitar</button>
+                <button id="btnRecusarAjudaOferta" class="btn btn-glass">❌ Recusar</button>
             </div>
         </div>
     </div>
@@ -327,6 +335,9 @@
         <div class="modal-card glass-card">
             <h2 id="resultTitle" class="result-title">✅ Acertou!</h2>
             <p id="resultMessage" class="result-message">+10 KPI</p>
+            <p id="resultTabuleiroReminder" style="display:none; color:#00ff88; font-size:0.9rem; margin-top:8px;">
+                🎲 Não esqueça de avançar sua peça no tabuleiro!
+            </p>
             <button id="btnCloseResult" class="btn btn-primary">OK</button>
         </div>
     </div>
@@ -352,6 +363,9 @@
             <span style="font-size:2rem;">🧭</span>
             <h2 style="color:#6c63ff; margin:8px 0;">Pedido de Assessoria</h2>
             <p style="color:#a0a0b8; margin-bottom:8px;" id="assessoriaTimerText">⏱️ 20s</p>
+            <p id="assessoriaModalRoundInfo" style="color:#a0a0b8; font-size:0.85rem; margin-bottom:8px;">
+                🗣️ <strong id="assessoriaModalPerguntador">---</strong> pergunta para <strong id="assessoriaModalRespondedor">---</strong>
+            </p>
             <p style="color:#e0e0e0; margin-bottom:16px;" id="assessoriaQuestionText">Pergunta...</p>
             <div id="assessoriaAlternativesList"
                  style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
