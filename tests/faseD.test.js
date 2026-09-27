@@ -3,9 +3,9 @@
 // ============================================
 // Roda a lógica REAL de sala travada / jogador desconectado / pausa
 // (Fase D1a) e de limpeza de desconectados ao voltar ao lobby e na
-// migração de host (Fase D1b) num ambiente simulado, sem navegador e
-// sem PeerJS: a rede é trocada por conexões falsas e a UI por um
-// registro de chamadas.
+// migração de host (Fase D1b, incluindo a robustez da própria
+// migração) num ambiente simulado, sem navegador e sem PeerJS: a rede
+// é trocada por conexões falsas e a UI por um registro de chamadas.
 //
 // Roda automaticamente no GitHub a cada push (ver
 // .github/workflows/testes.yml) — resultado na aba "Actions" do
@@ -119,6 +119,7 @@ function criarAmbiente() {
         ui: new Proxy({}, {
             get: (_, nome) => (...args) => { registro.ui.push(String(nome)); }
         }),
+        i18n: { t: (chave) => chave },
         saveState: () => {},
         persistence: { clearSavedState: () => {} },
         domain: {
@@ -237,22 +238,42 @@ function criarAmbiente() {
             return r ? r.msg.reason : null;
         },
         /**
-         * D1b: este jogador (guest) assume como host pelo becomeHost()
-         * REAL — o Peer do PeerJS e o document são dublês; o 'open' do
-         * peer novo é disparado na hora, como se o broker tivesse
-         * aceitado o ID da sala nova.
+         * Troca o Peer do PeerJS (e o document) por dublês. Cada
+         * `new Peer()` entra na lista devolvida, com os handlers
+         * registrados (disparar(evento, arg) os chama) e os destinos
+         * pedidos em connect(). connect() devolve uma conexão falsa que
+         * não abre sozinha, ou `opcoes.connectDevolve`, se informado.
          */
-        assumirComoHost() {
-            let handlersPeer = {};
+        instalarPeerFalso(opcoes = {}) {
+            const peersCriados = [];
             ctx.Peer = function (id) {
+                const handlers = {};
                 this.id = id;
                 this.destroyed = false;
-                this.on = (evento, cb) => { handlersPeer[evento] = cb; };
+                this.conexoesPedidas = [];
+                this.on = (evento, cb) => { handlers[evento] = cb; };
                 this.destroy = () => { this.destroyed = true; };
+                this.connect = (destino) => {
+                    this.conexoesPedidas.push(destino);
+                    if ('connectDevolve' in opcoes) return opcoes.connectDevolve;
+                    return { peer: destino, open: false, on: () => {}, send: () => {}, close: () => {} };
+                };
+                this.disparar = (evento, arg) => { if (handlers[evento]) handlers[evento](arg); };
+                peersCriados.push(this);
             };
             ctx.document = { getElementById: () => ({ style: {}, textContent: '' }) };
+            return peersCriados;
+        },
+
+        /**
+         * D1b: este jogador (guest) assume como host pelo becomeHost()
+         * REAL; o 'open' do peer novo é disparado na hora, como se o
+         * broker tivesse aceitado o ID da sala nova.
+         */
+        assumirComoHost() {
+            const peers = this.instalarPeerFalso();
             Game.network.becomeHost();
-            handlersPeer.open(Game.computeHostPeerId(state.baseRoomPeerId, state.hostVersion));
+            peers[peers.length - 1].disparar('open', Game.computeHostPeerId(state.baseRoomPeerId, state.hostVersion));
         },
 
         broadcastsDoTipo: (tipo) => registro.broadcasts.filter(m => m.type === tipo),
@@ -656,6 +677,133 @@ teste('T18 Migração no lobby: os outros saem da lista e voltam como jogadores 
     amb.entrar('A', 'peer-a2');
     confere(amb.recusaPara('peer-a2') === null, 'A deveria entrar de novo, veio: ' + amb.recusaPara('peer-a2'));
     confere(amb.jogador('A') && !amb.jogador('A').disconnected, 'A deveria estar na lista, conectado');
+});
+
+teste('T19 Peer já aberto: "peer-unavailable" (e outros erros) não destroem o peer', (usar) => {
+    // Guest: o peer abre e já tenta conectar ao host.
+    const amb = usar(criarAmbiente());
+    amb.state.isHost = false;
+    amb.state.hostPeerId = 'sala';
+    const peers = amb.instalarPeerFalso();
+    amb.Game.network.initPeer().catch(() => {});
+    const peer = peers[0];
+    peer.disparar('open', 'peer-guest');
+    confere(peer.conexoesPedidas.includes('sala'), 'pré-condição: guest deveria tentar conectar ao host');
+
+    // O que acontece na 1ª tentativa de reconexão quando o host sumiu.
+    peer.disparar('error', { type: 'peer-unavailable', message: 'Could not connect to peer sala' });
+    confere(!peer.destroyed, 'peer-unavailable NÃO pode destruir o peer (mataria a migração de host)');
+    confere(amb.Game.network.connectionState.getPeer() === peer, 'o peer em uso deveria continuar o mesmo');
+
+    peer.disparar('error', { type: 'socket-error', message: 'falha de socket' });
+    confere(!peer.destroyed, 'depois do open, nenhum erro deveria destruir o peer');
+
+    // Controle: ANTES do open (ex: ID do host ocupado após F5), continua
+    // destruindo — o initPeerWithRetry() do main.js depende disso.
+    const amb2 = usar(criarAmbiente());
+    amb2.state.isHost = true;
+    amb2.state.hostPeerId = 'sala';
+    const peers2 = amb2.instalarPeerFalso();
+    amb2.Game.network.initPeer().catch(() => {});
+    peers2[0].disparar('error', { type: 'unavailable-id', message: 'ID is taken' });
+    confere(peers2[0].destroyed, 'erro antes do open deveria destruir o peer (para o retry recomeçar)');
+});
+
+teste('T20 Reconexão sem peer utilizável: a tentativa falha, mas a cadeia continua', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.state.isHost = false;
+    amb.state.playerName = 'B';
+    amb.state.baseRoomPeerId = 'sala';
+    amb.state.hostVersion = 0;
+    amb.state.players = [
+        { name: 'Host', peerId: 'sala', isHost: true },
+        { name: 'A', peerId: 'peer-a', isHost: false },
+        { name: 'B', peerId: 'peer-b', isHost: false }
+    ];
+    // Peer que perdeu o servidor de sinalização: connect() devolve undefined.
+    amb.Game.network.connectionState.setPeer({ destroyed: false, connect: () => undefined });
+
+    let erro = null;
+    try { amb.Game.network.attemptReconnectToSameHost(3); } catch (e) { erro = e; }
+    confere(!erro, 'última tentativa ao mesmo host não deveria lançar erro, lançou: ' + (erro && erro.message));
+    confere(amb.registro.spies.attemptReconnectToNewHost === 1, 'deveria seguir para a migração (procurar o novo host)');
+
+    erro = null;
+    try { amb.Game.network.attemptReconnectToNewHost(5); } catch (e) { erro = e; }
+    confere(!erro, 'procurar o novo host não deveria lançar erro, lançou: ' + (erro && erro.message));
+    confere(amb.registro.logs.some(l => l.includes('Não foi possível localizar um novo host')),
+        'depois da última tentativa, deveria desistir de forma controlada');
+
+    // Peer já destruído: mesmo comportamento.
+    amb.Game.network.connectionState.setPeer({ destroyed: true, connect: () => { throw new Error('não deveria ser chamado'); } });
+    erro = null;
+    try { amb.Game.network.attemptReconnectToSameHost(1); } catch (e) { erro = e; }
+    confere(!erro, 'com peer destruído, não deveria lançar erro, lançou: ' + (erro && erro.message));
+});
+
+teste('T21 Migração com rodada que o novo host não conduz: descarta, pausa e retoma com o mesmo evento', (usar) => {
+    // Cenário do teste manual: o host antigo perguntava para B; A era espectador.
+    const amb = usar(criarAmbiente());
+    amb.state.isHost = false;
+    amb.state.playerName = 'A';
+    amb.state.peerId = 'peer-a';
+    amb.state.baseRoomPeerId = 'sala';
+    amb.state.hostVersion = 0;
+    amb.state.gameStarted = true;
+    amb.state.gameOver = false;
+    const eventoDaRodada = { id: 'e-velho', titulo: 'Evento da rodada' };
+    amb.state.currentRound = { evento: eventoDaRodada, perguntador: 'Host', respondedor: 'B', pergunta: null, respondeu: false };
+    amb.state.players = [
+        { name: 'Host', peerId: 'sala', isHost: true, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0 },
+        { name: 'A', peerId: 'peer-a', isHost: false, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0 },
+        { name: 'B', peerId: 'peer-b', isHost: false, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0 }
+    ];
+
+    amb.assumirComoHost();
+    confere(amb.state.currentRound === null, 'a rodada do host antigo deveria ter sido descartada');
+    confere(amb.state.partidaPausada && amb.state.partidaPausada.evento === eventoDaRodada,
+        'a partida deveria pausar guardando o MESMO evento');
+    confere(!amb.registro.ui.includes('showEventoModal'), 'não deveria reexibir o modal de evento');
+
+    amb.limparRegistro();
+    amb.entrar('B', 'peer-b2');
+    const r = amb.state.currentRound;
+    confere(!amb.state.partidaPausada && r, 'a volta de B deveria retomar a partida');
+    confere(r.evento === eventoDaRodada, 'a rodada retomada deveria usar o mesmo evento');
+    confere(r.perguntador !== 'Host' && r.respondedor !== 'Host', 'o host antigo não pode estar na dupla');
+    confere(r.pergunta && r.pergunta.correct !== undefined, 'o novo host deveria ter o gabarito da nova pergunta');
+    confere(amb.broadcastsDoTipo('round-start').length === 1, 'deveria mandar round-start (fecha a pergunta velha na tela de B)');
+    confere(amb.broadcastsDoTipo('show-evento').length === 0, 'não deveria reexibir o modal de evento');
+});
+
+teste('T21b Migração quando o novo host era o Perguntador: a rodada continua', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.state.isHost = false;
+    amb.state.playerName = 'A';
+    amb.state.peerId = 'peer-a';
+    amb.state.baseRoomPeerId = 'sala';
+    amb.state.hostVersion = 0;
+    amb.state.gameStarted = true;
+    amb.state.gameOver = false;
+    const pergunta = { type: 'question', question: 'Pergunta?', alternatives: ['a', 'b', 'c', 'd'], correct: 'a', id: 'q9', isPerguntador: true };
+    const rodada = { evento: { id: 'e1' }, perguntador: 'A', respondedor: 'B', pergunta, respondeu: false };
+    amb.state.currentRound = rodada;
+    amb.state.players = [
+        { name: 'Host', peerId: 'sala', isHost: true },
+        { name: 'A', peerId: 'peer-a', isHost: false },
+        { name: 'B', peerId: 'peer-b', isHost: false }
+    ];
+
+    amb.assumirComoHost();
+    confere(amb.state.currentRound === rodada, 'a rodada deveria continuar a mesma');
+    confere(!amb.state.partidaPausada, 'não deveria pausar');
+
+    amb.entrar('B', 'peer-b2');
+    const sync = amb.registro.enviados.find(e => e.para === 'peer-b2' && e.msg.type === 'state-sync');
+    confere(sync && sync.msg.fullState.currentRound && sync.msg.fullState.currentRound.respondedor === 'B',
+        'B deveria receber a rodada em andamento no state-sync');
+    confere(sync.msg.fullState.currentRound.pergunta.correct === undefined, 'B (respondedor) não pode receber o gabarito');
+    confere(amb.state.currentRound === rodada, 'a volta de B não deveria trocar a rodada');
 });
 
 console.log('\n' + (falhou === 0 ? '🎉' : '⚠️') + ' ' + passou + ' passaram, ' + falhou + ' falharam\n');

@@ -29,6 +29,23 @@ function handleHostDisconnect() {
     }, CONFIG.JOGO.HOST_TIMEOUT);
 }
 
+/**
+ * Fase D: pede ao PeerJS uma conexão com `peerId`, ou devolve null se
+ * não for possível. Quando o peer local não existe mais ou perdeu o
+ * servidor de sinalização, o PeerJS não lança exceção: devolve
+ * undefined — e o `.on(...)` logo em seguida quebraria a cadeia inteira
+ * de tentativas. Com null, a tentativa só conta como falhada.
+ */
+function conectarSePossivel(peerId) {
+    const peer = Game.network.connectionState.getPeer();
+    if (!peer || peer.destroyed) return null;
+    try {
+        return peer.connect(peerId, { reliable: true }) || null;
+    } catch (e) {
+        return null;
+    }
+}
+
 // ============================================
 // RECONEXÃO AO MESMO HOST (correção do BUG-002)
 // ============================================
@@ -49,7 +66,12 @@ function attemptReconnectToSameHost(attempt = 1) {
 
     let settled = false;
     const cs = Game.network.connectionState;
-    const conn = cs.getPeer().connect(currentHostId, { reliable: true });
+    const conn = conectarSePossivel(currentHostId);
+    if (!conn) {
+        console.warn('⚠️ Sem peer utilizável para reconectar — tentativa contada como falha.');
+        retryReconnectSameHostOrMigrate(attempt, MAX_ATTEMPTS);
+        return;
+    }
 
     conn.on('open', () => {
         if (settled) return;
@@ -141,7 +163,12 @@ function attemptReconnectToNewHost(attempt = 1) {
 
     let settled = false;
     const cs = Game.network.connectionState;
-    const conn = cs.getPeer().connect(candidateId, { reliable: true });
+    const conn = conectarSePossivel(candidateId);
+    if (!conn) {
+        console.warn('⚠️ Sem peer utilizável para procurar o novo host — tentativa contada como falha.');
+        retryOrGiveUp(attempt, MAX_ATTEMPTS);
+        return;
+    }
 
     conn.on('open', () => {
         if (settled) return;
@@ -259,8 +286,33 @@ function becomeHost() {
                 }
             }, 1000);
 
-            if (!state.currentRound) {
+            // Fase D: só dá para continuar a rodada em andamento se este
+            // jogador tem o gabarito — ou seja, se era o Perguntador (só
+            // ele recebe a pergunta com `correct`; o Respondedor recebe
+            // sem, e os espectadores nem recebem). Sem o gabarito, a
+            // resposta (ou o timeout) quebraria em handleAnswer() e a
+            // rodada ficaria travada para sempre — por exemplo quando o
+            // Perguntador era o próprio host que saiu. Nesses casos a
+            // rodada é descartada e uma dupla nova é sorteada com o
+            // MESMO evento, sem reexibir o modal. Como os outros acabaram
+            // de ser marcados como desconectados, normalmente a partida
+            // pausa aqui e retoma quando eles reconectarem (o 'round-start'
+            // da retomada também fecha a pergunta velha na tela deles).
+            const round = state.currentRound;
+            const podeContinuarRodada = !!round && !round.respondeu &&
+                round.perguntador === state.playerName &&
+                !!round.pergunta && round.pergunta.correct !== undefined;
+
+            if (!round) {
                 Game.core.pickNewPair();
+            } else if (!podeContinuarRodada) {
+                console.warn('⚠️ Novo host não tem como conduzir a rodada em andamento — sorteando nova dupla com o mesmo evento.');
+                state.currentRound = null;
+                if (round.evento) {
+                    Game.core.pickNewPair(round.evento, 0, false);
+                } else {
+                    Game.core.pickNewPair(); // sem evento guardado: rodada nova, com modal
+                }
             } else {
                 Game.ui.displayRoundStart();
                 if (state.currentRound.pergunta) {

@@ -28,7 +28,12 @@ async function initPeer() {
         const peer = new Peer(peerId, { debug: 0 });
         cs.setPeer(peer);
 
+        // Fase D: fica true depois do 'open' — a partir daí o peer já está
+        // em uso (conexões, migração de host) e erros não o destroem mais.
+        let peerAberto = false;
+
         peer.on('open', (id) => {
+            peerAberto = true;
             state.peerId = id;
             if (state.isHost) {
                 state.hostPeerId = id;
@@ -46,6 +51,25 @@ async function initPeer() {
         peer.on('connection', (conn) => handleConnection(conn));
 
         peer.on('error', (err) => {
+            // Fase D: destruir o peer e rejeitar só faz sentido ANTES do
+            // 'open' — é o que permite ao initPeerWithRetry() (main.js)
+            // tentar de novo (ex: ID do host ainda ocupado após um F5).
+            // Depois do 'open' a promessa já foi resolvida (o reject não
+            // tem efeito) e destruir o peer mataria a reconexão: o erro
+            // mais comum aqui é 'peer-unavailable', que só quer dizer "o
+            // ID procurado não está online" — esperado durante as
+            // tentativas de reconexão e de migração de host
+            // (hostMigration.js), que tratam a falha sozinhas.
+            if (peerAberto) {
+                if (err && err.type === 'peer-unavailable') {
+                    console.warn('⚠️ Peer procurado não está online:', err.message);
+                } else {
+                    console.error('❌ PeerJS Error:', err);
+                    Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.erro'));
+                }
+                return;
+            }
+
             console.error('❌ PeerJS Error:', err);
             Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.erro'));
             try { peer.destroy(); } catch (e) { /* ignora */ }
