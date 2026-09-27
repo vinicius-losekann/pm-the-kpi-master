@@ -46,16 +46,22 @@ function handleMessage(msg, fromPeerId) {
 
         case 'join-rejected':
             Game.network.cleanup();
-            const motivo = msg.reason === 'room-full'
-                ? '⚠️ Sala cheia (máximo de ' + CONFIG.JOGO.MAX_PLAYERS + ' jogadores).'
-                : '⚠️ Esse nome já está em uso nesta sala. Escolha outro nome e entre novamente.';
-            alert(motivo);
+            const motivos = {
+                'room-full': '⚠️ Sala cheia (máximo de ' + CONFIG.JOGO.MAX_PLAYERS + ' jogadores).',
+                'room-locked': '⚠️ A partida desta sala já começou. Só quem já estava na partida pode reconectar — aguarde o host voltar ao lobby para entrar.',
+                'name-taken': '⚠️ Esse nome já está em uso nesta sala. Escolha outro nome e entre novamente.'
+            };
+            alert(motivos[msg.reason] || motivos['name-taken']);
             window.location.href = './';
             break;
 
         case 'player-list':
             state.players = msg.players;
             Game.ui.updatePlayersList();
+            // Fase D: a lista também muda quando alguém cai/reconecta no
+            // meio da partida — atualiza a lista de jogadores e o ranking
+            // da tela de jogo, não só a do lobby.
+            if (state.gameStarted) Game.ui.syncPlayerViews(null);
             break;
 
         case 'state-sync':
@@ -135,6 +141,14 @@ function handleMessage(msg, fromPeerId) {
 
         case 'round-ended':
             Game.ui.showRoundEndedMessage();
+            break;
+
+        // Fase D: host pausou a partida por falta de jogadores conectados
+        // (ver turnEngine.pickNewPair()). Retoma sozinha com um novo
+        // 'round-start' quando alguém reconectar.
+        case 'partida-pausada':
+            state.currentRound = null;
+            Game.ui.showPartidaPausadaMessage();
             break;
 
         case 'question':
@@ -253,20 +267,28 @@ function handleMessage(msg, fromPeerId) {
 // ============================================
 
 /**
+ * Envia a recusa de entrada para o peer e fecha a conexão logo depois
+ * (o atraso dá tempo da mensagem chegar antes do close).
+ */
+function rejeitarEntrada(fromPeerId, reason) {
+    const c = Game.network.connectionState.getConnection(fromPeerId);
+    if (c && c.open) {
+        c.send({ type: 'join-rejected', reason });
+    }
+    setTimeout(() => { if (c) c.close(); }, 300);
+}
+
+/**
  * Adiciona um jogador à sala (host). Verifica duplicidade de nome e limite.
+ *
+ * Fase D: com a partida em andamento, a sala fica travada — só entra
+ * quem já está na lista (reconexão). A checagem de "sala cheia" só vale
+ * para nome novo: um jogador desconectado continua ocupando a vaga dele
+ * e precisa conseguir voltar mesmo com a sala lotada.
  */
 function addPlayer(msg, fromPeerId) {
     const state = Game.state;
     const cs = Game.network.connectionState;
-
-    if (state.players.length >= CONFIG.JOGO.MAX_PLAYERS) {
-        const c = cs.getConnection(fromPeerId);
-        if (c && c.open) {
-            c.send({ type: 'join-rejected', reason: 'room-full' });
-        }
-        setTimeout(() => { if (c) c.close(); }, 300);
-        return;
-    }
 
     const existingIdx = state.players.findIndex(p => p.name === msg.playerName);
     if (existingIdx >= 0) {
@@ -275,17 +297,25 @@ function addPlayer(msg, fromPeerId) {
         const oldPeerStillConnected = oldConn && oldConn.open && existingPlayer.peerId !== fromPeerId;
 
         if (oldPeerStillConnected) {
-            const c = cs.getConnection(fromPeerId);
-            if (c && c.open) {
-                c.send({ type: 'join-rejected', reason: 'name-taken' });
-            }
-            setTimeout(() => { if (c) c.close(); }, 300);
+            rejeitarEntrada(fromPeerId, 'name-taken');
             return;
         }
 
         state.players[existingIdx].peerId = fromPeerId;
+        state.players[existingIdx].disconnected = false;
         console.log('🔄 Reconectado:', msg.playerName);
     } else {
+        if (state.gameStarted) {
+            console.warn('🔒 Entrada recusada: partida em andamento, "' + msg.playerName + '" não fazia parte dela.');
+            rejeitarEntrada(fromPeerId, 'room-locked');
+            return;
+        }
+
+        if (state.players.length >= CONFIG.JOGO.MAX_PLAYERS) {
+            rejeitarEntrada(fromPeerId, 'room-full');
+            return;
+        }
+
         state.players.push({
             name: msg.playerName,
             peerId: fromPeerId,
@@ -331,6 +361,48 @@ function addPlayer(msg, fromPeerId) {
             }
         });
     }
+
+    // Fase D: se a partida estava pausada por falta de jogadores
+    // conectados, a volta deste jogador pode ser o que faltava. Fica
+    // depois do state-sync para o guest já estar com o estado em dia
+    // quando o 'round-start' chegar.
+    if (state.gameStarted && !state.gameOver && state.partidaPausada &&
+        Game.getActivePlayers().length >= CONFIG.JOGO.MIN_PLAYERS) {
+        Game.core.retomarPartidaPausada();
+    }
+
+    Game.saveState();
+}
+
+/**
+ * Host: trata a queda de conexão de um guest (chamada pelo 'close' da
+ * conexão em peerService.js).
+ *
+ * Fase D: fora de partida (lobby ou fim de jogo), remove o jogador como
+ * sempre. Com a partida em andamento, mantém o jogador na lista marcado
+ * como `disconnected: true` — KPI, recursos e fase ficam preservados e
+ * a vaga fica reservada para a reconexão (a sala está travada para
+ * nomes novos, ver addPlayer()). Desconectados ficam fora do sorteio de
+ * dupla, dos efeitos de evento e do rodízio (ver getActivePlayers()).
+ */
+function handlePlayerDisconnect(peerId) {
+    const state = Game.state;
+    const player = state.players.find(p => p.peerId === peerId);
+    if (!player) return; // conexão que nunca virou jogador (ex: teste da tela de entrada) ou peerId antigo de quem já reconectou
+
+    if (!state.gameStarted || state.gameOver) {
+        removePlayerByPeerId(peerId);
+        return;
+    }
+
+    player.disconnected = true;
+    console.warn('📴 ' + player.name + ' desconectou — mantido na partida aguardando reconexão.');
+
+    Game.network.broadcastAll({ type: 'player-list', players: state.players });
+    Game.ui.updatePlayersList();
+    Game.ui.syncPlayerViews(null);
+
+    Game.core.abortRoundIfParticipant(player.name);
 
     Game.saveState();
 }
@@ -410,6 +482,7 @@ window.Game.network = window.Game.network || {};
 Object.assign(window.Game.network, {
     handleMessage,
     addPlayer,
+    handlePlayerDisconnect,
     removePlayerByPeerId,
     restoreState
 });

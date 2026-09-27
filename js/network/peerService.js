@@ -108,7 +108,7 @@ function handleConnection(conn) {
         }
 
         if (state.isHost) {
-            Game.network.removePlayerByPeerId(conn.peer);
+            Game.network.removePlayerByPeerId(conn.peer);        
         }
     });
 

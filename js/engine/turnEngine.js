@@ -86,6 +86,24 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
 
     const activePlayers = Game.getActivePlayers();
     if (activePlayers.length < CONFIG.JOGO.MIN_PLAYERS) {
+        // Fase D: distingue "faltam jogadores" de "falta conexão". Se,
+        // contando os desconectados, ainda há jogadores suficientes, a
+        // partida PAUSA em vez de encerrar — retoma sozinha quando
+        // alguém reconectar (ver retomarPartidaPausada() e addPlayer()
+        // em network/messageHandler.js). O timer da partida continua
+        // correndo durante a pausa.
+        const matchPlayers = Game.selectors.getMatchPlayers(state.players);
+        if (matchPlayers.length >= CONFIG.JOGO.MIN_PLAYERS) {
+            console.warn('⏸️ Jogadores conectados insuficientes — partida pausada até alguém reconectar.');
+            state.currentRound = null;
+            state.partidaPausada = { evento };
+            Game.network.broadcastAll({ type: 'partida-pausada' });
+            Game.ui.showPartidaPausadaMessage();
+            Game.ui.refreshNovaRodadaButton();
+            Game.saveState();
+            return;
+        }
+
         console.warn('⚠️ Jogadores ativos insuficientes para continuar a partida.');
         Game.engine.session.endGame(Game.engine.session.buildRanking());
         return;
@@ -119,6 +137,7 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
         return;
     }
 
+    state.partidaPausada = null;
     state.currentRound = {
         evento,
         perguntador: perguntador.name,
@@ -223,6 +242,27 @@ function nextTurn() {
     pickNewPair(state.currentRound?.evento, 0, false);
 }
 
+/**
+ * Host: retoma uma partida pausada por falta de jogadores conectados
+ * (ver pickNewPair()). Continua a mesma rodada, com o mesmo evento, sem
+ * mostrar o modal de novo nem reaplicar os efeitos. Se o evento se
+ * perdeu (ex: host deu F5 durante a pausa), começa uma rodada nova.
+ */
+function retomarPartidaPausada() {
+    const state = Game.state;
+    const pausa = state.partidaPausada;
+    if (!state.isHost || !pausa) return;
+
+    state.partidaPausada = null;
+    console.log('▶️ Jogador reconectou — retomando a partida.');
+
+    if (pausa.evento) {
+        pickNewPair(pausa.evento, 0, false);
+    } else {
+        startNewRound();
+    }
+}
+
 // ============================================
 // EXPORTAÇÃO
 // ============================================
@@ -232,7 +272,8 @@ window.Game.engine.turn = {
     startNewRound,
     pickNewPair,
     armarRespostaTimeout,
-    nextTurn
+    nextTurn,
+    retomarPartidaPausada
 };
 
 // Game.core.* é o namespace usado por ui/ e network/ para chamar as

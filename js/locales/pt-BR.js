@@ -45,6 +45,7 @@ window.Game.locales['pt-BR'] = {
         tempoRestante: '⏱️ {{seconds}}s',
         rodadaEncerradaHost: '🏁 Rodada encerrada! Clique em "Nova Rodada" para continuar.',
         rodadaEncerradaGuest: '🏁 Rodada encerrada! Aguardando o host iniciar uma nova rodada.',
+        partidaPausada: '⏸️ Partida pausada: não há jogadores conectados suficientes. Ela continua sozinha assim que alguém reconectar.',
     },
 
     spectator: {
@@ -90,6 +91,7 @@ window.Game.locales['pt-BR'] = {
         nenhumJogadorAtivo: 'Nenhum jogador ativo',
         formulaKpiFinal: 'KPI Final = KPI acumulado + (Recursos restantes × {{valor}})',
         detalheRanking: 'KPI acumulado (acertos, vendas, compras e assessorias): {{kpi}} | Recursos: {{recursos}}📦 × {{valor}} = {{kpiRecursos}} KPI',
+        desconectado: 'Desconectado, aguardando reconexão', 
     },
 
     connection: {

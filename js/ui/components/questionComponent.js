@@ -187,6 +187,19 @@ function showRoundEndedMessage() {
         : Game.i18n.t('question.rodadaEncerradaGuest');
 }
 
+/**
+ * Fase D: aviso de partida pausada — não há jogadores conectados
+ * suficientes para formar uma dupla. A partida retoma sozinha quando
+ * alguém reconectar (host: turnEngine.retomarPartidaPausada()).
+ */
+function showPartidaPausadaMessage() {
+    stopRespostaCountdown();
+    document.getElementById('modalResponderPergunta').style.display = 'none';
+    document.getElementById('questionArea').style.display = 'none';
+    document.getElementById('spectatorArea').style.display = 'block';
+    document.getElementById('spectatorMessage').textContent = Game.i18n.t('question.partidaPausada');
+}
+
 function displaySpectatorView(perguntador, respondedor) {
     document.getElementById('questionArea').style.display = 'none';
     document.getElementById('spectatorArea').style.display = 'block';
@@ -225,5 +238,6 @@ Object.assign(window.Game.ui, {
     handleAlternativeClick,
     startRespostaCountdown,
     stopRespostaCountdown,
-    showRoundEndedMessage
+    showRoundEndedMessage,
+    showPartidaPausadaMessage
 });

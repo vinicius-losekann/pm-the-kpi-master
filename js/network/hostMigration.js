@@ -98,7 +98,11 @@ function retryReconnectSameHostOrMigrate(attempt, maxAttempts) {
 function decideHostTakeoverOrReconnectNewVersion() {
     if (Game.state.isHost) return;
 
-    const sorted = [...Game.state.players].sort((a, b) => {
+    // Fase D: jogadores desconectados continuam na lista durante a
+    // partida, mas não podem ser escolhidos como backup — se o backup
+    // fosse um deles, ninguém assumiria a sala. Como todos os guests
+    // filtram a mesma lista, todos chegam ao mesmo backup.
+    const sorted = [...Game.state.players].filter(p => !p.disconnected).sort((a, b) => {
         if (a.isHost) return -1;
         if (b.isHost) return 1;
         return 0;

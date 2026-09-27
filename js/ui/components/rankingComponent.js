@@ -7,10 +7,16 @@
 // ============================================
 
 function updatePlayersOnlineList() {
-    document.getElementById('playersOnlineList').innerHTML = Game.getActivePlayers().map(p => {
+    // Fase D: a lista mostra também quem caiu no meio da partida
+    // (esmaecido, com 📴). getActivePlayers() exclui os desconectados —
+    // por isso aqui a fonte é getMatchPlayers().
+    const players = Game.selectors.getMatchPlayers(Game.state.players);
+    document.getElementById('playersOnlineList').innerHTML = players.map(p => {
         const fase = Game.getFaseById(p.phase);
         const nomeSeguro = Game.sanitize.escapeHtml(p.name);
-        return `<div class="online-player"><div class="player-avatar-xs">${Game.sanitize.escapeHtml(p.name.charAt(0))}</div><span>${nomeSeguro}</span><span style="font-size:0.7rem; color:#ffd700;">📦${p.recursos || 0}</span><span class="mini-phase">${fase.emoji}</span></div>`;
+        const estiloOffline = p.disconnected ? ' style="opacity:0.5;"' : '';
+        const iconeOffline = p.disconnected ? `<span title="${Game.i18n.t('ranking.desconectado')}">📴</span>` : '';
+        return `<div class="online-player"${estiloOffline}><div class="player-avatar-xs">${Game.sanitize.escapeHtml(p.name.charAt(0))}</div><span>${nomeSeguro}</span>${iconeOffline}<span style="font-size:0.7rem; color:#ffd700;">📦${p.recursos || 0}</span><span class="mini-phase">${fase.emoji}</span></div>`;
     }).join('') || `<div style="color:#6a6a80; font-size:0.8rem;">${Game.i18n.t('ranking.nenhumJogadorAtivo')}</div>`;
 }
 

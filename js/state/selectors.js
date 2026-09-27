@@ -30,9 +30,22 @@ function getPlayerByName(players, name) {
 }
 
 /**
- * Retorna apenas os jogadores ativos na partida (não estão aguardando no lobby).
+ * Retorna os jogadores ativos na partida: não estão aguardando no lobby
+ * e estão conectados. Desconectados no meio da partida (Fase D)
+ * continuam na lista com `disconnected: true`, mas ficam fora do
+ * sorteio de dupla, dos efeitos de evento, do rodízio da rodada e das
+ * listas de assessoria/ajuda.
  */
 function getActivePlayers(players) {
+    return players.filter(p => !p.waitingInLobby && !p.disconnected);
+}
+
+/**
+ * Retorna quem faz parte da partida, conectado ou não (só exclui quem
+ * saiu para o lobby). Usado para decidir entre pausar e encerrar a
+ * partida e para a lista de jogadores da tela de jogo (Fase D).
+ */
+function getMatchPlayers(players) {
     return players.filter(p => !p.waitingInLobby);
 }
 
@@ -58,5 +71,6 @@ window.Game.selectors = {
     getFaseIndex,
     getPlayerByName,
     getActivePlayers,
+    getMatchPlayers,
     isCycleComplete
 };
