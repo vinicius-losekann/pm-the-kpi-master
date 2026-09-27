@@ -49,7 +49,8 @@ function handleMessage(msg, fromPeerId) {
             const motivos = {
                 'room-full': '⚠️ Sala cheia (máximo de ' + CONFIG.JOGO.MAX_PLAYERS + ' jogadores).',
                 'room-locked': '⚠️ A partida desta sala já começou. Só quem já estava na partida pode reconectar — aguarde o host voltar ao lobby para entrar.',
-                'name-taken': '⚠️ Esse nome já está em uso nesta sala. Escolha outro nome e entre novamente.'
+                'name-taken': '⚠️ Esse nome já está em uso nesta sala. Escolha outro nome e entre novamente.',
+                'identity-mismatch': '⚠️ Esse nome pertence a um jogador desta partida e não foi possível confirmar que é você. Para voltar, entre pelo mesmo navegador em que você começou a partida (sem aba anônima e sem ter apagado os dados do site) — ou aguarde o host voltar ao lobby.'
             };
             alert(motivos[msg.reason] || motivos['name-taken']);
             window.location.href = './';
@@ -279,16 +280,34 @@ function rejeitarEntrada(fromPeerId, reason) {
 }
 
 /**
+ * Fase D2: hash do token de identidade que veio no 'player-join', ou
+ * null se não veio (ou veio em formato inválido). O token em si nunca
+ * é guardado — só o hash (ver utils/identity.js).
+ */
+function hashDoTokenRecebido(msg) {
+    const token = msg.token;
+    if (typeof token !== 'string' || token.length === 0 || token.length > 128) return null;
+    return Game.identity.hashToken(token);
+}
+
+/**
  * Adiciona um jogador à sala (host). Verifica duplicidade de nome e limite.
  *
  * Fase D: com a partida em andamento, a sala fica travada — só entra
  * quem já está na lista (reconexão). A checagem de "sala cheia" só vale
  * para nome novo: um jogador desconectado continua ocupando a vaga dele
  * e precisa conseguir voltar mesmo com a sala lotada.
+ *
+ * Fase D2: a reconexão exige o mesmo token de identidade da primeira
+ * entrada (o hash dele fica em `tokenHash`). Sem isso, quem soubesse o
+ * nome de um jogador desconectado podia entrar no lugar dele e herdar
+ * KPI, recursos e fase. Token diferente ou ausente → 'identity-mismatch',
+ * e o jogador original continua reservado, esperando a volta dele.
  */
 function addPlayer(msg, fromPeerId) {
     const state = Game.state;
     const cs = Game.network.connectionState;
+    const tokenHash = hashDoTokenRecebido(msg);
 
     const existingIdx = state.players.findIndex(p => p.name === msg.playerName);
     if (existingIdx >= 0) {
@@ -303,6 +322,19 @@ function addPlayer(msg, fromPeerId) {
         if (oldPeerStillConnected) {
             rejeitarEntrada(fromPeerId, 'name-taken');
             return;
+        }
+
+        if (existingPlayer.tokenHash) {
+            if (tokenHash !== existingPlayer.tokenHash) {
+                console.warn('🔐 Reconexão recusada: "' + msg.playerName + '" veio com um token de identidade diferente do registrado.');
+                rejeitarEntrada(fromPeerId, 'identity-mismatch');
+                return;
+            }
+        } else if (tokenHash) {
+            // Transição: entrada registrada antes do token existir (estado
+            // salvo de uma versão anterior). Aceita pelo nome, como antes,
+            // e passa a exigir este token daqui em diante.
+            existingPlayer.tokenHash = tokenHash;
         }
 
         state.players[existingIdx].peerId = fromPeerId;
@@ -328,7 +360,8 @@ function addPlayer(msg, fromPeerId) {
             activities: 0,
             isHost: false,
             waitingInLobby: false,
-            recursos: CONFIG.RECURSOS_INICIAIS
+            recursos: CONFIG.RECURSOS_INICIAIS,
+            tokenHash
         });
 
         if (state.players.length === 2 && !state.backupPeerId) {

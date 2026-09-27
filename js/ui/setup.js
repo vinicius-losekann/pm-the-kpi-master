@@ -37,6 +37,10 @@ function setupUI() {
         document.getElementById('btnLeaveSession').style.display = 'none';
         document.getElementById('btnLeaveMatch').style.display = 'none';
 
+        // Fase D2: a entrada do host também leva o hash do token de
+        // identidade dele (ver utils/identity.js), para a lista ficar
+        // uniforme. Um guest que vira host (becomeHost()) não passa por
+        // aqui — a entrada dele já existe, com o hash de quando entrou.
         if (!state.players.find(p => p.isHost)) {
             state.players.unshift({
                 name: state.playerName,
@@ -46,7 +50,8 @@ function setupUI() {
                 activities: 0,
                 isHost: true,
                 waitingInLobby: false,
-                recursos: CONFIG.RECURSOS_INICIAIS
+                recursos: CONFIG.RECURSOS_INICIAIS,
+                tokenHash: Game.identity.meuTokenHash(state.baseRoomPeerId)
             });
         }
         Game.ui.updatePlayersList();

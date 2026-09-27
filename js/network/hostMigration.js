@@ -82,7 +82,7 @@ function attemptReconnectToSameHost(attempt = 1) {
         Game.ui.updateConnectionStatus('connected', Game.i18n.t('connection.reconectado'));
 
         Game.network.handleConnection(conn);
-        Game.network.sendToHost({ type: 'player-join', playerName: state.playerName, peerId: state.peerId });
+        Game.network.enviarPlayerJoin();
         Game.saveState();
     });
 
@@ -182,7 +182,7 @@ function attemptReconnectToNewHost(attempt = 1) {
         Game.ui.updateConnectionStatus('connected', Game.i18n.t('connection.reconectado'));
 
         Game.network.handleConnection(conn);
-        Game.network.sendToHost({ type: 'player-join', playerName: state.playerName, peerId: state.peerId });
+        Game.network.enviarPlayerJoin();
         Game.saveState();
     });
 

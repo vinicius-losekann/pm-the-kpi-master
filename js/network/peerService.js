@@ -111,11 +111,7 @@ function handleConnection(conn) {
         console.log('🔗 Conectado a:', conn.peer);
 
         if (!state.isHost) {
-            sendToHost({
-                type: 'player-join',
-                playerName: state.playerName,
-                peerId: state.peerId
-            });
+            enviarPlayerJoin();
         }
     });
 
@@ -145,6 +141,24 @@ function handleConnection(conn) {
 
     conn.on('error', (err) => {
         console.error('❌ Erro na conexão:', err);
+    });
+}
+
+/**
+ * Guest: apresenta-se ao host. Usado na primeira conexão (acima) e nas
+ * reconexões de hostMigration.js — um lugar só para montar a mensagem.
+ *
+ * Fase D2: leva o token de identidade deste navegador para a sala
+ * (ver utils/identity.js). O host guarda só o hash e o confere quando
+ * alguém tenta voltar com o nome de um jogador desconectado.
+ */
+function enviarPlayerJoin() {
+    const state = Game.state;
+    Game.network.sendToHost({
+        type: 'player-join',
+        playerName: state.playerName,
+        peerId: state.peerId,
+        token: Game.identity.obterTokenDaSala(state.baseRoomPeerId)
     });
 }
 
@@ -250,6 +264,7 @@ Object.assign(window.Game.network, {
     initPeer,
     connectToHost,
     handleConnection,
+    enviarPlayerJoin,
     sendToHost,
     broadcast,
     broadcastAll,

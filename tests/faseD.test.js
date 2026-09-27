@@ -2,10 +2,12 @@
 // PM: The KPI Master - Testes automatizados da Fase D
 // ============================================
 // Roda a lógica REAL de sala travada / jogador desconectado / pausa
-// (Fase D1a) e de limpeza de desconectados ao voltar ao lobby e na
+// (Fase D1a), de limpeza de desconectados ao voltar ao lobby e na
 // migração de host (Fase D1b, incluindo a robustez da própria
-// migração) num ambiente simulado, sem navegador e sem PeerJS: a rede
-// é trocada por conexões falsas e a UI por um registro de chamadas.
+// migração) e do token de identidade por sala (Fase D2) num ambiente
+// simulado, sem navegador e sem PeerJS: a rede é trocada por conexões
+// falsas, a UI por um registro de chamadas e o localStorage por um
+// objeto em memória.
 //
 // Roda automaticamente no GitHub a cada push (ver
 // .github/workflows/testes.yml) — resultado na aba "Actions" do
@@ -24,7 +26,7 @@
 // - a parte visual (📴 na lista, aviso de partida pausada).
 //
 // Os números dos testes (T1, T2...) batem com o roteiro de teste
-// manual da D1a e da D1b.
+// manual da D1a, da D1b e da D2.
 // ============================================
 
 const fs = require('fs');
@@ -35,6 +37,7 @@ const RAIZ = path.resolve(__dirname, '..');
 
 // Mesma ordem de carregamento do game.html para os arquivos envolvidos.
 const ARQUIVOS = [
+    'js/utils/identity.js',
     'js/state/store.js',
     'js/state/selectors.js',
     'js/state/mutations.js',
@@ -43,6 +46,7 @@ const ARQUIVOS = [
     'js/network/peerService.js',
     'js/network/messageHandler.js',
     'js/network/hostMigration.js',
+    'js/ui/setup.js',
 ];
 
 // CONFIG próprio do teste (valores fixos, independentes do jogo real).
@@ -70,6 +74,11 @@ var CONFIG = {
 // AMBIENTE SIMULADO
 // ============================================
 
+/** D2: token "do navegador" de cada jogador nos testes. */
+function tokenDe(nome) {
+    return 'token-do-navegador-de-' + nome;
+}
+
 /**
  * Cria um "navegador" novo e isolado, carrega os arquivos reais do
  * jogo nele e devolve atalhos para simular jogadores entrando/saindo.
@@ -81,6 +90,7 @@ function criarAmbiente() {
         ui: [],           // nomes de funções de Game.ui chamadas
         logs: [],         // console.* (guardado para mostrar em caso de falha)
         listeners: [],    // eventos registrados em window.addEventListener
+        paraHost: [],     // msg — sendToHost (lado guest)
         spies: { becomeHost: 0, attemptReconnectToNewHost: 0 }
     };
 
@@ -101,8 +111,18 @@ function criarAmbiente() {
         consoleSilencioso[nivel] = (...args) => registro.logs.push(nivel + ': ' + args.join(' '));
     });
 
+    // localStorage em memória (D2: guarda o token de identidade por sala).
+    const armazenamento = {};
+    const localStorageFalso = {
+        getItem: (k) => (k in armazenamento ? armazenamento[k] : null),
+        setItem: (k, v) => { armazenamento[k] = String(v); },
+        removeItem: (k) => { delete armazenamento[k]; }
+    };
+
     const ctx = vm.createContext({
         console: consoleSilencioso,
+        localStorage: localStorageFalso,
+        crypto: require('crypto').webcrypto,
         // Timers desligados: nada roda "depois" — o teste é síncrono.
         setTimeout: () => 0,
         clearTimeout: () => {},
@@ -159,7 +179,7 @@ function criarAmbiente() {
     Object.assign(ctx.Game.network, {
         broadcastAll: (msg) => { registro.broadcasts.push(msg); },
         sendToPlayer: (peerId, msg) => { registro.enviados.push({ para: peerId, msg }); },
-        sendToHost: () => {},
+        sendToHost: (msg) => { registro.paraHost.push(msg); },
         cleanup: () => {},
         reconnectToNewHost: () => {},
         handleHostDisconnect: () => {}
@@ -198,7 +218,10 @@ function criarAmbiente() {
     }
 
     const amb = {
-        ctx, Game, state, registro, CONFIG: vm.runInContext('CONFIG', ctx),
+        ctx, Game, state, registro, armazenamento, localStorageFalso, CONFIG: vm.runInContext('CONFIG', ctx),
+
+        /** Conexão falsa já aberta, passando pelo handleConnection() real. */
+        conectar: (peerId) => abrirConexao(peerId),
 
         /** Host sozinho no lobby. */
         criarSalaComoHost() {
@@ -211,11 +234,21 @@ function criarAmbiente() {
             }];
         },
 
-        /** Guest conecta e envia player-join pela conexão (como o guest real faz). */
-        entrar(nome, peerId) {
+        /**
+         * Guest conecta e envia player-join pela conexão (como o guest real
+         * faz). D2: por padrão cada nome usa sempre o mesmo token (o do
+         * "navegador" dele); passe outro token para simular um impostor,
+         * ou null para um player-join sem token.
+         */
+        entrar(nome, peerId, token = tokenDe(nome)) {
             const c = abrirConexao(peerId);
-            c.disparar('data', { type: 'player-join', playerName: nome, peerId });
+            const msg = { type: 'player-join', playerName: nome, peerId };
+            if (token !== null) msg.token = token;
+            c.disparar('data', msg);
         },
+
+        /** Hash que o host deveria guardar para um token. */
+        hash: (token) => Game.identity.hashToken(token),
 
         /** Queda de conexão vista pelo host: dispara o 'close' da conexão. */
         cair(peerId) {
@@ -281,6 +314,7 @@ function criarAmbiente() {
             registro.enviados.length = 0;
             registro.broadcasts.length = 0;
             registro.ui.length = 0;
+            registro.paraHost.length = 0;
         }
     };
     return amb;
@@ -321,7 +355,7 @@ function confere(condicao, mensagem) {
 // TESTES
 // ============================================
 
-console.log('\n🧪 Fase D — sala travada, jogador desconectado, pausa, saída da página, volta ao lobby, migração\n');
+console.log('\n🧪 Fase D — sala travada, jogador desconectado, pausa, saída da página, volta ao lobby, migração, identidade\n');
 
 teste('T1  Lobby: guest que cai é removido da lista (como antes)', (usar) => {
     const amb = usar(criarAmbiente());
@@ -804,6 +838,231 @@ teste('T21b Migração quando o novo host era o Perguntador: a rodada continua',
         'B deveria receber a rodada em andamento no state-sync');
     confere(sync.msg.fullState.currentRound.pergunta.correct === undefined, 'B (respondedor) não pode receber o gabarito');
     confere(amb.state.currentRound === rodada, 'a volta de B não deveria trocar a rodada');
+});
+
+// ============================================
+// D2 — TOKEN DE IDENTIDADE POR SALA
+// ============================================
+
+/** Algum token cru apareceu em alguma mensagem que saiu do host? */
+function vazouToken(amb, token) {
+    const tudo = JSON.stringify(amb.registro.broadcasts) + JSON.stringify(amb.registro.enviados);
+    return tudo.includes(token);
+}
+
+teste('T22 SHA-256 próprio: vetores oficiais e mesmo resultado do Node', (usar) => {
+    const amb = usar(criarAmbiente());
+    const sha = amb.Game.identity.sha256Hex;
+    const vetores = {
+        '': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        'abc': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+        'abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq': '248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1'
+    };
+    for (const [entrada, esperado] of Object.entries(vetores)) {
+        confere(sha(entrada) === esperado, 'SHA-256("' + entrada + '") errado: ' + sha(entrada));
+    }
+
+    const nodeSha = (t) => require('crypto').createHash('sha256').update(t, 'utf8').digest('hex');
+    // Todos os tamanhos de 0 a 130 (cobre as fronteiras de bloco em 55/56/64/119/120/128).
+    for (let n = 0; n <= 130; n++) {
+        const t = 'x'.repeat(n);
+        confere(sha(t) === nodeSha(t), 'diverge do Node com ' + n + ' caracteres');
+    }
+    for (const t of ['Ação é João', 'ñ ç ü € 日本語', 'emoji 🎯🚀 no meio', amb.Game.identity.obterTokenDaSala('sala')]) {
+        confere(sha(t) === nodeSha(t), 'diverge do Node em "' + t + '"');
+    }
+});
+
+teste('T23 Token por sala: criado uma vez, reaproveitado, diferente entre salas', (usar) => {
+    const amb = usar(criarAmbiente());
+    const id = amb.Game.identity;
+    const t1 = id.obterTokenDaSala('sala-x');
+    confere(/^[0-9a-f]{32}$/.test(t1), 'token deveria ter 32 caracteres hexadecimais, veio: ' + t1);
+    confere(amb.armazenamento['pmKPI_token_sala-x'] === t1, 'token deveria ficar no localStorage, na chave da sala');
+    confere(id.obterTokenDaSala('sala-x') === t1, 'a mesma sala deveria devolver o mesmo token (F5, reconexão)');
+    confere(id.obterTokenDaSala('sala-y') !== t1, 'outra sala deveria ter outro token');
+    confere(id.meuTokenHash('sala-x') === id.hashToken(t1) && id.hashToken(t1) !== t1, 'meuTokenHash deveria ser o hash do token');
+
+    // Um ambiente novo (outro "navegador") gera outro token para a mesma sala.
+    const outro = usar(criarAmbiente());
+    confere(outro.Game.identity.obterTokenDaSala('sala-x') !== t1, 'outro navegador deveria ter outro token');
+
+    // localStorage indisponível: continua funcionando enquanto a página estiver aberta.
+    const semStorage = usar(criarAmbiente());
+    semStorage.localStorageFalso.getItem = () => { throw new Error('bloqueado'); };
+    semStorage.localStorageFalso.setItem = () => { throw new Error('bloqueado'); };
+    const t3 = semStorage.Game.identity.obterTokenDaSala('sala-z');
+    confere(/^[0-9a-f]{32}$/.test(t3) && semStorage.Game.identity.obterTokenDaSala('sala-z') === t3,
+        'sem localStorage, o token deveria ser estável durante a página');
+});
+
+teste('T24 Entrada guarda só o hash do token; o token cru nunca sai do host', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.criarSalaComoHost();
+    amb.entrar('A', 'peer-a');
+    amb.entrar('B', 'peer-b');
+    confere(amb.jogador('A').tokenHash === amb.hash(tokenDe('A')), 'A deveria ficar com o hash do token dele');
+    confere(!JSON.stringify(amb.state.players).includes(tokenDe('A')), 'o token cru não pode ficar na lista de jogadores');
+
+    amb.iniciarPartida();
+    amb.cair('peer-a');
+    amb.entrar('A', 'peer-a2');
+    confere(amb.registro.enviados.some(e => e.para === 'peer-a2' && e.msg.type === 'state-sync'), 'pré-condição: A recebeu state-sync');
+    confere(amb.registro.broadcasts.some(m => m.type === 'player-list'), 'pré-condição: houve player-list');
+    for (const nome of ['A', 'B']) {
+        confere(!vazouToken(amb, tokenDe(nome)), 'o token cru de ' + nome + ' vazou em alguma mensagem do host');
+    }
+    const lista = amb.broadcastsDoTipo('player-list').pop();
+    confere(lista.players.find(p => p.name === 'A').tokenHash === amb.hash(tokenDe('A')), 'o hash circula na lista (para sobreviver à migração)');
+});
+
+teste('T25 Reconexão com token errado ou sem token: recusada, vaga e dados preservados', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.criarSalaComoHost();
+    amb.entrar('A', 'peer-a');
+    amb.iniciarPartida();
+    Object.assign(amb.jogador('A'), { kpi: 7, recursos: 4, phase: 'planejamento', activities: 1 });
+    amb.cair('peer-a');
+    confere(amb.state.partidaPausada, 'pré-condição: partida pausada com A desconectado');
+
+    amb.entrar('A', 'peer-impostor', 'token-de-outro-navegador');
+    confere(amb.recusaPara('peer-impostor') === 'identity-mismatch', 'esperava identity-mismatch, veio: ' + amb.recusaPara('peer-impostor'));
+
+    amb.entrar('A', 'peer-sem-token', null);
+    confere(amb.recusaPara('peer-sem-token') === 'identity-mismatch', 'sem token deveria dar identity-mismatch, veio: ' + amb.recusaPara('peer-sem-token'));
+
+    const a = amb.jogador('A');
+    confere(a.disconnected === true && a.peerId === 'peer-a', 'A deveria continuar desconectado, com o peerId antigo');
+    confere(a.kpi === 7 && a.recursos === 4 && a.phase === 'planejamento' && a.activities === 1, 'dados de A não podem mudar');
+    confere(a.tokenHash === amb.hash(tokenDe('A')), 'o hash registrado não pode ser trocado');
+    confere(amb.state.partidaPausada, 'a partida não pode ser retomada por um impostor');
+    confere(!amb.registro.enviados.some(e => (e.para === 'peer-impostor' || e.para === 'peer-sem-token') && e.msg.type === 'state-sync'),
+        'impostor não pode receber o estado da partida');
+
+    // O A de verdade continua conseguindo voltar.
+    amb.entrar('A', 'peer-a2');
+    confere(amb.recusaPara('peer-a2') === null, 'A com o token certo deveria voltar, veio: ' + amb.recusaPara('peer-a2'));
+    confere(!amb.jogador('A').disconnected && amb.jogador('A').peerId === 'peer-a2', 'A deveria estar conectado de novo');
+    confere(!amb.state.partidaPausada && amb.state.currentRound, 'a volta de A deveria retomar a partida');
+});
+
+teste('T26 Migração: o novo host confere o token com os hashes que vieram na lista', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.state.isHost = false;
+    amb.state.playerName = 'B';
+    amb.state.peerId = 'peer-b';
+    amb.state.baseRoomPeerId = 'sala';
+    amb.state.hostVersion = 0;
+    amb.state.gameStarted = true;
+    amb.state.gameOver = false;
+    amb.state.currentRound = null;
+    // Lista como chega ao guest B pelo player-list do host antigo.
+    amb.state.players = [
+        { name: 'Host', peerId: 'sala', isHost: true, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0, tokenHash: amb.hash(tokenDe('Host')) },
+        { name: 'A', peerId: 'peer-a', isHost: false, kpi: 5, recursos: 3, phase: 'planejamento', activities: 1, tokenHash: amb.hash(tokenDe('A')) },
+        { name: 'B', peerId: 'peer-b', isHost: false, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0, tokenHash: amb.hash(tokenDe('B')) }
+    ];
+
+    amb.assumirComoHost();
+    confere(amb.jogador('B').isHost && amb.jogador('B').tokenHash === amb.hash(tokenDe('B')), 'o novo host deveria manter o próprio hash');
+    confere(amb.jogador('A').disconnected && amb.jogador('A').tokenHash === amb.hash(tokenDe('A')), 'A desconectado, com o hash preservado');
+
+    amb.entrar('A', 'peer-impostor', 'token-de-outro-navegador');
+    confere(amb.recusaPara('peer-impostor') === 'identity-mismatch', 'impostor deveria ser recusado pelo novo host, veio: ' + amb.recusaPara('peer-impostor'));
+    confere(amb.jogador('A').disconnected && amb.state.partidaPausada, 'A continua reservado e a partida pausada');
+
+    amb.entrar('A', 'peer-a2');
+    confere(amb.recusaPara('peer-a2') === null, 'A de verdade deveria reconectar ao novo host, veio: ' + amb.recusaPara('peer-a2'));
+    confere(amb.jogador('A').kpi === 5 && !amb.state.partidaPausada, 'A volta com o KPI dele e a partida retoma');
+});
+
+teste('T27 Transição: entrada salva antes do token é aceita pelo nome e passa a exigir o token', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.criarSalaComoHost();
+    amb.entrar('A', 'peer-a');
+    amb.entrar('B', 'peer-b');
+    amb.iniciarPartida();
+    delete amb.jogador('A').tokenHash; // como num estado salvo por uma versão anterior
+    amb.cair('peer-a');
+
+    amb.entrar('A', 'peer-a2');
+    confere(amb.recusaPara('peer-a2') === null, 'sem hash registrado, deveria aceitar pelo nome (como antes), veio: ' + amb.recusaPara('peer-a2'));
+    confere(amb.jogador('A').tokenHash === amb.hash(tokenDe('A')), 'deveria adotar o hash deste token');
+
+    amb.cair('peer-a2');
+    amb.entrar('A', 'peer-impostor', 'token-de-outro-navegador');
+    confere(amb.recusaPara('peer-impostor') === 'identity-mismatch', 'depois de adotar, deveria exigir o token, veio: ' + amb.recusaPara('peer-impostor'));
+});
+
+teste('T28 Guest envia o token no player-join (1ª conexão e as duas reconexões)', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.state.isHost = false;
+    amb.state.playerName = 'A';
+    amb.state.peerId = 'peer-a';
+    amb.state.baseRoomPeerId = 'sala';
+    amb.state.hostPeerId = 'sala';
+    amb.state.hostVersion = 0;
+    const meuToken = amb.Game.identity.obterTokenDaSala('sala');
+    const confereJoin = (onde) => {
+        const join = amb.registro.paraHost.filter(m => m.type === 'player-join').pop();
+        confere(join, onde + ': deveria enviar player-join');
+        confere(join.playerName === 'A' && join.token === meuToken, onde + ': player-join deveria levar o token da sala, veio: ' + join.token);
+        amb.limparRegistro();
+    };
+
+    // 1) Primeira conexão (handleConnection, lado guest).
+    amb.conectar('sala');
+    confereJoin('primeira conexão');
+
+    // Conexão falsa que abre quando o teste mandar (para as reconexões).
+    const novaConexao = (destino) => {
+        const h = {};
+        return { peer: destino, open: true, on: (ev, cb) => { h[ev] = cb; }, send: () => {}, close: () => {}, disparar: (ev) => h[ev] && h[ev]() };
+    };
+
+    // 2) Reconexão ao mesmo host.
+    let conn = novaConexao('sala');
+    amb.instalarPeerFalso({ connectDevolve: conn });
+    amb.Game.network.connectionState.setPeer(new amb.ctx.Peer('peer-a'));
+    amb.Game.network.attemptReconnectToSameHost(1);
+    conn.disparar('open');
+    confereJoin('reconexão ao mesmo host');
+
+    // 3) Reconexão ao novo host (depois de uma migração).
+    conn = novaConexao('sala-h1');
+    amb.instalarPeerFalso({ connectDevolve: conn });
+    amb.Game.network.connectionState.setPeer(new amb.ctx.Peer('peer-a'));
+    amb.Game.network.attemptReconnectToNewHost(1);
+    conn.disparar('open');
+    confereJoin('reconexão ao novo host');
+    confere(amb.state.hostPeerId === 'sala-h1', 'pré-condição: guest deveria ter ido para a sala nova');
+    confere(amb.Game.identity.obterTokenDaSala(amb.state.baseRoomPeerId) === meuToken, 'o token não muda com a migração (chave pelo ID base)');
+});
+
+teste('T29 Host se insere na lista (setupUI) com o hash do próprio token', (usar) => {
+    const amb = usar(criarAmbiente());
+    const elemento = () => ({ style: {}, textContent: '', disabled: false, addEventListener: () => {} });
+    amb.ctx.document = { getElementById: elemento, querySelectorAll: () => [] };
+    amb.state.isHost = true;
+    amb.state.playerName = 'Ana';
+    amb.state.peerId = 'sala';
+    amb.state.baseRoomPeerId = 'sala';
+    amb.state.players = [];
+
+    amb.ctx.setupUI();
+    const host = amb.jogador('Ana');
+    const meuToken = amb.Game.identity.obterTokenDaSala('sala');
+    confere(host && host.isHost, 'o host deveria estar na lista');
+    confere(host.tokenHash === amb.hash(meuToken), 'a entrada do host deveria ter o hash do token dele');
+    confere(!JSON.stringify(amb.state.players).includes(meuToken), 'o token cru do host não pode ficar na lista');
+
+    // Chamada de novo (ex: becomeHost) não duplica nem troca a entrada.
+    amb.ctx.setupUI();
+    confere(amb.state.players.length === 1 && amb.jogador('Ana') === host, 'setupUI de novo não deveria duplicar o host');
+
+    // O nome do host continua sempre em uso, com ou sem o token certo.
+    amb.entrar('Ana', 'peer-intruso', meuToken);
+    confere(amb.recusaPara('peer-intruso') === 'name-taken', 'nome do host deveria continuar name-taken, veio: ' + amb.recusaPara('peer-intruso'));
 });
 
 console.log('\n' + (falhou === 0 ? '🎉' : '⚠️') + ' ' + passou + ' passaram, ' + falhou + ' falharam\n');
