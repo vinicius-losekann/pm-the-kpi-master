@@ -100,6 +100,12 @@ function endMatch() {
     }
     Game.state.ajudaFila = null;
 
+    // Fase D: quem caiu durante a partida e não voltou sai da lista
+    // antes de ir para o lobby — o 'match-ended' já leva a lista limpa
+    // para os guests (ver handleMatchEnded()).
+    const removidos = Game.mutations.removeDisconnectedPlayers(Game.state);
+    if (removidos.length) console.log('🧹 Removidos ao voltar ao lobby (desconectados): ' + removidos.join(', '));
+
     Game.resetAllPlayers();
     Game.resetGameState();
     resetAllBaralhos();
@@ -125,6 +131,37 @@ function handleMatchEnded(msg) {
     Game.ui.showLobbyNormal();
     Game.ui.updatePlayersList();
     Game.ui.updateTimerDisplay();
+    Game.saveState();
+}
+
+/**
+ * Volta ao lobby a partir da tela de fim de jogo (botão "Voltar ao
+ * Lobby"). Cada jogador clica na própria tela — não há mensagem de rede
+ * própria para isso.
+ *
+ * Fase D: quem caiu durante a partida e não voltou sai da lista aqui.
+ * Se quem clicou é o host (dono da lista oficial), avisa os guests com
+ * um 'player-list'; um guest só limpa a própria cópia (a lista do host
+ * sobrescreve a dele a cada 'player-list').
+ */
+function voltarAoLobby() {
+    const state = Game.state;
+
+    const removidos = Game.mutations.removeDisconnectedPlayers(state);
+    if (removidos.length) console.log('🧹 Removidos ao voltar ao lobby (desconectados): ' + removidos.join(', '));
+
+    Game.resetGameState();
+    resetAllBaralhos();
+
+    if (state.isHost && removidos.length) {
+        Game.network.broadcastAll({ type: 'player-list', players: state.players });
+    }
+
+    Game.ui.showScreen('lobby');
+    Game.ui.showLobbyNormal();
+    Game.ui.updatePlayersList();
+    Game.ui.updateTimerDisplay();
+    Game.ui.checkStartCondition();
     Game.saveState();
 }
 
@@ -256,6 +293,7 @@ window.Game.engine.session = {
     endGame,
     endMatch,
     handleMatchEnded,
+    voltarAoLobby,
     buildRanking,
     resetAllBaralhos,
     endSession,

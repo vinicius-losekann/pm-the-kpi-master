@@ -216,6 +216,23 @@ function becomeHost() {
         const me = Game.getPlayerByName(state.playerName);
         if (me) { me.isHost = true; me.peerId = id; }
 
+        // Fase D: neste momento ninguém está conectado ao novo host —
+        // cada guest ainda precisa achar a sala nova e reenviar o
+        // player-join (ver attemptReconnectToNewHost()). Com a partida
+        // em andamento (ou no fim de jogo), todos ficam marcados como
+        // desconectados até voltarem: fora do sorteio e do rodízio, e
+        // com a vaga reservada. Se não sobrar ninguém conectado para
+        // formar dupla, pickNewPair() pausa e addPlayer() retoma quando
+        // eles reconectarem. No lobby, quem cai sai da lista — aqui
+        // também: quem voltar entra de novo como jogador novo.
+        if (state.gameStarted) {
+            state.players.forEach(p => {
+                if (p.name !== state.playerName) p.disconnected = true;
+            });
+        } else {
+            state.players = state.players.filter(p => p.name === state.playerName);
+        }
+
         const proximoBackup = state.players.find(p => p.name !== state.playerName);
         state.backupPeerId = proximoBackup ? proximoBackup.peerId : '';
 

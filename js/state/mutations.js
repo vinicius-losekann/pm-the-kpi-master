@@ -35,6 +35,34 @@ function resetGameState(state, config) {
     state.timer = config.JOGO.SESSION_DURATION;
     clearInterval(state.timerInterval);
     state.timerInterval = null;
+    // Fase D: uma pausa por falta de conexão não sobrevive ao fim da
+    // partida — senão a primeira reconexão da partida seguinte poderia
+    // "retomar" uma rodada antiga (ver turnEngine.retomarPartidaPausada()).
+    state.partidaPausada = null;
+}
+
+/**
+ * Fase D: remove da lista os jogadores marcados como desconectados.
+ * Usada ao voltar ao lobby — fora de partida, quem não está conectado
+ * não ocupa vaga nem conta para o mínimo de jogadores (quem voltar
+ * depois entra de novo como qualquer jogador novo). Nunca remove o
+ * próprio jogador desta tela (`state.playerName`). Se o backup da
+ * migração de host saiu, escolhe o próximo guest da lista.
+ * @param {object} state - Game.state (mutado in-place)
+ * @returns {Array<string>} nomes dos jogadores removidos
+ */
+function removeDisconnectedPlayers(state) {
+    const removidos = state.players.filter(p => p.disconnected && p.name !== state.playerName);
+    if (removidos.length === 0) return [];
+
+    state.players = state.players.filter(p => !removidos.includes(p));
+
+    if (removidos.some(p => p.peerId === state.backupPeerId)) {
+        const proximoBackup = state.players.find(p => !p.isHost);
+        state.backupPeerId = proximoBackup ? proximoBackup.peerId : '';
+    }
+
+    return removidos.map(p => p.name);
 }
 
 // ============================================
@@ -43,5 +71,6 @@ function resetGameState(state, config) {
 window.Game = window.Game || {};
 window.Game.mutations = {
     resetAllPlayers,
-    resetGameState
+    resetGameState,
+    removeDisconnectedPlayers
 };

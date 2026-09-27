@@ -78,15 +78,9 @@ function setupUI() {
         window.location.href = './';
     });
     document.getElementById('btnBackToLobby').addEventListener('click', () => {
-        Game.state.gameStarted = false;
-        Game.state.gameOver = false;
-        Game.state.currentRound = null;
-        Game.core.resetAllBaralhos();
-
-        Game.ui.showScreen('lobby');
-        Game.ui.showLobbyNormal();
-        Game.ui.updatePlayersList();
-        Game.saveState();
+        // Lógica em sessionEngine.voltarAoLobby() (Fase D: também tira
+        // da lista quem caiu durante a partida e não voltou).
+        Game.core.voltarAoLobby();
     });
     document.getElementById('btnCloseResult').addEventListener('click', () => {
         document.getElementById('modalResult').style.display = 'none';

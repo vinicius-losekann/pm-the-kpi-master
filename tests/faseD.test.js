@@ -2,8 +2,10 @@
 // PM: The KPI Master - Testes automatizados da Fase D
 // ============================================
 // Roda a lógica REAL de sala travada / jogador desconectado / pausa
-// (Fase D1a) num ambiente simulado, sem navegador e sem PeerJS: a rede
-// é trocada por conexões falsas e a UI por um registro de chamadas.
+// (Fase D1a) e de limpeza de desconectados ao voltar ao lobby e na
+// migração de host (Fase D1b) num ambiente simulado, sem navegador e
+// sem PeerJS: a rede é trocada por conexões falsas e a UI por um
+// registro de chamadas.
 //
 // Roda automaticamente no GitHub a cada push (ver
 // .github/workflows/testes.yml) — resultado na aba "Actions" do
@@ -22,7 +24,7 @@
 // - a parte visual (📴 na lista, aviso de partida pausada).
 //
 // Os números dos testes (T1, T2...) batem com o roteiro de teste
-// manual da D1a.
+// manual da D1a e da D1b.
 // ============================================
 
 const fs = require('fs');
@@ -35,6 +37,7 @@ const RAIZ = path.resolve(__dirname, '..');
 const ARQUIVOS = [
     'js/state/store.js',
     'js/state/selectors.js',
+    'js/state/mutations.js',
     'js/engine/sessionEngine.js',
     'js/engine/turnEngine.js',
     'js/network/peerService.js',
@@ -233,6 +236,25 @@ function criarAmbiente() {
             const r = registro.enviados.find(e => e.para === peerId && e.msg.type === 'join-rejected');
             return r ? r.msg.reason : null;
         },
+        /**
+         * D1b: este jogador (guest) assume como host pelo becomeHost()
+         * REAL — o Peer do PeerJS e o document são dublês; o 'open' do
+         * peer novo é disparado na hora, como se o broker tivesse
+         * aceitado o ID da sala nova.
+         */
+        assumirComoHost() {
+            let handlersPeer = {};
+            ctx.Peer = function (id) {
+                this.id = id;
+                this.destroyed = false;
+                this.on = (evento, cb) => { handlersPeer[evento] = cb; };
+                this.destroy = () => { this.destroyed = true; };
+            };
+            ctx.document = { getElementById: () => ({ style: {}, textContent: '' }) };
+            Game.network.becomeHost();
+            handlersPeer.open(Game.computeHostPeerId(state.baseRoomPeerId, state.hostVersion));
+        },
+
         broadcastsDoTipo: (tipo) => registro.broadcasts.filter(m => m.type === tipo),
         limparRegistro() {
             registro.enviados.length = 0;
@@ -278,7 +300,7 @@ function confere(condicao, mensagem) {
 // TESTES
 // ============================================
 
-console.log('\n🧪 Fase D — sala travada, jogador desconectado, pausa, saída da página\n');
+console.log('\n🧪 Fase D — sala travada, jogador desconectado, pausa, saída da página, volta ao lobby, migração\n');
 
 teste('T1  Lobby: guest que cai é removido da lista (como antes)', (usar) => {
     const amb = usar(criarAmbiente());
@@ -331,7 +353,6 @@ teste('T4  Queda de espectador: fica na lista, fora do sorteio, volta com tudo p
     amb.entrar('A', 'peer-a');
     amb.entrar('B', 'peer-b');
     amb.iniciarPartida();
-
     const a = amb.jogador('A');
     Object.assign(a, { kpi: 7, recursos: 4, phase: 'planejamento', activities: 1 });
     amb.state.currentRound = { evento: { id: 'e1' }, perguntador: 'Host', respondedor: 'B', pergunta: null, respondeu: false };
@@ -496,7 +517,6 @@ teste('T13 F5/fechar no host: encerra conexões sem mexer no estado do jogo', (u
     const rodadaAntes = amb.state.currentRound;
     amb.limparRegistro();
     amb.Game.network.encerrarConexoesAoSair();
-
     confere(peerFalso.destroyed, 'o peer deveria ter sido destruído');
     confere(amb.state.players.every(p => !p.disconnected), 'nenhum jogador deveria ser marcado como desconectado pelo próprio reload do host');
     confere(amb.state.currentRound === rodadaAntes, 'a rodada em andamento não deveria mudar (seria o BUG-001 de volta)');
@@ -505,6 +525,137 @@ teste('T13 F5/fechar no host: encerra conexões sem mexer no estado do jogo', (u
     // Idempotente: rodar de novo (pagehide + beforeunload) não faz nada.
     amb.Game.network.encerrarConexoesAoSair();
     confere(amb.state.currentRound === rodadaAntes, 'segunda chamada não deveria ter efeito');
+});
+
+teste('T14 Encerrar partida: desconectado que não voltou sai da lista do lobby', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.criarSalaComoHost();
+    amb.entrar('A', 'peer-a');
+    amb.entrar('B', 'peer-b');
+    amb.iniciarPartida();
+    amb.cair('peer-a');
+    confere(amb.jogador('A') && amb.jogador('A').disconnected, 'pré-condição: A marcado como desconectado');
+
+    amb.limparRegistro();
+    amb.Game.core.endMatch();
+    confere(!amb.jogador('A'), 'A deveria ter saído da lista ao voltar ao lobby');
+    confere(amb.jogador('B') && amb.jogador('Host'), 'Host e B (conectados) deveriam continuar');
+    confere(amb.state.backupPeerId === 'peer-b', 'backup era A — deveria passar para B, veio: ' + amb.state.backupPeerId);
+    const fim = amb.broadcastsDoTipo('match-ended').pop();
+    confere(fim && !fim.players.some(p => p.name === 'A'), 'match-ended deveria levar a lista sem A');
+
+    // No lobby, A pode voltar normalmente como jogador novo.
+    amb.entrar('A', 'peer-a2');
+    confere(amb.recusaPara('peer-a2') === null, 'A deveria conseguir entrar de novo, veio: ' + amb.recusaPara('peer-a2'));
+    confere(amb.jogador('A') && !amb.jogador('A').disconnected, 'A deveria estar de volta na lista');
+});
+
+teste('T15 Encerrar partida pausada: pausa não sobra para a próxima partida', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.criarSalaComoHost();
+    amb.entrar('A', 'peer-a');
+    amb.iniciarPartida();
+    amb.cair('peer-a');
+    confere(amb.state.partidaPausada, 'pré-condição: partida pausada');
+
+    amb.Game.core.endMatch();
+    confere(!amb.state.partidaPausada, 'a pausa deveria ter sido desfeita ao encerrar');
+    confere(!amb.jogador('A'), 'A deveria ter saído da lista');
+    confere(amb.state.players.length === 1, 'só o host deveria sobrar na sala');
+});
+
+teste('T16 Voltar ao lobby após o fim de jogo (host): limpa desconectados e avisa os guests', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.criarSalaComoHost();
+    amb.entrar('A', 'peer-a');
+    amb.entrar('B', 'peer-b');
+    amb.iniciarPartida();
+    amb.cair('peer-a');
+    amb.Game.core.endGame(amb.Game.core.buildRanking());
+    confere(amb.state.gameOver && amb.jogador('A'), 'pré-condição: fim de jogo com A ainda na lista');
+
+    amb.limparRegistro();
+    amb.Game.core.voltarAoLobby();
+    confere(!amb.jogador('A'), 'A deveria ter saído da lista');
+    confere(amb.jogador('B'), 'B deveria continuar');
+    confere(!amb.state.gameStarted && !amb.state.gameOver && amb.state.currentRound === null, 'estado da partida deveria estar zerado');
+    const lista = amb.broadcastsDoTipo('player-list').pop();
+    confere(lista && !lista.players.some(p => p.name === 'A'), 'host deveria mandar player-list sem A para os guests');
+
+    amb.entrar('C', 'peer-c');
+    confere(amb.recusaPara('peer-c') === null, 'no lobby, nome novo deveria entrar, veio: ' + amb.recusaPara('peer-c'));
+});
+
+teste('T16b Voltar ao lobby (guest): limpa só a cópia local, sem mandar nada', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.state.isHost = false;
+    amb.state.playerName = 'B';
+    amb.state.gameStarted = true;
+    amb.state.gameOver = true;
+    amb.state.players = [
+        { name: 'Host', peerId: 'peer-host', isHost: true },
+        { name: 'A', peerId: 'peer-a', isHost: false, disconnected: true },
+        // O próprio jogador nunca é removido da própria lista, mesmo
+        // que uma lista antiga o mostre como desconectado.
+        { name: 'B', peerId: 'peer-b', isHost: false, disconnected: true }
+    ];
+    amb.Game.core.voltarAoLobby();
+    confere(!amb.jogador('A'), 'A deveria ter saído da lista local');
+    confere(amb.jogador('B'), 'B nunca deveria remover a si mesmo');
+    confere(amb.registro.broadcasts.length === 0, 'guest não deveria mandar nada');
+});
+
+teste('T17 Migração no meio da partida: novo host marca os outros como desconectados, pausa e retoma', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.state.isHost = false;
+    amb.state.playerName = 'B';
+    amb.state.peerId = 'peer-b';
+    amb.state.baseRoomPeerId = 'sala';
+    amb.state.hostVersion = 0;
+    amb.state.gameStarted = true;
+    amb.state.gameOver = false;
+    amb.state.currentRound = null;
+    amb.state.players = [
+        { name: 'Host', peerId: 'sala', isHost: true, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0 },
+        { name: 'A', peerId: 'peer-a', isHost: false, kpi: 5, recursos: 3, phase: 'planejamento', activities: 1 },
+        { name: 'B', peerId: 'peer-b', isHost: false, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0 }
+    ];
+
+    amb.assumirComoHost();
+    confere(amb.state.isHost && amb.jogador('B').isHost, 'B deveria ser o novo host');
+    confere(amb.jogador('B').peerId === 'sala-h1', 'peerId de B deveria ser o da sala nova, veio: ' + amb.jogador('B').peerId);
+    confere(!amb.jogador('Host'), 'o host antigo deveria sair da lista');
+    confere(amb.jogador('A').disconnected === true, 'A deveria ficar desconectado até reconectar ao novo host');
+    confere(!amb.jogador('B').disconnected, 'o novo host não pode se marcar como desconectado');
+    confere(amb.state.partidaPausada, 'só o novo host está conectado — a partida deveria pausar');
+    confere(amb.state.currentRound === null, 'não deveria haver dupla com A ainda desconectado');
+
+    amb.entrar('A', 'peer-a2');
+    confere(!amb.jogador('A').disconnected && amb.jogador('A').peerId === 'peer-a2', 'A deveria voltar como conectado');
+    confere(amb.jogador('A').kpi === 5 && amb.jogador('A').recursos === 3, 'KPI/recursos de A deveriam estar preservados');
+    confere(!amb.state.partidaPausada && amb.state.currentRound, 'a partida deveria retomar com a volta de A');
+});
+
+teste('T18 Migração no lobby: os outros saem da lista e voltam como jogadores novos', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.state.isHost = false;
+    amb.state.playerName = 'B';
+    amb.state.peerId = 'peer-b';
+    amb.state.baseRoomPeerId = 'sala';
+    amb.state.hostVersion = 0;
+    amb.state.gameStarted = false;
+    amb.state.players = [
+        { name: 'Host', peerId: 'sala', isHost: true },
+        { name: 'A', peerId: 'peer-a', isHost: false },
+        { name: 'B', peerId: 'peer-b', isHost: false }
+    ];
+
+    amb.assumirComoHost();
+    confere(amb.state.players.length === 1 && amb.jogador('B'), 'só o novo host deveria ficar na lista do lobby');
+
+    amb.entrar('A', 'peer-a2');
+    confere(amb.recusaPara('peer-a2') === null, 'A deveria entrar de novo, veio: ' + amb.recusaPara('peer-a2'));
+    confere(amb.jogador('A') && !amb.jogador('A').disconnected, 'A deveria estar na lista, conectado');
 });
 
 console.log('\n' + (falhou === 0 ? '🎉' : '⚠️') + ' ' + passou + ' passaram, ' + falhou + ' falharam\n');
