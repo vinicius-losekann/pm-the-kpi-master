@@ -59,8 +59,7 @@ não é mais um arquivo de arquivo morto.
   (padrões de nomenclatura, arquitetura em camadas, pegadinha do
   host-autoritativo que já causou 3 bugs, stack técnica) e
   `_docs-pessoais/` (notas do usuário, fora do git — adicionado ao
-  `.gitignore`). `CLAUDE_WORKFLOW.md`/`CONTINUITY.md` criados como
-  arquivos de processo (vivem só no Projeto Claude, não no git).
+  `.gitignore`).
 - **Feedback do piloto com alunos (roadmap.md, seção 9), Fases A-C:**
   - **Fase A:** botões reordenados (Nova Rodada primeiro, Encerrar
     Partida discreto e separado no fim — reduz clique acidental no

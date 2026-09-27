@@ -53,4 +53,4 @@ Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` o
 
 ## Convenção de commit
 
-Sem padrão rígido tipo Conventional Commits, mas os commits deste projeto seguem informalmente `tipo: descrição curta` no título (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`), com corpo explicando o quê e o porquê quando a mudança não é óbvia. Ver `CLAUDE_WORKFLOW.md` para o processo de gerar a mensagem.
+Sem padrão rígido tipo Conventional Commits, mas os commits deste projeto seguem informalmente `tipo: descrição curta` no título (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`), com corpo explicando o quê e o porquê quando a mudança não é óbvia.

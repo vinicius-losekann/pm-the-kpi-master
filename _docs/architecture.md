@@ -1,14 +1,21 @@
 # 🗺️ Arquitetura — PM: The KPI Master
 
 > Última revisão: 17/09/2026 (auditoria de arquitetura + limpeza de arquivos legados)
->
-> Veja também `CONTINUITY.md` (onde a conversa parou) e
-> `CLAUDE_WORKFLOW.md` (regras de como trabalhar comigo neste projeto).
 
 ## Estrutura de arquivos
 
 ```
 pm-the-kpi-master/
+│
+├── README.md
+├── CHANGELOG.md
+├── .gitignore
+│
+├── _docs/
+│   ├── architecture.md          # este arquivo
+│   ├── conventions.md           # padrões de código, arquitetura, stack
+│   ├── roadmap.md               # ex-todo.md
+│   └── ISSUES.md
 │
 ├── index.html
 ├── game.html
@@ -144,6 +151,17 @@ Motivado por feedback do piloto com alunos: o botão "Vender Recurso" ficava sem
 Reescrito em `engine/tradeEngine.js` (comentário de cabeçalho do arquivo tem o racional completo): o botão só aparece pra quem está com **0 recursos** (`profileComponent.js` controla a visibilidade via `syncPlayerViews()`). Ao pedir ajuda, o host monta uma fila automática — jogadores ativos com recurso, do que tem mais pro que tem menos — e pergunta um de cada vez, avançando sozinho a cada recusa/timeout, até alguém aceitar ou a fila acabar. Não há mais escolha manual de "vender pra quem".
 
 A matemática da troca em si não mudou (`domain/tradeRules.js` reaproveitado sem alteração) — só quem inicia e quando a ação fica disponível. Detalhes de implementação (mensagens de rede, arquivos tocados) em `../CHANGELOG.md`.
+
+### Economia de recursos: erro é que custa, não participar (feedback do piloto, Fase C)
+
+Antes: toda resposta gastava 1 recurso, acertando ou errando (exceto evento Reserva de Contingência). Reformulado — decisão do usuário, registrada em `roadmap.md`/`CONTINUITY.md`:
+
+- Recursos iniciais: 20 → **10** (`config/game-config.js`)
+- **Acertar nunca gasta recurso** (antes gastava igual a errar)
+- **Errar continua gastando 1 recurso**, protegido pela Reserva de Contingência
+- A decisão de quando gastar recurso foi movida pra dentro de `domain/kpiRules.js` → `calcularResultadoResposta()` (campo `gastaRecurso` do retorno, antes calculado — e nunca lido — separadamente em `answerEngine.js`; agora é a fonte real da verdade)
+- **Removido o "pular vez por falta de recurso"** (decisão do usuário — opção 1 entre duas propostas): qualquer jogador ativo sempre tenta responder, mesmo com 0 recursos. Se errar já estando em 0, o recurso trava em 0 (nunca fica negativo), sem penalidade extra. Isso também tirou o filtro por `recursos > 0` que existia em `engine/turnEngine.js` → `pickNewPair()` na escolha de quem pode ser Respondedor — antes um jogador zerado nem entrava no sorteio.
+- Efeito colateral: o "Pedido de Ajuda" (Fase 9 acima) fica naturalmente mais raro — só é acionado depois de errar o suficiente pra zerar, não mais um evento comum de partida.
 
 ### Schema de `data/questions.*.json` — chaves em inglês, estáveis entre idiomas (Fase 8)
 
