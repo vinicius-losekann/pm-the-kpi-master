@@ -12,9 +12,13 @@
 // (a partir da raiz do repositório):
 //     node tests/faseD.test.js
 //
+// As entradas e quedas de jogador passam pelo handleConnection() REAL
+// de peerService.js (conexões falsas disparam 'open'/'data'/'close'
+// como o PeerJS faria).
+//
 // O que NÃO é testado aqui (continua precisando de teste manual):
-// - a detecção de queda de conexão em si (evento 'close' do PeerJS),
-//   que depende de rede de verdade;
+// - se o navegador/PeerJS de fato entrega o 'close' ao outro lado, e
+//   em quanto tempo — isso depende de rede de verdade;
 // - a parte visual (📴 na lista, aviso de partida pausada).
 //
 // Os números dos testes (T1, T2...) batem com o roteiro de teste
@@ -33,6 +37,7 @@ const ARQUIVOS = [
     'js/state/selectors.js',
     'js/engine/sessionEngine.js',
     'js/engine/turnEngine.js',
+    'js/network/peerService.js',
     'js/network/messageHandler.js',
     'js/network/hostMigration.js',
 ];
@@ -72,18 +77,20 @@ function criarAmbiente() {
         broadcasts: [],   // msg — broadcastAll
         ui: [],           // nomes de funções de Game.ui chamadas
         logs: [],         // console.* (guardado para mostrar em caso de falha)
+        listeners: [],    // eventos registrados em window.addEventListener
         spies: { becomeHost: 0, attemptReconnectToNewHost: 0 }
     };
 
     const conexoes = {};
+    let peerAtual = null;
     const connectionState = {
         getConnection: (id) => conexoes[id],
         getConnections: () => conexoes,
         setConnection: (id, c) => { conexoes[id] = c; },
         removeConnection: (id) => { delete conexoes[id]; },
         resetConnections: () => { for (const k of Object.keys(conexoes)) delete conexoes[k]; },
-        getPeer: () => null,
-        setPeer: () => {}
+        getPeer: () => peerAtual,
+        setPeer: (p) => { peerAtual = p; }
     };
 
     const consoleSilencioso = {};
@@ -99,7 +106,9 @@ function criarAmbiente() {
         setInterval: () => 0,
         clearInterval: () => {},
         alert: () => {},
-        confirm: () => true
+        confirm: () => true,
+        addEventListener: (evento) => { registro.listeners.push(evento); },
+        location: { reload: () => {}, href: '' }
     });
     vm.runInContext('var window = this;' + CONFIG_TESTE, ctx);
 
@@ -140,6 +149,18 @@ function criarAmbiente() {
         vm.runInContext(fs.readFileSync(caminho, 'utf8'), ctx, { filename: arquivo });
     }
 
+    // peerService.js real substitui o envio de mensagens pelo envio via
+    // PeerJS; aqui voltam os stubs que só registram (handleConnection e
+    // encerrarConexoesAoSair continuam os reais).
+    Object.assign(ctx.Game.network, {
+        broadcastAll: (msg) => { registro.broadcasts.push(msg); },
+        sendToPlayer: (peerId, msg) => { registro.enviados.push({ para: peerId, msg }); },
+        sendToHost: () => {},
+        cleanup: () => {},
+        reconnectToNewHost: () => {},
+        handleHostDisconnect: () => {}
+    });
+
     // Espiões no lugar das funções de migração que abririam conexões de verdade.
     ctx.becomeHost = () => { registro.spies.becomeHost++; };
     ctx.attemptReconnectToNewHost = () => { registro.spies.attemptReconnectToNewHost++; };
@@ -148,14 +169,27 @@ function criarAmbiente() {
     const state = Game.state;
     state.questionsData = { domains: { d1: { name: 'Domínio de teste' } }, eventos: [] };
 
+    /**
+     * Conexão falsa com a mesma interface usada do PeerJS: on(evento, cb),
+     * send(), close() — close() dispara o 'close' registrado, como o
+     * PeerJS faz. Passa pelo handleConnection() real.
+     */
     function abrirConexao(peerId) {
+        const handlers = {};
         const c = {
             peer: peerId,
             open: true,
+            on: (evento, cb) => { handlers[evento] = cb; },
             send: (msg) => { registro.enviados.push({ para: peerId, msg }); },
-            close: () => { c.open = false; }
+            close: () => {
+                if (!c.open) return;
+                c.open = false;
+                if (handlers.close) handlers.close();
+            },
+            disparar: (evento, arg) => { if (handlers[evento]) handlers[evento](arg); }
         };
-        conexoes[peerId] = c;
+        Game.network.handleConnection(c);
+        c.disparar('open');
         return c;
     }
 
@@ -173,16 +207,17 @@ function criarAmbiente() {
             }];
         },
 
-        /** Guest conecta e envia player-join (igual ao conn.on('open') do peerService). */
+        /** Guest conecta e envia player-join pela conexão (como o guest real faz). */
         entrar(nome, peerId) {
-            abrirConexao(peerId);
-            Game.network.handleMessage({ type: 'player-join', playerName: nome, peerId }, peerId);
+            const c = abrirConexao(peerId);
+            c.disparar('data', { type: 'player-join', playerName: nome, peerId });
         },
 
-        /** Queda de conexão vista pelo host (igual ao conn.on('close') do peerService). */
+        /** Queda de conexão vista pelo host: dispara o 'close' da conexão. */
         cair(peerId) {
-            connectionState.removeConnection(peerId);
-            Game.network.handlePlayerDisconnect(peerId);
+            const c = connectionState.getConnection(peerId);
+            if (!c) throw new Error('não há conexão aberta para ' + peerId);
+            c.close();
         },
 
         /** Simula o início da partida sem timer/DOM (o que startGame faz de relevante). */
@@ -243,7 +278,7 @@ function confere(condicao, mensagem) {
 // TESTES
 // ============================================
 
-console.log('\n🧪 Fase D1a — sala travada, jogador desconectado, pausa\n');
+console.log('\n🧪 Fase D — sala travada, jogador desconectado, pausa, saída da página\n');
 
 teste('T1  Lobby: guest que cai é removido da lista (como antes)', (usar) => {
     const amb = usar(criarAmbiente());
@@ -306,7 +341,7 @@ teste('T4  Queda de espectador: fica na lista, fora do sorteio, volta com tudo p
     confere(amb.registro.enviados.some(e => e.para === 'peer-a2' && e.msg.type === 'state-sync'), 'A deveria receber state-sync');
 
     // 'close' atrasado da conexão antiga não pode derrubar o jogador de novo.
-    amb.cair('peer-a');
+    amb.Game.network.handlePlayerDisconnect('peer-a');
     confere(!amb.jogador('A').disconnected, 'close atrasado da conexão antiga não deveria marcar A como desconectado');
 });
 
@@ -430,6 +465,35 @@ teste('T11 Fim de jogo: quem cai é removido (como antes)', (usar) => {
     confere(!amb.jogador('A'), 'A deveria ter sido removido após o fim de jogo');
 });
 
+teste('T12 Saída da página: handlers de pagehide/beforeunload registrados', (usar) => {
+    const amb = usar(criarAmbiente());
+    confere(amb.registro.listeners.includes('pagehide'), 'faltou registrar pagehide (celular)');
+    confere(amb.registro.listeners.includes('beforeunload'), 'faltou registrar beforeunload (desktop)');
+});
+
+teste('T13 F5/fechar no host: encerra conexões sem mexer no estado do jogo', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.criarSalaComoHost();
+    amb.entrar('A', 'peer-a');
+    amb.entrar('B', 'peer-b');
+    amb.iniciarPartida();
+    const peerFalso = { destroyed: false, destroy() { this.destroyed = true; } };
+    amb.Game.network.connectionState.setPeer(peerFalso);
+
+    const rodadaAntes = amb.state.currentRound;
+    amb.limparRegistro();
+    amb.Game.network.encerrarConexoesAoSair();
+
+    confere(peerFalso.destroyed, 'o peer deveria ter sido destruído');
+    confere(amb.state.players.every(p => !p.disconnected), 'nenhum jogador deveria ser marcado como desconectado pelo próprio reload do host');
+    confere(amb.state.currentRound === rodadaAntes, 'a rodada em andamento não deveria mudar (seria o BUG-001 de volta)');
+    confere(amb.registro.broadcasts.length === 0, 'não deveria enviar nada durante a saída');
+
+    // Idempotente: rodar de novo (pagehide + beforeunload) não faz nada.
+    amb.Game.network.encerrarConexoesAoSair();
+    confere(amb.state.currentRound === rodadaAntes, 'segunda chamada não deveria ter efeito');
+});
+
 console.log('\n' + (falhou === 0 ? '🎉' : '⚠️') + ' ' + passou + ' passaram, ' + falhou + ' falharam\n');
 
 // No GitHub Actions, escreve também uma tabela de resumo que aparece
@@ -438,7 +502,7 @@ console.log('\n' + (falhou === 0 ? '🎉' : '⚠️') + ' ' + passou + ' passara
 if (process.env.GITHUB_STEP_SUMMARY) {
     const escapar = (t) => String(t).replace(/\|/g, '\\|').replace(/\n/g, ' ');
     const linhas = [
-        '### 🧪 Fase D1a — ' + passou + ' passaram, ' + falhou + ' falharam',
+        '### 🧪 Fase D — ' + passou + ' passaram, ' + falhou + ' falharam',
         '',
         '| | Teste | Detalhe da falha |',
         '|---|---|---|',

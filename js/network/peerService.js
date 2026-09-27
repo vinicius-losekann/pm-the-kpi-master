@@ -100,6 +100,13 @@ function handleConnection(conn) {
     });
 
     conn.on('close', () => {
+        // Fase D: se esta própria página está fechando/recarregando, o
+        // 'close' é consequência da saída (ver encerrarConexoesAoSair()),
+        // não de alguém ter caído — não mexe no estado do jogo. Sem isso,
+        // um F5 do host marcaria todos os guests como desconectados e
+        // abortaria a rodada durante o próprio reload.
+        if (paginaEncerrando) return;
+
         console.warn('⚠️ Conexão fechada:', conn.peer);
         cs.removeConnection(conn.peer);
 
@@ -108,7 +115,7 @@ function handleConnection(conn) {
         }
 
         if (state.isHost) {
-            Game.network.removePlayerByPeerId(conn.peer);        
+            Game.network.handlePlayerDisconnect(conn.peer);
         }
     });
 
@@ -163,6 +170,54 @@ function cleanup() {
 }
 
 // ============================================
+// SAÍDA DA PÁGINA (Fase D)
+// ============================================
+
+// Fica true a partir do momento em que a página começa a fechar ou
+// recarregar. Daí em diante, os 'close' das conexões são consequência
+// da própria saída e são ignorados em handleConnection().
+let paginaEncerrando = false;
+
+/**
+ * Fase D: ao fechar a aba, recarregar (F5) ou navegar para fora, encerra
+ * as conexões explicitamente para que o OUTRO lado receba o 'close' na
+ * hora — sem isso, o PeerJS só percebe a queda quando a conexão WebRTC
+ * dá timeout (de 30s a mais de 1 min, às vezes nunca).
+ *
+ * Diferente de cleanup(), NÃO apaga o estado salvo: um F5 continua
+ * restaurando a partida normalmente.
+ */
+function encerrarConexoesAoSair() {
+    if (paginaEncerrando) return;
+    paginaEncerrando = true;
+
+    const cs = Game.network.connectionState;
+    Object.values(cs.getConnections()).forEach(c => {
+        try { c.close(); } catch (e) { /* ignora */ }
+    });
+
+    const peer = cs.getPeer();
+    if (peer && !peer.destroyed) {
+        try { peer.destroy(); } catch (e) { /* ignora */ }
+    }
+}
+
+// 'pagehide' cobre o celular (Safari/iOS nem sempre dispara
+// 'beforeunload'); 'beforeunload' cobre os navegadores de desktop. A
+// função só age na primeira chamada, então rodar pelos dois não tem
+// efeito duplicado.
+window.addEventListener('pagehide', encerrarConexoesAoSair);
+window.addEventListener('beforeunload', encerrarConexoesAoSair);
+
+// Se o navegador guardou a página no cache de voltar/avançar (bfcache) e
+// o usuário voltar para ela, as conexões já foram encerradas acima — a
+// página é recarregada para reconectar do zero (o estado salvo é
+// restaurado normalmente).
+window.addEventListener('pageshow', (e) => {
+    if (e.persisted) window.location.reload();
+});
+
+// ============================================
 // EXPORTAÇÃO
 // ============================================
 window.Game = window.Game || {};
@@ -175,5 +230,6 @@ Object.assign(window.Game.network, {
     broadcast,
     broadcastAll,
     sendToPlayer,
-    cleanup
+    cleanup,
+    encerrarConexoesAoSair
 });
