@@ -24,6 +24,9 @@
  * @param {object} params.config - CONFIG (usa config.KPI.ACERTO_BASE, config.JOGO.ACTIVITIES_PER_PHASE)
  * @param {Array} params.fases - CONFIG.FASES
  * @returns {{acertou: boolean, kpiGanho: number, novoKpi: number, novaFase: string, novasActivities: number, gastaRecurso: boolean}}
+ *   gastaRecurso (Fase 9, ver ARCHITECTURE.md): só true quando ERROU e não
+ *   há reserva de contingência — acertar nunca gasta recurso; recurso virou
+ *   punição por erro, não custo incondicional de participar.
  */
 function calcularResultadoResposta({ alternativaEscolhida, correct, kpiAtual, phaseId, activities, temReserva, config, fases }) {
     const acertou = alternativaEscolhida === correct;
@@ -51,7 +54,7 @@ function calcularResultadoResposta({ alternativaEscolhida, correct, kpiAtual, ph
         novoKpi,
         novaFase,
         novasActivities,
-        gastaRecurso: !temReserva
+        gastaRecurso: !acertou && !temReserva
     };
 }
 

@@ -1,8 +1,5 @@
 # Roadmap: Melhorias para o PM: The KPI Master
 
-> Antes de continuar o trabalho numa conversa nova, veja `CONTINUITY.md`
-> (onde paramos) e `CLAUDE_WORKFLOW.md` (regras de como trabalhar).
-
 ## 1. Arquitetura e Organização
 
 > ✅ **Resolvida pela migração de arquitetura (Fases 0–7).** Os itens que
@@ -106,7 +103,7 @@
 > avaliar" (as 3 propostas antigas foram descartadas em favor da Fase C
 > abaixo, decidida com o usuário).
 
-### Fase A — ajustes rápidos (prontos para implementar, sem pendência de decisão)
+### Fase A — ajustes rápidos — ✅ concluída (18/09/2026)
 
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
@@ -114,13 +111,13 @@
 | 9.2 | **URL limpa (sem `/index.html`)** | `window.location.href = 'index.html'` (usado em sair da sessão, host encerrando, erro de conexão) força o navegador a mostrar o nome do arquivo na URL. Trocar por `'./'` resolve, sem depender de configuração do GitHub Pages. |
 | 9.3 | **Modal de lembrete "avance no tabuleiro" após acerto** | O jogo tem um componente físico (tabuleiro) — estender `resultModal.js` com um aviso quando `acertou === true`, lembrando o jogador de mover a peça. |
 
-### Fase B — card de fases consolidado (falta confirmar layout com o usuário)
+### Fase B — card de fases consolidado — ✅ concluída (18/09/2026)
 
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
-| 9.4 | **Unificar KPI/recursos/fase/progresso dentro do card de Fases** | Em vez de um card de perfil separado, mostrar por fase: completo / X de 2 / não iniciado. Derivável do estado que já existe (`player.phase` + `player.activities`, progressão é sempre linear) — não precisa de campo novo. **Bloqueado em:** confirmar com o usuário o layout exato (como fica o cabeçalho com KPI/recursos, como cada fase mostra o status). |
+| 9.4 | **Unificar KPI/recursos/fase/progresso dentro do card de Fases** | Em vez de um card de perfil separado, mostrar por fase: completo / X de 2 / não iniciado. Derivável do estado que já existe (`player.phase` + `player.activities`, progressão é sempre linear) — não precisou de campo novo. Layout confirmado e implementado. |
 
-### Fase C — economia de recursos (decidido em 18/09/2026, pronto para implementar)
+### Fase C — economia de recursos — ✅ concluída (18/09/2026)
 
 | Regra | Valor |
 |---|---|
@@ -132,6 +129,8 @@
 | Apoio da Alta Gestão / Patrocinador Generoso / Reestruturação | sem mudança |
 
 Objetivo confirmado com o usuário: recurso vira punição só por errar, não mais um custo incondicional de participar.
+
+**Decisão adicional, tomada durante a implementação:** o "pular vez por falta de recurso" foi removido (opção 1 entre duas propostas) — qualquer jogador ativo sempre tenta responder, mesmo com 0 recursos; se errar já em 0, o recurso trava em 0 sem penalidade extra. Isso também tirou o filtro por recurso que existia em `turnEngine.js` na escolha de quem pode ser Respondedor. Detalhes técnicos em `architecture.md`.
 
 ### Fase D — sala travada + identidade única + robustez de conexão (desenhado, adiado por ora)
 

@@ -84,7 +84,6 @@ window.Game.locales['pt-BR'] = {
         comRecursos: ' | 📦 {{recursos}} recursos',
         assessoriaTitulo: '🧭 Assessoria!',
         assessoriaBonus: '+{{bonus}} KPI (sugestão correta)',
-        semRecursosVezPulada: '⚠️ Sem recursos — vez pulada',
     },
 
     ranking: {

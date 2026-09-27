@@ -62,30 +62,13 @@ function handleAnswer(msg) {
     }
 
     const temReserva = evento?.reserva_contingencia === true;
-    const gastaRecurso = !temReserva;
 
-    if (respondedor.recursos <= 0 && !temReserva) {
-        console.warn('⚠️ ' + respondedorName + ' sem recursos! Pulando vez.');
-        Game.network.broadcastAll({
-            type: 'kpi-update',
-            playerName: respondedorName,
-            kpi: respondedor.kpi,
-            phase: respondedor.phase,
-            activities: respondedor.activities,
-            recursos: respondedor.recursos,
-            acertou: false,
-            kpiGanho: 0,
-            semRecursos: true
-        });
-        state.usedRespondedorThisRound.push(respondedorName);
-        setTimeout(() => Game.engine.turn.nextTurn(), 2000);
-        Game.saveState();
-        return;
-    }
-
-    if (gastaRecurso) {
-        respondedor.recursos--;
-    }
+    // Fase 9 (economia de recursos, ver ARCHITECTURE.md): não existe mais
+    // "pular vez por falta de recurso" — qualquer jogador ativo sempre
+    // tenta responder, mesmo com 0 recursos (decisão do usuário, opção 1).
+    // O gasto de recurso agora depende do resultado (só erro gasta,
+    // protegido pela reserva de contingência), por isso é decidido dentro
+    // de calcularResultadoResposta() e aplicado depois, não antes.
 
     // Cálculo puro delegado a domain/kpiRules.js
     const resultado = Game.domain.kpi.calcularResultadoResposta({
@@ -103,6 +86,13 @@ function handleAnswer(msg) {
     respondedor.kpi = resultado.novoKpi;
     respondedor.phase = resultado.novaFase;
     respondedor.activities = resultado.novasActivities;
+
+    // Nunca fica negativo — se já estava em 0 e errou de novo, só não ganha
+    // recurso nenhum, sem penalidade extra (ver decisão registrada em
+    // ARCHITECTURE.md / CONTINUITY.md).
+    if (resultado.gastaRecurso) {
+        respondedor.recursos = Math.max(0, respondedor.recursos - 1);
+    }
 
     const seguroMsg = temReserva ? ' (reserva de contingência)' : '';
     console.log('📊 ' + (acertou ? '✅ Acertou' : '❌ Errou') + ' | Recursos: ' + respondedor.recursos + seguroMsg + ' | KPI: ' + respondedor.kpi);
@@ -210,11 +200,7 @@ function updatePlayerKPI(msg) {
     Game.ui.syncPlayerViews({ ...msg, name: msg.playerName });
 
     if (msg.playerName === state.playerName) {
-        if (msg.semRecursos) {
-            Game.ui.showResultModal(false, 0, msg.recursos);
-            const resultMsg = document.getElementById('resultMessage');
-            if (resultMsg) resultMsg.textContent = Game.i18n.t('result.semRecursosVezPulada');
-        } else if (msg.acertou !== undefined) {
+        if (msg.acertou !== undefined) {
             Game.ui.showResultModal(msg.acertou, msg.kpiGanho, msg.recursos);
         } else if (msg.assessoriaBonus) {
             Game.ui.showAssessoriaBonusModal(msg.assessoriaBonus);

@@ -56,7 +56,7 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
     const state = Game.state;
 
     if (depth > CONFIG.JOGO.MAX_PLAYERS * 2) {
-        console.error('❌ Nenhum jogador com recursos disponíveis. Encerrando partida.');
+        console.error('❌ Não foi possível formar um novo par de jogadores. Encerrando partida.');
         Game.engine.session.endGame(Game.engine.session.buildRanking());
         return;
     }
@@ -91,30 +91,15 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
         return;
     }
 
-    // Filtra Respondedores com recursos (exceto se o evento for "Reserva de Contingência")
-    const semCustoNestaRodada = evento?.reserva_contingencia === true;
-    const comRecursos = semCustoNestaRodada
-        ? activePlayers
-        : activePlayers.filter(p => p.recursos > 0);
-
-    // Jogadores sem recursos pulam a vez (marcados como já usados nesta rodada)
-    if (!semCustoNestaRodada) {
-        activePlayers
-            .filter(p => p.recursos <= 0 && !state.usedRespondedorThisRound.includes(p.name))
-            .forEach(p => {
-                console.log('⏭️ ' + p.name + ' sem recursos — pulando a vez neste ciclo.');
-                state.usedRespondedorThisRound.push(p.name);
-            });
-    }
-
-    if (comRecursos.length === 0) {
-        console.warn('⚠️ Nenhum jogador ativo tem recursos. Encerrando partida.');
-        Game.engine.session.endGame(Game.engine.session.buildRanking());
-        return;
-    }
+    // Fase 9 (economia de recursos, ver ARCHITECTURE.md): recurso não
+    // bloqueia mais quem pode ser Respondedor — decisão do usuário
+    // (opção 1): qualquer jogador ativo sempre tenta responder, mesmo com
+    // 0 recursos, já que só errar gasta recurso agora (domain/kpiRules.js).
+    // O filtro por `p.recursos > 0` e o "pular vez sem recurso" que
+    // existiam aqui foram removidos.
 
     // Seleciona um Respondedor que ainda não tenha respondido nesta rodada
-    const available = comRecursos.filter(p =>
+    const available = activePlayers.filter(p =>
         !state.usedRespondedorThisRound.includes(p.name)
     );
     if (available.length === 0) {

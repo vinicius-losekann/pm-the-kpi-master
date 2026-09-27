@@ -53,6 +53,37 @@ não é mais um arquivo de arquivo morto.
   `tradeModal.js`, `controlsComponent.js`, `setup.js`,
   `profileComponent.js`, `messageHandler.js`, `debugTools.js`,
   `locales/pt-BR.js`, `game.html`, `sessionEngine.js`.
+- Documentação reorganizada em `_docs/`: `architecture.md`, `roadmap.md`
+  (ex-`todo.md`) e `ISSUES.md` movidos pra lá; `README.md` e
+  `CHANGELOG.md` continuam na raiz. Criado `_docs/conventions.md`
+  (padrões de nomenclatura, arquitetura em camadas, pegadinha do
+  host-autoritativo que já causou 3 bugs, stack técnica) e
+  `_docs-pessoais/` (notas do usuário, fora do git — adicionado ao
+  `.gitignore`). `CLAUDE_WORKFLOW.md`/`CONTINUITY.md` criados como
+  arquivos de processo (vivem só no Projeto Claude, não no git).
+- **Feedback do piloto com alunos (roadmap.md, seção 9), Fases A-C:**
+  - **Fase A:** botões reordenados (Nova Rodada primeiro, Encerrar
+    Partida discreto e separado no fim — reduz clique acidental no
+    mobile); URL sem `/index.html` (`location.href` trocado por `'./'`
+    em 5 pontos); modal de resultado ganhou lembrete de avançar no
+    tabuleiro físico ao acertar.
+  - **Fase B:** card de perfil (avatar/KPI/recursos/fase única/
+    progresso) e card de Fases consolidados num só, com status por
+    fase (completa/em andamento/não iniciada) derivado de
+    `player.phase`+`player.activities`, sem estado novo — reduz
+    quantidade de cards pra rolar no celular.
+  - **Fase C (economia de recursos):** recursos iniciais 20 → 10;
+    **acertar nunca gasta recurso** (antes gastava igual a errar);
+    errar continua gastando 1, protegido pela Reserva de Contingência;
+    **removido o "pular vez por falta de recurso"** — todo jogador
+    ativo sempre tenta responder, recurso só trava em 0 (nunca
+    negativo). A decisão de gastar recurso moveu de `answerEngine.js`
+    para dentro de `domain/kpiRules.js` (campo `gastaRecurso`, antes
+    calculado e nunca lido). `engine/turnEngine.js` também perdeu o
+    filtro por recurso na escolha do Respondedor, que senão continuaria
+    barrando jogador zerado de ser sorteado. `README.md` atualizado
+    (a seção "Venda de Recursos" ainda descrevia o mercado livre da
+    Fase 9 anterior — nunca tinha sido corrigida).
 
 ### Added
 - Modais de resposta do Respondedor (`#modalResponderPergunta`) e do

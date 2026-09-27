@@ -135,16 +135,17 @@ window.Game.debug = {
         console.log(`   Recursos: ${player.recursos} | Fase: ${Game.getFaseById(player.phase).emoji} | KPI: ${player.kpi}`);
 
         for (let i = 0; i < count; i++) {
-            if (player.recursos <= 0) { console.log(`   ⚠️ Sem recursos! Pulando...`); continue; }
-
             const pergunta = Game.domain.deck.sortearPergunta(state.baralhos, state.questionsData, player.phase);
             if (!pergunta) break;
 
             const acertou = Math.random() < 0.5;
             const evento = (state.questionsData?.eventos || [])[Math.floor(Math.random() * state.questionsData.eventos.length)];
             const temSeguro = evento?.reserva_contingencia === true;
-            const gastaRecurso = !temSeguro;
-            if (gastaRecurso) player.recursos--;
+            // Fase 9 (ver ARCHITECTURE.md): só erro gasta recurso, reserva
+            // protege; acerto nunca gasta. Sem "pular vez" por falta de
+            // recurso — sempre tenta, no máximo trava em 0.
+            const gastaRecurso = !acertou && !temSeguro;
+            if (gastaRecurso) player.recursos = Math.max(0, player.recursos - 1);
 
             let kpiGanho = 0;
             if (acertou) {
@@ -160,7 +161,7 @@ window.Game.debug = {
 
             const status = acertou ? '✅' : '❌';
             const fase = Game.getFaseById(player.phase);
-            const gastoMsg = gastaRecurso ? '-1📦' : '📦🛡️';
+            const gastoMsg = gastaRecurso ? '-1📦' : (temSeguro && !acertou ? '📦🛡️' : '📦');
             console.log(`   ${i + 1}. ${status} → +${kpiGanho} KPI | ${gastoMsg} | ${fase.emoji} | Recursos: ${player.recursos} | Total: ${player.kpi}`);
         }
 
@@ -346,8 +347,7 @@ window.Game.debug = {
                 if (jogoFinalizado) break;
 
                 if (jogador.recursos <= 0) {
-                    console.log(`   ⚠️ ${jogador.name}: SEM RECURSOS! Pulou a vez.`);
-                    continue;
+                    console.log(`   ⚠️ ${jogador.name}: sem recursos, mas tenta mesmo assim (Fase 9 — sem pular vez).`);
                 }
 
                 alguemRespondeu = true;
@@ -357,8 +357,9 @@ window.Game.debug = {
 
                 const acertou = Math.random() < chanceAcerto;
                 const temReserva = evento?.reserva_contingencia === true;
-                const gastaRecurso = !temReserva;
-                if (gastaRecurso) jogador.recursos--;
+                // Fase 9 (ver ARCHITECTURE.md): só erro gasta recurso.
+                const gastaRecurso = !acertou && !temReserva;
+                if (gastaRecurso) jogador.recursos = Math.max(0, jogador.recursos - 1);
 
                 let kpiGanho = 0;
                 if (acertou) {
