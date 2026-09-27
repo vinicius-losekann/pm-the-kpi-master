@@ -1,6 +1,9 @@
 # 🗺️ Arquitetura — PM: The KPI Master
 
 > Última revisão: 17/09/2026 (auditoria de arquitetura + limpeza de arquivos legados)
+>
+> Veja também `CONTINUITY.md` (onde a conversa parou) e
+> `CLAUDE_WORKFLOW.md` (regras de como trabalhar comigo neste projeto).
 
 ## Estrutura de arquivos
 
@@ -87,7 +90,7 @@ pm-the-kpi-master/
 
 ## Status da migração
 
-A migração da arquitetura monolítica original (`game-core.js`, `game-ui.js`, `game-network.js`, `game-state.js`) para a estrutura em camadas atual (`domain/`, `state/`, `engine/`, `network/`, `ui/`) foi concluída em 7 fases, todas completas. Histórico detalhado de cada fase, bugs encontrados e corrigidos ao longo do processo: ver `CHANGELOG.md`.
+A migração da arquitetura monolítica original (`game-core.js`, `game-ui.js`, `game-network.js`, `game-state.js`) para a estrutura em camadas atual (`domain/`, `state/`, `engine/`, `network/`, `ui/`) foi concluída em 7 fases, todas completas. Histórico detalhado de cada fase, bugs encontrados e corrigidos ao longo do processo: ver `../CHANGELOG.md`.
 
 Pendência remanescente dessa frente: internacionalização (pt-BR religado, faltam outros idiomas) — ver **NOTA-003** abaixo.
 
@@ -140,7 +143,7 @@ Motivado por feedback do piloto com alunos: o botão "Vender Recurso" ficava sem
 
 Reescrito em `engine/tradeEngine.js` (comentário de cabeçalho do arquivo tem o racional completo): o botão só aparece pra quem está com **0 recursos** (`profileComponent.js` controla a visibilidade via `syncPlayerViews()`). Ao pedir ajuda, o host monta uma fila automática — jogadores ativos com recurso, do que tem mais pro que tem menos — e pergunta um de cada vez, avançando sozinho a cada recusa/timeout, até alguém aceitar ou a fila acabar. Não há mais escolha manual de "vender pra quem".
 
-A matemática da troca em si não mudou (`domain/tradeRules.js` reaproveitado sem alteração) — só quem inicia e quando a ação fica disponível. Detalhes de implementação (mensagens de rede, arquivos tocados) em `CHANGELOG.md`.
+A matemática da troca em si não mudou (`domain/tradeRules.js` reaproveitado sem alteração) — só quem inicia e quando a ação fica disponível. Detalhes de implementação (mensagens de rede, arquivos tocados) em `../CHANGELOG.md`.
 
 ### Schema de `data/questions.*.json` — chaves em inglês, estáveis entre idiomas (Fase 8)
 
@@ -188,6 +191,6 @@ Não estava no roadmap original. `game-network.js` tinha `myPeer` e `connections
 
 ## Limpeza de arquivos legados
 
-Concluída em 17/09/2026 — todos os arquivos da arquitetura monolítica original (`game-*.js`, `data/questions.json` antigo) e dois órfãos encontrados depois (`js/index.js`, `js/config/constants.js`) foram removidos. Detalhes de cada arquivo e como foi confirmado: ver `CHANGELOG.md`.
+Concluída em 17/09/2026 — todos os arquivos da arquitetura monolítica original (`game-*.js`, `data/questions.json` antigo) e dois órfãos encontrados depois (`js/index.js`, `js/config/constants.js`) foram removidos. Detalhes de cada arquivo e como foi confirmado: ver `../CHANGELOG.md`.
 
 **Não apagar:** `config/game-config.js` (ainda é o arquivo de configuração ativo).

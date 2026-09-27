@@ -4,7 +4,7 @@ Todas as mudanças notáveis deste projeto são documentadas aqui.
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 Bugs da migração inicial (Fases 0–7) estão resumidos aqui permanentemente.
-`ISSUES.md` foca em bugs atuais — causa raiz, correção aplicada, status —
+`_docs/ISSUES.md` foca em bugs atuais — causa raiz, correção aplicada, status —
 não é mais um arquivo de arquivo morto.
 
 ---
@@ -31,11 +31,11 @@ não é mais um arquivo de arquivo morto.
   `correta`→`correct`, chaves de domínio como `governanca`→`governance`).
   Prepara o terreno para `questions.en-US.json`/`questions.es-ES.json`
   futuros sem precisar re-trabalhar o schema depois.
-- `ISSUES.md` reduzido de 477 para 47 linhas: as 12 entradas da migração
+- `_docs/ISSUES.md` reduzido de 477 para 47 linhas: as 12 entradas da migração
   inicial (Fases 0–7) foram resumidas e movidas para este arquivo
   (seção "Migração de Arquitetura" abaixo), preservando o histórico
-  técnico completo. `ISSUES.md` passa a focar só em bugs atuais.
-- `ARCHITECTURE.md`: tabela "Status da Migração" e checklist de limpeza
+  técnico completo. `_docs/ISSUES.md` passa a focar só em bugs atuais.
+- `_docs/architecture.md`: tabela "Status da Migração" e checklist de limpeza
   (ambos 100% concluídos) resumidos para poucas linhas + pointer pra
   este changelog. NOTA-001 e NOTA-002 removidas (já resolvidas, sem
   pendência real a documentar).
@@ -67,7 +67,7 @@ não é mais um arquivo de arquivo morto.
 - Corrigido um ponto em `messageHandler.js` que ainda blindava o gabarito
   pelo nome de campo antigo (`correta`) após o rename acima — sem a
   correção, a resposta certa vazaria para jogadores entrando no meio de
-  uma rodada em andamento. Ver `REGRESSÃO-003` em `ISSUES.md`.
+  uma rodada em andamento. Ver `REGRESSÃO-003` em `_docs/ISSUES.md`.
 
 ---
 
@@ -77,7 +77,7 @@ não é mais um arquivo de arquivo morto.
 - Reestruturação completa do código: de um conjunto de arquivos monolíticos
   (`game-core.js`, `game-ui.js`, `game-network.js`, `game-state.js`) para uma
   arquitetura em camadas (`domain/`, `state/`, `engine/`, `network/`, `ui/`).
-  Detalhes completos em `ARCHITECTURE.md`.
+  Detalhes completos em `_docs/architecture.md`.
 - Perguntas e eventos separados em arquivos distintos
   (`data/questions.pt-BR.json` + `data/events.json`), antes um único
   `data/questions.json`.

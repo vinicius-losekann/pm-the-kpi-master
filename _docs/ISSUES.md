@@ -4,7 +4,7 @@ Registro de bugs em aberto ou em investigação. Bugs da migração inicial
 (Fases 0–7: BUG-001 a BUG-007, REGRESSÃO-001/002, SEC-001/002,
 ESCLARECIMENTO-001) foram corrigidos, estão estáveis há tempo e seu
 histórico técnico completo (causa raiz, correção aplicada) foi movido
-para `CHANGELOG.md` — este arquivo agora foca em bugs atuais.
+para `../CHANGELOG.md` — este arquivo agora foca em bugs atuais.
 
 ---
 
@@ -14,7 +14,7 @@ para `CHANGELOG.md` — este arquivo agora foca em bugs atuais.
 - **Detectado em:** Fase 8 (rename de nomenclatura PMBOK 8ª ed.), ao caçar
   cada ocorrência do campo antigo `correta` pelo código inteiro após a
   migração de `data/questions.pt-BR.json` para chaves em inglês
-  (`correta` → `correct`, entre outras — ver `ARCHITECTURE.md`)
+  (`correta` → `correct`, entre outras — ver `architecture.md`)
 - **Local:** `js/network/messageHandler.js` → `addPlayer()`, montagem de
   `currentRoundForSync`
 - **O que aconteceu:** ao sincronizar o estado da partida para um jogador

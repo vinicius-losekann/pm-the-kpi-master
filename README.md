@@ -265,7 +265,7 @@ Respondedor recebe pergunta
 ```
 
 > Para o histórico da migração, decisões de arquitetura e o que ainda está pendente em cada
-> módulo, veja `ARCHITECTURE.md`.
+> módulo, veja `_docs/architecture.md`.
 
 ---
 
