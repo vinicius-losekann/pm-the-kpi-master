@@ -312,6 +312,19 @@ teste('T3  Nome em uso por jogador conectado continua bloqueado (name-taken)', (
     confere(amb.jogador('A').peerId === 'peer-a', 'A original não deveria ter perdido o peerId');
 });
 
+teste('T3b Nome do próprio host é recusado (name-taken), host não perde o lugar', (usar) => {
+    for (const comPartida of [false, true]) {
+        const amb = usar(criarAmbiente());
+        amb.criarSalaComoHost();
+        amb.entrar('A', 'peer-a');
+        if (comPartida) amb.iniciarPartida();
+        amb.entrar('Host', 'peer-intruso');
+        const onde = comPartida ? ' (partida em andamento)' : ' (lobby)';
+        confere(amb.recusaPara('peer-intruso') === 'name-taken', 'esperava name-taken' + onde + ', veio: ' + amb.recusaPara('peer-intruso'));
+        confere(amb.jogador('Host').peerId === 'peer-host', 'o host não pode perder o próprio peerId' + onde);
+    }
+});
+
 teste('T4  Queda de espectador: fica na lista, fora do sorteio, volta com tudo preservado', (usar) => {
     const amb = usar(criarAmbiente());
     amb.criarSalaComoHost();

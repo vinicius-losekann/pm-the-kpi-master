@@ -294,7 +294,11 @@ function addPlayer(msg, fromPeerId) {
     if (existingIdx >= 0) {
         const existingPlayer = state.players[existingIdx];
         const oldConn = cs.getConnection(existingPlayer.peerId);
-        const oldPeerStillConnected = oldConn && oldConn.open && existingPlayer.peerId !== fromPeerId;
+        // O próprio host nunca tem conexão consigo mesmo — sem a primeira
+        // condição, alguém entrando com o nome do host seria tratado como
+        // "reconexão" e tomaria o lugar dele na lista.
+        const oldPeerStillConnected = existingPlayer.peerId === state.peerId ||
+            (oldConn && oldConn.open && existingPlayer.peerId !== fromPeerId);
 
         if (oldPeerStillConnected) {
             rejeitarEntrada(fromPeerId, 'name-taken');
