@@ -182,10 +182,10 @@ async function init() {
     document.getElementById('lobbyRoomName').textContent = state.roomName;
     document.getElementById('myName').textContent = state.playerName;
     document.getElementById('myAvatar').textContent = state.playerName.charAt(0).toUpperCase();
-    document.getElementById('myActivityTotal').textContent = CONFIG.JOGO.ACTIVITIES_PER_PHASE;
-    document.getElementById('phasesList').innerHTML = CONFIG.FASES.map(f =>
-        `<div class="phase-item" data-phase="${f.id}">${f.emoji} ${f.nome}</div>`
-    ).join('');
+    // myActivityTotal e phasesList não são mais preenchidos aqui de forma
+    // estática (Fase 9, todo.md 9.4) — Game.ui.renderProfileCard() agora
+    // desenha a lista de fases inteira, com status por fase, toda vez que
+    // o estado do jogador muda (via syncPlayerViews()).
 
     const restaurou = Game.persistence.tryRestoreState();
 

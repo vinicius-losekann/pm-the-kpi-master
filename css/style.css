@@ -783,101 +783,72 @@ body {
     gap: 16px;
 }
 
-.player-card {
-    text-align: center;
+/* Card do Jogador + Fases consolidado (Fase 9, todo.md 9.4) — antes
+   eram dois cards (.player-card com avatar/KPI/recursos/fase única +
+   .phases-card com a lista de fases); unidos num só card pra reduzir
+   quantidade de elementos pra rolar no celular. */
+.player-summary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 14px;
 }
 
-.player-avatar {
-    width: 60px;
-    height: 60px;
+.player-avatar-header {
+    width: 36px;
+    height: 36px;
     background: linear-gradient(135deg, var(--purple), var(--cyan));
     border-radius: var(--radius-full);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.8rem;
+    font-size: 1rem;
     font-weight: 800;
     color: #fff;
-    margin: 0 auto 12px;
-    box-shadow: var(--shadow-glow-purple);
+    flex-shrink: 0;
 }
 
 .player-name {
     font-family: var(--font-display);
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 600;
-    margin-bottom: 12px;
 }
 
-.kpi-display {
+.stats-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.stat-chip {
     display: flex;
     align-items: center;
-    justify-content: center;
     gap: 6px;
-    margin-bottom: 12px;
-}
-
-.kpi-icon {
-    font-size: 1.2rem;
-}
-
-.kpi-value {
-    font-family: var(--font-display);
-    font-size: 2rem;
-    font-weight: 800;
-    color: var(--gold);
-}
-
-.kpi-label {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.phase-indicator {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    margin-bottom: 12px;
-    padding: 8px;
+    padding: 6px 12px;
     background: rgba(255, 255, 255, 0.04);
     border-radius: var(--radius-sm);
 }
 
-.phase-icon {
-    font-size: 1.2rem;
+.stat-icon {
+    font-size: 1rem;
 }
 
-.phase-name {
-    font-weight: 600;
-    font-size: 0.9rem;
+.stat-value {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--gold);
 }
 
-.activity-progress {
-    margin-top: 8px;
-}
-
-.progress-text {
-    font-size: 0.75rem;
+.stat-label {
+    font-size: 0.7rem;
     color: var(--text-muted);
-    margin-bottom: 4px;
-}
-
-.progress-bar {
-    width: 100%;
-    height: 6px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 3px;
-    overflow: hidden;
-}
-
-.progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--purple), var(--cyan));
-    border-radius: 3px;
-    transition: width var(--transition-normal);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 /* Phases Card */
@@ -897,14 +868,26 @@ body {
 }
 
 .phase-item {
-    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
     font-size: 0.8rem;
     color: var(--text-muted);
     border-radius: var(--radius-sm);
     transition: all var(--transition-fast);
 }
 
-.phase-item.active {
+.phase-item .phase-status {
+    font-size: 0.75rem;
+    opacity: 0.85;
+}
+
+.phase-item.phase-completed {
+    color: var(--green);
+}
+
+.phase-item.phase-current {
     background: rgba(108, 99, 255, 0.2);
     color: var(--purple-light);
     font-weight: 600;
@@ -1430,19 +1413,6 @@ body {
         font-size: 1.8rem;
     }
 
-    .player-card {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
-    }
-
-    .player-avatar {
-        width: 44px;
-        height: 44px;
-        font-size: 1.2rem;
-    }
-
     .sidebar {
         gap: 10px;
     }
@@ -1487,12 +1457,8 @@ body {
         padding: 24px;
     }
 
-    .player-card {
+    .phases-card {
         padding: 14px;
-    }
-
-    .kpi-value {
-        font-size: 1.5rem;
     }
 }
 

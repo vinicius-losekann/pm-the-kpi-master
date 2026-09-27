@@ -105,44 +105,29 @@
 
             <!-- Sidebar Esquerda -->
             <aside class="sidebar sidebar-left">
-                <!-- Card do Jogador -->
-                <div class="player-card glass-card">
-                    <div class="player-avatar" id="myAvatar">?</div>
-                    <h3 class="player-name" id="myName">Jogador</h3>
-
-                    <!-- KPI -->
-                    <div class="kpi-display">
-                        <span class="kpi-icon">⭐</span>
-                        <span class="kpi-value" id="myKPI">0</span>
-                        <span class="kpi-label">KPI</span>
+                <!-- Card do Jogador + Fases (consolidado — Fase 9, todo.md
+                     9.4: reduz a quantidade de cards pra rolar no celular,
+                     onde a sidebar aparece abaixo da pergunta). KPI e
+                     recursos agora ficam no cabeçalho, e cada fase mostra
+                     seu próprio status (completo / X de N / não iniciado)
+                     — tudo desenhado por Game.ui.renderProfileCard(). -->
+                <div class="phases-card glass-card">
+                    <div class="player-summary">
+                        <div class="player-avatar-header" id="myAvatar">?</div>
+                        <h3 class="player-name" id="myName">Jogador</h3>
                     </div>
-
-                    <!-- Recursos -->
-                    <div class="recursos-display"
-                         style="display:flex; align-items:center; justify-content:center; gap:6px; margin-bottom:12px;">
-                        <span style="font-size:1.2rem;">📦</span>
-                        <span id="myRecursos"
-                              style="font-family:'Poppins',sans-serif; font-size:1.5rem; font-weight:800; color:#ffd700;">20</span>
-                        <span style="font-size:0.75rem; color:#a0a0b8; text-transform:uppercase; letter-spacing:1px;">Recursos</span>
-                    </div>
-
-                    <!-- Fase Atual -->
-                    <div class="phase-indicator">
-                        <span class="phase-icon" id="myPhaseIcon">🚀</span>
-                        <span class="phase-name" id="myPhaseName">Iniciação</span>
-                    </div>
-
-                    <!-- Progresso de Atividades -->
-                    <div class="activity-progress">
-                        <div class="progress-text">Atividade <span id="myActivity">0</span>/<span id="myActivityTotal">2</span></div>
-                        <div class="progress-bar">
-                            <div class="progress-fill" id="myProgressFill" style="width:0%;"></div>
+                    <div class="stats-row">
+                        <div class="stat-chip">
+                            <span class="stat-icon">⭐</span>
+                            <span class="stat-value" id="myKPI">0</span>
+                            <span class="stat-label">KPI</span>
+                        </div>
+                        <div class="stat-chip">
+                            <span class="stat-icon">📦</span>
+                            <span class="stat-value" id="myRecursos">20</span>
+                            <span class="stat-label">Recursos</span>
                         </div>
                     </div>
-                </div>
-
-                <!-- Lista de Fases -->
-                <div class="phases-card glass-card">
                     <h4>📊 Fases</h4>
                     <div class="phases-list" id="phasesList"></div>
                 </div>

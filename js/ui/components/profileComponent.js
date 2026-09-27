@@ -1,9 +1,11 @@
 // ============================================
 // PM: The KPI Master - UI Component: Perfil
 // ============================================
-// Renderiza o card de perfil do jogador local (KPI, recursos, fase,
-// atividades e barra de progresso).
-// Fase 5.5 do roadmap.
+// Renderiza o card de perfil do jogador local: avatar/nome, KPI,
+// recursos, e a lista de fases com status individual por fase
+// (completa / em andamento / não iniciada).
+// Fase 5.5 do roadmap. Consolidado com o antigo indicador de fase
+// única + barra de progresso na Fase 9 (todo.md 9.4).
 //
 // 🐛 BUG-003 / BUG-007 (ver ISSUES.md): a sequência "atualizar card de
 // perfil + lista de jogadores + ranking" estava duplicada manualmente
@@ -40,12 +42,47 @@ function renderProfileCard(player) {
         }
     }
 
-    const fase = Game.getFaseById(player.phase);
-    document.getElementById('myPhaseName').textContent = fase.nome;
-    document.getElementById('myPhaseIcon').textContent = fase.emoji;
-    document.getElementById('myActivity').textContent = player.activities;
-    document.getElementById('myProgressFill').style.width =
-        (player.activities / CONFIG.JOGO.ACTIVITIES_PER_PHASE * 100) + '%';
+    // fase/atividades também são opcionais nalguns payloads, mesmo
+    // padrão do bloco de recursos acima.
+    if (player.phase !== undefined && player.activities !== undefined) {
+        renderPhasesList(player);
+    }
+}
+
+/**
+ * Desenha a lista de fases com o status de cada uma: completa (fase já
+ * ultrapassada), em andamento (fase atual, mostra X de N atividades) ou
+ * não iniciada. Substitui o antigo indicador de fase única + barra de
+ * progresso (Fase 9, todo.md 9.4) — consolidado aqui porque a
+ * progressão é sempre linear: dá pra derivar o status de TODAS as
+ * fases só com a fase atual + atividades, sem precisar de histórico
+ * novo.
+ */
+function renderPhasesList(player) {
+    const currentIdx = Game.getFaseIndex(player.phase);
+    const total = CONFIG.JOGO.ACTIVITIES_PER_PHASE;
+
+    const html = CONFIG.FASES.map((fase, idx) => {
+        let statusClass = '';
+        let statusText;
+
+        if (idx < currentIdx) {
+            statusClass = 'phase-completed';
+            statusText = '✅';
+        } else if (idx === currentIdx) {
+            statusClass = 'phase-current';
+            statusText = player.activities + ' de ' + total;
+        } else {
+            statusText = '0 de ' + total;
+        }
+
+        return '<div class="phase-item ' + statusClass + '" data-phase="' + fase.id + '">' +
+            '<span>' + fase.emoji + ' ' + fase.nome + '</span>' +
+            '<span class="phase-status">' + statusText + '</span>' +
+            '</div>';
+    }).join('');
+
+    document.getElementById('phasesList').innerHTML = html;
 }
 
 /**
