@@ -1,0 +1,53 @@
+# ============================================
+# PM: The KPI Master - Testes automatizados
+# ============================================
+# Roda todos os arquivos tests/*.test.js a cada push e pull request.
+# Resultado: aba "Actions" do repositório — tabela de resumo na página
+# da execução e log completo para download (artefato "resultado-testes").
+# Também pode ser disparado manualmente pelo botão "Run workflow".
+# ============================================
+
+name: Testes
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Rodar os testes
+        shell: bash
+        run: |
+          set -o pipefail
+          falhou=0
+          {
+            echo "Execução: $(date -u '+%Y-%m-%d %H:%M:%S') UTC"
+            echo "Commit:   ${GITHUB_SHA}"
+            echo "Branch:   ${GITHUB_REF_NAME}"
+          } > resultado-testes.txt
+          for arquivo in tests/*.test.js; do
+            echo "" | tee -a resultado-testes.txt
+            echo "===== ${arquivo} =====" | tee -a resultado-testes.txt
+            node "$arquivo" 2>&1 | tee -a resultado-testes.txt || falhou=1
+          done
+          exit $falhou
+
+      - name: Guardar o log dos testes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultado-testes
+          path: resultado-testes.txt
+          retention-days: 30
