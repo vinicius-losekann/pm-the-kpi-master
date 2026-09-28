@@ -138,6 +138,7 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
     }
 
     state.partidaPausada = null;
+    state.rodadaEncerrada = false;
     state.currentRound = {
         evento,
         perguntador: perguntador.name,
@@ -226,6 +227,12 @@ function armarRespostaTimeout(respondedorName) {
  * aguarda: é o host quem precisa clicar em "Nova Rodada"
  * (Game.core.startNewRound(), ligado em controlsComponent.js) para
  * sortear o próximo evento e mostrar o modal.
+ *
+ * Fase D2b: o fim do ciclo fica registrado em `state.rodadaEncerrada`
+ * (zerado quando a próxima dupla é formada). Sem isso, quem reconecta
+ * nessa espera recebia a última pergunta — já respondida — como se a
+ * rodada estivesse em andamento (ver addPlayer()/restoreState() em
+ * network/messageHandler.js).
  */
 function nextTurn() {
     const state = Game.state;
@@ -233,6 +240,7 @@ function nextTurn() {
 
     if (Game.selectors.isCycleComplete(activePlayers, state.usedRespondedorThisRound)) {
         console.log('✅ Todos os jogadores ativos já responderam nesta rodada. Aguardando o host clicar em "Nova Rodada".');
+        state.rodadaEncerrada = true;
         Game.ui.refreshNovaRodadaButton();
         Game.network.broadcastAll({ type: 'round-ended' });
         Game.ui.showRoundEndedMessage();

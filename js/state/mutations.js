@@ -39,6 +39,9 @@ function resetGameState(state, config) {
     // partida — senão a primeira reconexão da partida seguinte poderia
     // "retomar" uma rodada antiga (ver turnEngine.retomarPartidaPausada()).
     state.partidaPausada = null;
+    // Fase D2b: idem para o aviso de "rodada encerrada, aguardando o
+    // host" (ver turnEngine.nextTurn()).
+    state.rodadaEncerrada = false;
 }
 
 /**

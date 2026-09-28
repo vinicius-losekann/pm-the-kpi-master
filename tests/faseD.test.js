@@ -4,7 +4,9 @@
 // Roda a lógica REAL de sala travada / jogador desconectado / pausa
 // (Fase D1a), de limpeza de desconectados ao voltar ao lobby e na
 // migração de host (Fase D1b, incluindo a robustez da própria
-// migração) e do token de identidade por sala (Fase D2) num ambiente
+// migração), do token de identidade por sala (Fase D2) e do estado que
+// o guest recebe ao reconectar — relógio e situação da rodada (Fase
+// D2b) — num ambiente
 // simulado, sem navegador e sem PeerJS: a rede é trocada por conexões
 // falsas, a UI por um registro de chamadas e o localStorage por um
 // objeto em memória.
@@ -26,7 +28,7 @@
 // - a parte visual (📴 na lista, aviso de partida pausada).
 //
 // Os números dos testes (T1, T2...) batem com o roteiro de teste
-// manual da D1a, da D1b e da D2.
+// manual da D1a, da D1b, da D2 e da D2b.
 // ============================================
 
 const fs = require('fs');
@@ -309,6 +311,30 @@ function criarAmbiente() {
             peers[peers.length - 1].disparar('open', Game.computeHostPeerId(state.baseRoomPeerId, state.hostVersion));
         },
 
+        /**
+         * D2b: troca setInterval/clearInterval por um relógio controlado
+         * pelo teste. tic(n) avança n segundos em todas as contagens
+         * ligadas; ativos() diz quantas estão ligadas.
+         */
+        relogioFalso() {
+            const contagens = [];
+            ctx.setInterval = (fn) => { contagens.push({ fn, ligada: true }); return contagens.length; };
+            ctx.clearInterval = (id) => { if (contagens[id - 1]) contagens[id - 1].ligada = false; };
+            return {
+                tic(n = 1) {
+                    for (let i = 0; i < n; i++) contagens.filter(c => c.ligada).forEach(c => c.fn());
+                },
+                ativos: () => contagens.filter(c => c.ligada).length
+            };
+        },
+
+        /** D2b: este ambiente vira um guest e recebe um state-sync do host. */
+        receberSync(nome, fullState) {
+            state.isHost = false;
+            state.playerName = nome;
+            Game.network.handleMessage({ type: 'state-sync', fullState }, 'sala');
+        },
+
         broadcastsDoTipo: (tipo) => registro.broadcasts.filter(m => m.type === tipo),
         limparRegistro() {
             registro.enviados.length = 0;
@@ -355,7 +381,7 @@ function confere(condicao, mensagem) {
 // TESTES
 // ============================================
 
-console.log('\n🧪 Fase D — sala travada, jogador desconectado, pausa, saída da página, volta ao lobby, migração, identidade\n');
+console.log('\n🧪 Fase D — sala travada, jogador desconectado, pausa, saída da página, volta ao lobby, migração, identidade, reconexão\n');
 
 teste('T1  Lobby: guest que cai é removido da lista (como antes)', (usar) => {
     const amb = usar(criarAmbiente());
@@ -1063,6 +1089,199 @@ teste('T29 Host se insere na lista (setupUI) com o hash do próprio token', (usa
     // O nome do host continua sempre em uso, com ou sem o token certo.
     amb.entrar('Ana', 'peer-intruso', meuToken);
     confere(amb.recusaPara('peer-intruso') === 'name-taken', 'nome do host deveria continuar name-taken, veio: ' + amb.recusaPara('peer-intruso'));
+});
+
+// ============================================
+// D2b — O QUE O GUEST VÊ AO RECONECTAR
+// ============================================
+
+/** Último state-sync que o host mandou para um peer. */
+function syncPara(amb, peerId) {
+    const e = amb.registro.enviados.filter(x => x.para === peerId && x.msg.type === 'state-sync').pop();
+    return e ? e.msg.fullState : null;
+}
+
+/** Telas de pergunta/rodada que o guest montou. */
+function telasDaRodada(amb) {
+    return amb.registro.ui.filter(n => ['displayQuestion', 'displayRoundStart', 'displaySpectatorView',
+        'showRoundEndedMessage', 'showPartidaPausadaMessage'].includes(n));
+}
+
+teste('T30 Guest que reconecta volta com o relógio contando segundo a segundo', (usar) => {
+    const amb = usar(criarAmbiente());
+    const relogio = amb.relogioFalso();
+    const rodada = { evento: { id: 'e1' }, perguntador: 'Host', respondedor: 'B', pergunta: null, respondeu: false };
+    amb.receberSync('A', { players: [], baralhos: {}, timer: 500, currentRound: rodada, gameStarted: true, hostVersion: 0 });
+    confere(relogio.ativos() === 1, 'o relógio local deveria estar ligado depois da reconexão, ligados: ' + relogio.ativos());
+
+    relogio.tic();
+    confere(amb.state.timer === 499, 'deveria contar 1 segundo, veio: ' + amb.state.timer);
+    relogio.tic(9);
+    confere(amb.state.timer === 490 && amb.broadcastsDoTipo('timer-update').length === 0, 'guest conta, mas não avisa ninguém');
+
+    // O host corrige; a contagem continua a partir do valor corrigido.
+    amb.Game.network.handleMessage({ type: 'timer-update', remaining: 480 }, 'sala');
+    relogio.tic();
+    confere(amb.state.timer === 479, 'depois do timer-update deveria seguir de 480, veio: ' + amb.state.timer);
+
+    // Um segundo state-sync (nova reconexão) não pode ligar uma segunda contagem.
+    amb.receberSync('A', { players: [], baralhos: {}, timer: 300, currentRound: rodada, gameStarted: true, hostVersion: 0 });
+    relogio.tic();
+    confere(relogio.ativos() === 1 && amb.state.timer === 299, 'só pode haver uma contagem ligada, timer: ' + amb.state.timer);
+
+    // No zero, o guest só para — quem encerra a partida é o host.
+    amb.state.timer = 1;
+    relogio.tic();
+    confere(relogio.ativos() === 0 && !amb.state.gameOver, 'guest para no zero sem encerrar a partida sozinho');
+
+    // No lobby, não liga relógio.
+    const lobby = usar(criarAmbiente());
+    const relogio2 = lobby.relogioFalso();
+    lobby.receberSync('A', { players: [], baralhos: {}, timer: 3600, currentRound: null, gameStarted: false, hostVersion: 0 });
+    confere(relogio2.ativos() === 0, 'no lobby não deveria ligar o relógio');
+});
+
+teste('T31 Relógio do host continua igual (startGame usa a mesma contagem)', (usar) => {
+    const amb = usar(criarAmbiente());
+    const relogio = amb.relogioFalso();
+    amb.criarSalaComoHost();
+    amb.entrar('A', 'peer-a');
+    amb.state.timer = 11;
+    amb.Game.core.startGame();
+    confere(relogio.ativos() === 1, 'startGame deveria ligar uma contagem');
+
+    relogio.tic();
+    const aviso = amb.broadcastsDoTipo('timer-update').pop();
+    confere(amb.state.timer === 10 && aviso && aviso.remaining === 10, 'host deveria avisar os guests a cada 10 segundos');
+
+    amb.state.timer = 1;
+    relogio.tic();
+    confere(amb.state.gameOver && amb.broadcastsDoTipo('game-over').length === 1 && relogio.ativos() === 0,
+        'no zero, o host encerra a partida');
+});
+
+teste('T32 Reconexão depois do fim do ciclo: "rodada encerrada", sem reabrir a pergunta', (usar) => {
+    // Cenário do teste manual: os dois responderam, o host ainda não
+    // clicou em Nova Rodada, e o guest (último Perguntador) caiu e voltou.
+    const host = usar(criarAmbiente());
+    host.criarSalaComoHost();
+    host.entrar('A', 'peer-a');
+    host.iniciarPartida();
+    host.state.usedRespondedorThisRound = ['Host', 'A'];
+    host.state.currentRound = {
+        evento: { id: 'e1' }, perguntador: 'A', respondedor: 'Host',
+        pergunta: { type: 'question', question: 'Pergunta?', alternatives: ['A', 'B', 'C', 'D'], correct: 'A' }, respondeu: true
+    };
+    host.Game.core.nextTurn();
+    confere(host.state.rodadaEncerrada === true && host.broadcastsDoTipo('round-ended').length === 1, 'pré-condição: ciclo encerrado');
+
+    host.cair('peer-a');
+    host.limparRegistro();
+    host.entrar('A', 'peer-a2');
+    const sync = syncPara(host, 'peer-a2');
+    confere(sync && sync.rodadaEncerrada === true && sync.partidaPausada === false, 'state-sync deveria dizer que o ciclo encerrou');
+    confere(host.broadcastsDoTipo('round-start').length === 0, 'a volta de A não deveria começar rodada nova sozinha');
+
+    const guest = usar(criarAmbiente());
+    guest.receberSync('A', sync);
+    const telas = telasDaRodada(guest);
+    confere(telas.includes('showRoundEndedMessage'), 'A deveria ver "rodada encerrada", viu: ' + telas.join(', '));
+    confere(!telas.includes('displayQuestion') && !telas.includes('displayRoundStart'), 'A não pode ver a pergunta antiga de novo, viu: ' + telas.join(', '));
+
+    // Host clica em Nova Rodada: o aviso some dos dois lados.
+    host.Game.core.startNewRound();
+    confere(host.state.rodadaEncerrada === false, 'Nova Rodada deveria zerar o aviso no host');
+    guest.Game.network.handleMessage(host.broadcastsDoTipo('round-start').pop(), 'sala');
+    confere(guest.state.rodadaEncerrada === false, 'round-start deveria zerar o aviso no guest');
+    guest.Game.network.handleMessage({ type: 'round-ended' }, 'sala');
+    confere(guest.state.rodadaEncerrada === true, 'round-ended deveria marcar o aviso no guest');
+
+    // Encerrar a partida também zera.
+    host.state.rodadaEncerrada = true;
+    host.Game.core.endMatch();
+    confere(host.state.rodadaEncerrada === false, 'encerrar a partida deveria zerar o aviso');
+});
+
+teste('T33 Reconexão com a partida ainda pausada: aviso de pausa, sem pergunta', (usar) => {
+    const host = usar(criarAmbiente());
+    host.CONFIG.JOGO.MIN_PLAYERS = 3;
+    host.criarSalaComoHost();
+    host.entrar('A', 'peer-a');
+    host.entrar('B', 'peer-b');
+    host.iniciarPartida();
+    host.cair('peer-a');
+    host.cair('peer-b');
+    if (!host.state.partidaPausada) host.Game.core.pickNewPair(); // quedas de espectador não sorteiam dupla
+    confere(host.state.partidaPausada, 'pré-condição: partida pausada');
+
+    host.limparRegistro();
+    host.entrar('B', 'peer-b2'); // ainda faltam jogadores conectados
+    confere(host.state.partidaPausada, 'pré-condição: continua pausada');
+    const sync = syncPara(host, 'peer-b2');
+    confere(sync && sync.partidaPausada === true, 'state-sync deveria dizer que a partida está pausada');
+
+    const guest = usar(criarAmbiente());
+    guest.receberSync('B', sync);
+    const telas = telasDaRodada(guest);
+    confere(telas.includes('showPartidaPausadaMessage'), 'B deveria ver o aviso de pausa, viu: ' + telas.join(', '));
+    confere(!telas.includes('displayQuestion') && guest.state.currentRound === null, 'B não pode ver pergunta durante a pausa');
+});
+
+teste('T34 Reconexão entre duas duplas: não reabre a pergunta; rodada em andamento continua igual', (usar) => {
+    const pergunta = { type: 'question', question: 'Pergunta?', alternatives: ['A', 'B', 'C', 'D'] };
+
+    // Pergunta já respondida, próxima dupla ainda não sorteada (~3s).
+    const g1 = usar(criarAmbiente());
+    g1.receberSync('B', { players: [], baralhos: {}, timer: 500, gameStarted: true, hostVersion: 0,
+        currentRound: { evento: { id: 'e1' }, perguntador: 'A', respondedor: 'B', pergunta, respondeu: true },
+        rodadaEncerrada: false, partidaPausada: false });
+    const t1 = telasDaRodada(g1);
+    confere(t1.includes('displaySpectatorView') && !t1.includes('displayQuestion'), 'pergunta respondida não pode reabrir, viu: ' + t1.join(', '));
+
+    // Controle: rodada em andamento, B é o Respondedor → vê a pergunta.
+    const g2 = usar(criarAmbiente());
+    g2.receberSync('B', { players: [], baralhos: {}, timer: 500, gameStarted: true, hostVersion: 0,
+        currentRound: { evento: { id: 'e1' }, perguntador: 'A', respondedor: 'B', pergunta, respondeu: false },
+        rodadaEncerrada: false, partidaPausada: false });
+    const t2 = telasDaRodada(g2);
+    confere(t2.includes('displayRoundStart') && t2.includes('displayQuestion'), 'rodada em andamento deveria mostrar a pergunta, viu: ' + t2.join(', '));
+
+    // Host antigo (sem os campos novos no state-sync): comportamento de antes.
+    const g3 = usar(criarAmbiente());
+    g3.receberSync('B', { players: [], baralhos: {}, timer: 500, gameStarted: true, hostVersion: 0,
+        currentRound: { evento: { id: 'e1' }, perguntador: 'A', respondedor: 'B', pergunta, respondeu: false } });
+    confere(telasDaRodada(g3).includes('displayQuestion'), 'sem os campos novos, deveria seguir como antes');
+});
+
+teste('T35 Guest que viu "rodada encerrada" assume como host: o aviso some quando a dupla nova começa', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.state.isHost = false;
+    amb.state.playerName = 'B';
+    amb.state.peerId = 'peer-b';
+    amb.state.baseRoomPeerId = 'sala';
+    amb.state.hostVersion = 0;
+    amb.state.gameStarted = true;
+    amb.state.gameOver = false;
+    amb.state.currentRound = { evento: { id: 'e1' }, perguntador: 'Host', respondedor: 'B', pergunta: null, respondeu: true };
+    amb.state.players = [
+        { name: 'Host', peerId: 'sala', isHost: true, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0 },
+        { name: 'A', peerId: 'peer-a', isHost: false, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0, tokenHash: amb.hash(tokenDe('A')) },
+        { name: 'B', peerId: 'peer-b', isHost: false, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0 },
+        { name: 'C', peerId: 'peer-c', isHost: false, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0, tokenHash: amb.hash(tokenDe('C')) }
+    ];
+    amb.Game.network.handleMessage({ type: 'round-ended' }, 'sala');
+    confere(amb.state.rodadaEncerrada === true, 'pré-condição: B viu o fim do ciclo');
+
+    amb.assumirComoHost();
+    confere(amb.state.partidaPausada, 'pré-condição: novo host pausa até os outros voltarem');
+
+    amb.entrar('A', 'peer-a2');
+    confere(amb.state.currentRound && !amb.state.partidaPausada, 'pré-condição: a volta de A forma uma dupla nova');
+    confere(amb.state.rodadaEncerrada === false, 'com a dupla nova, o aviso de "rodada encerrada" deveria sumir');
+
+    amb.entrar('C', 'peer-c2');
+    const sync = syncPara(amb, 'peer-c2');
+    confere(sync && sync.rodadaEncerrada === false, 'C não pode receber "rodada encerrada" com uma dupla em andamento');
 });
 
 console.log('\n' + (falhou === 0 ? '🎉' : '⚠️') + ' ' + passou + ' passaram, ' + falhou + ' falharam\n');

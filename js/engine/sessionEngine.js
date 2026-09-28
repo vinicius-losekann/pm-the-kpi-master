@@ -24,6 +24,33 @@ function startGame() {
 
     Game.resetAllPlayers();
 
+    iniciarRelogio();
+
+    Game.ui.showScreen('game');
+    Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
+    Game.ui.updateTimerDisplay();
+
+    if (state.isHost) Game.engine.turn.startNewRound();
+    Game.saveState();
+}
+
+/**
+ * Liga a contagem regressiva local da partida (1 segundo por vez), a
+ * partir de `state.timer`. Substitui qualquer contagem anterior.
+ *
+ * Host: a cada 10 segundos avisa os guests do tempo restante e, no
+ * zero, encerra a partida. Guest: só conta — o 'timer-update' do host
+ * corrige qualquer diferença e o 'game-over' do host encerra.
+ *
+ * Fase D2b: usada também quando um guest volta para uma partida em
+ * andamento (restoreState(), em network/messageHandler.js). Antes, a
+ * contagem só era ligada em startGame() — quem reconectava ficava com
+ * o relógio parado, andando só de 10 em 10 segundos a cada
+ * 'timer-update'.
+ */
+function iniciarRelogio() {
+    const state = Game.state;
+
     clearInterval(state.timerInterval);
     state.timerInterval = setInterval(() => {
         state.timer--;
@@ -38,13 +65,6 @@ function startGame() {
             if (state.isHost) endGame(buildRanking());
         }
     }, 1000);
-
-    Game.ui.showScreen('game');
-    Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
-    Game.ui.updateTimerDisplay();
-
-    if (state.isHost) Game.engine.turn.startNewRound();
-    Game.saveState();
 }
 
 /**
@@ -290,6 +310,7 @@ window.Game = window.Game || {};
 window.Game.engine = window.Game.engine || {};
 window.Game.engine.session = {
     startGame,
+    iniciarRelogio,
     endGame,
     endMatch,
     handleMatchEnded,

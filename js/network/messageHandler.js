@@ -126,6 +126,7 @@ function handleMessage(msg, fromPeerId) {
 
         // --- RODADA ---
         case 'round-start':
+            state.rodadaEncerrada = false;
             state.currentRound = {
                 evento: msg.evento,
                 perguntador: msg.perguntador,
@@ -141,6 +142,9 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'round-ended':
+            // Fase D2b: guarda também no guest, para a cópia dele do
+            // estado bater com a do host (ex: se ele assumir como host).
+            state.rodadaEncerrada = true;
             Game.ui.showRoundEndedMessage();
             break;
 
@@ -386,6 +390,9 @@ function addPlayer(msg, fromPeerId) {
             }
         }
 
+        // Fase D2b: além da rodada, o guest precisa saber em que ponto
+        // ela está — ciclo encerrado aguardando o host, ou partida
+        // pausada — para não reabrir uma pergunta que já acabou.
         conn.send({
             type: 'state-sync',
             fullState: {
@@ -394,7 +401,9 @@ function addPlayer(msg, fromPeerId) {
                 timer: state.timer,
                 currentRound: currentRoundForSync,
                 gameStarted: state.gameStarted,
-                hostVersion: state.hostVersion
+                hostVersion: state.hostVersion,
+                rodadaEncerrada: !!state.rodadaEncerrada,
+                partidaPausada: !!state.partidaPausada
             }
         });
     }
@@ -473,6 +482,14 @@ function removePlayerByPeerId(peerId) {
 
 /**
  * Restaura o estado completo vindo do host (usado após reconexão).
+ *
+ * Fase D2b: (1) religa a contagem local do relógio — antes ela só era
+ * ligada no início da partida, e quem reconectava ficava com o relógio
+ * andando de 10 em 10 segundos; (2) escolhe a tela pela situação da
+ * rodada: partida pausada → aviso de pausa; ciclo encerrado → "rodada
+ * encerrada, aguardando o host"; pergunta já respondida (intervalo até
+ * a próxima dupla) → visão de espectador, sem reabrir a pergunta; senão,
+ * a rodada em andamento, como antes.
  */
 function restoreState(fullState) {
     const state = Game.state;
@@ -482,13 +499,23 @@ function restoreState(fullState) {
     state.currentRound = fullState.currentRound;
     state.gameStarted = fullState.gameStarted;
     if (fullState.hostVersion !== undefined) state.hostVersion = fullState.hostVersion;
+    state.rodadaEncerrada = !!fullState.rodadaEncerrada;
 
     if (state.gameStarted) {
         Game.ui.showScreen('game');
         Game.ui.updateTimerDisplay();
         Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
 
-        if (state.currentRound) {
+        if (!state.gameOver) Game.core.iniciarRelogio();
+
+        if (fullState.partidaPausada) {
+            state.currentRound = null;
+            Game.ui.showPartidaPausadaMessage();
+        } else if (state.rodadaEncerrada) {
+            Game.ui.showRoundEndedMessage();
+        } else if (state.currentRound && state.currentRound.respondeu) {
+            Game.ui.displaySpectatorView(state.currentRound.perguntador, state.currentRound.respondedor);
+        } else if (state.currentRound) {
             const isParticipant =
                 state.playerName === state.currentRound.perguntador ||
                 state.playerName === state.currentRound.respondedor;
