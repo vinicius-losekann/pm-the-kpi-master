@@ -110,7 +110,7 @@ btnCreateRoom.addEventListener('click', () => {
     console.log('[ENTRY] Criando sala:', createdRoomFullId);
     showFeedback(createFeedback, '🔄 Verificando disponibilidade...', 'info');
 
-    const testPeer = new Peer(createdRoomFullId, { debug: 0 });
+    const testPeer = new Peer(createdRoomFullId, { ...CONFIG.PEER });
 
     testPeer.on('open', (id) => {
         console.log('[ENTRY] Peer ID confirmado:', id);
@@ -193,7 +193,7 @@ btnJoinRoom.addEventListener('click', () => {
     console.log('[ENTRY] Tentando entrar:', roomId);
     showFeedback(joinFeedback, '🔄 Procurando sala...', 'info');
 
-    const testPeer = new Peer({ debug: 0 });
+    const testPeer = new Peer({ ...CONFIG.PEER });
 
     testPeer.on('open', (myTestId) => {
         console.log('[ENTRY] Peer teste:', myTestId);

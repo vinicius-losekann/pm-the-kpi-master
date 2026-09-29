@@ -230,7 +230,7 @@ function becomeHost() {
     if (oldPeer && !oldPeer.destroyed) oldPeer.destroy();
     cs.resetConnections();
 
-    const newPeer = new Peer(newHostId, { debug: 0 });
+    const newPeer = new Peer(newHostId, { ...CONFIG.PEER });
     cs.setPeer(newPeer);
 
     newPeer.on('open', (id) => {

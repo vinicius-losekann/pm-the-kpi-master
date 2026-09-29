@@ -35,6 +35,16 @@ const CONFIG = {
 
     ROOM_PREFIX: 'pm-the-kpi-master-',        // Prefixo usado para identificar salas no PeerJS
 
+    // Opções passadas a TODO `new Peer(...)` do jogo (tela inicial, peer do
+    // jogador e peer de quem assume como host). É aqui que se aponta para
+    // um servidor de sinalização próprio, se um dia for preciso sair do
+    // servidor público gratuito do PeerJS — ex: { host, port, path, secure }.
+    // Quem usa passa uma cópia ({ ...CONFIG.PEER }): o PeerJS pode alterar
+    // o objeto recebido.
+    PEER: {
+        debug: 0,                             // 0 = sem logs do PeerJS no console (3 = todos)
+    },
+
     TIMER: {
         WARNING: 1800,                        // 30 min – alerta amarelo
         DANGER: 600,                          // 10 min – alerta vermelho

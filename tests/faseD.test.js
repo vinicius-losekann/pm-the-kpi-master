@@ -6,7 +6,7 @@
 // migração de host (Fase D1b, incluindo a robustez da própria
 // migração), do token de identidade por sala (Fase D2) e do estado que
 // o guest recebe ao reconectar — relógio e situação da rodada (Fase
-// D2b) — num ambiente
+// D2b) — e das opções centralizadas do PeerJS (Fase D3a) num ambiente
 // simulado, sem navegador e sem PeerJS: a rede é trocada por conexões
 // falsas, a UI por um registro de chamadas e o localStorage por um
 // objeto em memória.
@@ -28,7 +28,7 @@
 // - a parte visual (📴 na lista, aviso de partida pausada).
 //
 // Os números dos testes (T1, T2...) batem com o roteiro de teste
-// manual da D1a, da D1b, da D2 e da D2b.
+// manual da D1a, da D1b, da D2, da D2b e da D3.
 // ============================================
 
 const fs = require('fs');
@@ -68,7 +68,8 @@ var CONFIG = {
         { id: 'planejamento', nome: 'Planejamento', emoji: '📋' }
     ],
     RECURSOS_INICIAIS: 10,
-    KPI: { VALOR_RECURSO_FINAL: 2 }
+    KPI: { VALOR_RECURSO_FINAL: 2 },
+    PEER: { debug: 0 }
 };
 `;
 
@@ -281,9 +282,10 @@ function criarAmbiente() {
          */
         instalarPeerFalso(opcoes = {}) {
             const peersCriados = [];
-            ctx.Peer = function (id) {
+            ctx.Peer = function (id, opcoesPeer) {
                 const handlers = {};
                 this.id = id;
+                this.opcoesPeer = opcoesPeer;
                 this.destroyed = false;
                 this.conexoesPedidas = [];
                 this.on = (evento, cb) => { handlers[evento] = cb; };
@@ -1282,6 +1284,72 @@ teste('T35 Guest que viu "rodada encerrada" assume como host: o aviso some quand
     amb.entrar('C', 'peer-c2');
     const sync = syncPara(amb, 'peer-c2');
     confere(sync && sync.rodadaEncerrada === false, 'C não pode receber "rodada encerrada" com uma dupla em andamento');
+});
+
+// ============================================
+// D3a — OPÇÕES DO PEERJS CENTRALIZADAS
+// ============================================
+
+teste('T36 Todo Peer do jogo usa CONFIG.PEER (cópia), inclusive quem assume como host', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.CONFIG.PEER = { debug: 3, host: 'sinalizacao.exemplo', secure: true };
+    const confereOpcoes = (peer, onde) => {
+        confere(peer.opcoesPeer && peer.opcoesPeer.host === 'sinalizacao.exemplo' && peer.opcoesPeer.debug === 3,
+            onde + ': deveria receber as opções de CONFIG.PEER, veio: ' + JSON.stringify(peer.opcoesPeer));
+        confere(peer.opcoesPeer !== amb.CONFIG.PEER, onde + ': deveria receber uma cópia, não o próprio CONFIG.PEER');
+    };
+
+    // Peer do guest e do host (initPeer).
+    let peers = amb.instalarPeerFalso();
+    amb.state.isHost = false;
+    amb.Game.network.initPeer().catch(() => {});
+    confereOpcoes(peers[0], 'guest');
+    amb.state.isHost = true;
+    amb.state.hostPeerId = 'sala';
+    amb.Game.network.initPeer().catch(() => {});
+    confere(peers[1].id === 'sala', 'pré-condição: host abre com o ID da sala');
+    confereOpcoes(peers[1], 'host');
+
+    // Peer de quem assume como host (becomeHost).
+    const mig = usar(criarAmbiente());
+    mig.CONFIG.PEER = { debug: 3, host: 'sinalizacao.exemplo' };
+    mig.state.isHost = false;
+    mig.state.playerName = 'B';
+    mig.state.baseRoomPeerId = 'sala';
+    mig.state.hostVersion = 0;
+    mig.state.players = [{ name: 'B', peerId: 'peer-b', isHost: false }];
+    peers = mig.instalarPeerFalso();
+    mig.Game.network.becomeHost();
+    confere(peers[0].id === 'sala-h1', 'pré-condição: novo host abre na versão seguinte da sala');
+    confere(peers[0].opcoesPeer && peers[0].opcoesPeer.host === 'sinalizacao.exemplo', 'becomeHost deveria usar CONFIG.PEER');
+});
+
+teste('T37 Configuração única: nenhum "new Peer" com opções soltas; CONFIG.PEER existe no config real', (usar) => {
+    // Varre todo o código do jogo (inclusive a tela inicial, que não roda aqui).
+    const naoUsaConfig = [];
+    const varrer = (pasta) => {
+        for (const item of fs.readdirSync(path.join(RAIZ, pasta), { withFileTypes: true })) {
+            const rel = path.join(pasta, item.name);
+            if (item.isDirectory()) { varrer(rel); continue; }
+            if (!item.name.endsWith('.js')) continue;
+            fs.readFileSync(path.join(RAIZ, rel), 'utf8').split('\n').forEach((linha, i) => {
+                if (/new Peer\(/.test(linha) && !linha.trim().startsWith('//') && !linha.includes('CONFIG.PEER')) {
+                    naoUsaConfig.push(rel + ':' + (i + 1));
+                }
+            });
+        }
+    };
+    varrer('js');
+    confere(naoUsaConfig.length === 0, 'new Peer sem CONFIG.PEER em: ' + naoUsaConfig.join(', '));
+
+    // O config de verdade (o carregado pelos HTML) precisa ter PEER.
+    const ctxConfig = vm.createContext({});
+    vm.runInContext('var window = this;' + fs.readFileSync(path.join(RAIZ, 'config/game-config.js'), 'utf8'), ctxConfig);
+    const peerReal = vm.runInContext('CONFIG.PEER', ctxConfig);
+    confere(peerReal && typeof peerReal === 'object', 'config/game-config.js deveria definir CONFIG.PEER');
+
+    // Só existe um arquivo de configuração (a cópia antiga em js/config/ foi removida).
+    confere(!fs.existsSync(path.join(RAIZ, 'js/config/game-config.js')), 'js/config/game-config.js (cópia antiga, não carregada) não deveria existir');
 });
 
 console.log('\n' + (falhou === 0 ? '🎉' : '⚠️') + ' ' + passou + ' passaram, ' + falhou + ' falharam\n');

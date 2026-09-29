@@ -25,7 +25,7 @@ async function initPeer() {
             try { oldPeer.destroy(); } catch (e) { /* ignora */ }
         }
 
-        const peer = new Peer(peerId, { debug: 0 });
+        const peer = new Peer(peerId, { ...CONFIG.PEER });
         cs.setPeer(peer);
 
         // Fase D: fica true depois do 'open' — a partir daí o peer já está
