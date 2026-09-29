@@ -6,7 +6,9 @@
 // migração de host (Fase D1b, incluindo a robustez da própria
 // migração), do token de identidade por sala (Fase D2) e do estado que
 // o guest recebe ao reconectar — relógio e situação da rodada (Fase
-// D2b) — e das opções centralizadas do PeerJS (Fase D3a) num ambiente
+// D2b) — das opções centralizadas do PeerJS (Fase D3a) e do prazo de
+// espera pelo host / volta do host antigo como jogador comum (Fase
+// D3b) num ambiente
 // simulado, sem navegador e sem PeerJS: a rede é trocada por conexões
 // falsas, a UI por um registro de chamadas e o localStorage por um
 // objeto em memória.
@@ -28,7 +30,7 @@
 // - a parte visual (📴 na lista, aviso de partida pausada).
 //
 // Os números dos testes (T1, T2...) batem com o roteiro de teste
-// manual da D1a, da D1b, da D2, da D2b e da D3.
+// manual da D1a, da D1b, da D2, da D2b, da D3a e da D3b.
 // ============================================
 
 const fs = require('fs');
@@ -60,7 +62,7 @@ var CONFIG = {
         SESSION_DURATION: 3600,
         RESPOSTA_TIMEOUT: 60000,
         ASSESSORIA_TIMEOUT: 20000,
-        HOST_TIMEOUT: 30000,
+        HOST_TIMEOUT: 10000,
         ACTIVITIES_PER_PHASE: 2
     },
     FASES: [
@@ -335,6 +337,75 @@ function criarAmbiente() {
             state.isHost = false;
             state.playerName = nome;
             Game.network.handleMessage({ type: 'state-sync', fullState }, 'sala');
+        },
+
+        /**
+         * D3b: troca setTimeout/clearTimeout e Date.now() por um tempo
+         * controlado pelo teste. avancar(ms) anda o relógio e roda, na
+         * ordem, os timers que vencerem (inclusive os agendados durante
+         * o avanço).
+         */
+        tempoFalso() {
+            let agora = 1000000;
+            let seq = 0;
+            const fila = [];
+            ctx.setTimeout = (fn, ms) => { const id = ++seq; fila.push({ id, fn, quando: agora + (ms || 0) }); return id; };
+            ctx.clearTimeout = (id) => { const i = fila.findIndex(t => t.id === id); if (i >= 0) fila.splice(i, 1); };
+            ctx.Date = class extends Date { static now() { return agora; } };
+            return {
+                agora: () => agora,
+                avancar(ms) {
+                    const fim = agora + ms;
+                    for (;;) {
+                        fila.sort((a, b) => a.quando - b.quando || a.id - b.id);
+                        if (!fila.length || fila[0].quando > fim) break;
+                        const t = fila.shift();
+                        agora = t.quando;
+                        t.fn();
+                    }
+                    agora = fim;
+                }
+            };
+        },
+
+        /**
+         * D3b: peer local (guest) cujas conexões só abrem quando o teste
+         * mandar — conexoes guarda todas as pedidas, na ordem.
+         */
+        peerDeGuest() {
+            const conexoes = [];
+            const peer = {
+                destroyed: false,
+                connect(destino) {
+                    const h = {};
+                    const c = {
+                        peer: destino, open: false, fechada: false,
+                        on: (ev, cb) => { h[ev] = cb; },
+                        send: () => {},
+                        close() { c.fechada = true; c.open = false; },
+                        abrir() { c.open = true; if (h.open) h.open(); }
+                    };
+                    conexoes.push(c);
+                    return c;
+                }
+            };
+            connectionState.setPeer(peer);
+            return conexoes;
+        },
+
+        /** D3b: URL da página e history.replaceState simulados. */
+        urlFalsa(href) {
+            const trocas = [];
+            ctx.URL = URL;
+            ctx.location.href = href;
+            ctx.history = {
+                state: null,
+                replaceState: (_, __, url) => { trocas.push(url); ctx.location.href = url; }
+            };
+            return {
+                trocas,
+                param: (nome) => new URL(ctx.location.href).searchParams.get(nome)
+            };
         },
 
         broadcastsDoTipo: (tipo) => registro.broadcasts.filter(m => m.type === tipo),
@@ -688,7 +759,7 @@ teste('T16b Voltar ao lobby (guest): limpa só a cópia local, sem mandar nada',
     confere(amb.registro.broadcasts.length === 0, 'guest não deveria mandar nada');
 });
 
-teste('T17 Migração no meio da partida: novo host marca os outros como desconectados, pausa e retoma', (usar) => {
+teste('T17 Migração no meio da partida: novo host marca os outros como desconectados (host antigo vira jogador comum), pausa e retoma', (usar) => {
     const amb = usar(criarAmbiente());
     amb.state.isHost = false;
     amb.state.playerName = 'B';
@@ -707,7 +778,11 @@ teste('T17 Migração no meio da partida: novo host marca os outros como descone
     amb.assumirComoHost();
     confere(amb.state.isHost && amb.jogador('B').isHost, 'B deveria ser o novo host');
     confere(amb.jogador('B').peerId === 'sala-h1', 'peerId de B deveria ser o da sala nova, veio: ' + amb.jogador('B').peerId);
-    confere(!amb.jogador('Host'), 'o host antigo deveria sair da lista');
+    // D3b: o host antigo continua na partida, como jogador comum desconectado.
+    const antigo = amb.jogador('Host');
+    confere(antigo, 'o host antigo deveria continuar na lista');
+    confere(antigo.isHost === false && antigo.disconnected === true, 'o host antigo deveria virar jogador comum, desconectado');
+    confere(amb.state.players.filter(p => p.isHost).length === 1, 'só pode haver um host na lista');
     confere(amb.jogador('A').disconnected === true, 'A deveria ficar desconectado até reconectar ao novo host');
     confere(!amb.jogador('B').disconnected, 'o novo host não pode se marcar como desconectado');
     confere(amb.state.partidaPausada, 'só o novo host está conectado — a partida deveria pausar');
@@ -773,6 +848,7 @@ teste('T19 Peer já aberto: "peer-unavailable" (e outros erros) não destroem o 
 
 teste('T20 Reconexão sem peer utilizável: a tentativa falha, mas a cadeia continua', (usar) => {
     const amb = usar(criarAmbiente());
+    const tempo = amb.tempoFalso();
     amb.state.isHost = false;
     amb.state.playerName = 'B';
     amb.state.baseRoomPeerId = 'sala';
@@ -785,9 +861,13 @@ teste('T20 Reconexão sem peer utilizável: a tentativa falha, mas a cadeia cont
     // Peer que perdeu o servidor de sinalização: connect() devolve undefined.
     amb.Game.network.connectionState.setPeer({ destroyed: false, connect: () => undefined });
 
+    // D3b: as tentativas ao mesmo host seguem até o prazo (HOST_TIMEOUT).
     let erro = null;
-    try { amb.Game.network.attemptReconnectToSameHost(3); } catch (e) { erro = e; }
-    confere(!erro, 'última tentativa ao mesmo host não deveria lançar erro, lançou: ' + (erro && erro.message));
+    try {
+        amb.ctx.handleHostDisconnect();
+        tempo.avancar(amb.CONFIG.JOGO.HOST_TIMEOUT);
+    } catch (e) { erro = e; }
+    confere(!erro, 'tentativas ao mesmo host não deveriam lançar erro, lançou: ' + (erro && erro.message));
     confere(amb.registro.spies.attemptReconnectToNewHost === 1, 'deveria seguir para a migração (procurar o novo host)');
 
     erro = null;
@@ -1350,6 +1430,253 @@ teste('T37 Configuração única: nenhum "new Peer" com opções soltas; CONFIG.
 
     // Só existe um arquivo de configuração (a cópia antiga em js/config/ foi removida).
     confere(!fs.existsSync(path.join(RAIZ, 'js/config/game-config.js')), 'js/config/game-config.js (cópia antiga, não carregada) não deveria existir');
+});
+
+// ============================================
+// D3b — PRAZO DE ESPERA PELO HOST / HOST ANTIGO VOLTA COMO JOGADOR COMUM
+// ============================================
+
+/** Guest B com a lista [Host, B, A]: B é o backup. */
+function guestBackup(amb) {
+    amb.state.isHost = false;
+    amb.state.playerName = 'B';
+    amb.state.peerId = 'peer-b';
+    amb.state.baseRoomPeerId = 'sala';
+    amb.state.hostPeerId = 'sala';
+    amb.state.hostVersion = 0;
+    amb.state.players = [
+        { name: 'Host', peerId: 'sala', isHost: true },
+        { name: 'B', peerId: 'peer-b', isHost: false },
+        { name: 'A', peerId: 'peer-a', isHost: false }
+    ];
+}
+
+teste('T38 Host volta dentro do prazo (F5): guest reconecta ao mesmo host, sem migração', (usar) => {
+    const amb = usar(criarAmbiente());
+    const tempo = amb.tempoFalso();
+    guestBackup(amb);
+    const conexoes = amb.peerDeGuest();
+
+    amb.ctx.handleHostDisconnect();
+    tempo.avancar(4000);
+    confere(conexoes.length >= 2 && conexoes.every(c => c.peer === 'sala'),
+        'deveria tentar o MESMO host mais de uma vez dentro do prazo, tentou: ' + conexoes.map(c => c.peer).join(','));
+    confere(amb.registro.spies.becomeHost === 0, 'não deveria assumir antes do prazo');
+
+    // O host terminou de recarregar: a tentativa em andamento abre.
+    conexoes[conexoes.length - 1].abrir();
+    const join = amb.registro.paraHost.find(m => m.type === 'player-join');
+    confere(join && join.token === amb.Game.identity.obterTokenDaSala('sala'),
+        'deveria reenviar o player-join com o token ao host que voltou');
+
+    const tentativas = conexoes.length;
+    tempo.avancar(30000);
+    confere(amb.registro.spies.becomeHost === 0 && amb.registro.spies.attemptReconnectToNewHost === 0,
+        'depois de reconectar, não pode haver migração');
+    confere(conexoes.length === tentativas, 'depois de reconectar, não deveria haver novas tentativas');
+
+    // Uma queda posterior do mesmo host é tratada de novo (a espera anterior acabou).
+    amb.ctx.handleHostDisconnect();
+    confere(conexoes.length === tentativas + 1, 'uma queda nova depois da reconexão deveria abrir uma espera nova');
+});
+
+teste('T39 Host não volta: o backup assume ao fim de HOST_TIMEOUT (10s), não antes', (usar) => {
+    const amb = usar(criarAmbiente());
+    const tempo = amb.tempoFalso();
+    guestBackup(amb);
+    const conexoes = amb.peerDeGuest();
+    const prazo = amb.CONFIG.JOGO.HOST_TIMEOUT;
+
+    amb.ctx.handleHostDisconnect();
+    tempo.avancar(prazo - 2500);
+    confere(amb.registro.spies.becomeHost === 0, 'não deveria assumir antes do prazo');
+    confere(conexoes.length >= 3, 'deveria repetir tentativas curtas ao mesmo host, foram: ' + conexoes.length);
+    tempo.avancar(2500);
+    confere(amb.registro.spies.becomeHost === 1, 'o backup deveria assumir até o fim do prazo');
+    confere(conexoes.every(c => c.peer === 'sala'), 'antes de assumir, só deveria procurar o host atual');
+    confere(conexoes.every(c => c.fechada || c.open), 'tentativas que não abriram deveriam ser fechadas');
+
+    // O prazo vem da configuração.
+    const amb2 = usar(criarAmbiente());
+    const tempo2 = amb2.tempoFalso();
+    guestBackup(amb2);
+    amb2.peerDeGuest();
+    amb2.CONFIG.JOGO.HOST_TIMEOUT = 20000;
+    amb2.ctx.handleHostDisconnect();
+    tempo2.avancar(12000);
+    confere(amb2.registro.spies.becomeHost === 0, 'com HOST_TIMEOUT de 20s, não deveria assumir aos 12s');
+    tempo2.avancar(8000);
+    confere(amb2.registro.spies.becomeHost === 1, 'com HOST_TIMEOUT de 20s, deveria assumir aos 20s');
+
+    // Valor do jogo de verdade.
+    const ctxConfig = vm.createContext({});
+    vm.runInContext('var window = this;' + fs.readFileSync(path.join(RAIZ, 'config/game-config.js'), 'utf8'), ctxConfig);
+    confere(vm.runInContext('CONFIG.JOGO.HOST_TIMEOUT', ctxConfig) === 10000, 'config/game-config.js deveria ter HOST_TIMEOUT de 10000 ms');
+});
+
+teste('T40 Segunda queda durante a espera não abre outra cadeia de tentativas', (usar) => {
+    const amb = usar(criarAmbiente());
+    const tempo = amb.tempoFalso();
+    guestBackup(amb);
+    const conexoes = amb.peerDeGuest();
+
+    amb.ctx.handleHostDisconnect();
+    amb.ctx.handleHostDisconnect();
+    confere(conexoes.length === 1, 'a segunda queda não deveria disparar outra tentativa, houve ' + conexoes.length);
+    tempo.avancar(amb.CONFIG.JOGO.HOST_TIMEOUT);
+    confere(amb.registro.spies.becomeHost === 1, 'deveria decidir uma única vez, decidiu ' + amb.registro.spies.becomeHost);
+
+    // Terminada a espera, uma queda nova (ex: do novo host) abre outra.
+    const antes = conexoes.length;
+    amb.ctx.handleHostDisconnect();
+    confere(conexoes.length === antes + 1, 'depois do prazo, uma queda nova deveria abrir uma espera nova');
+});
+
+teste('T41 Host antigo volta depois da migração: entra como jogador comum com o token dele', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.state.isHost = false;
+    amb.state.playerName = 'B';
+    amb.state.peerId = 'peer-b';
+    amb.state.baseRoomPeerId = 'sala';
+    amb.state.hostVersion = 0;
+    amb.state.gameStarted = true;
+    amb.state.gameOver = false;
+    amb.state.currentRound = null;
+    amb.state.players = [
+        { name: 'Host', peerId: 'sala', isHost: true, kpi: 7, recursos: 4, phase: 'planejamento', activities: 1, tokenHash: amb.hash(tokenDe('Host')) },
+        { name: 'A', peerId: 'peer-a', isHost: false, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0, tokenHash: amb.hash(tokenDe('A')) },
+        { name: 'B', peerId: 'peer-b', isHost: false, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0, tokenHash: amb.hash(tokenDe('B')) }
+    ];
+
+    amb.assumirComoHost();
+    const antigo = amb.jogador('Host');
+    confere(antigo && !antigo.isHost && antigo.disconnected, 'host antigo: jogador comum desconectado');
+    confere(antigo.kpi === 7 && antigo.recursos === 4 && antigo.tokenHash === amb.hash(tokenDe('Host')), 'KPI, recursos e hash do host antigo preservados');
+    confere(amb.state.partidaPausada, 'pré-condição: partida pausada, só o novo host conectado');
+
+    amb.entrar('Host', 'peer-impostor', 'token-de-outro-navegador');
+    confere(amb.recusaPara('peer-impostor') === 'identity-mismatch', 'impostor com o nome do host antigo deveria ser recusado, veio: ' + amb.recusaPara('peer-impostor'));
+
+    amb.limparRegistro();
+    amb.entrar('Host', 'peer-host-voltou');
+    confere(amb.recusaPara('peer-host-voltou') === null, 'o host antigo deveria conseguir voltar, veio: ' + amb.recusaPara('peer-host-voltou'));
+    confere(!antigo.disconnected && antigo.peerId === 'peer-host-voltou' && antigo.isHost === false, 'volta conectado, como jogador comum');
+    confere(antigo.kpi === 7, 'volta com o KPI dele');
+    confere(amb.state.isHost && amb.jogador('B').isHost && amb.state.players.filter(p => p.isHost).length === 1, 'B continua sendo o único host');
+    confere(!amb.state.partidaPausada && amb.state.currentRound, 'com a volta dele, a partida retoma');
+    const lista = amb.broadcastsDoTipo('player-list').pop();
+    confere(lista && lista.players.find(p => p.name === 'Host').isHost === false, 'a lista enviada aos outros mostra o host antigo como jogador comum');
+});
+
+teste('T42 Quem assume como host marca host=true na URL (F5 volta como host na sala nova)', (usar) => {
+    const amb = usar(criarAmbiente());
+    const url = amb.urlFalsa('https://exemplo.github.io/jogo/game.html?host=false&room=sala&playerName=B&peerId=sala');
+    amb.state.isHost = false;
+    amb.state.playerName = 'B';
+    amb.state.peerId = 'peer-b';
+    amb.state.baseRoomPeerId = 'sala';
+    amb.state.hostVersion = 0;
+    amb.state.gameStarted = true;
+    amb.state.gameOver = false;
+    amb.state.players = [
+        { name: 'Host', peerId: 'sala', isHost: true },
+        { name: 'B', peerId: 'peer-b', isHost: false }
+    ];
+
+    amb.assumirComoHost();
+    confere(url.param('host') === 'true', 'a URL deveria passar a dizer host=true, diz: ' + url.param('host'));
+    confere(url.param('peerId') === 'sala' && url.param('room') === 'sala' && url.param('playerName') === 'B',
+        'os outros parâmetros (peerId = ID base da sala) não mudam: ' + amb.ctx.location.href);
+    confere(url.trocas.length === 1, 'deveria trocar a URL sem recarregar (replaceState), uma vez');
+
+    amb.Game.network.registrarPapelNaUrl(false);
+    confere(url.param('host') === 'false', 'registrarPapelNaUrl(false) deveria voltar para host=false');
+
+    // Sem history/URL disponíveis: não quebra.
+    const amb2 = usar(criarAmbiente());
+    let erro = null;
+    try { amb2.Game.network.registrarPapelNaUrl(true); } catch (e) { erro = e; }
+    confere(!erro, 'sem URL/history, não deveria lançar erro');
+});
+
+teste('T43 Host antigo recarregando: se outro assumiu, volta como jogador comum; senão, segue host', (usar) => {
+    const prepararHostAntigo = (amb) => {
+        const url = amb.urlFalsa('https://exemplo.github.io/jogo/game.html?host=true&room=sala&playerName=Host&peerId=sala');
+        amb.state.isHost = true;
+        amb.state.playerName = 'Host';
+        amb.state.baseRoomPeerId = 'sala';
+        amb.state.hostPeerId = 'sala';
+        amb.state.hostVersion = 0;
+        amb.state.gameStarted = true;
+        amb.state.players = [
+            { name: 'Host', peerId: 'sala', isHost: true, kpi: 7 },
+            { name: 'A', peerId: 'peer-a', isHost: false },
+            { name: 'B', peerId: 'peer-b', isHost: false }
+        ];
+        return url;
+    };
+    const conexaoControlada = () => {
+        const h = {};
+        return { open: false, fechada: false, on: (ev, cb) => { h[ev] = cb; }, close() { this.fechada = true; }, disparar: (ev) => h[ev] && h[ev]() };
+    };
+
+    // 1) A sala seguinte responde: a migração aconteceu.
+    const amb = usar(criarAmbiente());
+    const url = prepararHostAntigo(amb);
+    const conn = conexaoControlada();
+    const peers = amb.instalarPeerFalso({ connectDevolve: conn });
+    amb.Game.network.retomarComoJogadorSeOutroAssumiu();
+    const sonda = peers[0];
+    confere(sonda && sonda.id === undefined, 'deveria sondar com um peer temporário (ID aleatório), não com o ID da sala');
+    confere(sonda.opcoesPeer && sonda.opcoesPeer !== amb.CONFIG.PEER && sonda.opcoesPeer.debug === amb.CONFIG.PEER.debug, 'a sonda usa uma cópia de CONFIG.PEER');
+    confere(amb.Game.network.connectionState.getPeer() !== sonda, 'a sonda não pode virar o peer do jogo');
+    sonda.disparar('open', 'peer-sonda');
+    confere(sonda.conexoesPedidas.includes('sala-h1'), 'deveria procurar a versão seguinte do host (sala-h1), procurou: ' + sonda.conexoesPedidas.join(','));
+    confere(amb.state.isHost, 'antes da resposta, nada muda');
+    conn.disparar('open');
+    confere(!amb.state.isHost, 'deveria deixar de ser host');
+    confere(amb.state.hostVersion === 1 && amb.state.hostPeerId === 'sala-h1', 'deveria apontar para a sala nova: ' + amb.state.hostPeerId);
+    confere(amb.jogador('Host').isHost === false && amb.jogador('Host').kpi === 7, 'a própria entrada deixa de ser host, dados preservados');
+    confere(url.param('host') === 'false' && url.param('peerId') === 'sala', 'a URL deveria passar a host=false (peerId base igual): ' + amb.ctx.location.href);
+    confere(sonda.destroyed && conn.fechada, 'a sonda deveria ser encerrada');
+
+    // 2) Ninguém com o ID seguinte (peer-unavailable): segue como host.
+    const amb2 = usar(criarAmbiente());
+    const url2 = prepararHostAntigo(amb2);
+    const peers2 = amb2.instalarPeerFalso({ connectDevolve: conexaoControlada() });
+    amb2.Game.network.retomarComoJogadorSeOutroAssumiu();
+    peers2[0].disparar('open', 'peer-sonda');
+    peers2[0].disparar('error', { type: 'peer-unavailable', message: 'Could not connect to peer sala-h1' });
+    confere(amb2.state.isHost && amb2.state.hostVersion === 0 && amb2.state.hostPeerId === 'sala', 'sem migração, continua host da sala de sempre');
+    confere(url2.trocas.length === 0, 'sem migração, a URL não muda');
+    confere(peers2[0].destroyed, 'a sonda deveria ser encerrada');
+
+    // 3) Sem resposta no tempo limite: segue como host; resposta tardia é ignorada.
+    const amb3 = usar(criarAmbiente());
+    const tempo3 = amb3.tempoFalso();
+    prepararHostAntigo(amb3);
+    const conn3 = conexaoControlada();
+    const peers3 = amb3.instalarPeerFalso({ connectDevolve: conn3 });
+    amb3.Game.network.retomarComoJogadorSeOutroAssumiu();
+    tempo3.avancar(10000);
+    confere(amb3.state.isHost && peers3[0].destroyed, 'sem resposta, segue como host e encerra a sonda');
+    peers3[0].disparar('open', 'peer-sonda');
+    conn3.disparar('open');
+    confere(amb3.state.isHost && amb3.state.hostVersion === 0, 'resposta depois do tempo limite não pode mudar o papel');
+
+    // 4) Guest não sonda nada.
+    const amb4 = usar(criarAmbiente());
+    const peers4 = amb4.instalarPeerFalso();
+    amb4.state.isHost = false;
+    amb4.Game.network.retomarComoJogadorSeOutroAssumiu();
+    confere(peers4.length === 0, 'guest não deveria criar sonda');
+
+    // 5) main.js: a verificação roda só para host com sessão restaurada,
+    // antes de abrir o ID de host.
+    const main = fs.readFileSync(path.join(RAIZ, 'js/main.js'), 'utf8');
+    const chamada = main.search(/if \(restaurou && state\.isHost\) \{\s*await Game\.network\.retomarComoJogadorSeOutroAssumiu\(\);/);
+    confere(chamada >= 0, 'init() deveria chamar retomarComoJogadorSeOutroAssumiu() para host com sessão restaurada');
+    confere(chamada < main.indexOf('await initPeerWithRetry()'), 'a verificação deveria vir antes de abrir o peer');
 });
 
 console.log('\n' + (falhou === 0 ? '🎉' : '⚠️') + ' ' + passou + ' passaram, ' + falhou + ' falharam\n');

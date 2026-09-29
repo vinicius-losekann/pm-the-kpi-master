@@ -159,7 +159,9 @@ async function initPeerWithRetry(maxAttempts = 4, delayMs = 2000) {
 
 /**
  * Ponto de entrada do jogo.
- * Ordem: ler URL → carregar perguntas → restaurar estado → iniciar PeerJS → configurar UI.
+ * Ordem: ler URL → restaurar estado → carregar perguntas → (host com
+ * sessão restaurada: conferir se outro assumiu) → iniciar PeerJS →
+ * configurar UI.
  */
 async function init() {
     console.log('🎯 PM: The KPI Master - Inicializando...');
@@ -190,6 +192,15 @@ async function init() {
     const restaurou = Game.persistence.tryRestoreState();
 
     await loadQuestions();
+
+    // Fase D3b: host recarregando uma sessão salva — antes de reabrir o
+    // ID de host, confere se outro jogador já assumiu a sala enquanto ele
+    // estava fora (o backup assume depois de CONFIG.JOGO.HOST_TIMEOUT).
+    // Se sim, volta como jogador comum (isHost passa a false e a URL a
+    // host=false) e o initPeerWithRetry() abaixo já conecta como guest.
+    if (restaurou && state.isHost) {
+        await Game.network.retomarComoJogadorSeOutroAssumiu();
+    }
 
     try {
         await initPeerWithRetry();

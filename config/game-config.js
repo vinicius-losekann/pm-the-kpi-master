@@ -20,7 +20,7 @@ const CONFIG = {
         MIN_PLAYERS: 2,
         SESSION_DURATION: 5400,               // 90 minutos (em segundos)
         ACTIVITIES_PER_PHASE: 2,              // Atividades necessárias para avançar de fase
-        HOST_TIMEOUT: 30000,                  // Tempo para detectar queda do host (ms)
+        HOST_TIMEOUT: 10000,                  // Prazo total (ms) que os jogadores esperam o host voltar depois de uma queda; esgotado, outro jogador assume como host
         ASSESSORIA_TIMEOUT: 20000,            // Tempo máximo para o assessor responder (ms)
         RESPOSTA_TIMEOUT: 60000,              // Tempo máximo para o Respondedor escolher uma alternativa (ms)
     },

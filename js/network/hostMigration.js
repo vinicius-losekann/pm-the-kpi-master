@@ -12,21 +12,52 @@
 // o MESMO ID. Isso fazia o guest (backup) virar host indevidamente.
 // A correção adiciona attemptReconnectToSameHost() como primeira
 // tentativa, antes de cair no fluxo de migração original.
+//
+// Fase D3b: CONFIG.JOGO.HOST_TIMEOUT passou a ser o prazo TOTAL que os
+// guests esperam o host voltar (tentativas curtas e repetidas ao mesmo
+// host, contadas a partir da queda). Esgotado o prazo, o backup assume.
+// O host antigo continua na partida como jogador comum desconectado e,
+// se recarregar a página depois disso, volta como jogador comum (ver
+// retomarComoJogadorSeOutroAssumiu()).
 // ============================================
 
+// Fase D3b: ritmo das tentativas de reconexão ao mesmo host dentro do
+// prazo (CONFIG.JOGO.HOST_TIMEOUT). Cada tentativa espera no máximo
+// TENTATIVA_HOST_MS pela conexão; entre uma e outra há INTERVALO_HOST_MS.
+// Uma tentativa nova só começa se ainda couber MINIMO_TENTATIVA_MS dentro
+// do prazo — assim o backup assume sem passar do prazo.
+const TENTATIVA_HOST_MS = 2500;
+const INTERVALO_HOST_MS = 1000;
+const MINIMO_TENTATIVA_MS = 1000;
+
+// Fase D3b: quanto tempo o host antigo, ao recarregar a página, espera
+// para descobrir se alguém já assumiu a sala (ver
+// retomarComoJogadorSeOutroAssumiu()). Sem resposta nesse prazo, segue
+// como host, como antes.
+const SONDA_HOST_MS = 5000;
+
+// Momento (Date.now()) em que acaba a espera pelo host atual; 0 quando
+// não há espera em andamento. Impede que duas quedas seguidas abram
+// duas cadeias de tentativas ao mesmo tempo.
+let prazoVoltaDoHost = 0;
+
 /**
- * Lida com a desconexão do host. Primeiro tenta reconectar ao mesmo
- * host (versão atual); só depois de esgotar as tentativas é que
+ * Lida com a desconexão do host. Tenta reconectar ao mesmo host
+ * (versão atual) até o prazo de CONFIG.JOGO.HOST_TIMEOUT; só depois
  * presume migração de host.
  */
 function handleHostDisconnect() {
-    console.warn('⚠️ Host desconectado! Aguardando...');
+    if (Game.state.isHost) return;
+    if (prazoVoltaDoHost) {
+        console.log('⏳ Queda do host já está sendo tratada — aguardando a espera em andamento.');
+        return;
+    }
+
+    console.warn('⚠️ Host desconectado! Tentando reconectar por até ' + (CONFIG.JOGO.HOST_TIMEOUT / 1000) + 's...');
     Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.hostDesconectado'));
 
-    setTimeout(() => {
-        if (Game.state.isHost) return;
-        attemptReconnectToSameHost();
-    }, CONFIG.JOGO.HOST_TIMEOUT);
+    prazoVoltaDoHost = Date.now() + CONFIG.JOGO.HOST_TIMEOUT;
+    attemptReconnectToSameHost(1);
 }
 
 /**
@@ -46,6 +77,24 @@ function conectarSePossivel(peerId) {
     }
 }
 
+/**
+ * Fase D3b: marca na URL da página se este jogador é o host
+ * (`host=true`/`host=false`), sem recarregar. Um F5 lê o papel da URL
+ * (ver init() em main.js): sem isto, quem assumiu como host voltaria
+ * de um F5 achando que é guest, e o host antigo que virou jogador comum
+ * voltaria achando que é host. Os outros parâmetros não mudam — o
+ * `peerId` da URL continua sendo o ID base da sala.
+ */
+function registrarPapelNaUrl(souHost) {
+    try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('host', souHost ? 'true' : 'false');
+        window.history.replaceState(window.history.state, '', url.toString());
+    } catch (e) {
+        console.warn('⚠️ Não foi possível atualizar a URL com o papel do jogador:', e && e.message);
+    }
+}
+
 // ============================================
 // RECONEXÃO AO MESMO HOST (correção do BUG-002)
 // ============================================
@@ -53,29 +102,36 @@ function conectarSePossivel(peerId) {
 /**
  * Tenta reconectar ao host na versão ATUAL (mesmo ID de sempre).
  * Cobre o caso mais comum: o host só deu F5, sem migração nenhuma.
+ *
+ * Fase D3b: repete tentativas curtas até o prazo aberto em
+ * handleHostDisconnect() (CONFIG.JOGO.HOST_TIMEOUT a partir da queda).
+ * Chamada direta, sem prazo em andamento, abre um prazo novo.
  */
 function attemptReconnectToSameHost(attempt = 1) {
     const state = Game.state;
     if (state.isHost) return;
+    if (!prazoVoltaDoHost) prazoVoltaDoHost = Date.now() + CONFIG.JOGO.HOST_TIMEOUT;
 
-    const MAX_ATTEMPTS = 3;
+    const maxAttempts = maximoDeTentativasAoMesmoHost();
     const currentHostId = Game.computeHostPeerId(state.baseRoomPeerId, state.hostVersion);
+    const esperaMs = Math.min(TENTATIVA_HOST_MS, Math.max(MINIMO_TENTATIVA_MS, prazoVoltaDoHost - Date.now()));
 
-    console.log(`🔁 Tentativa ${attempt}/${MAX_ATTEMPTS}: reconectando ao host atual (${currentHostId})...`);
-    Game.ui.updateConnectionStatus('disconnected', Game.i18n.t('connection.reconectandoHost', { attempt, max: MAX_ATTEMPTS }));
+    console.log(`🔁 Tentativa ${attempt}: reconectando ao host atual (${currentHostId})...`);
+    Game.ui.updateConnectionStatus('disconnected', Game.i18n.t('connection.reconectandoHost', { attempt: Math.min(attempt, maxAttempts), max: maxAttempts }));
 
     let settled = false;
     const cs = Game.network.connectionState;
     const conn = conectarSePossivel(currentHostId);
     if (!conn) {
         console.warn('⚠️ Sem peer utilizável para reconectar — tentativa contada como falha.');
-        retryReconnectSameHostOrMigrate(attempt, MAX_ATTEMPTS);
+        retryReconnectSameHostOrMigrate(attempt);
         return;
     }
 
     conn.on('open', () => {
         if (settled) return;
         settled = true;
+        prazoVoltaDoHost = 0;
 
         cs.setConnection(currentHostId, conn);
         console.log('✅ Reconectado ao mesmo host (sem migração):', currentHostId);
@@ -89,26 +145,39 @@ function attemptReconnectToSameHost(attempt = 1) {
     conn.on('error', () => {
         if (settled) return;
         settled = true;
-        retryReconnectSameHostOrMigrate(attempt, MAX_ATTEMPTS);
+        retryReconnectSameHostOrMigrate(attempt);
     });
 
     setTimeout(() => {
         if (settled) return;
         settled = true;
         try { conn.close(); } catch (e) { /* ignora */ }
-        retryReconnectSameHostOrMigrate(attempt, MAX_ATTEMPTS);
-    }, 4000);
+        retryReconnectSameHostOrMigrate(attempt);
+    }, esperaMs);
 }
 
-function retryReconnectSameHostOrMigrate(attempt, maxAttempts) {
-    if (Game.state.isHost) return;
+/**
+ * Fase D3b: quantas tentativas cabem no prazo (só para o texto de
+ * status "Reconectando ao host (x/y)").
+ */
+function maximoDeTentativasAoMesmoHost() {
+    return Math.max(1, Math.ceil(CONFIG.JOGO.HOST_TIMEOUT / (TENTATIVA_HOST_MS + INTERVALO_HOST_MS)));
+}
 
-    if (attempt < maxAttempts) {
-        setTimeout(() => attemptReconnectToSameHost(attempt + 1), 2000);
+function retryReconnectSameHostOrMigrate(attempt) {
+    if (Game.state.isHost) {
+        prazoVoltaDoHost = 0;
         return;
     }
 
-    console.warn('⚠️ Não foi possível reconectar ao host original. Presumindo migração de host...');
+    const restante = prazoVoltaDoHost - Date.now();
+    if (restante >= INTERVALO_HOST_MS + MINIMO_TENTATIVA_MS) {
+        setTimeout(() => attemptReconnectToSameHost(attempt + 1), INTERVALO_HOST_MS);
+        return;
+    }
+
+    prazoVoltaDoHost = 0;
+    console.warn('⚠️ O host não voltou dentro do prazo. Presumindo migração de host...');
     decideHostTakeoverOrReconnectNewVersion();
 }
 
@@ -236,9 +305,14 @@ function becomeHost() {
     newPeer.on('open', (id) => {
         state.peerId = id;
 
-        state.players = state.players.filter(p =>
-            p.name === state.playerName || !p.isHost
-        );
+        // Fase D3b: o host antigo NÃO sai da lista — passa a ser um
+        // jogador comum (isHost: false), com KPI, recursos, fase e o
+        // tokenHash dele preservados. Com a partida em andamento ele fica
+        // desconectado como os outros (abaixo) e, se voltar, entra pelo
+        // player-join com o token, como qualquer jogador que caiu.
+        state.players.forEach(p => {
+            if (p.name !== state.playerName) p.isHost = false;
+        });
 
         const me = Game.getPlayerByName(state.playerName);
         if (me) { me.isHost = true; me.peerId = id; }
@@ -328,6 +402,7 @@ function becomeHost() {
 
         document.getElementById('roomPeerId').textContent = id;
         document.getElementById('hostRoomIdSection').style.display = 'block';
+        registrarPapelNaUrl(true);
         alert('👑 Você agora é o host!');
         Game.saveState();
     });
@@ -338,6 +413,93 @@ function becomeHost() {
         console.error('❌ Erro ao assumir como host:', err);
         Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.falhaAssumirHost'));
     });
+}
+
+// ============================================
+// HOST ANTIGO RECARREGANDO A PÁGINA (Fase D3b)
+// ============================================
+
+/**
+ * Fase D3b: chamada por init() (main.js) quando o HOST recarrega a
+ * página e restaura uma sessão salva, ANTES de abrir o ID de host.
+ * Procura a versão seguinte do host (a sala que o backup abre ao
+ * assumir) com um peer temporário. Se ela responder, a migração já
+ * aconteceu: este jogador volta como jogador comum — isHost = false,
+ * versão seguinte do host, URL com host=false — e entra na sala nova
+ * pelo player-join com o token, como qualquer jogador que caiu. Sem
+ * isto, ele reabriria o ID antigo e haveria dois hosts ao mesmo tempo.
+ *
+ * @returns {Promise<boolean>} true se virou jogador comum
+ */
+function retomarComoJogadorSeOutroAssumiu() {
+    return new Promise((resolve) => {
+        const state = Game.state;
+        if (!state.isHost) { resolve(false); return; }
+
+        const versaoSeguinte = state.hostVersion + 1;
+        const idSeguinte = Game.computeHostPeerId(state.baseRoomPeerId, versaoSeguinte);
+        console.log('🔎 Verificando se outro jogador assumiu a sala em ' + idSeguinte + '...');
+
+        let resolvido = false;
+        let sonda = null;
+        const concluir = (outroAssumiu) => {
+            if (resolvido) return;
+            resolvido = true;
+            if (sonda && !sonda.destroyed) {
+                try { sonda.destroy(); } catch (e) { /* ignora */ }
+            }
+            if (outroAssumiu) {
+                voltarComoJogadorComum(versaoSeguinte, idSeguinte);
+            } else {
+                console.log('👑 Ninguém assumiu a sala — seguindo como host.');
+            }
+            resolve(outroAssumiu);
+        };
+
+        try {
+            sonda = new Peer(undefined, { ...CONFIG.PEER });
+        } catch (e) {
+            concluir(false);
+            return;
+        }
+
+        sonda.on('open', () => {
+            let conn = null;
+            try { conn = sonda.connect(idSeguinte, { reliable: true }); } catch (e) { conn = null; }
+            if (!conn) { concluir(false); return; }
+            conn.on('open', () => {
+                try { conn.close(); } catch (e) { /* ignora */ }
+                concluir(true);
+            });
+            conn.on('error', () => concluir(false));
+        });
+
+        // 'peer-unavailable' = ninguém com esse ID: não houve migração.
+        // Qualquer outro erro também deixa como antes (segue como host).
+        sonda.on('error', () => concluir(false));
+
+        setTimeout(() => concluir(false), SONDA_HOST_MS);
+    });
+}
+
+/**
+ * Fase D3b: o host antigo passa a ser jogador comum da sala que o
+ * backup abriu. A própria entrada na lista (restaurada do estado salvo)
+ * deixa de ser host; a lista certa chega no state-sync do novo host.
+ */
+function voltarComoJogadorComum(versaoSeguinte, idSeguinte) {
+    const state = Game.state;
+    console.warn('🔄 Outro jogador assumiu a sala enquanto você estava fora — voltando como jogador comum.');
+
+    state.isHost = false;
+    state.hostVersion = versaoSeguinte;
+    state.hostPeerId = idSeguinte;
+
+    const me = Game.getPlayerByName(state.playerName);
+    if (me) me.isHost = false;
+
+    registrarPapelNaUrl(false);
+    Game.saveState();
 }
 
 /**
@@ -363,5 +525,7 @@ Object.assign(window.Game.network, {
     attemptReconnectToNewHost,
     retryOrGiveUp,
     becomeHost,
-    reconnectToNewHost
+    reconnectToNewHost,
+    registrarPapelNaUrl,
+    retomarComoJogadorSeOutroAssumiu
 });
