@@ -163,6 +163,12 @@ function handleMatchEnded(msg) {
  * Se quem clicou é o host (dono da lista oficial), avisa os guests com
  * um 'player-list'; um guest só limpa a própria cópia (a lista do host
  * sobrescreve a dele a cada 'player-list').
+ *
+ * Fase D3d: os jogadores voltam zerados, como em endMatch() — em
+ * especial, quem tinha saído da partida deixa de estar "aguardando no
+ * lobby". Antes, essa marca sobrava e o botão "Iniciar" não contava o
+ * jogador: com 2 jogadores, depois de um "Sair da partida" não dava
+ * para começar outra. Por isso o host sempre manda a lista atualizada.
  */
 function voltarAoLobby() {
     const state = Game.state;
@@ -170,10 +176,11 @@ function voltarAoLobby() {
     const removidos = Game.mutations.removeDisconnectedPlayers(state);
     if (removidos.length) console.log('🧹 Removidos ao voltar ao lobby (desconectados): ' + removidos.join(', '));
 
+    Game.resetAllPlayers();
     Game.resetGameState();
     resetAllBaralhos();
 
-    if (state.isHost && removidos.length) {
+    if (state.isHost) {
         Game.network.broadcastAll({ type: 'player-list', players: state.players });
     }
 

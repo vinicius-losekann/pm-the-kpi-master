@@ -56,17 +56,16 @@ flowchart TD
     classDef ok fill:#1e5631,color:#fff,stroke:#0f3
     classDef auto fill:#1f3b5c,color:#fff,stroke:#39f
     classDef bug fill:#6b1d1d,color:#fff,stroke:#f33
-    class A,B,B1,D,D1,E,E1,F,G,H,I,J,L,M,N ok
-    class C,K auto
-    class O,P bug
+    class A,B,B1,D,D1,E,E1,F,G,H,I,J,L,M,N,O ok
+    class C,K,P auto
 ```
 
 Cores: **verde** = automatizado e conferido manualmente · **azul** =
-só automatizado (falta o manual) · **vermelho** = bug encontrado.
+só automatizado (falta o manual).
 
 ---
 
-## 2. Casos cobertos por teste automatizado (50 testes)
+## 2. Casos cobertos por teste automatizado (51 testes)
 
 ### Entrada na sala e identidade
 | Caso | Testes | Manual |
@@ -80,7 +79,7 @@ só automatizado (falta o manual) · **vermelho** = bug encontrado.
 | Estado salvo antes do token (transição) | 🤖 T27 | — |
 | Guest manda o token na 1ª conexão e nas reconexões | 🤖 T28 | 👤 |
 | Tela inicial acha a sala migrada; sala inexistente e erro de rede com a mensagem certa | 🤖 T47 | 👤 entrou pelo código depois da troca de host |
-| Criar sala com código de partida em andamento numa versão migrada | 🤖 T47 | ⬜ resultado a confirmar (houve demora no Edge) |
+| Criar sala com código de partida em andamento numa versão migrada | 🤖 T47 · 🤖 no Chromium real: "já está em uso" em 0,7s, sem travar | ⬜ no Edge do Windows houve travamento de ~5s (seção 5) |
 
 ### Queda e volta de guest
 | Caso | Testes | Manual |
@@ -114,16 +113,19 @@ só automatizado (falta o manual) · **vermelho** = bug encontrado.
 |---|---|---|
 | Fim de jogo: quem cai sai da lista | 🤖 T11 | — |
 | Encerrar partida (normal e pausada) | 🤖 T14, T15 | — |
-| Voltar ao lobby após o fim de jogo (host e guest) | 🤖 T16, T16b | 🐛 ver seção 3 |
+| Voltar ao lobby após o fim de jogo (host e guest) | 🤖 T16, T16b | — |
+| Guest sai da partida, ela acaba, e o host inicia outra | 🤖 T48 | ⬜ **P1** (M10) |
 | Sair da partida: se faltar jogador, a partida acaba | 🤖 T7 | 👤 |
 
 ---
 
 ## 3. Bugs encontrados, ainda não corrigidos
 
+B1 (botão "Iniciar" desabilitado depois de um "Sair da partida") foi
+corrigido na D3d.
+
 | ID | Situação | Causa |
 |---|---|---|
-| 🐛 B1 | Com 2 jogadores, o guest sai da partida → a partida acaba → o host volta ao lobby e **não consegue iniciar outra partida** (botão "Iniciar" desabilitado). | "Voltar ao lobby" não limpa a marca de "aguardando no lobby" de quem saiu; o botão conta esse jogador como ausente. O guest também não recebe a lista atualizada. |
 | 🐛 B2 | Depois de uma troca de host com a rodada **já encerrada**, a próxima dupla começa sozinha, sem o "Nova Rodada". | O novo host não sabe que a rodada tinha acabado nem quem já respondeu nela (só o host antigo guardava essa lista). Correção planejada: continuar a rodada de onde parou. |
 
 ---
@@ -145,7 +147,7 @@ janelas visíveis lado a lado (aba em segundo plano fica mais lenta).
 | M7 | **P1** | Queda de rede real (não fechar aba) | Desligar o Wi-Fi do guest por 20s; depois do host | Guest: volta sozinho ou ao recarregar. Host: troca de host depois de perceber a queda (mais lento que fechar a aba) |
 | M8 | **P1** | Celular com tela bloqueada / navegador em segundo plano | Bloquear o celular por 1 min no meio da partida | Ao desbloquear, volta à partida (ou ao recarregar) |
 | M9 | **P1** | Redes diferentes | Host no Wi-Fi da instituição, guest no 4G | Conecta. **Risco:** redes corporativas/universitárias podem bloquear a conexão direta entre navegadores sem um servidor de retransmissão (TURN) |
-| M10 | **P1** | Nova partida depois de "saiu da partida" | 2 jogadores; guest sai; host volta ao lobby e inicia outra | Hoje falha (🐛 B1) |
+| M10 | **P1** | Nova partida depois de "saiu da partida" | 2 jogadores; guest sai; host volta ao lobby e inicia outra | Botão "Iniciar" habilitado; a partida nova começa (corrigido na D3d, T48) |
 | M11 | P2 | Duas trocas de host seguidas | 3 jogadores: host sai; depois o novo host sai | Sala vai para `-h2`; entrar pela tela inicial com o código funciona |
 | M12 | P2 | Troca de host no lobby | Host fecha a aba antes de iniciar | Backup assume; os outros voltam como jogadores novos |
 | M13 | P2 | Host sai com a partida pausada | Pausar (guest cai), depois o host fecha | Novo host segue pausado e retoma quando der |
@@ -165,6 +167,7 @@ janelas visíveis lado a lado (aba em segundo plano fica mais lenta).
 - ⚠️ A procura da sala olha até 5 trocas de host seguidas (`-h5`).
 - ⚠️ Depois de 5 tentativas sem achar o novo host, o guest desiste (precisa recarregar).
 - ⚠️ Diferença de ~1s entre o relógio do host e o dos guests que reconectam.
+- ⚠️ **Em investigação:** travamentos do Edge no Windows (uma vez travou o computador inteiro; outra, ~5s ao criar sala). Reproduzindo o mesmo cenário no Chromium (mesmo motor do Edge), a página não travou: nenhuma tarefa acima de 100 ms, e memória e elementos da página estáveis durante a partida. Falta medir no próprio Edge (Gerenciador de Tarefas do navegador, Shift+Esc) e comparar com o Chrome na mesma máquina.
 
 ---
 
@@ -181,4 +184,6 @@ jogo) cobriria de forma automática a maior parte da seção 4:
   M17 em Safari/iPhone e M18.
 
 Com isso, cada push passaria a testar também a rede, e não só a
-lógica.
+lógica. O ambiente já foi experimentado: o jogo roda completo no
+Chromium sem interface, com servidor PeerJS local (troca de host em
+~10s, tela inicial achando a sala migrada).

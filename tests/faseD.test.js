@@ -2071,6 +2071,36 @@ teste('T47 Tela inicial: entrar acha a sala migrada; criar recusa código de par
     confere(tela4.peers[0].destroyed, 'o peer de teste deveria ser liberado antes de entrar no jogo');
 });
 
+// ============================================
+// D3d — VOLTAR AO LOBBY DEPOIS DE "SAIR DA PARTIDA"
+// ============================================
+
+teste('T48 Guest sai da partida e ela acaba: no lobby, o host consegue iniciar outra', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.criarSalaComoHost();
+    amb.entrar('A', 'peer-a');
+    amb.iniciarPartida();
+    amb.jogador('A').kpi = 12;
+
+    // A sai da partida: com 2 jogadores, a partida acaba (T7).
+    amb.Game.core.handleLeaveMatchRequest({ playerName: 'A' });
+    confere(amb.jogador('A').waitingInLobby, 'pré-condição: A aguardando no lobby');
+    if (!amb.state.gameOver) amb.Game.core.endGame(amb.Game.core.buildRanking());
+
+    amb.limparRegistro();
+    amb.Game.core.voltarAoLobby();
+    const a = amb.jogador('A');
+    confere(a && a.waitingInLobby === false, 'A deveria deixar de estar "aguardando no lobby"');
+    confere(a.kpi === 0 && a.recursos === amb.CONFIG.RECURSOS_INICIAIS, 'jogadores voltam zerados, como ao encerrar a partida');
+    confere(amb.Game.getActivePlayers().length === 2, 'os 2 jogadores deveriam contar para iniciar, contam ' + amb.Game.getActivePlayers().length);
+    const lista = amb.broadcastsDoTipo('player-list').pop();
+    confere(lista && lista.players.find(p => p.name === 'A').waitingInLobby === false,
+        'o host deveria mandar a lista atualizada aos guests, mesmo sem ninguém removido');
+
+    amb.iniciarPartida();
+    confere(amb.state.gameStarted && !amb.state.gameOver && amb.state.currentRound, 'deveria conseguir iniciar outra partida');
+});
+
 console.log('\n' + (falhou === 0 ? '🎉' : '⚠️') + ' ' + passou + ' passaram, ' + falhou + ' falharam\n');
 
 // No GitHub Actions, escreve também uma tabela de resumo que aparece
