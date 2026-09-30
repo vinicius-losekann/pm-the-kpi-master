@@ -63,6 +63,9 @@ async function initPeer() {
             if (peerAberto) {
                 if (err && err.type === 'peer-unavailable') {
                     console.warn('⚠️ Peer procurado não está online:', err.message);
+                    // Fase D3c: a busca da sala (hostSearch.js) descarta
+                    // na hora a versão do host que não existe.
+                    Game.network.avisarPeerIndisponivel(err);
                 } else {
                     console.error('❌ PeerJS Error:', err);
                     Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.erro'));
@@ -77,10 +80,19 @@ async function initPeer() {
         });
 
         peer.on('disconnected', () => {
+            // Fase D3c: destroy() também dispara 'disconnected' (ex: quando
+            // este jogador assume como host e troca de peer, ou quando a
+            // página fecha). Só faz sentido reconectar ESTE peer, se ele
+            // ainda for o peer em uso e continuar desconectado do servidor
+            // — antes, 3s depois de assumir como host, o jogo mandava
+            // reconectar o peer novo (já conectado) e o PeerJS lançava
+            // "cannot reconnect because it is not disconnected".
+            if (peer.destroyed || cs.getPeer() !== peer) return;
             Game.ui.updateConnectionStatus('disconnected', Game.i18n.t('connection.desconectado'));
             setTimeout(() => {
-                const current = cs.getPeer();
-                if (current && !current.destroyed) current.reconnect();
+                if (cs.getPeer() === peer && !peer.destroyed && peer.disconnected) {
+                    peer.reconnect();
+                }
             }, 3000);
         });
     });
@@ -92,11 +104,39 @@ async function initPeer() {
 
 /**
  * Conecta-se ao host (usado por guests).
+ *
+ * Fase D3c: procura a sala a partir da versão de host conhecida (0 para
+ * quem entra agora; a salva, para quem volta com a sessão restaurada)
+ * e nas seguintes — depois de uma migração de host, a sala não está
+ * mais no ID base (ver network/hostSearch.js). Achou: passa a usar
+ * aquela versão e envia o player-join.
  */
 function connectToHost() {
+    const state = Game.state;
     const cs = Game.network.connectionState;
-    const conn = cs.getPeer().connect(Game.state.hostPeerId, { reliable: true });
-    handleConnection(conn);
+
+    Game.network.procurarHost(cs.getPeer(), state.baseRoomPeerId, {
+        versaoInicial: state.hostVersion || 0,
+        aoAchar: (conn, versao, id) => {
+            if (versao !== state.hostVersion) {
+                console.log('🔄 A sala mudou de host enquanto você estava fora — conectando a ' + id);
+            }
+            state.hostVersion = versao;
+            state.hostPeerId = id;
+            cs.setConnection(id, conn);
+            console.log('🔗 Conectado a:', id);
+
+            // A conexão já abriu: o 'open' registrado em handleConnection()
+            // não roda mais, então o player-join vai daqui.
+            handleConnection(conn);
+            enviarPlayerJoin();
+            Game.saveState();
+        },
+        aoDesistir: () => {
+            console.error('❌ Sala não encontrada:', state.baseRoomPeerId);
+            Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.naoFoiPossivelConectar'));
+        }
+    });
 }
 
 /**

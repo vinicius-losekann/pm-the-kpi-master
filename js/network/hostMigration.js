@@ -19,6 +19,10 @@
 // O host antigo continua na partida como jogador comum desconectado e,
 // se recarregar a página depois disso, volta como jogador comum (ver
 // retomarComoJogadorSeOutroAssumiu()).
+//
+// Fase D3c: a procura da sala em várias versões do host (usada por quem
+// entra, por quem volta e pela verificação do host antigo) fica em
+// network/hostSearch.js.
 // ============================================
 
 // Fase D3b: ritmo das tentativas de reconexão ao mesmo host dentro do
@@ -33,8 +37,9 @@ const MINIMO_TENTATIVA_MS = 1000;
 // Fase D3b: quanto tempo o host antigo, ao recarregar a página, espera
 // para descobrir se alguém já assumiu a sala (ver
 // retomarComoJogadorSeOutroAssumiu()). Sem resposta nesse prazo, segue
-// como host, como antes.
-const SONDA_HOST_MS = 5000;
+// como host, como antes. Fase D3c: cobre abrir a sonda e a busca nas
+// versões seguintes (hostSearch.js).
+const SONDA_HOST_MS = 7000;
 
 // Momento (Date.now()) em que acaba a espera pelo host atual; 0 quando
 // não há espera em andamento. Impede que duas quedas seguidas abram
@@ -422,12 +427,13 @@ function becomeHost() {
 /**
  * Fase D3b: chamada por init() (main.js) quando o HOST recarrega a
  * página e restaura uma sessão salva, ANTES de abrir o ID de host.
- * Procura a versão seguinte do host (a sala que o backup abre ao
- * assumir) com um peer temporário. Se ela responder, a migração já
- * aconteceu: este jogador volta como jogador comum — isHost = false,
- * versão seguinte do host, URL com host=false — e entra na sala nova
- * pelo player-join com o token, como qualquer jogador que caiu. Sem
- * isto, ele reabriria o ID antigo e haveria dois hosts ao mesmo tempo.
+ * Procura as versões seguintes do host (a sala que o backup abre ao
+ * assumir — e, desde a D3c, também as de migrações posteriores) com um
+ * peer temporário. Se alguma responder, a migração já aconteceu: este
+ * jogador volta como jogador comum — isHost = false, versão encontrada
+ * do host, URL com host=false — e entra na sala nova pelo player-join
+ * com o token, como qualquer jogador que caiu. Sem isto, ele reabriria
+ * o ID antigo e haveria dois hosts ao mesmo tempo.
  *
  * @returns {Promise<boolean>} true se virou jogador comum
  */
@@ -437,48 +443,57 @@ function retomarComoJogadorSeOutroAssumiu() {
         if (!state.isHost) { resolve(false); return; }
 
         const versaoSeguinte = state.hostVersion + 1;
-        const idSeguinte = Game.computeHostPeerId(state.baseRoomPeerId, versaoSeguinte);
-        console.log('🔎 Verificando se outro jogador assumiu a sala em ' + idSeguinte + '...');
+        console.log('🔎 Verificando se outro jogador assumiu a sala (versões a partir de ' + versaoSeguinte + ')...');
 
         let resolvido = false;
         let sonda = null;
-        const concluir = (outroAssumiu) => {
+        let busca = null;
+        const concluir = (achado) => {
             if (resolvido) return;
             resolvido = true;
+            if (busca) busca.cancelar();
             if (sonda && !sonda.destroyed) {
                 try { sonda.destroy(); } catch (e) { /* ignora */ }
             }
-            if (outroAssumiu) {
-                voltarComoJogadorComum(versaoSeguinte, idSeguinte);
+            if (achado) {
+                voltarComoJogadorComum(achado.versao, achado.id);
             } else {
                 console.log('👑 Ninguém assumiu a sala — seguindo como host.');
             }
-            resolve(outroAssumiu);
+            resolve(!!achado);
         };
 
         try {
             sonda = new Peer(undefined, { ...CONFIG.PEER });
         } catch (e) {
-            concluir(false);
+            concluir(null);
             return;
         }
 
         sonda.on('open', () => {
-            let conn = null;
-            try { conn = sonda.connect(idSeguinte, { reliable: true }); } catch (e) { conn = null; }
-            if (!conn) { concluir(false); return; }
-            conn.on('open', () => {
-                try { conn.close(); } catch (e) { /* ignora */ }
-                concluir(true);
+            if (resolvido) return;
+            busca = Game.network.procurarHost(sonda, state.baseRoomPeerId, {
+                versaoInicial: versaoSeguinte,
+                aoAchar: (conn, versao, id) => {
+                    try { conn.close(); } catch (e) { /* ignora */ }
+                    concluir({ versao, id });
+                },
+                aoDesistir: () => concluir(null)
             });
-            conn.on('error', () => concluir(false));
         });
 
-        // 'peer-unavailable' = ninguém com esse ID: não houve migração.
-        // Qualquer outro erro também deixa como antes (segue como host).
-        sonda.on('error', () => concluir(false));
+        // 'peer-unavailable' = ninguém com aquele ID: a busca descarta a
+        // versão e segue com as outras. Qualquer outro erro deixa como
+        // antes (segue como host).
+        sonda.on('error', (err) => {
+            if (err && err.type === 'peer-unavailable') {
+                Game.network.avisarPeerIndisponivel(err);
+                return;
+            }
+            concluir(null);
+        });
 
-        setTimeout(() => concluir(false), SONDA_HOST_MS);
+        setTimeout(() => concluir(null), SONDA_HOST_MS);
     });
 }
 

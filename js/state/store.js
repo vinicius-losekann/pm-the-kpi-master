@@ -37,20 +37,13 @@ const gameState = {
     assessoriaTimeout: null,
 };
 
-/**
- * Calcula o ID do host para uma determinada versão de migração.
- * Função pura — não depende do estado, só dos parâmetros.
- */
-function computeHostPeerId(baseId, version) {
-    return version > 0 ? `${baseId}-h${version}` : baseId;
-}
-
 // ============================================
 // EXPORTAÇÃO
 // ============================================
 window.Game = window.Game || {};
 window.Game.state = gameState;
-window.Game.computeHostPeerId = computeHostPeerId;
+// Game.computeHostPeerId (ID do host em cada versão de migração) fica em
+// network/hostSearch.js desde a Fase D3c — a tela inicial também usa.
 
 // --- Wrappers de compatibilidade (ver nota no topo do arquivo) ---
 window.Game.getFaseById = (id) => Game.selectors.getFaseById(CONFIG.FASES, id);

@@ -4,6 +4,11 @@
 // Gerencia a criação e entrada em salas via PeerJS.
 // Fase 0.4: movido de js/index.js para js/entry/roomEntry.js,
 // sem mudança de lógica — apenas de localização.
+//
+// Fase D3c: depois de uma migração de host, a sala deixa o ID base e
+// passa a existir em `<ID base>-h1`, `-h2`... Entrar e criar sala agora
+// procuram também essas versões (Game.network.procurarHost(), em
+// network/hostSearch.js, carregado antes deste arquivo no index.html).
 // ============================================
 
 console.log('[ENTRY] Inicializando...');
@@ -111,23 +116,50 @@ btnCreateRoom.addEventListener('click', () => {
     showFeedback(createFeedback, '🔄 Verificando disponibilidade...', 'info');
 
     const testPeer = new Peer(createdRoomFullId, { ...CONFIG.PEER });
+    let concluido = false;
+    let busca = null;
 
-    testPeer.on('open', (id) => {
-        console.log('[ENTRY] Peer ID confirmado:', id);
-        testPeer.destroy();
+    const concluir = (mensagemErro) => {
+        if (concluido) return;
+        concluido = true;
+        if (busca) busca.cancelar();
+        if (!testPeer.destroyed) testPeer.destroy();
+        if (mensagemErro) {
+            showFeedback(createFeedback, mensagemErro, 'error');
+            return;
+        }
         createdRoomIdDisplay.textContent = createdRoomFullId;
         showScreen(screenCreated);
         hideFeedback(createFeedback);
+    };
+
+    testPeer.on('open', (id) => {
+        console.log('[ENTRY] Peer ID confirmado:', id);
+        // Fase D3c: o ID base estar livre não basta — uma partida com
+        // este código pode continuar numa versão migrada do host
+        // (`-h1`, `-h2`...). Nesse caso o código também está em uso.
+        busca = Game.network.procurarHost(testPeer, createdRoomFullId, {
+            versaoInicial: 1,
+            aoAchar: (conn, versao, idAchado) => {
+                console.log('[ENTRY] Partida com este código em andamento em', idAchado);
+                concluir('⚠️ Este código já está em uso. Escolha outro.');
+            },
+            aoDesistir: () => concluir(null)
+        });
     });
 
     testPeer.on('error', (err) => {
+        // 'peer-unavailable' vem da procura acima: aquela versão não existe.
+        if (err.type === 'peer-unavailable') {
+            Game.network.avisarPeerIndisponivel(err);
+            return;
+        }
         console.error('[ENTRY] Erro:', err);
         if (err.type === 'unavailable-id') {
-            showFeedback(createFeedback, '⚠️ Este código já está em uso. Escolha outro.', 'error');
+            concluir('⚠️ Este código já está em uso. Escolha outro.');
         } else {
-            showFeedback(createFeedback, '⚠️ Erro de conexão. Verifique sua internet.', 'error');
+            concluir('⚠️ Erro de conexão. Verifique sua internet.');
         }
-        if (testPeer) testPeer.destroy();
     });
 });
 
@@ -194,50 +226,55 @@ btnJoinRoom.addEventListener('click', () => {
     showFeedback(joinFeedback, '🔄 Procurando sala...', 'info');
 
     const testPeer = new Peer({ ...CONFIG.PEER });
+    let concluido = false;
+    let busca = null;
+
+    const encerrarTeste = () => {
+        concluido = true;
+        if (busca) busca.cancelar();
+        if (!testPeer.destroyed) testPeer.destroy();
+    };
 
     testPeer.on('open', (myTestId) => {
         console.log('[ENTRY] Peer teste:', myTestId);
-        const conn = testPeer.connect(roomId, { reliable: true });
-        let resolved = false;
+        // Fase D3c: procura a sala no ID base e nas versões migradas do
+        // host. O link do jogo continua com o ID base (peerId) — o jogo
+        // faz a mesma procura ao conectar (peerService.connectToHost()).
+        busca = Game.network.procurarHost(testPeer, roomId, {
+            aoAchar: (conn, versao, idAchado) => {
+                if (concluido) return;
+                console.log('[ENTRY] Sala encontrada em', idAchado);
+                try { conn.close(); } catch (e) { /* ignora */ }
+                encerrarTeste();
 
-        conn.on('open', () => {
-            if (resolved) return;
-            resolved = true;
-            console.log('[ENTRY] Sala encontrada!');
-            conn.close();
-            testPeer.destroy();
-
-            const params = new URLSearchParams({
-                host: 'false',
-                room: roomId,
-                playerName: playerName,
-                peerId: roomId
-            });
-            showFeedback(joinFeedback, '✅ Sala encontrada! Entrando...', 'success');
-            setTimeout(() => { window.location.href = `game.html?${params.toString()}`; }, 800);
-        });
-
-        conn.on('error', (err) => {
-            if (resolved) return;
-            resolved = true;
-            console.error('[ENTRY] Erro:', err);
-            testPeer.destroy();
-            showFeedback(joinFeedback, '⚠️ Sala não encontrada. Verifique o código.', 'error');
-        });
-
-        setTimeout(() => {
-            if (!resolved) {
-                resolved = true;
-                console.log('[ENTRY] Timeout');
-                testPeer.destroy();
-                showFeedback(joinFeedback, '⚠️ Sala não respondeu. O host está online?', 'error');
+                const params = new URLSearchParams({
+                    host: 'false',
+                    room: roomId,
+                    playerName: playerName,
+                    peerId: roomId
+                });
+                showFeedback(joinFeedback, '✅ Sala encontrada! Entrando...', 'success');
+                setTimeout(() => { window.location.href = `game.html?${params.toString()}`; }, 800);
+            },
+            aoDesistir: () => {
+                if (concluido) return;
+                console.log('[ENTRY] Sala não encontrada:', roomId);
+                encerrarTeste();
+                showFeedback(joinFeedback, '⚠️ Sala não encontrada. Verifique o código e se o host está online.', 'error');
             }
-        }, 5000);
+        });
     });
 
     testPeer.on('error', (err) => {
+        // 'peer-unavailable' vem da procura acima: aquela versão da sala
+        // não existe — a procura segue com as outras.
+        if (err.type === 'peer-unavailable') {
+            Game.network.avisarPeerIndisponivel(err);
+            return;
+        }
+        if (concluido) return;
         console.error('[ENTRY] Erro peer:', err);
-        if (testPeer) testPeer.destroy();
+        encerrarTeste();
         showFeedback(joinFeedback, '⚠️ Erro de conexão. Verifique sua internet.', 'error');
     });
 });
