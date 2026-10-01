@@ -97,6 +97,11 @@ function handleAnswer(msg) {
     const seguroMsg = temReserva ? ' (reserva de contingência)' : '';
     console.log('📊 ' + (acertou ? '✅ Acertou' : '❌ Errou') + ' | Recursos: ' + respondedor.recursos + seguroMsg + ' | KPI: ' + respondedor.kpi);
 
+    // Fase D3e: quem respondeu entra no rodízio ANTES do aviso aos
+    // guests — o 'kpi-update' leva a lista (`respondidos`). Se o host
+    // cair logo depois, quem assumir já sabe quem respondeu nesta rodada.
+    state.usedRespondedorThisRound.push(respondedorName);
+
     Game.network.broadcastAll({
         type: 'kpi-update',
         playerName: respondedorName,
@@ -105,7 +110,8 @@ function handleAnswer(msg) {
         activities: respondedor.activities,
         recursos: respondedor.recursos,
         acertou,
-        kpiGanho
+        kpiGanho,
+        respondidos: state.usedRespondedorThisRound.slice()
     });
 
     if (state.isHost && respondedorName === state.playerName) {
@@ -160,8 +166,6 @@ function handleAnswer(msg) {
             }
         }
     }
-
-    state.usedRespondedorThisRound.push(respondedorName);
 
     // Atualização de tela do host (ver ISSUES.md BUG-007): cobre tanto o
     // respondedor quanto o bônus de assessoria acima, para os casos em

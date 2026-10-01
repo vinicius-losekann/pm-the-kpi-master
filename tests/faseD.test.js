@@ -8,8 +8,9 @@
 // o guest recebe ao reconectar — relógio e situação da rodada (Fase
 // D2b) — das opções centralizadas do PeerJS (Fase D3a), do prazo de
 // espera pelo host / volta do host antigo como jogador comum (Fase
-// D3b) e da procura da sala depois de migrações de host, inclusive na
-// tela inicial (Fase D3c) num ambiente
+// D3b), da procura da sala depois de migrações de host, inclusive na
+// tela inicial (Fase D3c), da volta ao lobby (D3d) e do rodízio da
+// rodada que continua depois de uma troca de host (D3e) num ambiente
 // simulado, sem navegador e sem PeerJS: a rede é trocada por conexões
 // falsas, a UI por um registro de chamadas e o localStorage por um
 // objeto em memória.
@@ -31,7 +32,7 @@
 // - a parte visual (📴 na lista, aviso de partida pausada).
 //
 // Os números dos testes (T1, T2...) batem com o roteiro de teste
-// manual da D1a, da D1b, da D2, da D2b e da D3 (a, b, c).
+// manual da D1a, da D1b, da D2, da D2b e da D3 (a a e).
 // ============================================
 
 const fs = require('fs');
@@ -47,8 +48,11 @@ const ARQUIVOS = [
     'js/state/store.js',
     'js/state/selectors.js',
     'js/state/mutations.js',
+    'js/domain/kpiRules.js',
+    'js/domain/advisoryRules.js',
     'js/engine/sessionEngine.js',
     'js/engine/turnEngine.js',
+    'js/engine/answerEngine.js',
     'js/network/peerService.js',
     'js/network/messageHandler.js',
     'js/network/hostMigration.js',
@@ -72,7 +76,7 @@ var CONFIG = {
         { id: 'planejamento', nome: 'Planejamento', emoji: '📋' }
     ],
     RECURSOS_INICIAIS: 10,
-    KPI: { VALOR_RECURSO_FINAL: 2 },
+    KPI: { VALOR_RECURSO_FINAL: 2, ACERTO_BASE: 10, ASSESSORIA_ACERTO: 5 },
     PEER: { debug: 0 }
 };
 `;
@@ -1344,7 +1348,7 @@ teste('T34 Reconexão entre duas duplas: não reabre a pergunta; rodada em andam
     confere(telasDaRodada(g3).includes('displayQuestion'), 'sem os campos novos, deveria seguir como antes');
 });
 
-teste('T35 Guest que viu "rodada encerrada" assume como host: o aviso some quando a dupla nova começa', (usar) => {
+teste('T35 Guest que viu "rodada encerrada" assume como host: continua encerrada até o "Nova Rodada"', (usar) => {
     const amb = usar(criarAmbiente());
     amb.state.isHost = false;
     amb.state.playerName = 'B';
@@ -1353,26 +1357,50 @@ teste('T35 Guest que viu "rodada encerrada" assume como host: o aviso some quand
     amb.state.hostVersion = 0;
     amb.state.gameStarted = true;
     amb.state.gameOver = false;
-    amb.state.currentRound = { evento: { id: 'e1' }, perguntador: 'Host', respondedor: 'B', pergunta: null, respondeu: true };
+    // Como no jogo: a cópia da rodada no guest não marca `respondeu`.
+    amb.state.currentRound = { evento: { id: 'e1' }, perguntador: 'Host', respondedor: 'B', pergunta: null, respondeu: false };
     amb.state.players = [
         { name: 'Host', peerId: 'sala', isHost: true, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0 },
         { name: 'A', peerId: 'peer-a', isHost: false, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0, tokenHash: amb.hash(tokenDe('A')) },
         { name: 'B', peerId: 'peer-b', isHost: false, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0 },
         { name: 'C', peerId: 'peer-c', isHost: false, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0, tokenHash: amb.hash(tokenDe('C')) }
     ];
+    amb.Game.network.handleMessage({ type: 'kpi-update', playerName: 'B', kpi: 10, phase: 'iniciacao', activities: 1, recursos: 10, respondidos: ['A', 'C', 'Host', 'B'] }, 'sala');
     amb.Game.network.handleMessage({ type: 'round-ended' }, 'sala');
     confere(amb.state.rodadaEncerrada === true, 'pré-condição: B viu o fim do ciclo');
 
     amb.assumirComoHost();
-    confere(amb.state.partidaPausada, 'pré-condição: novo host pausa até os outros voltarem');
+    confere(amb.state.rodadaEncerrada === true && !amb.state.partidaPausada && amb.state.currentRound === null,
+        'o novo host deveria continuar com a rodada encerrada, sem pausar nem sortear');
+    confere(amb.registro.ui.includes('showRoundEndedMessage'), 'o novo host deveria ver "rodada encerrada"');
+    confere(amb.Game.selectors.isCycleComplete(amb.Game.getActivePlayers(), amb.state.usedRespondedorThisRound),
+        'o "Nova Rodada" deveria ficar liberado (ciclo completo)');
 
+    amb.limparRegistro();
     amb.entrar('A', 'peer-a2');
-    confere(amb.state.currentRound && !amb.state.partidaPausada, 'pré-condição: a volta de A forma uma dupla nova');
-    confere(amb.state.rodadaEncerrada === false, 'com a dupla nova, o aviso de "rodada encerrada" deveria sumir');
-
     amb.entrar('C', 'peer-c2');
+    confere(amb.broadcastsDoTipo('round-start').length === 0 && amb.state.currentRound === null,
+        'a volta dos outros não pode começar rodada sozinha');
     const sync = syncPara(amb, 'peer-c2');
-    confere(sync && sync.rodadaEncerrada === false, 'C não pode receber "rodada encerrada" com uma dupla em andamento');
+    confere(sync && sync.rodadaEncerrada === true, 'quem volta deveria ver "rodada encerrada"');
+
+    // O host clica em "Nova Rodada": aí sim a dupla nova começa.
+    amb.Game.core.startNewRound();
+    confere(amb.state.currentRound && amb.state.rodadaEncerrada === false, 'Nova Rodada deveria começar a dupla e tirar o aviso');
+    const rs = amb.broadcastsDoTipo('round-start').pop();
+    confere(rs && Array.isArray(rs.respondidos) && rs.respondidos.length === 0, 'rodada nova começa com o rodízio zerado');
+
+    // Encerrada pelo host antigo continua encerrada mesmo que alguém que
+    // estava fora (e não respondeu) tenha voltado antes da troca.
+    const amb2 = usar(criarAmbiente());
+    guestAntesDaTroca(amb2, {
+        round: { evento: { id: 'e1' }, perguntador: 'A', respondedor: 'B', pergunta: null, respondeu: false },
+        respondidos: ['Host', 'A', 'B'], players: [['Host'], ['A'], ['B'], ['D']]
+    });
+    amb2.Game.network.handleMessage({ type: 'round-ended' }, 'sala');
+    amb2.assumirComoHost();
+    confere(amb2.state.rodadaEncerrada === true && !amb2.state.partidaPausada && amb2.state.currentRound === null,
+        'rodada encerrada pelo host antigo deveria continuar encerrada');
 });
 
 // ============================================
@@ -2099,6 +2127,179 @@ teste('T48 Guest sai da partida e ela acaba: no lobby, o host consegue iniciar o
 
     amb.iniciarPartida();
     confere(amb.state.gameStarted && !amb.state.gameOver && amb.state.currentRound, 'deveria conseguir iniciar outra partida');
+});
+
+// ============================================
+// D3e — RODÍZIO DA RODADA CONTINUA DEPOIS DA TROCA DE HOST
+// ============================================
+
+/** Guest B prestes a assumir, com a lista que recebeu do host antigo. */
+function guestAntesDaTroca(amb, { round, respondidos, players }) {
+    amb.state.isHost = false;
+    amb.state.playerName = 'B';
+    amb.state.peerId = 'peer-b';
+    amb.state.baseRoomPeerId = 'sala';
+    amb.state.hostVersion = 0;
+    amb.state.gameStarted = true;
+    amb.state.gameOver = false;
+    amb.state.currentRound = round;
+    amb.state.usedRespondedorThisRound = respondidos;
+    amb.state.players = players.map(([name, extra]) => Object.assign(
+        { name, peerId: name === 'Host' ? 'sala' : 'peer-' + name.toLowerCase(), isHost: name === 'Host',
+          kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0, tokenHash: amb.hash(tokenDe(name)) },
+        extra || {}));
+}
+
+teste('T49 Quem já respondeu na rodada chega aos guests (resposta, nova dupla, reconexão) e fica guardado', (usar) => {
+    const host = usar(criarAmbiente());
+    host.criarSalaComoHost();
+    host.entrar('A', 'peer-a');
+    host.entrar('B', 'peer-b');
+    host.iniciarPartida();
+    const rs0 = host.broadcastsDoTipo('round-start').pop();
+    confere(rs0 && Array.isArray(rs0.respondidos) && rs0.respondidos.length === 0, 'rodada nova: round-start com a lista vazia');
+
+    const r = host.state.currentRound;
+    host.Game.core.handleAnswer({ alternativa: r.pergunta.correct, playerName: r.respondedor });
+    const kpi = host.broadcastsDoTipo('kpi-update').find(m => m.playerName === r.respondedor);
+    confere(kpi && Array.isArray(kpi.respondidos) && kpi.respondidos.includes(r.respondedor),
+        'a atualização da resposta deveria levar a lista já com quem respondeu, veio: ' + JSON.stringify(kpi && kpi.respondidos));
+
+    host.Game.core.nextTurn();
+    const rs1 = host.broadcastsDoTipo('round-start').pop();
+    confere(rs1 !== rs0 && rs1.respondidos.includes(r.respondedor), 'a próxima dupla deveria levar a lista');
+
+    const outro = ['A', 'B'].find(n => n !== r.respondedor && n !== 'Host') || 'A';
+    host.cair('peer-' + outro.toLowerCase());
+    host.entrar(outro, 'peer-volta');
+    const sync = syncPara(host, 'peer-volta');
+    confere(sync && JSON.stringify(sync.respondidos) === JSON.stringify(host.state.usedRespondedorThisRound),
+        'quem reconecta deveria receber a lista, veio: ' + JSON.stringify(sync && sync.respondidos));
+
+    // Lado do guest.
+    const g = usar(criarAmbiente());
+    g.state.isHost = false;
+    g.state.playerName = 'B';
+    g.state.players = [{ name: 'A', kpi: 0 }, { name: 'B', kpi: 0 }];
+    g.Game.network.handleMessage({ type: 'kpi-update', playerName: 'A', kpi: 10, phase: 'iniciacao', activities: 1, recursos: 10, respondidos: ['A'] }, 'sala');
+    confere(JSON.stringify(g.state.usedRespondedorThisRound) === '["A"]', 'guest deveria guardar a lista da resposta');
+    g.Game.network.handleMessage({ type: 'round-start', evento: { id: 'e1' }, perguntador: 'A', respondedor: 'B', respondidos: ['A', 'C'] }, 'sala');
+    confere(JSON.stringify(g.state.usedRespondedorThisRound) === '["A","C"]', 'guest deveria guardar a lista da nova dupla');
+    g.Game.network.handleMessage({ type: 'kpi-update', playerName: 'A', kpi: 15, phase: 'iniciacao', activities: 1, recursos: 10, assessoriaBonus: 5 }, 'sala');
+    confere(JSON.stringify(g.state.usedRespondedorThisRound) === '["A","C"]', 'mensagem sem a lista não deveria apagar a lista');
+    g.receberSync('B', { players: [], baralhos: {}, timer: 500, gameStarted: true, hostVersion: 0, currentRound: null, respondidos: ['Host'] });
+    confere(JSON.stringify(g.state.usedRespondedorThisRound) === '["Host"]', 'guest deveria guardar a lista da reconexão');
+
+    // O host nunca troca a própria lista pela de uma mensagem.
+    host.state.usedRespondedorThisRound = ['Host'];
+    host.Game.network.handleMessage({ type: 'round-start', evento: { id: 'e1' }, perguntador: 'A', respondedor: 'B', respondidos: [] }, 'peer-a');
+    confere(JSON.stringify(host.state.usedRespondedorThisRound) === '["Host"]', 'host não deveria sobrescrever a própria lista');
+});
+
+teste('T50 Troca de host logo depois de uma resposta: se todos já responderam, a rodada fica encerrada', (usar) => {
+    // D já estava desconectado antes da queda do host (não conta, como no T8).
+    // Como no jogo, a cópia da rodada no guest não marca `respondeu`: o
+    // sinal de pergunta respondida é o Respondedor estar no rodízio.
+    const players = [['Host'], ['A'], ['B'], ['D', { disconnected: true }]];
+    const round = { evento: { id: 'e1' }, perguntador: 'A', respondedor: 'Host', pergunta: null, respondeu: false };
+
+    const amb = usar(criarAmbiente());
+    guestAntesDaTroca(amb, { round, respondidos: ['A', 'B', 'Host'], players });
+    amb.assumirComoHost();
+    confere(amb.state.rodadaEncerrada === true && amb.state.currentRound === null && !amb.state.partidaPausada,
+        'todos os que estavam ativos já responderam: a rodada deveria ficar encerrada');
+    amb.limparRegistro();
+    amb.entrar('A', 'peer-a2');
+    confere(amb.broadcastsDoTipo('round-start').length === 0, 'a volta de A não pode começar rodada sozinha');
+
+    // O host antigo (que saiu) não precisa ter respondido para a rodada acabar.
+    const ambH = usar(criarAmbiente());
+    guestAntesDaTroca(ambH, { round: { ...round, perguntador: 'Host', respondedor: 'A' }, respondidos: ['B', 'A'], players });
+    ambH.assumirComoHost();
+    confere(ambH.state.rodadaEncerrada === true && !ambH.state.partidaPausada,
+        'sem contar o host antigo, todos já responderam: deveria ficar encerrada');
+
+    // Controle: B ainda não tinha respondido — a rodada continua, sem repetir ninguém.
+    const amb2 = usar(criarAmbiente());
+    guestAntesDaTroca(amb2, { round, respondidos: ['A', 'Host'], players });
+    amb2.assumirComoHost();
+    confere(!amb2.state.rodadaEncerrada && amb2.state.partidaPausada && amb2.state.partidaPausada.evento === round.evento,
+        'ainda falta B: deveria pausar com o mesmo evento');
+    amb2.entrar('A', 'peer-a2');
+    const r = amb2.state.currentRound;
+    confere(r && r.respondedor === 'B' && r.evento === round.evento,
+        'a rodada deveria continuar com B respondendo (A e o host antigo já responderam), veio: ' + JSON.stringify(r && { p: r.perguntador, r: r.respondedor }));
+
+    // O novo host era o Perguntador de uma pergunta JÁ respondida: não pode reabri-la.
+    const amb3 = usar(criarAmbiente());
+    const pergunta = { type: 'question', question: 'Pergunta?', alternatives: ['A', 'B', 'C', 'D'], correct: 'A' };
+    guestAntesDaTroca(amb3, {
+        round: { evento: { id: 'e1' }, perguntador: 'B', respondedor: 'A', pergunta, respondeu: false },
+        respondidos: ['A'], players: [['Host'], ['A'], ['B'], ['C']]
+    });
+    amb3.assumirComoHost();
+    confere(!amb3.registro.ui.includes('displayQuestion'), 'não deveria reabrir a pergunta que A já respondeu');
+    confere(amb3.state.currentRound === null && amb3.state.partidaPausada, 'deveria seguir para a próxima dupla (pausa até alguém voltar)');
+    amb3.entrar('C', 'peer-c2');
+    const r3 = amb3.state.currentRound;
+    confere(r3 && r3.respondedor !== 'A', 'A não pode responder de novo nesta rodada, veio: ' + JSON.stringify(r3 && r3.respondedor));
+});
+
+teste('T51 Pergunta em aberto descartada na troca de host: quem ia responder não perde a vez', (usar) => {
+    // O host antigo perguntava para A; B e C já tinham respondido.
+    const amb = usar(criarAmbiente());
+    const round = { evento: { id: 'e1' }, perguntador: 'Host', respondedor: 'A', pergunta: null, respondeu: false };
+    guestAntesDaTroca(amb, { round, respondidos: [], players: [['Host'], ['A'], ['B'], ['C']] });
+    // A lista chega como no jogo: na atualização da última resposta.
+    amb.Game.network.handleMessage({ type: 'kpi-update', playerName: 'C', kpi: 10, phase: 'iniciacao', activities: 1, recursos: 10, respondidos: ['B', 'C'] }, 'sala');
+    amb.assumirComoHost();
+    confere(!amb.state.usedRespondedorThisRound.includes('A'), 'A não respondeu: não pode entrar no rodízio');
+    confere(amb.state.partidaPausada && !amb.state.rodadaEncerrada, 'pré-condição: pausa até alguém voltar');
+
+    amb.entrar('A', 'peer-a2');
+    const r = amb.state.currentRound;
+    confere(r && r.respondedor === 'A' && r.perguntador !== 'Host', 'A deveria responder na retomada, veio: ' + JSON.stringify(r && { p: r.perguntador, r: r.respondedor }));
+    confere(r.evento === round.evento, 'com o mesmo evento');
+
+    // A responde: B e C já responderam, C e o host antigo estão fora — a rodada acaba.
+    amb.Game.core.handleAnswer({ alternativa: r.pergunta.correct, playerName: 'A' });
+    amb.limparRegistro();
+    amb.Game.core.nextTurn();
+    confere(amb.state.rodadaEncerrada === true && amb.broadcastsDoTipo('round-start').length === 0,
+        'depois de A, a rodada deveria encerrar sem repetir ninguém');
+});
+
+teste('T52 Retomar a pausa quando todos os conectados já responderam: encerra a rodada em vez de começar outra', (usar) => {
+    const amb = usar(criarAmbiente());
+    amb.criarSalaComoHost();
+    amb.entrar('A', 'peer-a');
+    amb.iniciarPartida();
+    const evento = { id: 'e-pausa', titulo: 'Evento pausado' };
+    amb.cair('peer-a');
+    amb.state.currentRound = null;
+    amb.state.partidaPausada = { evento };
+    amb.state.usedRespondedorThisRound = ['Host', 'A'];
+
+    amb.limparRegistro();
+    amb.entrar('A', 'peer-a2');
+    confere(!amb.state.partidaPausada, 'a pausa deveria acabar');
+    confere(amb.state.rodadaEncerrada === true, 'a rodada deveria ser encerrada, aguardando o "Nova Rodada"');
+    confere(amb.broadcastsDoTipo('round-start').length === 0, 'não pode começar dupla nova sozinha');
+    confere(amb.broadcastsDoTipo('round-ended').length === 1, 'deveria avisar os guests que a rodada acabou');
+    confere(JSON.stringify(amb.state.usedRespondedorThisRound) === '["Host","A"]', 'o rodízio não pode ser zerado');
+
+    // Controle: A ainda não respondeu → a retomada sorteia A.
+    const amb2 = usar(criarAmbiente());
+    amb2.criarSalaComoHost();
+    amb2.entrar('A', 'peer-a');
+    amb2.iniciarPartida();
+    amb2.cair('peer-a');
+    amb2.state.currentRound = null;
+    amb2.state.partidaPausada = { evento };
+    amb2.state.usedRespondedorThisRound = ['Host'];
+    amb2.entrar('A', 'peer-a2');
+    confere(amb2.state.currentRound && amb2.state.currentRound.respondedor === 'A' && !amb2.state.rodadaEncerrada,
+        'faltando A, a retomada deveria sortear A');
 });
 
 console.log('\n' + (falhou === 0 ? '🎉' : '⚠️') + ' ' + passou + ' passaram, ' + falhou + ' falharam\n');

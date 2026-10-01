@@ -1,6 +1,6 @@
 # 🗺️ Arquitetura — PM: The KPI Master
 
-> Última revisão: 17/09/2026 (auditoria de arquitetura + limpeza de arquivos legados)
+> Última revisão: 30/09/2026 (Fase D — conexão, identidade e troca de host; testes automatizados)
 
 ## Estrutura de arquivos
 
@@ -11,11 +11,22 @@ pm-the-kpi-master/
 ├── CHANGELOG.md
 ├── .gitignore
 │
+├── .github/
+│   └── workflows/
+│       └── testes.yml           # roda tests/*.test.js a cada push/PR (GitHub Actions)
+│
 ├── _docs/
 │   ├── architecture.md          # este arquivo
 │   ├── conventions.md           # padrões de código, arquitetura, stack
 │   ├── roadmap.md               # ex-todo.md
+│   ├── testes-conexao.md        # checklist de conexão: coberto, pendente, limitações
 │   └── ISSUES.md
+│
+├── config/
+│   └── game-config.js           # CONFIG (constantes ajustáveis, inclusive CONFIG.PEER)
+│
+├── tests/
+│   └── faseD.test.js            # testes automatizados (Node, sem dependências)
 │
 ├── index.html
 ├── game.html
@@ -33,9 +44,6 @@ pm-the-kpi-master/
     │
     ├── entry/
     │   └── roomEntry.js         # ex js/index.js — criar/entrar em sala
-    │
-    ├── config/
-    │   └── constants.js         # ex config/game-config.js
     │
     ├── domain/                  # 🧠 regras puras — sem DOM, sem rede, sem i18n
     │   ├── kpiRules.js          # calcularResultadoResposta(...)
@@ -59,6 +67,7 @@ pm-the-kpi-master/
     │
     ├── network/
     │   ├── connectionState.js   # 🆕 estado compartilhado (myPeer, connections) — ver nota
+    │   ├── hostSearch.js        # procura a sala em qualquer versão do host (Fase D3c)
     │   ├── peerService.js       # PeerJS puro: initPeer, connect, send, cleanup
     │   ├── messageHandler.js    # roteamento de mensagens (switch/case)
     │   └── hostMigration.js     # becomeHost, reconexão, handleHostDisconnect
@@ -90,6 +99,8 @@ pm-the-kpi-master/
     └── utils/
         ├── logger.js              # 🟡 infra pronta, religamento pendente — ver NOTA-004
         ├── persistence.js         # ✅ criado (Fase 7) — extraído de main.js, já em uso
+        ├── identity.js            # token de identidade por sala + SHA-256 próprio (Fase D2)
+        ├── sanitize.js            # escape de texto vindo de outros jogadores (SEC-001)
         └── i18n.js                # ✅ criado (Fase 6) — ver NOTA-003
 ```
 
@@ -138,7 +149,9 @@ O roadmap mais detalhado (fornecido pelo usuário após a Fase 5) descreve o con
 
 **Por que isso aconteceu:** a estratégia de todas as 7 fases foi extrair a lógica do `game-core.js` original **preservando o comportamento exato**, sem reescrever para o padrão funcional mais rigoroso descrito no roadmap detalhado (que só chegou depois da Fase 5, e nunca foi reconciliado com o que já tinha sido migrado). Essa divergência não tinha sido sinalizada antes de uma revisão de arquitetura pedida explicitamente pelo usuário.
 
-**Status: ✅ Fechado, não será corrigido.** Decisão do usuário: o projeto não terá testes automatizados (validação continua manual — multi-cliente, F5, etc., como documentado em `ISSUES.md`), e essa é a única situação em que essa correção compensaria o risco de mexer na lógica mais sensível do jogo (cálculo de KPI/recursos) só por rigor estético. Fica registrado aqui como decisão tomada, não como pendência em aberto.
+**Status: ✅ Fechado, não será corrigido.** Decisão do usuário: não vale o risco de mexer na lógica mais sensível do jogo (cálculo de KPI/recursos) só por rigor estético. Fica registrado aqui como decisão tomada, não como pendência em aberto.
+
+**Atualização (Fase D):** a decisão original dizia que o projeto não teria testes automatizados. Isso mudou: desde a Fase D existem testes em `tests/`, rodando no GitHub Actions a cada push — ver "Testes automatizados" abaixo. A refatoração desta nota continua fora de escopo.
 
 ### `Game.core.*` é a API pública oficial, não "compatibilidade temporária"
 
@@ -193,9 +206,9 @@ Migração de nomenclatura pedida pelo usuário, alinhando com a terminologia da
 
 A migração do JSON em si foi feita por um script (`rename-schema.js`, fora da árvore do jogo — ferramenta de uso único, pode ser descartada após o merge) que confere a contagem de perguntas antes/depois e só grava se bater, com backup automático.
 
-### Observação: `config/game-config.js` → `js/config/constants.js` nunca foi feito
+### Configuração fica em `config/game-config.js`
 
-O roadmap original lista essa migração na tabela-resumo, mas nenhuma das Fases 0–7 detalhadas a atribui explicitamente. Ficou de fora da migração até aqui. Se quiser fazer essa extração, é um bom próximo passo depois de fechar o checklist abaixo — mas não bloqueia nada, o jogo funciona normalmente com `config/game-config.js` no lugar onde sempre esteve. Hoje `js/config/constants.js` existe apenas como um comentário de cabeçalho (nenhum código real) e não é carregado por nenhum HTML.
+O roadmap original previa mover a configuração para `js/config/constants.js`; isso nunca foi feito e não há plano de fazer (não bloqueia nada). O arquivo ativo é `config/game-config.js` (carregado por `index.html` e `game.html`). As cópias órfãs em `js/config/` foram removidas. Desde a Fase D3a, as opções do PeerJS ficam em `CONFIG.PEER` e todo `new Peer(...)` usa uma cópia delas — é o lugar para apontar um servidor de sinalização próprio.
 
 ### Por que o projeto não usa ES Modules
 
@@ -204,6 +217,30 @@ Nunca foi decidido usar — o projeto inteiro usa `<script>` simples + namespace
 ### `connectionState.js` — por que existe (Fase 4)
 
 Não estava no roadmap original. `game-network.js` tinha `myPeer` e `connections` como variáveis privadas do módulo. Ao dividir em `peerService.js` / `messageHandler.js` / `hostMigration.js`, os três precisam enxergar a mesma conexão — por isso esse estado passou a ser compartilhado via getters/setters em `connectionState.js`.
+
+---
+
+## Conexão, identidade e troca de host (Fase D)
+
+Resumo dos mecanismos; detalhes nos comentários de cada arquivo e no checklist `testes-conexao.md`.
+
+- **Jogador desconectado:** durante a partida, quem cai continua na lista com `disconnected: true` (KPI, recursos e vaga preservados), fora do sorteio, do rodízio e dos efeitos de evento. No lobby e no fim de jogo, quem cai sai da lista. `getActivePlayers()` exclui desconectados; `getMatchPlayers()` inclui.
+- **Sala travada:** com a partida em andamento, nome novo é recusado (`join-rejected` com `room-locked`); só volta quem já estava na partida.
+- **Pausa:** se faltam jogadores *conectados* mas não jogadores da partida, a partida pausa (`partida-pausada`) e retoma sozinha quando alguém volta, com o mesmo evento. Se todos os conectados já tinham respondido, a rodada é encerrada em vez de recomeçar (D3e).
+- **Saída da página:** `pagehide`/`beforeunload` encerram as conexões na hora, para os outros perceberem a saída sem esperar o tempo limite da rede.
+- **Identidade (D2):** cada navegador gera um token por sala (`utils/identity.js`, guardado em `localStorage`). O `player-join` leva o token; o host guarda só o hash (SHA-256 próprio e síncrono — `crypto.subtle` só existe em HTTPS/localhost e é assíncrono) e exige o mesmo token para reconectar alguém que caiu.
+- **O que quem reconecta recebe:** `state-sync` com a rodada, o relógio (a contagem local é religada), se a rodada está encerrada ou pausada e quem já respondeu nesta rodada.
+- **Troca de host:** quando o host cai, os guests tentam o mesmo host por até `CONFIG.JOGO.HOST_TIMEOUT` (10s). Esgotado, o backup assume num ID novo: a sala passa de `<ID base>` para `<ID base>-h1`, `-h2`... (`computeHostPeerId`). O ID muda porque o antigo pode ficar preso no servidor de sinalização por até ~1 min, e o host antigo voltando brigaria por ele. Quem assume marca `host=true` na URL (um F5 continua host); o host antigo fica na lista como jogador comum desconectado e, se voltar (ou recarregar a página), entra como jogador comum.
+- **Procura da sala (D3c, `network/hostSearch.js`):** quem só conhece o ID base (tela inicial, link antigo, conexão inicial) procura o ID base e as versões seguintes ao mesmo tempo e fica com a que responder. A tela inicial também recusa criar sala com o código de uma partida que continua numa versão migrada.
+- **Rodada na troca de host:** só o host tem o gabarito, e só o Perguntador recebe a pergunta com ele. Por isso a rodada só continua se o novo host era o Perguntador de uma pergunta ainda aberta; senão a pergunta é descartada e quem ia responder não perde a vez. Todos recebem a lista de quem já respondeu na rodada (`respondidos`, D3e), então o novo host continua o rodízio de onde parou; rodada já encerrada continua encerrada, esperando o "Nova Rodada".
+- **Voltar ao lobby:** zera os jogadores (inclusive quem tinha saído da partida) e tira da lista quem estava desconectado.
+
+## Testes automatizados
+
+- `tests/faseD.test.js` carrega os arquivos reais do jogo em contextos isolados do Node (`vm`), com rede, tela e PeerJS simulados, e verifica os mecanismos acima caso a caso. Não tem dependências: `node tests/faseD.test.js`.
+- `.github/workflows/testes.yml` roda todos os `tests/*.test.js` a cada push e pull request; o resultado fica na aba Actions do repositório.
+- Toda mudança de lógica vem com teste; os testes novos são conferidos contra o código antigo (devem falhar) e com teste de mutação.
+- O que depende de rede real, tela ou dispositivo continua no checklist manual (`testes-conexao.md`). Testes de ponta a ponta com navegadores de verdade estão planejados (roadmap 7.7).
 
 ---
 

@@ -65,7 +65,7 @@ só automatizado (falta o manual).
 
 ---
 
-## 2. Casos cobertos por teste automatizado (51 testes)
+## 2. Casos cobertos por teste automatizado (55 testes)
 
 ### Entrada na sala e identidade
 | Caso | Testes | Manual |
@@ -98,7 +98,10 @@ só automatizado (falta o manual).
 | Host volta dentro de 10s: guests reconectam, sem troca de host | 🤖 T38 | ⬜ **P1** |
 | Host não volta: backup assume em ~10s, não antes | 🤖 T39, T40 | 👤 |
 | Backup desconectado é pulado, o próximo assume | 🤖 T10 | — |
-| Novo host marca os outros como desconectados, pausa e retoma | 🤖 T17, T21, T21b, T35 | 👤 |
+| Novo host marca os outros como desconectados, pausa e retoma | 🤖 T17, T21, T21b | 👤 |
+| Todos recebem quem já respondeu na rodada (resposta, nova dupla, reconexão) | 🤖 T49 | — |
+| Troca de host com a rodada encerrada: continua encerrada, nada começa sozinho | 🤖 T35, T50 | ⬜ **P1** (M19) |
+| Troca de host no meio da rodada: quem ia responder não perde a vez; ninguém responde duas vezes | 🤖 T50, T51 | ⬜ **P1** (M20) |
 | Novo host confere o token pelos hashes da lista | 🤖 T26 | — |
 | Troca de host no lobby | 🤖 T18 | ⬜ P2 |
 | Host antigo volta como jogador comum, com o KPI dele | 🤖 T41, T43 | 👤 (pela tela inicial) |
@@ -114,19 +117,17 @@ só automatizado (falta o manual).
 | Fim de jogo: quem cai sai da lista | 🤖 T11 | — |
 | Encerrar partida (normal e pausada) | 🤖 T14, T15 | — |
 | Voltar ao lobby após o fim de jogo (host e guest) | 🤖 T16, T16b | — |
-| Guest sai da partida, ela acaba, e o host inicia outra | 🤖 T48 | ⬜ **P1** (M10) |
+| Guest sai da partida, ela acaba, e o host inicia outra | 🤖 T48 | 👤 |
+| Pausa retomada com todos os conectados já tendo respondido: rodada encerra em vez de recomeçar | 🤖 T52 | — |
 | Sair da partida: se faltar jogador, a partida acaba | 🤖 T7 | 👤 |
 
 ---
 
 ## 3. Bugs encontrados, ainda não corrigidos
 
-B1 (botão "Iniciar" desabilitado depois de um "Sair da partida") foi
-corrigido na D3d.
-
-| ID | Situação | Causa |
-|---|---|---|
-| 🐛 B2 | Depois de uma troca de host com a rodada **já encerrada**, a próxima dupla começa sozinha, sem o "Nova Rodada". | O novo host não sabe que a rodada tinha acabado nem quem já respondeu nela (só o host antigo guardava essa lista). Correção planejada: continuar a rodada de onde parou. |
+Nenhum aberto. Corrigidos: B1 (botão "Iniciar" desabilitado depois de
+um "Sair da partida") na D3d; B2 (rodada que começava sozinha depois de
+uma troca de host) na D3e.
 
 ---
 
@@ -147,7 +148,7 @@ janelas visíveis lado a lado (aba em segundo plano fica mais lenta).
 | M7 | **P1** | Queda de rede real (não fechar aba) | Desligar o Wi-Fi do guest por 20s; depois do host | Guest: volta sozinho ou ao recarregar. Host: troca de host depois de perceber a queda (mais lento que fechar a aba) |
 | M8 | **P1** | Celular com tela bloqueada / navegador em segundo plano | Bloquear o celular por 1 min no meio da partida | Ao desbloquear, volta à partida (ou ao recarregar) |
 | M9 | **P1** | Redes diferentes | Host no Wi-Fi da instituição, guest no 4G | Conecta. **Risco:** redes corporativas/universitárias podem bloquear a conexão direta entre navegadores sem um servidor de retransmissão (TURN) |
-| M10 | **P1** | Nova partida depois de "saiu da partida" | 2 jogadores; guest sai; host volta ao lobby e inicia outra | Botão "Iniciar" habilitado; a partida nova começa (corrigido na D3d, T48) |
+| M10 | ✅ | Nova partida depois de "saiu da partida" | 2 jogadores; guest sai; host volta ao lobby e inicia outra | Conferido em 30/09/2026 |
 | M11 | P2 | Duas trocas de host seguidas | 3 jogadores: host sai; depois o novo host sai | Sala vai para `-h2`; entrar pela tela inicial com o código funciona |
 | M12 | P2 | Troca de host no lobby | Host fecha a aba antes de iniciar | Backup assume; os outros voltam como jogadores novos |
 | M13 | P2 | Host sai com a partida pausada | Pausar (guest cai), depois o host fecha | Novo host segue pausado e retoma quando der |
@@ -156,12 +157,14 @@ janelas visíveis lado a lado (aba em segundo plano fica mais lenta).
 | M16 | P2 | Reusar o código depois que todos saem | Todos fecham; reabrir em 1 min e depois de 5 min | Até 5 min restaura a partida; depois, lobby novo |
 | M17 | P2 | Navegadores | Chrome, Edge (inclusive InPrivate), Firefox, Safari no iPhone | Mesmo comportamento |
 | M18 | P2 | Aba em segundo plano por muito tempo | Deixar a aba escondida 10 min | Ao voltar, o jogo se recupera (pode precisar de F5) |
+| M19 | **P1** | Troca de host com a rodada encerrada | Todos respondem; com "Rodada encerrada" na tela, o host fecha a aba | O novo host vê "Rodada encerrada" com o "Nova Rodada" liberado; quando os outros voltam, nada começa sozinho |
+| M20 | **P1** | Troca de host no meio da rodada | 3 jogadores; o host fecha a aba no meio de uma pergunta que não é do novo host | A partida pausa e, quando alguém volta, continua com quem ainda não respondeu; ninguém responde duas vezes na mesma rodada |
 
 ---
 
 ## 5. Limitações conhecidas (aceitas por ora)
 
-- ⚠️ Nomes diferenciam maiúsculas: "vHost" e "Vhost" são jogadores diferentes — durante a partida, a grafia errada é recusada.
+- ⚠️ Nomes diferenciam maiúsculas: "vHost" e "Vhost" são jogadores diferentes — durante a partida, a grafia errada é recusada. Melhoria futura (roadmap 8.5).
 - ⚠️ Abas do mesmo navegador compartilham o token e o estado salvo; trocar de navegador, usar aba anônima ou limpar os dados no meio da partida perde a identidade (só volta no lobby).
 - ⚠️ Janela de menos de 1s em que o host antigo, recarregando exatamente enquanto o backup assume, pode reabrir a sala antiga (dois hosts).
 - ⚠️ A procura da sala olha até 5 trocas de host seguidas (`-h5`).
@@ -177,7 +180,7 @@ Um teste de ponta a ponta com navegadores de verdade rodando no GitHub
 Actions (Playwright + servidor PeerJS local + servidor estático do
 jogo) cobriria de forma automática a maior parte da seção 4:
 
-- **Automatizáveis:** M1–M6, M10–M16 (vários navegadores simulados na
+- **Automatizáveis:** M1–M6, M10–M16, M19, M20 (vários navegadores simulados na
   mesma máquina: fechar aba, recarregar, reabrir link, entrar pela tela
   inicial) e boa parte de M7 (o Playwright simula ficar sem rede).
 - **Continuam manuais:** M8 (celular), M9 (redes reais diferentes),

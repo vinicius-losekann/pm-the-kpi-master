@@ -150,11 +150,15 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
     console.log('🎯 Nova dupla:', perguntador.name, 'pergunta para', respondedor.name);
     console.log('📋 Evento:', evento.titulo);
 
+    // Fase D3e: `respondidos` = quem já respondeu nesta rodada (vazio
+    // numa rodada nova). Os guests guardam — quem assumir como host
+    // continua o rodízio de onde parou.
     Game.network.broadcastAll({
         type: 'round-start',
         evento,
         perguntador: perguntador.name,
-        respondedor: respondedor.name
+        respondedor: respondedor.name,
+        respondidos: state.usedRespondedorThisRound.slice()
     });
 
     // 🐛 Correção (ver ISSUES.md BUG-006): para os GUESTS, 'round-start'
@@ -236,18 +240,31 @@ function armarRespostaTimeout(respondedorName) {
  */
 function nextTurn() {
     const state = Game.state;
-    const activePlayers = Game.getActivePlayers();
-
-    if (Game.selectors.isCycleComplete(activePlayers, state.usedRespondedorThisRound)) {
-        console.log('✅ Todos os jogadores ativos já responderam nesta rodada. Aguardando o host clicar em "Nova Rodada".');
-        state.rodadaEncerrada = true;
-        Game.ui.refreshNovaRodadaButton();
-        Game.network.broadcastAll({ type: 'round-ended' });
-        Game.ui.showRoundEndedMessage();
-        return;
-    }
-
+    if (encerrarRodadaSeCicloCompleto()) return;
     pickNewPair(state.currentRound?.evento, 0, false);
+}
+
+/**
+ * Se todos os jogadores ativos já responderam nesta rodada, encerra a
+ * rodada: marca `state.rodadaEncerrada`, libera o "Nova Rodada", avisa
+ * os guests ('round-ended') e mostra o aviso. A próxima rodada só começa
+ * com o clique do host.
+ *
+ * Fase D3e: extraída de nextTurn() para também ser usada ao retomar uma
+ * partida pausada (retomarPartidaPausada()).
+ * @returns {boolean} true se encerrou a rodada
+ */
+function encerrarRodadaSeCicloCompleto() {
+    const state = Game.state;
+    if (!Game.selectors.isCycleComplete(Game.getActivePlayers(), state.usedRespondedorThisRound)) return false;
+
+    console.log('✅ Todos os jogadores ativos já responderam nesta rodada. Aguardando o host clicar em "Nova Rodada".');
+    state.rodadaEncerrada = true;
+    Game.ui.refreshNovaRodadaButton();
+    Game.network.broadcastAll({ type: 'round-ended' });
+    Game.ui.showRoundEndedMessage();
+    Game.saveState();
+    return true;
 }
 
 /**
@@ -255,6 +272,10 @@ function nextTurn() {
  * (ver pickNewPair()). Continua a mesma rodada, com o mesmo evento, sem
  * mostrar o modal de novo nem reaplicar os efeitos. Se o evento se
  * perdeu (ex: host deu F5 durante a pausa), começa uma rodada nova.
+ *
+ * Fase D3e: se todos os conectados já responderam nesta rodada, ela é
+ * encerrada (aguarda o "Nova Rodada") — antes, o sorteio recomeçava o
+ * rodízio e uma rodada nova começava sozinha.
  */
 function retomarPartidaPausada() {
     const state = Game.state;
@@ -263,6 +284,8 @@ function retomarPartidaPausada() {
 
     state.partidaPausada = null;
     console.log('▶️ Jogador reconectou — retomando a partida.');
+
+    if (pausa.evento && encerrarRodadaSeCicloCompleto()) return;
 
     if (pausa.evento) {
         pickNewPair(pausa.evento, 0, false);
@@ -281,6 +304,7 @@ window.Game.engine.turn = {
     pickNewPair,
     armarRespostaTimeout,
     nextTurn,
+    encerrarRodadaSeCicloCompleto,
     retomarPartidaPausada
 };
 

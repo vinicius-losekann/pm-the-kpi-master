@@ -310,6 +310,13 @@ function becomeHost() {
     newPeer.on('open', (id) => {
         state.peerId = id;
 
+        // Fase D3e: quem estava ativo na partida antes da troca (pela
+        // lista que o host antigo mandava), sem contar o host antigo —
+        // usado abaixo para saber se a rodada já tinha acabado. Precisa
+        // ser lido antes de todos serem marcados como desconectados.
+        const hostAntigo = state.players.find(p => p.isHost && p.name !== state.playerName);
+        const ativosAntes = Game.getActivePlayers().filter(p => !hostAntigo || p.name !== hostAntigo.name);
+
         // Fase D3b: o host antigo NÃO sai da lista — passa a ser um
         // jogador comum (isHost: false), com KPI, recursos, fase e o
         // tokenHash dele preservados. Com a partida em andamento ele fica
@@ -372,17 +379,46 @@ function becomeHost() {
             // resposta (ou o timeout) quebraria em handleAnswer() e a
             // rodada ficaria travada para sempre — por exemplo quando o
             // Perguntador era o próprio host que saiu. Nesses casos a
-            // rodada é descartada e uma dupla nova é sorteada com o
+            // pergunta é descartada e uma dupla nova é sorteada com o
             // MESMO evento, sem reexibir o modal. Como os outros acabaram
             // de ser marcados como desconectados, normalmente a partida
             // pausa aqui e retoma quando eles reconectarem (o 'round-start'
             // da retomada também fecha a pergunta velha na tela deles).
+            //
+            // Fase D3e: este jogador sabe quem já respondeu nesta rodada
+            // (`usedRespondedorThisRound`, recebido do host antigo — ver
+            // guardarRespondidos() em messageHandler.js), então:
+            //   - rodada já encerrada (ou pergunta respondida e todos os
+            //     que estavam ativos já responderam) → continua encerrada,
+            //     aguardando o "Nova Rodada"; nada começa sozinho quando
+            //     os outros voltarem;
+            //   - pergunta descartada → quem ia responder não entrou no
+            //     rodízio e não perde a vez; a retomada sorteia só entre
+            //     quem ainda não respondeu.
+            //
+            // A cópia da rodada nos guests não marca `respondeu` quando a
+            // resposta chega; o sinal de "pergunta já respondida" é o
+            // Respondedor dela já estar no rodízio (ninguém responde duas
+            // vezes na mesma rodada). Sem isso, um novo host que era o
+            // Perguntador reabriria uma pergunta já respondida.
             const round = state.currentRound;
-            const podeContinuarRodada = !!round && !round.respondeu &&
+            const perguntaJaRespondida = !!round &&
+                (!!round.respondeu || state.usedRespondedorThisRound.includes(round.respondedor));
+            const podeContinuarRodada = !!round && !perguntaJaRespondida &&
                 round.perguntador === state.playerName &&
                 !!round.pergunta && round.pergunta.correct !== undefined;
+            const todosJaResponderam = ativosAntes.length > 0 &&
+                ativosAntes.every(p => state.usedRespondedorThisRound.includes(p.name));
+            const rodadaJaEncerrada = !!state.rodadaEncerrada ||
+                (perguntaJaRespondida && todosJaResponderam);
 
-            if (!round) {
+            if (rodadaJaEncerrada) {
+                console.log('✅ A rodada já tinha terminado — aguardando o host clicar em "Nova Rodada".');
+                state.currentRound = null;
+                state.rodadaEncerrada = true;
+                Game.ui.showRoundEndedMessage();
+                Game.ui.refreshNovaRodadaButton();
+            } else if (!round) {
                 Game.core.pickNewPair();
             } else if (!podeContinuarRodada) {
                 console.warn('⚠️ Novo host não tem como conduzir a rodada em andamento — sorteando nova dupla com o mesmo evento.');

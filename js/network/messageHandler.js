@@ -127,6 +127,7 @@ function handleMessage(msg, fromPeerId) {
         // --- RODADA ---
         case 'round-start':
             state.rodadaEncerrada = false;
+            guardarRespondidos(msg.respondidos);
             state.currentRound = {
                 evento: msg.evento,
                 perguntador: msg.perguntador,
@@ -175,6 +176,7 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'kpi-update':
+            guardarRespondidos(msg.respondidos);
             Game.core.updatePlayerKPI(msg);
             break;
 
@@ -403,7 +405,10 @@ function addPlayer(msg, fromPeerId) {
                 gameStarted: state.gameStarted,
                 hostVersion: state.hostVersion,
                 rodadaEncerrada: !!state.rodadaEncerrada,
-                partidaPausada: !!state.partidaPausada
+                partidaPausada: !!state.partidaPausada,
+                // Fase D3e: quem já respondeu nesta rodada — quem volta
+                // também pode assumir como host depois.
+                respondidos: state.usedRespondedorThisRound.slice()
             }
         });
     }
@@ -481,6 +486,20 @@ function removePlayerByPeerId(peerId) {
 // ============================================
 
 /**
+ * Fase D3e: guest guarda a lista de quem já respondeu na rodada atual
+ * (`respondidos`, vinda do host em 'round-start', 'kpi-update' e
+ * 'state-sync'). Só o host decidia o rodízio e só ele tinha a lista;
+ * agora, se ele cair, quem assumir continua de onde parou. Mensagem sem
+ * o campo (host de versão anterior) não mexe na lista. O host nunca
+ * sobrescreve a própria lista com a de uma mensagem.
+ */
+function guardarRespondidos(respondidos) {
+    const state = Game.state;
+    if (state.isHost || !Array.isArray(respondidos)) return;
+    state.usedRespondedorThisRound = respondidos.slice();
+}
+
+/**
  * Restaura o estado completo vindo do host (usado após reconexão).
  *
  * Fase D2b: (1) religa a contagem local do relógio — antes ela só era
@@ -500,6 +519,7 @@ function restoreState(fullState) {
     state.gameStarted = fullState.gameStarted;
     if (fullState.hostVersion !== undefined) state.hostVersion = fullState.hostVersion;
     state.rodadaEncerrada = !!fullState.rodadaEncerrada;
+    guardarRespondidos(fullState.respondidos);
 
     if (state.gameStarted) {
         Game.ui.showScreen('game');

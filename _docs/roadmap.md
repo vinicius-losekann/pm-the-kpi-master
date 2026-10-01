@@ -24,7 +24,10 @@
 | 2.2 | **Timeouts em todas as operações de rede** | Além do timeout de resposta, implementar timeouts para envio de mensagens, reconexão, etc. |
 | 2.3 | **Religar `Game.logger.*` no lugar de `console.*`** | Infraestrutura já pronta (`utils/logger.js`). Prioritário: com múltiplas salas simultâneas em produção, não dá para depurar via `console.log` de uma sala que ninguém está observando ao vivo. Trabalho mecânico, mas espalhado por praticamente todo arquivo `.js` — ver **NOTA-004** em `architecture.md`. |
 | 2.4 | **Validação de dados recebidos via rede** | Mensagens de outros peers podem estar malformadas; validar com esquemas (ex: JSON Schema) para evitar crashes. |
-| 2.5 | **Fallback para quando o host migra** | Garantir que a migração de host seja atômica e que o novo host sincronize completamente o estado com todos os peers. |
+| 2.5 | **Fallback para quando o host migra** | Garantir que a migração de host seja atômica e que o novo host sincronize completamente o estado com todos os peers. Grande parte feita na **Fase D** (seção 9): prazo de 10s, sala encontrada em qualquer versão do host, host antigo volta como jogador comum, rodízio da rodada preservado. Resta: janela de menos de 1s com dois hosts, se o host antigo recarregar exatamente enquanto o outro assume. |
+| 2.6 | **Relógio pela hora de término** | Guests que reconectam ficam ~1s diferentes do host (a contagem é local, corrigida a cada 10s). Mandar a hora de término em vez do tempo restante acabaria com a diferença, mas exige estimar a diferença entre os relógios dos aparelhos. Só se valer a complexidade. |
+| 2.7 | **Servidor de retransmissão (TURN) para redes restritivas** | Redes de instituição podem bloquear a conexão direta entre navegadores. Um servidor TURN resolve, mas as credenciais não podem ir para os arquivos do site (o GitHub Pages é público) — exige um serviço com credenciais temporárias. Validar antes com o teste manual M9 de `testes-conexao.md`. |
+| 2.8 | **Travamento do Edge no Windows** | Relatado em teste (uma vez travou o computador inteiro; outra, ~5s ao criar sala). Não reproduz no Chromium. Investigar: Chrome na mesma máquina, Edge sem aceleração de hardware, Gerenciador de Tarefas aberto antes. |
 
 ---
 
@@ -48,7 +51,7 @@
 
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
-| 4.1 | **Autenticação de jogadores** | Impedir que um usuário se passe por outro de forma mais robusta que a verificação atual de `peerId` (ver `SEC-002`). Desenho detalhado (token por sala em `localStorage`) já feito — ver **Fase D** na seção 9, adiada por decisão do usuário. |
+| 4.1 | **Autenticação de jogadores** | ✅ Feito na **Fase D** (seção 9): token de identidade por sala em `localStorage`; o host guarda só o hash e exige o token na reconexão. Limitação aceita: trocar de navegador/aba anônima ou limpar os dados no meio da partida perde a identidade. |
 | 4.2 | **Validação de ações do host** | O host é a fonte da verdade, mas suas ações devem ser validadas (ex: não pode conceder KPI indevidamente). Atualmente já há alguma validação, mas pode ser reforçada. |
 | 4.3 | **Criptografia de ponta a ponta** | PeerJS suporta `secure: true` para conexões WebRTC criptografadas. Ativar para proteção de dados sensíveis. |
 
@@ -83,6 +86,7 @@
 | 7.3 | **Linter (ESLint) e formatter (Prettier)** | Manter estilo consistente e evitar erros comuns. |
 | 7.5 | **Separar helpers em arquivos próprios** | Funções como `buildRanking` poderiam estar em um arquivo `ranking-utils.js`. |
 | 7.6 | **Extrair helper compartilhado de renderização de alternativas** | `questionComponent.js` (Respondedor) e `advisoryModal.js` (Assessor) duplicam a lógica de montar a lista de alternativas + timer — visualmente quase idênticas, mas disparam ações diferentes no clique (`handleAnswer` vs `responderAssessoria`). Não fundir os dois modais (são interações conceitualmente diferentes), só extrair a parte genuinamente igual (montagem da lista + texto do timer) para uma função compartilhada tipo `Game.ui.renderAlternativesList(container, alternativas, onEscolher)`. Baixo risco, ganho pequeno — não é bug, é redução de duplicação. |
+| 7.7 | **Testes de ponta a ponta com navegadores de verdade** | Hoje os testes automatizados (`tests/`) simulam o PeerJS. Rodar o jogo em navegadores reais no GitHub Actions (Playwright + servidor PeerJS local + servidor estático) cobriria quase todo o checklist manual de `testes-conexao.md`. Planejado como **D4**. |
 
 ---
 
@@ -92,6 +96,7 @@
 |---|----------|---------------|
 | 8.1 | **QR code no tabuleiro** | Facilitar a entrada de jogadores em sala física, sem precisar digitar o código manualmente. |
 | 8.4 | **Suporte a múltiplos idiomas (i18n)** | Criar `en-US.js` e `es-ES.js` seguindo o mesmo dicionário de `pt-BR.js` (51 chaves) e adicionar seletor de idioma na UI — infraestrutura já pronta, ver **NOTA-003** em `architecture.md`. Conteúdo das perguntas: `data/questions.pt-BR.json` já usa chaves de schema em inglês (Fase 8), então um `questions.en-US.json`/`questions.es-ES.json` futuro só precisa traduzir os valores, reusando as mesmas chaves de domínio — ver `architecture.md`. |
+| 8.5 | **Nome do jogador sem diferenciar maiúsculas** | Em teste, "vHost" e "Vhost" foram tratados como jogadores diferentes: quem volta digitando o nome com outra grafia é recusado no meio da partida. Comparar nomes ignorando maiúsculas/minúsculas. |
 
 ---
 
@@ -132,15 +137,24 @@ Objetivo confirmado com o usuário: recurso vira punição só por errar, não m
 
 **Decisão adicional, tomada durante a implementação:** o "pular vez por falta de recurso" foi removido (opção 1 entre duas propostas) — qualquer jogador ativo sempre tenta responder, mesmo com 0 recursos; se errar já em 0, o recurso trava em 0 sem penalidade extra. Isso também tirou o filtro por recurso que existia em `turnEngine.js` na escolha de quem pode ser Respondedor. Detalhes técnicos em `architecture.md`.
 
-### Fase D — sala travada + identidade única + robustez de conexão (desenhado, adiado por ora)
+### Fase D — sala travada + identidade única + robustez de conexão — em fechamento
 
-> Usuário decidiu deixar como está por enquanto — vai querer ajustar algumas
-> coisas antes de implementar. Mantido aqui como referência de desenho, não
-> como item pronto pra pegar.
+| Etapa | O que mudou | Situação |
+|---|---|---|
+| D1a | Sala travada durante a partida (nome novo é recusado); quem cai fica na lista como desconectado, com a vaga reservada; partida pausa quando falta só conexão e retoma quando alguém volta | ✅ |
+| — | Saída da página (`pagehide`/`beforeunload`) encerra as conexões na hora; nome do host não pode ser tomado | ✅ |
+| D1b | Desconectados saem da lista ao voltar ao lobby; troca de host marca os outros como desconectados; rodada sem gabarito é descartada na troca | ✅ |
+| D2 | Token de identidade por sala: reconexão exige o token, não só o nome | ✅ |
+| D2b | Quem reconecta volta com o relógio andando e sem reabrir pergunta já respondida | ✅ |
+| D3a | Opções do PeerJS num lugar só (`CONFIG.PEER`) | ✅ |
+| D3b | Prazo de 10s para o host voltar; depois disso outro assume, e o host antigo volta como jogador comum | ✅ |
+| D3c | Sala encontrada em qualquer versão do host (tela inicial, link antigo, conexão inicial) | ✅ |
+| D3d | "Voltar ao lobby" zera os jogadores (nova partida depois de "Sair da partida") | ✅ |
+| D3e | Quem já respondeu na rodada é conhecido por todos: depois da troca de host a rodada continua de onde parou, sem ninguém responder duas vezes; rodada encerrada não recomeça sozinha | entregue |
 
-- Travar sala: `addPlayer()` passa a rejeitar `'player-join'` de nome novo quando `state.gameStarted === true` — só permite reconexão de quem já está na lista.
-- Token de identidade por sala (gerado e guardado em `localStorage` na primeira entrada, específico daquela sala) — reconexão passa a exigir o token bater, não só o nome (hoje `addPlayer()` confia só em nome + conexão antiga parecer fechada). Limitação aceita: trocar de aba/navegador ou limpar dados no meio da partida perde a identidade.
-- Robustez de conexão: reduzir `HOST_TIMEOUT` (hoje 30s), adicionar handler de `beforeunload` para detectar saída mais rápido, revisar dependência do broker público do PeerJS — relacionado aos itens **2.1**, **2.2** e **2.5** acima.
+Checklist de conexão (casos cobertos, testes manuais pendentes e
+limitações): `testes-conexao.md`. Falta: testes manuais P1 e
+documentação de fechamento. Próximo: **D4** (item 7.7).
 
 ### Fase E — tradução completa de identificadores para inglês (por último)
 
