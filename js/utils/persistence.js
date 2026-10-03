@@ -5,42 +5,43 @@
 // retomar a sessão após um F5 (dentro de uma janela de 5 minutos).
 // Fase 7.2 do roadmap — extraído de js/main.js (antes js/game-main.js).
 // Roadmap 3.1: o estado salvo tem versão e passa pela migração antes de
-// ser restaurado (ver VERSAO_ESTADO e MIGRACOES abaixo).
+// ser restaurado (ver STATE_VERSION e STATE_MIGRATIONS abaixo).
 // ============================================
 
 const ROOM_STATE_KEY = 'pmKPI_roomState';
 const MY_DATA_KEY = 'pmKPI_myData';
 const RESTORE_WINDOW_MS = 5 * 60 * 1000;
 
-// Roadmap 3.1: versão do formato do estado salvo. Ao mudar o formato
-// (ex.: renomear um campo), aumentar a versão e acrescentar em
-// MIGRACOES o passo que converte da versão anterior. Estado salvo sem
-// versão (antes do 3.1) é a versão 1. O número vale para as duas
-// chaves (são sempre gravadas juntas).
-const VERSAO_ESTADO = 1;
+// Roadmap 3.1: versão do formato do estado salvo (campo stateVersion —
+// não confundir com hostVersion, que conta as trocas de host). Ao mudar
+// o formato (ex.: renomear um campo), aumentar a versão e acrescentar
+// em STATE_MIGRATIONS o passo que converte da versão anterior. Estado
+// salvo sem versão (antes do 3.1) é a versão 1. O número vale para as
+// duas chaves (são sempre gravadas juntas).
+const STATE_VERSION = 1;
 
-// Passo N: converte da versão N para N+1. Recebe e devolve
-// { sala, eu } (pmKPI_roomState e pmKPI_myData).
-const MIGRACOES = {};
+// Passo N: converte da versão N para N+1. Recebe (roomState, myData) e
+// devolve { roomState, myData }.
+const STATE_MIGRATIONS = {};
 
 /**
  * Leva o estado salvo da versão em que foi gravado até a versão atual,
- * aplicando os passos de MIGRACOES em ordem. Erro se faltar um passo.
- * @param {object} sala - conteúdo de pmKPI_roomState
- * @param {object} eu - conteúdo de pmKPI_myData
- * @returns {{sala: object, eu: object}}
+ * aplicando os passos de STATE_MIGRATIONS em ordem. Erro se faltar um passo.
+ * @param {object} roomState - conteúdo de pmKPI_roomState
+ * @param {object} myData - conteúdo de pmKPI_myData
+ * @returns {{roomState: object, myData: object}}
  */
-function migrarEstadoSalvo(sala, eu, versaoAlvo = VERSAO_ESTADO, migracoes = MIGRACOES) {
-    let versao = sala.version === undefined ? 1 : sala.version;
-    let atual = { sala, eu };
-    while (versao < versaoAlvo) {
-        const passo = migracoes[versao];
-        if (!passo) throw new Error('Falta a migração do estado salvo da versão ' + versao);
-        atual = passo(atual.sala, atual.eu);
-        versao++;
-        atual.sala = { ...atual.sala, version: versao };
+function migrateSavedState(roomState, myData, targetVersion = STATE_VERSION, migrations = STATE_MIGRATIONS) {
+    let version = roomState.stateVersion === undefined ? 1 : roomState.stateVersion;
+    let current = { roomState, myData };
+    while (version < targetVersion) {
+        const step = migrations[version];
+        if (!step) throw new Error('Falta a migração do estado salvo da versão ' + version);
+        current = step(current.roomState, current.myData);
+        version++;
+        current.roomState = { ...current.roomState, stateVersion: version };
     }
-    return atual;
+    return current;
 }
 
 /**
@@ -49,7 +50,7 @@ function migrarEstadoSalvo(sala, eu, versaoAlvo = VERSAO_ESTADO, migracoes = MIG
 function saveState() {
     const state = Game.state;
     localStorage.setItem(ROOM_STATE_KEY, JSON.stringify({
-        version: VERSAO_ESTADO,
+        stateVersion: STATE_VERSION,
         hostPeerId: state.hostPeerId,
         backupPeerId: state.backupPeerId,
         baseRoomPeerId: state.baseRoomPeerId,
@@ -81,7 +82,7 @@ function saveState() {
 /**
  * Tenta restaurar o estado salvo no localStorage.
  * Só restaura se pertencer à mesma sala/jogador e tiver menos de 5 minutos.
- * Versão mais nova que VERSAO_ESTADO: ignora sem apagar; versão inválida:
+ * Versão mais nova que STATE_VERSION: ignora sem apagar; versão inválida:
  * apaga, como estado corrompido.
  * @returns {boolean} true se restaurou com sucesso
  */
@@ -92,15 +93,15 @@ function tryRestoreState() {
     if (!savedState || !savedMyData) return false;
 
     try {
-        const lido = JSON.parse(savedState);
-        const versao = lido.version;
+        const parsed = JSON.parse(savedState);
+        const version = parsed.stateVersion;
 
         // Versão conferida antes de tudo: num formato mais novo, até o
         // nome da sala pode ter mudado de campo.
-        if (versao !== undefined && !(Number.isInteger(versao) && versao >= 1)) {
-            throw new Error('versão inválida: ' + JSON.stringify(versao));
+        if (version !== undefined && !(Number.isInteger(version) && version >= 1)) {
+            throw new Error('versão inválida: ' + JSON.stringify(version));
         }
-        if (versao > VERSAO_ESTADO) {
+        if (version > STATE_VERSION) {
             // Gravado por um código mais novo (ex.: arquivos antigos em
             // cache logo depois de um deploy): não restaura e não apaga,
             // para a versão nova ainda poder usar.
@@ -109,9 +110,9 @@ function tryRestoreState() {
         }
 
         // Chamado por Game.persistence para o teste poder trocar a migração.
-        const migrado = Game.persistence.migrarEstadoSalvo(lido, JSON.parse(savedMyData));
-        const saved = migrado.sala;
-        const myData = migrado.eu;
+        const migrated = Game.persistence.migrateSavedState(parsed, JSON.parse(savedMyData));
+        const saved = migrated.roomState;
+        const myData = migrated.myData;
 
         const currentParams = new URLSearchParams(window.location.search);
         const currentRoom = currentParams.get('room') || 'Sala';
@@ -183,8 +184,8 @@ window.Game.persistence = {
     saveState,
     tryRestoreState,
     clearSavedState,
-    migrarEstadoSalvo,
-    VERSAO_ESTADO
+    migrateSavedState,
+    STATE_VERSION
 };
 
 // Compatibilidade: Game.saveState() é chamado diretamente em vários

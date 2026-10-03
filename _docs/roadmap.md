@@ -35,7 +35,7 @@
 
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
-| 3.1 | **Versionamento do estado salvo** | ✅ Feito (03/10/2026): o estado salvo tem `version` (hoje 1) e passa por `migrarEstadoSalvo()` em `utils/persistence.js` antes de ser restaurado. Estado sem versão conta como 1; versão mais nova é ignorada sem ser apagada; versão inválida é apagada. Ao mudar o formato (ex.: Fase E), aumentar `VERSAO_ESTADO` e acrescentar o passo em `MIGRACOES`. |
+| 3.1 | **Versionamento do estado salvo** | ✅ Feito (03/10/2026): o estado salvo tem `stateVersion` (hoje 1) e passa por `migrateSavedState()` em `utils/persistence.js` antes de ser restaurado. Estado sem versão conta como 1; versão mais nova é ignorada sem ser apagada; versão inválida é apagada. Ao mudar o formato (ex.: Fase E), aumentar `STATE_VERSION` e acrescentar o passo em `STATE_MIGRATIONS`. |
 | 3.2 | **Compressão de dados** | O estado pode crescer; usar compressão (ex: LZString) para reduzir tamanho. |
 | 3.3 | **Sincronização parcial (delta sync)** | Em vez de enviar o estado completo em `state-sync`, enviar apenas as mudanças (diffs), economizando banda. |
 

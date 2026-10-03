@@ -225,14 +225,14 @@ Nunca foi decidido usar — o projeto inteiro usa `<script>` simples + namespace
 
 ### Versão do estado salvo (roadmap 3.1)
 
-O estado salvo no `localStorage` (`pmKPI_roomState` e `pmKPI_myData`, gravados juntos por `utils/persistence.js`) tem um número de versão, no campo `version` de `pmKPI_roomState` (`VERSAO_ESTADO`, hoje 1). Antes de restaurar, `migrarEstadoSalvo()` aplica em ordem os passos da tabela `MIGRACOES` (passo N converte da versão N para N+1) até a versão atual. Regras:
+O estado salvo no `localStorage` (`pmKPI_roomState` e `pmKPI_myData`, gravados juntos por `utils/persistence.js`) tem um número de versão, no campo `stateVersion` de `pmKPI_roomState` (`STATE_VERSION`, hoje 1) — não confundir com `hostVersion`, que conta as trocas de host. Antes de restaurar, `migrateSavedState()` aplica em ordem os passos da tabela `STATE_MIGRATIONS` (passo N converte da versão N para N+1) até a versão atual. Regras:
 
-- **Sem versão** (salvo antes do 3.1): conta como versão 1 — o formato é o mesmo. No próximo salvamento passa a ter `version: 1`.
+- **Sem versão** (salvo antes do 3.1): conta como versão 1 — o formato é o mesmo. No próximo salvamento passa a ter `stateVersion: 1`.
 - **Versão mais nova que o código** (ex.: arquivos antigos em cache logo depois de um deploy): não restaura e não apaga — a versão nova do código ainda consegue usar.
 - **Versão inválida** ou passo de migração faltando: tratado como estado corrompido (apagado, jogo começa do zero).
 - A versão é conferida antes de sala e jogador, porque num formato mais novo esses campos podem ter mudado de nome.
 
-Para mudar o formato (ex.: renomear campos na Fase E): aumentar `VERSAO_ESTADO` e acrescentar o passo em `MIGRACOES`, com teste. Como o estado salvo só vale 5 minutos, o risco real é um F5 logo depois de um deploy.
+Para mudar o formato (ex.: renomear campos na Fase E): aumentar `STATE_VERSION` e acrescentar o passo em `STATE_MIGRATIONS`, com teste. Como o estado salvo só vale 5 minutos, o risco real é um F5 logo depois de um deploy.
 
 ### `connectionState.js` — por que existe (Fase 4)
 
