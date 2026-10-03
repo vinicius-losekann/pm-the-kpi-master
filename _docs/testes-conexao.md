@@ -98,16 +98,16 @@ só automatizado (falta o manual).
 | Caso | Testes | Manual |
 |---|---|---|
 | F5/fechar do host encerra as conexões sem mexer no jogo | 🤖 T12, T13 | — |
-| Host volta dentro de 10s: guests reconectam, sem troca de host | 🤖 T38 | ⬜ **P1** |
+| Host volta dentro de 10s: guests reconectam, sem troca de host | 🤖 T38 · 🌐 E1 | — (coberto por E1) |
 | Host não volta: backup assume em ~10s, não antes | 🤖 T39, T40 · 🌐 E2 | 👤 |
 | Backup desconectado é pulado, o próximo assume | 🤖 T10 | — |
 | Novo host marca os outros como desconectados, pausa e retoma | 🤖 T17, T21, T21b | 👤 |
 | Todos recebem quem já respondeu na rodada (resposta, nova dupla, reconexão) | 🤖 T49 | — |
 | Troca de host com a rodada encerrada: continua encerrada, nada começa sozinho | 🤖 T35, T50 · 🌐 E5 | 👤 |
-| Troca de host no meio da rodada: quem ia responder não perde a vez; ninguém responde duas vezes | 🤖 T50, T51 | ⬜ **P1** (M20) |
+| Troca de host no meio da rodada: quem ia responder não perde a vez; ninguém responde duas vezes | 🤖 T50, T51 · 🌐 E4 | — (coberto por E4) |
 | Novo host confere o token pelos hashes da lista | 🤖 T26 | — |
 | Troca de host no lobby | 🤖 T18 | ⬜ P2 |
-| Host antigo volta como jogador comum, com o KPI dele | 🤖 T41, T43 · 🌐 E5 (pelo link antigo) | 👤 (pela tela inicial) |
+| Host antigo volta como jogador comum, com o KPI dele | 🤖 T41, T43 · 🌐 E5 (link antigo), E3 (tela inicial) | 👤 (pela tela inicial) |
 | Quem assumiu fica com `host=true` na URL (F5 continua host) | 🤖 T42 · 🌐 E2 | — (coberto por E2) |
 | Guest acha o host em qualquer versão (`-h1`, `-h2`...) | 🤖 T44, T45 | 👤 (versão 0 e -h1) |
 | Assumir como host sem o erro "cannot reconnect" | 🤖 T46 | 👤 |
@@ -120,7 +120,7 @@ só automatizado (falta o manual).
 | Fim de jogo: quem cai sai da lista | 🤖 T11 | — |
 | Encerrar partida (normal e pausada) | 🤖 T14, T15 | — |
 | Voltar ao lobby após o fim de jogo (host e guest) | 🤖 T16, T16b | — |
-| Guest sai da partida, ela acaba, e o host inicia outra | 🤖 T48 | 👤 |
+| Guest sai da partida, ela acaba, e o host inicia outra | 🤖 T48 · 🌐 E8 | 👤 |
 | Pausa retomada com todos os conectados já tendo respondido: rodada encerra em vez de recomeçar | 🤖 T52 | — |
 | Sair da partida: se faltar jogador, a partida acaba | 🤖 T7 | 👤 |
 
@@ -128,9 +128,13 @@ só automatizado (falta o manual).
 
 ## 3. Bugs encontrados, ainda não corrigidos
 
-Nenhum aberto. Corrigidos: B1 (botão "Iniciar" desabilitado depois de
-um "Sair da partida") na D3d; B2 (rodada que começava sozinha depois de
-uma troca de host) na D3e.
+| ID | Situação | Causa |
+|---|---|---|
+| 🐛 B3 | F5 do host com a rodada encerrada (esperando o "Nova Rodada"): o host volta mostrando "Aguardando início da rodada..." e os outros veem a última dupla como se a pergunta estivesse em andamento ("Beto pergunta para Ana..."), em vez de "Rodada encerrada". O "Nova Rodada" continua liberado e nada começa sozinho. Encontrado ao experimentar o M2 com navegadores reais (03/10/2026). | `rodadaEncerrada` não é salvo junto com o estado do host, e a retomada depois do F5 reexibe a última rodada (já respondida) como se estivesse em andamento. |
+
+Corrigidos: B1 (botão "Iniciar" desabilitado depois de um "Sair da
+partida") na D3d; B2 (rodada que começava sozinha depois de uma troca de
+host) na D3e.
 
 ---
 
@@ -142,16 +146,16 @@ janelas visíveis lado a lado (aba em segundo plano fica mais lenta).
 
 | # | Prioridade | Caso | Como testar | Esperado |
 |---|---|---|---|---|
-| M1 | **P1** | F5 do host no meio de uma pergunta | Host dá F5 com a pergunta aberta | Guests reconectam em poucos segundos, sem troca de host; a partida segue |
-| M2 | **P1** | F5 do host com "rodada encerrada" | Host dá F5 esperando o "Nova Rodada" | Continua esperando o clique (hoje suspeito de reabrir a rodada — a investigar) |
+| M1 | ✅ 🌐 E1 | F5 do host no meio de uma pergunta | Host dá F5 com a pergunta aberta | Guests reconectam em poucos segundos, sem troca de host; a partida segue |
+| M2 | **P1** 🐛 B3 | F5 do host com "rodada encerrada" | Host dá F5 esperando o "Nova Rodada" | Continua esperando o clique (hoje suspeito de reabrir a rodada — a investigar) |
 | M3 | ✅ 🌐 E2 | F5 do novo host depois da troca | Depois que o guest assumiu, ele dá F5 | Volta como host na mesma sala; os outros reconectam |
 | M4 | ✅ 🌐 E5 | Host antigo reabre o **link antigo** da partida (não a tela inicial), em até 5 min | Fechar a aba do host, esperar a troca, reabrir pelo histórico | Entra como jogador comum; URL passa a `host=false` |
-| M5 | **P1** | Troca de host com 3 jogadores | Host fecha a aba | O backup assume e o terceiro jogador acha o novo host sozinho |
-| M6 | **P1** | Guest cai e volta | Guest dá F5 no meio da própria pergunta; outro guest fecha e volta pela tela inicial | Voltam ao próprio lugar, com KPI; rodada tratada como nos testes T5/T34 |
+| M5 | ✅ 🌐 E4 | Troca de host com 3 jogadores | Host fecha a aba | O backup assume e o terceiro jogador acha o novo host sozinho |
+| M6 | ✅ 🌐 E6 | Guest cai e volta | Guest dá F5 no meio da própria pergunta; outro guest fecha e volta pela tela inicial | Voltam ao próprio lugar, com KPI; rodada tratada como nos testes T5/T34 |
 | M7 | **P1** | Queda de rede real (não fechar aba) | Desligar o Wi-Fi do guest por 20s; depois do host | Guest: volta sozinho ou ao recarregar. Host: troca de host depois de perceber a queda (mais lento que fechar a aba) |
 | M8 | **P1** | Celular com tela bloqueada / navegador em segundo plano | Bloquear o celular por 1 min no meio da partida | Ao desbloquear, volta à partida (ou ao recarregar) |
 | M9 | **P1** | Redes diferentes | Host no Wi-Fi da instituição, guest no 4G | Conecta. **Risco:** redes corporativas/universitárias podem bloquear a conexão direta entre navegadores sem um servidor de retransmissão (TURN) |
-| M10 | ✅ | Nova partida depois de "saiu da partida" | 2 jogadores; guest sai; host volta ao lobby e inicia outra | Conferido em 30/09/2026 |
+| M10 | ✅ 🌐 E8 | Nova partida depois de "saiu da partida" | 2 jogadores; guest sai; host volta ao lobby e inicia outra | Conferido em 30/09/2026 |
 | M11 | P2 | Duas trocas de host seguidas | 3 jogadores: host sai; depois o novo host sai | Sala vai para `-h2`; entrar pela tela inicial com o código funciona |
 | M12 | P2 | Troca de host no lobby | Host fecha a aba antes de iniciar | Backup assume; os outros voltam como jogadores novos |
 | M13 | P2 | Host sai com a partida pausada | Pausar (guest cai), depois o host fecha | Novo host segue pausado e retoma quando der |
@@ -161,7 +165,7 @@ janelas visíveis lado a lado (aba em segundo plano fica mais lenta).
 | M17 | P2 | Navegadores | Chrome, Edge (inclusive InPrivate), Firefox, Safari no iPhone | Mesmo comportamento |
 | M18 | P2 | Aba em segundo plano por muito tempo | Deixar a aba escondida 10 min | Ao voltar, o jogo se recupera (pode precisar de F5) |
 | M19 | ✅ 👤 🌐 E5 | Troca de host com a rodada encerrada | Todos respondem; com "Rodada encerrada" na tela, o host fecha a aba | O novo host vê "Rodada encerrada" com o "Nova Rodada" liberado; quando os outros voltam, nada começa sozinho |
-| M20 | **P1** (pendente: faltam 3 navegadores; previsto na automação D4b) | Troca de host no meio da rodada | 3 jogadores; o host fecha a aba no meio de uma pergunta que não é do novo host | A partida pausa e, quando alguém volta, continua com quem ainda não respondeu; ninguém responde duas vezes na mesma rodada |
+| M20 | ✅ 🌐 E4 | Troca de host no meio da rodada | 3 jogadores; o host fecha a aba no meio de uma pergunta que não é do novo host | A partida pausa e, quando alguém volta, continua com quem ainda não respondeu; ninguém responde duas vezes na mesma rodada |
 
 ---
 
@@ -187,16 +191,24 @@ não mudam: o teste só aponta o PeerJS para o servidor local.
 
 | # | Cenário | Cobre |
 |---|---|---|
+| E1 | F5 do host no meio da pergunta: o outro reconecta ao mesmo host, sem troca de host; a rodada vai até o fim | M1 |
 | E2 | Host fecha a aba: outro assume em ~10s (não antes de 7s); URL `host=true`; F5 do novo host continua host | M3 |
+| E3 | Host antigo volta pela tela inicial digitando o código: acha a sala em `-h1` e entra como jogador comum, com o KPI dele | — |
+| E4 | 3 jogadores, host sai no meio da pergunta de um guest (com alguém já tendo respondido): o terceiro acha o novo host; ninguém responde duas vezes; quem ia responder não perde a vez | M5, M20 |
 | E5 | Troca de host com a rodada encerrada: continua encerrada; host antigo volta pelo link antigo como jogador comum; nada começa até o "Nova Rodada" | M4, M19 |
+| E6 | Jogador dá F5; outro fecha e volta pela tela inicial; nome novo é recusado; a rodada vai até o fim | M6 |
+| E8 | Jogador sai da partida, ela acaba; voltar ao lobby e iniciar outra | M10 |
 
-Próximos (D4b): F5 do host (M1), 3 jogadores com troca no meio da
-pergunta (M5, M20), guest que cai e volta (M6), guest sem rede por 20s
-(parte de M7), nova partida depois de "Sair da partida" (M10) e os P2
-automatizáveis (M11–M16).
+Queda de rede (M7) não entrou: a simulação de "sem rede" do navegador
+não derruba a conexão direta entre janelas na mesma máquina (conferido —
+as mensagens continuaram chegando), então o cenário não testaria nada.
+Continua manual.
 
-**Continuam manuais:** M8 (celular), M9 (redes reais diferentes), M17
-(Firefox, Safari) e M18 (aba esquecida em segundo plano).
+Ainda automatizáveis: M2 (depois de corrigir o B3) e os P2 M11–M16.
+
+**Continuam manuais:** M7 (queda de rede real), M8 (celular), M9 (redes
+reais diferentes), M17 (Firefox, Safari) e M18 (aba esquecida em
+segundo plano).
 
 Rodar localmente (precisa de Node): `npm ci`, `npx playwright install
 chromium` e `npx playwright test --config tests/e2e/playwright.config.js`.

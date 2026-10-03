@@ -69,7 +69,7 @@ test('E5 Troca de host com a rodada encerrada: continua encerrada; o host antigo
     expect(await beto.estado(() => Game.state.currentRound), 'nenhuma dupla deveria começar sem o "Nova Rodada"').toBeNull();
 
     // O novo host clica em "Nova Rodada": a rodada começa para os dois.
-    await beto.page.click('#btnNovaRodada');
+    await beto.clicar('#btnNovaRodada');
     await beto.esperar(() => Game.state.currentRound !== null && Game.state.rodadaEncerrada === false);
     await ana.esperar(() => Game.state.currentRound !== null && Game.state.rodadaEncerrada === false);
 });

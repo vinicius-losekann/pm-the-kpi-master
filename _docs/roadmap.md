@@ -86,7 +86,7 @@
 | 7.3 | **Linter (ESLint) e formatter (Prettier)** | Manter estilo consistente e evitar erros comuns. |
 | 7.5 | **Separar helpers em arquivos próprios** | Funções como `buildRanking` poderiam estar em um arquivo `ranking-utils.js`. |
 | 7.6 | **Extrair helper compartilhado de renderização de alternativas** | `questionComponent.js` (Respondedor) e `advisoryModal.js` (Assessor) duplicam a lógica de montar a lista de alternativas + timer — visualmente quase idênticas, mas disparam ações diferentes no clique (`handleAnswer` vs `responderAssessoria`). Não fundir os dois modais (são interações conceitualmente diferentes), só extrair a parte genuinamente igual (montagem da lista + texto do timer) para uma função compartilhada tipo `Game.ui.renderAlternativesList(container, alternativas, onEscolher)`. Baixo risco, ganho pequeno — não é bug, é redução de duplicação. |
-| 7.7 | **Testes de ponta a ponta com navegadores de verdade** | Hoje os testes automatizados (`tests/`) simulam o PeerJS. Rodar o jogo em navegadores reais no GitHub Actions (Playwright + servidor PeerJS local + servidor estático) cobre quase todo o checklist manual de `testes-conexao.md`. **D4a feita** (estrutura em `tests/e2e` + 2 cenários de troca de host); **D4b** (demais cenários) a seguir. |
+| 7.7 | **Testes de ponta a ponta com navegadores de verdade** | Hoje os testes automatizados (`tests/`) simulam o PeerJS. Rodar o jogo em navegadores reais no GitHub Actions (Playwright + servidor PeerJS local + servidor estático) cobre quase todo o checklist manual de `testes-conexao.md`. **D4a e D4b feitas**: estrutura em `tests/e2e` e 7 cenários (troca de host, F5, volta pela tela inicial, 3 jogadores, nova partida). Faltam os P2 automatizáveis (M11–M16). |
 
 ---
 
@@ -153,9 +153,9 @@ Objetivo confirmado com o usuário: recurso vira punição só por errar, não m
 | D3e | Quem já respondeu na rodada é conhecido por todos: depois da troca de host a rodada continua de onde parou, sem ninguém responder duas vezes; rodada encerrada não recomeça sozinha | ✅ |
 
 Checklist de conexão (casos cobertos, testes manuais pendentes e
-limitações): `testes-conexao.md`. Falta: testes manuais P1 (M20
-pendente: precisa de 3 navegadores — previsto na D4b) e documentação de
-fechamento. Em andamento: **D4** (item 7.7) — D4a feita.
+limitações): `testes-conexao.md`. Falta: testes manuais P1 que não dão
+para automatizar (M2, M7, M8, M9) e documentação de fechamento. **D4**
+(item 7.7): D4a e D4b feitas.
 
 ### Fase E — tradução completa de identificadores para inglês (por último)
 
