@@ -25,8 +25,17 @@ pm-the-kpi-master/
 ├── config/
 │   └── game-config.js           # CONFIG (constantes ajustáveis, inclusive CONFIG.PEER)
 │
+├── package.json                 # dependências só dos testes de ponta a ponta (o jogo não usa)
+├── package-lock.json
+│
 ├── tests/
-│   └── faseD.test.js            # testes automatizados (Node, sem dependências)
+│   ├── faseD.test.js            # testes automatizados (Node, sem dependências)
+│   └── e2e/                     # ponta a ponta: jogo real no Chromium (Playwright)
+│       ├── playwright.config.js
+│       ├── servidores.js        # site e servidor PeerJS locais
+│       ├── apoio.js             # jogadores (contextos separados) e ajudantes
+│       ├── resumo.js            # tabela de resultados no Actions
+│       └── *.spec.js            # cenários
 │
 ├── index.html
 ├── game.html
@@ -240,7 +249,8 @@ Resumo dos mecanismos; detalhes nos comentários de cada arquivo e no checklist 
 - `tests/faseD.test.js` carrega os arquivos reais do jogo em contextos isolados do Node (`vm`), com rede, tela e PeerJS simulados, e verifica os mecanismos acima caso a caso. Não tem dependências: `node tests/faseD.test.js`.
 - `.github/workflows/testes.yml` roda todos os `tests/*.test.js` a cada push e pull request; o resultado fica na aba Actions do repositório.
 - Toda mudança de lógica vem com teste; os testes novos são conferidos contra o código antigo (devem falhar) e com teste de mutação.
-- O que depende de rede real, tela ou dispositivo continua no checklist manual (`testes-conexao.md`). Testes de ponta a ponta com navegadores de verdade estão planejados (roadmap 7.7).
+- `tests/e2e` roda o jogo de verdade em janelas separadas do Chromium (Playwright), com o site e um servidor PeerJS locais — sem depender da internet. Os arquivos do jogo não mudam: o teste redireciona o PeerJS (unpkg) para o pacote local, de mesma versão, e acrescenta ao `config/game-config.js` servido uma linha que aponta `CONFIG.PEER` para o servidor local. As dependências (`package.json`) são só dos testes. No Actions, é o job "ponta-a-ponta", separado do de lógica.
+- O que depende de rede real, dispositivo ou outros navegadores continua no checklist manual (`testes-conexao.md`).
 
 ---
 

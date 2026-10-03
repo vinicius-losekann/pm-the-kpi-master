@@ -14,5 +14,7 @@ desktop.ini
 .vscode/
 .idea/
 
-# --- Futuro ---
+# --- Testes de ponta a ponta (gerados ao rodar) ---
 node_modules/
+playwright-report/
+test-results/

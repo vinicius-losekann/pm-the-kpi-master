@@ -1,0 +1,15 @@
+{
+  "name": "pm-the-kpi-master",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PM: The KPI Master. As dependências abaixo são só para os testes de ponta a ponta (tests/e2e); o jogo publicado não usa nada daqui.",
+  "scripts": {
+    "test": "node tests/faseD.test.js",
+    "test:e2e": "playwright test --config tests/e2e/playwright.config.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.0",
+    "peer": "1.0.2",
+    "peerjs": "1.5.1"
+  }
+}

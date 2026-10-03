@@ -1,9 +1,15 @@
 # ============================================
 # PM: The KPI Master - Testes automatizados
 # ============================================
-# Roda todos os arquivos tests/*.test.js a cada push e pull request.
-# Resultado: aba "Actions" do repositório — tabela de resumo na página
-# da execução e log completo para download (artefato "resultado-testes").
+# Dois conjuntos, a cada push e pull request:
+#   - "testes": tests/*.test.js — lógica do jogo, com rede e tela
+#     simuladas (rápido, sem dependências).
+#   - "ponta-a-ponta": tests/e2e — o jogo de verdade em várias janelas
+#     do Chromium, com servidor PeerJS e site locais (alguns minutos).
+# Resultado: aba "Actions" do repositório — tabelas de resumo na página
+# da execução; log dos testes (artefato "resultado-testes") e relatório
+# de ponta a ponta com o console de cada jogador nos cenários que
+# falharem (artefato "relatorio-ponta-a-ponta").
 # Também pode ser disparado manualmente pelo botão "Run workflow".
 # ============================================
 
@@ -51,3 +57,36 @@ jobs:
           name: resultado-testes
           path: resultado-testes.txt
           retention-days: 30
+
+  ponta-a-ponta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências dos testes
+        run: npm ci
+
+      - name: Instalar o Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Rodar os testes de ponta a ponta
+        run: npx playwright test --config tests/e2e/playwright.config.js
+
+      - name: Guardar o relatório
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-ponta-a-ponta
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14

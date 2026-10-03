@@ -9,15 +9,18 @@ deploy: nenhum item marcado **P1** pode ficar pendente.
 | Marca | Significado |
 |---|---|
 | 🤖 | Coberto por teste automatizado (`tests/faseD.test.js`, roda no GitHub Actions a cada push) |
+| 🌐 | Coberto por teste de ponta a ponta (`tests/e2e`, jogo de verdade no Chromium, roda no GitHub Actions a cada push) |
 | 👤 | Conferido em teste manual (navegadores reais, GitHub Pages) |
 | ⬜ | Falta testar manualmente |
 | 🐛 | Bug encontrado, ainda não corrigido |
 | ⚠️ | Limitação conhecida (comportamento aceito por ora) |
 | **P1** | Obrigatório antes do deploy · **P2** desejável |
 
-> Os testes automatizados simulam o PeerJS: garantem a **lógica** do
-> jogo em cada situação, mas não a rede de verdade. Por isso os casos
-> que dependem de rede real, tela ou dispositivo continuam na lista
+> Os testes de `tests/faseD.test.js` simulam o PeerJS: garantem a
+> **lógica** do jogo em cada situação. Os de ponta a ponta (`tests/e2e`)
+> rodam o jogo de verdade em janelas separadas do Chromium, com um
+> servidor PeerJS local — cobrem a conexão, mas não redes reais
+> diferentes, celular nem outros navegadores. Esses continuam na lista
 > manual.
 
 ---
@@ -96,16 +99,16 @@ só automatizado (falta o manual).
 |---|---|---|
 | F5/fechar do host encerra as conexões sem mexer no jogo | 🤖 T12, T13 | — |
 | Host volta dentro de 10s: guests reconectam, sem troca de host | 🤖 T38 | ⬜ **P1** |
-| Host não volta: backup assume em ~10s, não antes | 🤖 T39, T40 | 👤 |
+| Host não volta: backup assume em ~10s, não antes | 🤖 T39, T40 · 🌐 E2 | 👤 |
 | Backup desconectado é pulado, o próximo assume | 🤖 T10 | — |
 | Novo host marca os outros como desconectados, pausa e retoma | 🤖 T17, T21, T21b | 👤 |
 | Todos recebem quem já respondeu na rodada (resposta, nova dupla, reconexão) | 🤖 T49 | — |
-| Troca de host com a rodada encerrada: continua encerrada, nada começa sozinho | 🤖 T35, T50 | ⬜ **P1** (M19) |
+| Troca de host com a rodada encerrada: continua encerrada, nada começa sozinho | 🤖 T35, T50 · 🌐 E5 | 👤 |
 | Troca de host no meio da rodada: quem ia responder não perde a vez; ninguém responde duas vezes | 🤖 T50, T51 | ⬜ **P1** (M20) |
 | Novo host confere o token pelos hashes da lista | 🤖 T26 | — |
 | Troca de host no lobby | 🤖 T18 | ⬜ P2 |
-| Host antigo volta como jogador comum, com o KPI dele | 🤖 T41, T43 | 👤 (pela tela inicial) |
-| Quem assumiu fica com `host=true` na URL (F5 continua host) | 🤖 T42 | ⬜ **P1** |
+| Host antigo volta como jogador comum, com o KPI dele | 🤖 T41, T43 · 🌐 E5 (pelo link antigo) | 👤 (pela tela inicial) |
+| Quem assumiu fica com `host=true` na URL (F5 continua host) | 🤖 T42 · 🌐 E2 | — (coberto por E2) |
 | Guest acha o host em qualquer versão (`-h1`, `-h2`...) | 🤖 T44, T45 | 👤 (versão 0 e -h1) |
 | Assumir como host sem o erro "cannot reconnect" | 🤖 T46 | 👤 |
 | Erros do PeerJS depois de aberto não derrubam o peer | 🤖 T19, T20 | — |
@@ -141,8 +144,8 @@ janelas visíveis lado a lado (aba em segundo plano fica mais lenta).
 |---|---|---|---|---|
 | M1 | **P1** | F5 do host no meio de uma pergunta | Host dá F5 com a pergunta aberta | Guests reconectam em poucos segundos, sem troca de host; a partida segue |
 | M2 | **P1** | F5 do host com "rodada encerrada" | Host dá F5 esperando o "Nova Rodada" | Continua esperando o clique (hoje suspeito de reabrir a rodada — a investigar) |
-| M3 | **P1** | F5 do novo host depois da troca | Depois que o guest assumiu, ele dá F5 | Volta como host na mesma sala; os outros reconectam |
-| M4 | **P1** | Host antigo reabre o **link antigo** da partida (não a tela inicial), em até 5 min | Fechar a aba do host, esperar a troca, reabrir pelo histórico | Entra como jogador comum; URL passa a `host=false` |
+| M3 | ✅ 🌐 E2 | F5 do novo host depois da troca | Depois que o guest assumiu, ele dá F5 | Volta como host na mesma sala; os outros reconectam |
+| M4 | ✅ 🌐 E5 | Host antigo reabre o **link antigo** da partida (não a tela inicial), em até 5 min | Fechar a aba do host, esperar a troca, reabrir pelo histórico | Entra como jogador comum; URL passa a `host=false` |
 | M5 | **P1** | Troca de host com 3 jogadores | Host fecha a aba | O backup assume e o terceiro jogador acha o novo host sozinho |
 | M6 | **P1** | Guest cai e volta | Guest dá F5 no meio da própria pergunta; outro guest fecha e volta pela tela inicial | Voltam ao próprio lugar, com KPI; rodada tratada como nos testes T5/T34 |
 | M7 | **P1** | Queda de rede real (não fechar aba) | Desligar o Wi-Fi do guest por 20s; depois do host | Guest: volta sozinho ou ao recarregar. Host: troca de host depois de perceber a queda (mais lento que fechar a aba) |
@@ -157,8 +160,8 @@ janelas visíveis lado a lado (aba em segundo plano fica mais lenta).
 | M16 | P2 | Reusar o código depois que todos saem | Todos fecham; reabrir em 1 min e depois de 5 min | Até 5 min restaura a partida; depois, lobby novo |
 | M17 | P2 | Navegadores | Chrome, Edge (inclusive InPrivate), Firefox, Safari no iPhone | Mesmo comportamento |
 | M18 | P2 | Aba em segundo plano por muito tempo | Deixar a aba escondida 10 min | Ao voltar, o jogo se recupera (pode precisar de F5) |
-| M19 | **P1** | Troca de host com a rodada encerrada | Todos respondem; com "Rodada encerrada" na tela, o host fecha a aba | O novo host vê "Rodada encerrada" com o "Nova Rodada" liberado; quando os outros voltam, nada começa sozinho |
-| M20 | **P1** | Troca de host no meio da rodada | 3 jogadores; o host fecha a aba no meio de uma pergunta que não é do novo host | A partida pausa e, quando alguém volta, continua com quem ainda não respondeu; ninguém responde duas vezes na mesma rodada |
+| M19 | ✅ 👤 🌐 E5 | Troca de host com a rodada encerrada | Todos respondem; com "Rodada encerrada" na tela, o host fecha a aba | O novo host vê "Rodada encerrada" com o "Nova Rodada" liberado; quando os outros voltam, nada começa sozinho |
+| M20 | **P1** (pendente: faltam 3 navegadores; previsto na automação D4b) | Troca de host no meio da rodada | 3 jogadores; o host fecha a aba no meio de uma pergunta que não é do novo host | A partida pausa e, quando alguém volta, continua com quem ainda não respondeu; ninguém responde duas vezes na mesma rodada |
 
 ---
 
@@ -174,19 +177,26 @@ janelas visíveis lado a lado (aba em segundo plano fica mais lenta).
 
 ---
 
-## 6. Automação que ainda dá para fazer
+## 6. Testes de ponta a ponta (`tests/e2e`)
 
-Um teste de ponta a ponta com navegadores de verdade rodando no GitHub
-Actions (Playwright + servidor PeerJS local + servidor estático do
-jogo) cobriria de forma automática a maior parte da seção 4:
+O jogo de verdade, em janelas separadas do Chromium (cada uma com
+armazenamento e token próprios, como navegadores diferentes), com um
+servidor PeerJS e o site servidos localmente dentro do GitHub Actions —
+sem depender da internet nem do servidor público. Os arquivos do jogo
+não mudam: o teste só aponta o PeerJS para o servidor local.
 
-- **Automatizáveis:** M1–M6, M10–M16, M19, M20 (vários navegadores simulados na
-  mesma máquina: fechar aba, recarregar, reabrir link, entrar pela tela
-  inicial) e boa parte de M7 (o Playwright simula ficar sem rede).
-- **Continuam manuais:** M8 (celular), M9 (redes reais diferentes),
-  M17 em Safari/iPhone e M18.
+| # | Cenário | Cobre |
+|---|---|---|
+| E2 | Host fecha a aba: outro assume em ~10s (não antes de 7s); URL `host=true`; F5 do novo host continua host | M3 |
+| E5 | Troca de host com a rodada encerrada: continua encerrada; host antigo volta pelo link antigo como jogador comum; nada começa até o "Nova Rodada" | M4, M19 |
 
-Com isso, cada push passaria a testar também a rede, e não só a
-lógica. O ambiente já foi experimentado: o jogo roda completo no
-Chromium sem interface, com servidor PeerJS local (troca de host em
-~10s, tela inicial achando a sala migrada).
+Próximos (D4b): F5 do host (M1), 3 jogadores com troca no meio da
+pergunta (M5, M20), guest que cai e volta (M6), guest sem rede por 20s
+(parte de M7), nova partida depois de "Sair da partida" (M10) e os P2
+automatizáveis (M11–M16).
+
+**Continuam manuais:** M8 (celular), M9 (redes reais diferentes), M17
+(Firefox, Safari) e M18 (aba esquecida em segundo plano).
+
+Rodar localmente (precisa de Node): `npm ci`, `npx playwright install
+chromium` e `npx playwright test --config tests/e2e/playwright.config.js`.
