@@ -4,14 +4,11 @@
 // Define o objeto `gameState` (fonte da verdade / Game.state).
 // Fase 2.1 do roadmap. Substitui js/game-state.js.
 //
-// ⚠️ Compatibilidade: os demais módulos (game-core.js, game-ui.js,
-// game-network.js, main.js) ainda chamam Game.getPlayerByName(),
-// Game.getActivePlayers(), Game.resetAllPlayers(), etc. diretamente.
-// Em vez de caçar e trocar todas essas chamadas agora, mantemos aqui
-// wrappers finos que delegam para Game.selectors / Game.mutations
-// (state/selectors.js e state/mutations.js). Esses wrappers serão
-// removidos gradualmente conforme cada consumidor for migrado nas
-// próximas fases (engine/, ui/, network/).
+// Atalhos: Game.getPlayerByName(), Game.getActivePlayers(),
+// Game.resetAllPlayers() etc. (no fim do arquivo) chamam
+// Game.selectors / Game.mutations (state/selectors.js e
+// state/mutations.js) já com Game.state e CONFIG. São usados em todo o
+// código e ficam — não são compatibilidade temporária.
 // ============================================
 
 const gameState = {
@@ -46,7 +43,7 @@ window.Game.state = gameState;
 // Game.computeHostPeerId (ID do host em cada versão de migração) fica em
 // network/hostSearch.js desde a Fase D3c — a tela inicial também usa.
 
-// --- Wrappers de compatibilidade (ver nota no topo do arquivo) ---
+// --- Atalhos (ver nota no topo do arquivo) ---
 window.Game.getFaseById = (id) => Game.selectors.getFaseById(CONFIG.FASES, id);
 window.Game.getFaseIndex = (id) => Game.selectors.getFaseIndex(CONFIG.FASES, id);
 window.Game.getPlayerByName = (name) => Game.selectors.getPlayerByName(Game.state.players, name);

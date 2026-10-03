@@ -68,7 +68,7 @@ só automatizado (falta o manual).
 
 ---
 
-## 2. Casos cobertos por teste automatizado (74 testes)
+## 2. Casos cobertos por teste automatizado (75 testes)
 
 ### Entrada na sala e identidade
 | Caso | Testes | Manual |
@@ -126,6 +126,7 @@ só automatizado (falta o manual).
 | Caso | Testes | Manual |
 |---|---|---|
 | Fim de jogo: quem cai sai da lista | 🤖 T11 | — |
+| Fim de jogo, encerrar a partida e troca de dupla cancelam os prazos pendentes (resposta, assessoria; o pedido de ajuda só no fim e no encerramento) | 🤖 T72 | — |
 | F5 na tela de fim de jogo (host e guest) volta à tela final com o mesmo ranking, sem recomeçar a partida; quem cai no fim de jogo pode voltar à sala e vê o ranking (BUG-021) | 🤖 T66, T67, T68 | — |
 | Encerrar partida (normal e pausada) | 🤖 T14, T15 | — |
 | Voltar ao lobby após o fim de jogo (host e guest) | 🤖 T16, T16b | — |

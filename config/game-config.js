@@ -13,7 +13,7 @@ const CONFIG = {
         ASSESSORIA_ACERTO: 5,                 // Bônus de KPI para o assessor quando sua sugestão é seguida e correta
     },
 
-    RECURSOS_INICIAIS: 10,                    // Recursos que cada jogador recebe no início de cada partida (Fase 9: recurso agora é punição por erro, não custo incondicional — ver ARCHITECTURE.md)
+    RECURSOS_INICIAIS: 10,                    // Recursos que cada jogador recebe no início de cada partida (Fase C: recurso agora é punição por erro, não custo incondicional — ver _docs/architecture.md)
 
     JOGO: {
         MAX_PLAYERS: 6,

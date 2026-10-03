@@ -552,7 +552,6 @@ Object.assign(window.Game.network, {
     handleHostDisconnect,
     attemptReconnectToSameHost,
     attemptReconnectToNewHost,
-    retryOrGiveUp,
     becomeHost,
     registrarPapelNaUrl,
     retomarComoJogadorSeOutroAssumiu

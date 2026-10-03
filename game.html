@@ -105,7 +105,7 @@
 
             <!-- Sidebar Esquerda -->
             <aside class="sidebar sidebar-left">
-                <!-- Card do Jogador + Fases (consolidado — Fase 9, todo.md
+                <!-- Card do Jogador + Fases (consolidado — Fase B, roadmap
                      9.4: reduz a quantidade de cards pra rolar no celular,
                      onde a sidebar aparece abaixo da pergunta). KPI e
                      recursos agora ficam no cabeçalho, e cada fase mostra
@@ -142,7 +142,7 @@
                 </button>
 
                 <!-- Ação destrutiva: separada visualmente e discreta de
-                     propósito (ver todo.md 9.1) — Nova Rodada é clicado
+                     propósito (ver roadmap 9.1, Fase A) — Nova Rodada é clicado
                      toda hora, Encerrar Partida é raro e zera o KPI de
                      todos, então não deve competir pela mesma posição
                      de dedo no mobile. -->
@@ -361,17 +361,6 @@
         </div>
     </div>
 
-    <!-- Modal de Sugestão do Assessor (exibido para o Respondedor) -->
-    <div id="modalAssessoriaSugestao" class="modal" style="display:none;">
-        <div class="modal-overlay"></div>
-        <div class="modal-card glass-card" style="max-width:420px; text-align:center;">
-            <span style="font-size:2rem;">🧭</span>
-            <h2 id="assessoriaSugestaoTitulo" style="color:#6c63ff; margin:8px 0;">Sugestão do Assessor</h2>
-            <p id="assessoriaSugestaoMensagem" style="color:#e0e0e0; margin-bottom:16px; font-size:1.05rem;"></p>
-            <button id="btnFecharAssessoriaSugestao" class="btn btn-primary">OK</button>
-        </div>
-    </div>
-
     <!-- ============================================ -->
     <!-- SCRIPTS (ordem importa!)                    -->
     <!-- ============================================ -->
@@ -382,7 +371,7 @@
     <!-- 2. Configuração -->
     <script src="config/game-config.js"></script>
 
-    <!-- 2.6. i18n (Fase 6 do roadmap — infraestrutura apenas, UI ainda não religada, ver ARCHITECTURE.md NOTA-003) -->
+    <!-- 2.6. i18n (textos da tela; ver NOTA-003 em _docs/architecture.md) -->
     <script src="js/utils/i18n.js"></script>
     <script src="js/locales/pt-BR.js"></script>
 
@@ -406,7 +395,7 @@
     <script src="js/network/messageHandler.js"></script>
     <script src="js/network/hostMigration.js"></script>
 
-    <!-- 3.5. Regras puras de domínio (Fase 1 do roadmap — precisam vir antes de game-core.js) -->
+    <!-- 3.5. Regras puras de domínio (Fase 1 do roadmap — precisam vir antes de engine/) -->
     <script src="js/domain/kpiRules.js"></script>
     <script src="js/domain/eventRules.js"></script>
     <script src="js/domain/deckRules.js"></script>
@@ -435,10 +424,7 @@
     <script src="js/ui/modals/advisoryModal.js"></script>
     <script src="js/ui/setup.js"></script>
 
-    <!-- 4. Debug (descomentar para desenvolvimento, comentar para produção) -->
-    <!-- <script src="js/dev/debugTools.js"></script> -->
-
-    <!-- 5. Orquestrador (sempre por último) -->
+    <!-- 4. Orquestrador (sempre por último) -->
     <script src="js/main.js"></script>
 
 </body>

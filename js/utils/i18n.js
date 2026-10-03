@@ -3,17 +3,13 @@
 // ============================================
 // Resolve chaves de tradução a partir dos dicionários em js/locales/*.js.
 //
-// ⚠️ FASE 6 — APENAS INFRAESTRUTURA (ver NOTA-003 em ARCHITECTURE.md):
-// este arquivo e js/locales/pt-BR.js existem e funcionam de forma
-// isolada, mas AINDA NÃO estão "ligados" à UI. Os 12 arquivos de
-// js/ui/*.js continuam com as strings em português direto no código
-// (ex: `document.getElementById('x').textContent = 'Texto fixo'`).
-// Religar a UI para usar Game.i18n.t('chave') em vez de texto fixo é
-// trabalho da próxima rodada da Fase 6 — ver a nota para o escopo
-// completo (também envolve criar en-US.js e es-ES.js).
+// A tela (js/ui/*.js) usa Game.i18n.t('chave') para os textos; só
+// existe o dicionário pt-BR por enquanto. Faltam en-US e es-ES e o
+// seletor de idioma — ver NOTA-003 em _docs/architecture.md e o item
+// 8.4 do roadmap.
 // ============================================
 
-const SUPPORTED_LOCALES = ['pt-BR']; // en-US e es-ES entram quando a UI for religada
+const SUPPORTED_LOCALES = ['pt-BR']; // en-US e es-ES entram com os dicionários deles (roadmap 8.4)
 const DEFAULT_LOCALE = 'pt-BR';
 
 let currentLocale = DEFAULT_LOCALE;

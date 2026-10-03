@@ -63,7 +63,7 @@ function handleAnswer(msg) {
 
     const temReserva = evento?.reserva_contingencia === true;
 
-    // Fase 9 (economia de recursos, ver ARCHITECTURE.md): não existe mais
+    // Fase C (economia de recursos, ver _docs/architecture.md): não existe mais
     // "pular vez por falta de recurso" — qualquer jogador ativo sempre
     // tenta responder, mesmo com 0 recursos (decisão do usuário, opção 1).
     // O gasto de recurso agora depende do resultado (só erro gasta,
@@ -224,6 +224,6 @@ window.Game.engine.answer = {
 
 // Game.core.* é o namespace usado por ui/ e network/ para chamar as
 // funções deste engine — convenção de chamada entre camadas, não é
-// compatibilidade temporária nem trabalho pendente (ver ARCHITECTURE.md).
+// compatibilidade temporária nem trabalho pendente (ver _docs/architecture.md).
 window.Game.core = window.Game.core || {};
 Object.assign(window.Game.core, window.Game.engine.answer);

@@ -4,11 +4,11 @@
 // Logs com níveis (debug/info/warn/error), permitindo silenciar
 // ruído em produção sem apagar os console.log espalhados pelo código.
 //
-// ⚠️ FASE 7 — APENAS INFRAESTRUTURA (mesmo padrão da Fase 6 com i18n):
+// ⚠️ FASE 7 — APENAS INFRAESTRUTURA:
 // este arquivo existe e funciona isoladamente (Game.logger.info(...)
 // já funciona se chamado), mas NENHUM arquivo do projeto foi religado
 // para usar Game.logger.* no lugar de console.log/warn/error direto.
-// Ver NOTA-004 em ARCHITECTURE.md para o escopo de religar isso depois.
+// Ver NOTA-004 em _docs/architecture.md para o escopo de religar isso depois.
 // ============================================
 
 const LEVELS = { debug: 0, info: 1, warn: 2, error: 3, silent: 4 };

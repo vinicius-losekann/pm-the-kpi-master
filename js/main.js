@@ -30,8 +30,8 @@ window.Game = window.Game || {};
 /**
  * Carrega data/questions.pt-BR.json (perguntas) e data/events.json
  * (eventos) via fetch, remontando o mesmo formato {domains, eventos}
- * que o resto do código espera. Em caso de falha, tenta usar um
- * fallback local (se definido).
+ * que o resto do código espera. Em caso de falha, segue sem perguntas
+ * (o erro fica no console).
  */
 async function loadQuestions() {
     const state = Game.state;
@@ -55,13 +55,8 @@ async function loadQuestions() {
         console.log('✅ questions.pt-BR.json e events.json carregados!');
     } catch (err) {
         console.warn('⚠️ Fetch falhou:', err.message);
-        if (typeof FALLBACK_QUESTIONS !== 'undefined') {
-            console.log('📦 Usando questions-fallback.js (teste local)');
-            state.questionsData = FALLBACK_QUESTIONS;
-        } else {
-            console.error('❌ Nenhuma fonte de perguntas!');
-            state.questionsData = { domains: {}, eventos: [] };
-        }
+        console.error('❌ Nenhuma fonte de perguntas!');
+        state.questionsData = { domains: {}, eventos: [] };
     }
 
     // Inicializa os baralhos, preservando progresso se já existir
@@ -139,7 +134,7 @@ async function init() {
     document.getElementById('myName').textContent = state.playerName;
     document.getElementById('myAvatar').textContent = state.playerName.charAt(0).toUpperCase();
     // myActivityTotal e phasesList não são mais preenchidos aqui de forma
-    // estática (Fase 9, todo.md 9.4) — Game.ui.renderProfileCard() agora
+    // estática (Fase B, roadmap 9.4) — Game.ui.renderProfileCard() agora
     // desenha a lista de fases inteira, com status por fase, toda vez que
     // o estado do jogador muda (via syncPlayerViews()).
 

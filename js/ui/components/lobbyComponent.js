@@ -3,7 +3,7 @@
 // ============================================
 // Renderização do lobby: lista de jogadores, tela normal e tela de
 // espera (jogador que saiu da partida em andamento).
-// Fase 5.3 do roadmap. Religado ao i18n (ver NOTA-003 em ARCHITECTURE.md).
+// Fase 5.3 do roadmap. Religado ao i18n (ver NOTA-003 em _docs/architecture.md).
 // ============================================
 
 function showLobbyNormal() {

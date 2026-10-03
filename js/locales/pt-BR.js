@@ -3,10 +3,9 @@
 // ============================================
 // Dicionário de strings de UI em português (Brasil).
 //
-// ⚠️ FASE 6 — APENAS INFRAESTRUTURA: este dicionário reflete as
-// strings ATUALMENTE hardcoded nos arquivos js/ui/*.js, mas nenhum
-// desses arquivos foi religado para usar Game.i18n.t() ainda —
-// ver NOTA-003 em ARCHITECTURE.md.
+// Usado pela tela via Game.i18n.t('chave') (js/utils/i18n.js). Os
+// avisos de entrada recusada (join-rejected) e os textos de confirm()
+// ainda são fixos no código — ver NOTA-003 em _docs/architecture.md.
 //
 // Organização: um namespace por componente/modal, espelhando os
 // arquivos de js/ui/components/ e js/ui/modals/.
@@ -40,7 +39,6 @@ window.Game.locales['pt-BR'] = {
     },
 
     question: {
-        voceEstaRespondendo: '🎯 <strong>Você está respondendo!</strong> Escolha uma alternativa.',
         voceEstaPerguntando: '👀 <strong>Você está perguntando!</strong> Tela somente leitura.',
         tempoRestante: '⏱️ {{seconds}}s',
         rodadaEncerradaHost: '🏁 Rodada encerrada! Clique em "Nova Rodada" para continuar.',
@@ -60,15 +58,13 @@ window.Game.locales['pt-BR'] = {
         timeout: '⌛ {{assessor}} não respondeu a tempo.',
         invalido: '⚠️ Não foi possível chamar {{assessor}}. Escolha uma alternativa.',
         faseEncerramento: '⚠️ Jogadores na fase de Encerramento não podem pedir assessoria.',
-        sugestaoModalTitulo: 'Sugestão do Assessor',
-        sugestaoModalMensagem: '<strong>{{assessor}}</strong> sugere a alternativa <strong style="color:#00d9ff; font-size:1.3em;">{{sugestao}}</strong>',
         tempoRestante: '⏱️ {{seconds}}s',
     },
 
-    // Fase 9: reescrito de "mercado livre" (vendedor escolhe comprador)
+    // Feedback do piloto (roadmap 9): reescrito de "mercado livre" (vendedor escolhe comprador)
     // para "pedido de ajuda" (só quem está sem recurso pode pedir; fila
     // automática, sem escolha manual) — ver engine/tradeEngine.js e
-    // ARCHITECTURE.md. Chaves antigas (semRecursos, nenhumComprador,
+    // _docs/architecture.md. Chaves antigas (semRecursos, nenhumComprador,
     // seusRecursos, aguardandoAceite, confirmarOferta, ofertaRecebida)
     // removidas — não fazem mais sentido no novo fluxo.
     trade: {

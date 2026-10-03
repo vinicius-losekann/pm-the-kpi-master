@@ -194,19 +194,8 @@ function endGame(ranking) {
     state.gameOver = true;
     clearInterval(state.timerInterval);
 
-    if (state.assessoriaTimeout) {
-        clearTimeout(state.assessoriaTimeout);
-        state.assessoriaTimeout = null;
-    }
-    if (state.respostaTimeout) {
-        clearTimeout(state.respostaTimeout);
-        state.respostaTimeout = null;
-    }
-    if (state.ajudaTimeout) {
-        clearTimeout(state.ajudaTimeout);
-        state.ajudaTimeout = null;
-    }
-    state.ajudaFila = null;
+    cancelarPrazosDaRodada();
+    cancelarPedidoDeAjuda();
     state.currentRound = null;
     // BUG-021: o ranking do fim da partida fica guardado (estado salvo e
     // state-sync) — um F5 ou quem volta à sala vê o mesmo ranking.
@@ -218,6 +207,36 @@ function endGame(ranking) {
 
     mostrarFimDeJogo();
     Game.saveState();
+}
+
+/**
+ * Cancela os prazos da pergunta em andamento: o de resposta do
+ * Respondedor e o do assessor. Usada no fim de jogo, ao encerrar a
+ * partida e quando a dupla é trocada (abortRoundIfParticipant()).
+ */
+function cancelarPrazosDaRodada() {
+    const state = Game.state;
+    if (state.assessoriaTimeout) {
+        clearTimeout(state.assessoriaTimeout);
+        state.assessoriaTimeout = null;
+    }
+    if (state.respostaTimeout) {
+        clearTimeout(state.respostaTimeout);
+        state.respostaTimeout = null;
+    }
+}
+
+/**
+ * Cancela o pedido de ajuda em andamento (prazo da oferta atual e a
+ * fila). Usada no fim de jogo e ao encerrar a partida.
+ */
+function cancelarPedidoDeAjuda() {
+    const state = Game.state;
+    if (state.ajudaTimeout) {
+        clearTimeout(state.ajudaTimeout);
+        state.ajudaTimeout = null;
+    }
+    state.ajudaFila = null;
 }
 
 /**
@@ -241,19 +260,8 @@ function endMatch() {
     if (!Game.state.isHost) return;
     if (!confirm('🏁 Encerrar a partida? Todos voltarão ao lobby com KPI zerado.')) return;
 
-    if (Game.state.assessoriaTimeout) {
-        clearTimeout(Game.state.assessoriaTimeout);
-        Game.state.assessoriaTimeout = null;
-    }
-    if (Game.state.respostaTimeout) {
-        clearTimeout(Game.state.respostaTimeout);
-        Game.state.respostaTimeout = null;
-    }
-    if (Game.state.ajudaTimeout) {
-        clearTimeout(Game.state.ajudaTimeout);
-        Game.state.ajudaTimeout = null;
-    }
-    Game.state.ajudaFila = null;
+    cancelarPrazosDaRodada();
+    cancelarPedidoDeAjuda();
 
     // Fase D: quem caiu durante a partida e não voltou sai da lista
     // antes de ir para o lobby — o 'match-ended' já leva a lista limpa
@@ -417,14 +425,8 @@ function abortRoundIfParticipant(playerName) {
     if (round && !round.respondeu &&
         (round.perguntador === playerName || round.respondedor === playerName)) {
         console.warn('⚠️ Participante da rodada atual ficou indisponível — abortando rodada e sorteando nova.');
-        if (state.assessoriaTimeout) {
-            clearTimeout(state.assessoriaTimeout);
-            state.assessoriaTimeout = null;
-        }
-        if (state.respostaTimeout) {
-            clearTimeout(state.respostaTimeout);
-            state.respostaTimeout = null;
-        }
+        // O pedido de ajuda não é da rodada: continua com a dupla nova.
+        cancelarPrazosDaRodada();
         state.currentRound = null;
         Game.engine.turn.pickNewPair();
     }
@@ -470,6 +472,6 @@ window.Game.engine.session = {
 
 // Game.core.* é o namespace usado por ui/ e network/ para chamar as
 // funções deste engine — convenção de chamada entre camadas, não é
-// compatibilidade temporária nem trabalho pendente (ver ARCHITECTURE.md).
+// compatibilidade temporária nem trabalho pendente (ver _docs/architecture.md).
 window.Game.core = window.Game.core || {};
 Object.assign(window.Game.core, window.Game.engine.session);

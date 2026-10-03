@@ -5,7 +5,7 @@
 // avançando automaticamente) e a modal de quem está sendo perguntado
 // (aceitar/recusar doar 1 recurso).
 // Reescrito para o novo fluxo de "rede de segurança" — ver
-// engine/tradeEngine.js e ARCHITECTURE.md.
+// engine/tradeEngine.js e _docs/architecture.md.
 // ============================================
 
 let ofertaAjudaAtual = null;

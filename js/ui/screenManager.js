@@ -29,7 +29,7 @@ function showScreen(screen) {
 function closeAllModals() {
     // 🐛 Correção: 'modalVenda'/'modalVendaOferta' são os IDs antigos do
     // mercado livre de recursos, substituídos por 'modalPedirAjuda'/
-    // 'modalAjudaOferta' na Fase 9 (ver ARCHITECTURE.md) — esta lista
+    // 'modalAjudaOferta' no feedback do piloto (roadmap 9, ver _docs/architecture.md) — esta lista
     // não tinha sido atualizada junto, então os modais novos nunca
     // fechavam ao trocar de tela.
     ['modalResponderPergunta', 'modalResult', 'modalEvento', 'modalPedirAjuda', 'modalAjudaOferta',

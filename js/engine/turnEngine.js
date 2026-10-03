@@ -109,7 +109,7 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
         return;
     }
 
-    // Fase 9 (economia de recursos, ver ARCHITECTURE.md): recurso não
+    // Fase C (economia de recursos, ver _docs/architecture.md): recurso não
     // bloqueia mais quem pode ser Respondedor — decisão do usuário
     // (opção 1): qualquer jogador ativo sempre tenta responder, mesmo com
     // 0 recursos, já que só errar gasta recurso agora (domain/kpiRules.js).
@@ -315,6 +315,6 @@ window.Game.engine.turn = {
 
 // Game.core.* é o namespace usado por ui/ e network/ para chamar as
 // funções deste engine — convenção de chamada entre camadas, não é
-// compatibilidade temporária nem trabalho pendente (ver ARCHITECTURE.md).
+// compatibilidade temporária nem trabalho pendente (ver _docs/architecture.md).
 window.Game.core = window.Game.core || {};
 Object.assign(window.Game.core, window.Game.engine.turn);

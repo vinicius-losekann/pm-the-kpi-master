@@ -4,7 +4,7 @@
 // Modal de resultado (acertou/errou) e do bônus de assessoria.
 // Fase 5.9 do roadmap.
 //
-// Fase 9 (feedback do piloto, todo.md 9.3): ao acertar, mostra um
+// Fase A (feedback do piloto, roadmap 9.3): ao acertar, mostra um
 // lembrete de avançar a peça no tabuleiro físico — o jogo tem um
 // componente físico junto do digital, e isso era fácil de esquecer.
 // ============================================

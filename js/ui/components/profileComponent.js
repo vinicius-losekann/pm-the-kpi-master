@@ -5,7 +5,7 @@
 // recursos, e a lista de fases com status individual por fase
 // (completa / em andamento / não iniciada).
 // Fase 5.5 do roadmap. Consolidado com o antigo indicador de fase
-// única + barra de progresso na Fase 9 (todo.md 9.4).
+// única + barra de progresso na Fase B (roadmap 9.4).
 //
 // 🐛 BUG-003 / BUG-007 (ver ISSUES.md): a sequência "atualizar card de
 // perfil + lista de jogadores + ranking" estava duplicada manualmente
@@ -32,9 +32,9 @@ function renderProfileCard(player) {
     if (player.recursos !== undefined) {
         document.getElementById('myRecursos').textContent = player.recursos;
 
-        // Fase 9: botão "Pedir Ajuda" só aparece quando o jogador está
+        // Feedback do piloto (roadmap 9): botão "Pedir Ajuda" só aparece quando o jogador está
         // com 0 recursos — rede de segurança, não mercado livre (ver
-        // engine/tradeEngine.js e ARCHITECTURE.md). Atualizado sempre
+        // engine/tradeEngine.js e _docs/architecture.md). Atualizado sempre
         // que os recursos mudam, via syncPlayerViews().
         const btnPedirAjuda = document.getElementById('btnPedirAjuda');
         if (btnPedirAjuda) {
@@ -53,7 +53,7 @@ function renderProfileCard(player) {
  * Desenha a lista de fases com o status de cada uma: completa (fase já
  * ultrapassada), em andamento (fase atual, mostra X de N atividades) ou
  * não iniciada. Substitui o antigo indicador de fase única + barra de
- * progresso (Fase 9, todo.md 9.4) — consolidado aqui porque a
+ * progresso (Fase B, roadmap 9.4) — consolidado aqui porque a
  * progressão é sempre linear: dá pra derivar o status de TODAS as
  * fases só com a fase atual + atividades, sem precisar de histórico
  * novo.

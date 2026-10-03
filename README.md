@@ -260,8 +260,6 @@ Respondedor recebe pergunta
     │       └── advisoryModal.js
     ├── locales/
     │   └── pt-BR.js
-    ├── dev/
-    │   └── debugTools.js
     └── utils/
         ├── logger.js
         ├── persistence.js

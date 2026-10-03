@@ -197,7 +197,7 @@ function handleMessage(msg, fromPeerId) {
             Game.ui.showAssessoriaResult(msg);
             break;
 
-        // --- PEDIDO DE AJUDA (ex-VENDA — Fase 9, ver ARCHITECTURE.md) ---
+        // --- PEDIDO DE AJUDA (ex-VENDA — feedback do piloto, roadmap 9; ver _docs/architecture.md) ---
         case 'ajuda-request':
             if (state.isHost && isSenderVerified(msg.requesterName, fromPeerId)) {
                 Game.core.handleAjudaRequest(msg);

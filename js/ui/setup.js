@@ -7,7 +7,7 @@
 // Fase 5.2 do roadmap.
 //
 // Reorganizado para resolver a sobreposição de responsabilidade com
-// controlsComponent.js (ver NOTA-001 em ARCHITECTURE.md): antes, os
+// controlsComponent.js (ver NOTA-001 em _docs/architecture.md): antes, os
 // listeners dos botões de ação (vender, assessoria, sessão, partida,
 // nova rodada) estavam aqui; agora moraram para controlsComponent.js,
 // que passa a ser o dono de fato da "barra de ações". Este arquivo
