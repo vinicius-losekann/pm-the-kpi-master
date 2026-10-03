@@ -3,7 +3,9 @@
 // ============================================
 // Checklist: _docs/testes-conexao.md (M2 e os bugs B3, B4 e B5) e
 // _docs/ISSUES.md (BUG-019, assessoria pendente). O F5 no meio da
-// pergunta está em conexao.spec.js (E1).
+// pergunta está em conexao.spec.js (E1). Também a reabertura da sala
+// depois que todos saíram (M13, M16): até 5 minutos o estado salvo
+// restaura a partida; depois disso, lobby novo.
 // ============================================
 
 const { test, expect, codigoDeSala, idDaSala, iniciarPartida, responderAteEncerrarRodada, esperarPerguntaAbertaPara } = require('./apoio');
@@ -140,4 +142,80 @@ test('E12 F5 do host com um pedido de assessoria sem resposta: o pedido é cance
     // Responde e a partida segue.
     expect(await respondedor.responderSeForMinhaVez()).toBe(true);
     await ana.esperar((nome) => Game.state.usedRespondedorThisRound.includes(nome), { arg: respondedor.nome, timeout: 10000 });
+});
+
+test('E17 Todos saem (o host por último, com a partida pausada) e voltam em até 5 min: continua pausada com o mesmo evento e retoma', async ({ jogadores }) => {
+    const codigo = codigoDeSala();
+    const sala = idDaSala(codigo);
+    const ana = await jogadores.novo('Ana');
+    const beto = await jogadores.novo('Beto');
+    await iniciarPartida(ana, [beto], codigo);
+
+    // Beto sai: a partida pausa. Depois a Ana (host) também fecha a aba.
+    const linkDoBeto = await beto.fecharAba();
+    await ana.esperar(() => !!Game.state.partidaPausada && !!Game.state.partidaPausada.evento);
+    const evento = await ana.estado(() => Game.state.partidaPausada.evento.id);
+    const linkDaAna = await ana.fecharAba();
+
+    // Ana reabre o link: de novo host da mesma sala, ainda pausada com o mesmo evento.
+    await ana.reabrir(linkDaAna);
+    await esperarHostDeVolta(ana, sala);
+    expect(await ana.estado(() => Game.state.partidaPausada && Game.state.partidaPausada.evento && Game.state.partidaPausada.evento.id),
+        'a partida deveria continuar pausada com o mesmo evento').toBe(evento);
+    await expect(ana.page.locator('#modalEvento'), 'não deveria sortear nem mostrar outro evento').toBeHidden();
+    await expect(ana.page.locator('#spectatorMessage')).toContainText('Partida pausada');
+    expect(await ana.estado(() => Game.state.currentRound)).toBeNull();
+
+    // Beto reabre o link: a partida retoma com o mesmo evento.
+    await beto.reabrir(linkDoBeto);
+    await ana.esperar(() => {
+        const b = Game.state.players.find(p => p.name === 'Beto');
+        return b && b.disconnected === false;
+    }, { timeout: 25000 });
+    await ana.esperar(() => !Game.state.partidaPausada && Game.state.currentRound !== null);
+    expect(await ana.estado(() => Game.state.currentRound.evento.id), 'a rodada retomada deveria usar o mesmo evento').toBe(evento);
+    await beto.esperar(() => Game.state.gameStarted === true && Game.state.currentRound !== null);
+});
+
+test('E18 Todos saem e voltam depois de 5 min: a sala abre um lobby novo e uma partida nova começa', async ({ jogadores }) => {
+    const codigo = codigoDeSala();
+    const sala = idDaSala(codigo);
+    const ana = await jogadores.novo('Ana');
+    const beto = await jogadores.novo('Beto');
+    await iniciarPartida(ana, [beto], codigo);
+
+    const linkDoBeto = await beto.fecharAba();
+    await ana.esperar(() => !!Game.state.partidaPausada);
+    const linkDaAna = await ana.fecharAba();
+
+    // Passam 6 minutos para os dois (o estado salvo só vale 5).
+    expect(await ana.envelhecerEstadoSalvo(6), 'pré-condição: a Ana tinha estado salvo').toBe(true);
+    expect(await beto.envelhecerEstadoSalvo(6), 'pré-condição: o Beto tinha estado salvo').toBe(true);
+
+    // Ana reabre o link: lobby novo, só ela na sala.
+    await ana.reabrir(linkDaAna);
+    await ana.esperar((id) => Game.state.isHost === true && Game.state.peerId === id &&
+        Game.network.connectionState.getPeer() && Game.network.connectionState.getPeer().open === true,
+    { arg: sala, timeout: 25000 });
+    expect(await ana.estado(() => Game.state.gameStarted), 'a partida antiga não deveria ser restaurada').toBe(false);
+    expect(await ana.estado(() => Game.state.players.map(p => p.name))).toEqual(['Ana']);
+    await expect(ana.page.locator('#screenLobby')).toBeVisible();
+    await expect(ana.page.locator('#btnStartGame'), 'sozinha, o "Iniciar" fica bloqueado').toBeDisabled();
+
+    // Beto reabre o link: entra como jogador novo.
+    await beto.reabrir(linkDoBeto);
+    await ana.esperar(() => {
+        const b = Game.state.players.find(p => p.name === 'Beto');
+        return b && b.disconnected !== true;
+    }, { timeout: 25000 });
+    const betoNaLista = await ana.estado(() => Game.state.players.find(p => p.name === 'Beto'));
+    expect(betoNaLista.kpi).toBe(0);
+    expect(betoNaLista.recursos).toBe(await ana.estado(() => CONFIG.RECURSOS_INICIAIS));
+    expect(await beto.estado(() => Game.state.gameStarted)).toBe(false);
+
+    // Uma partida nova começa.
+    await expect(ana.page.locator('#btnStartGame')).toBeEnabled();
+    await ana.clicar('#btnStartGame');
+    await ana.esperar(() => Game.state.gameStarted === true && Game.state.currentRound !== null);
+    await beto.esperar(() => Game.state.gameStarted === true);
 });

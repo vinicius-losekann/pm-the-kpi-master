@@ -81,15 +81,69 @@ async function criarJogador(browser, nome) {
          * sala", nome e código. Espera chegar ao jogo e o PeerJS abrir.
          */
         async entrarPelaTelaInicial(codigo) {
+            await jogador.tentarEntrarPelaTelaInicial(codigo);
+            await jogador.page.waitForURL(/game\.html/, { timeout: 20000 });
+            await jogador.esperar(() => window.Game && Game.network && Game.network.connectionState.getPeer() &&
+                Game.network.connectionState.getPeer().open === true);
+        },
+
+        /**
+         * Preenche "Entrar em uma sala" na tela inicial e clica em entrar,
+         * sem esperar o resultado (para quem pode ser recusado).
+         */
+        async tentarEntrarPelaTelaInicial(codigo) {
             if (!jogador.page || jogador.page.isClosed()) await jogador.novaAba();
             await jogador.page.goto(SITE + '/index.html');
             await jogador.page.click('#btnChooseJoin');
             await jogador.page.fill('#joinPlayerName', nome);
             await jogador.page.fill('#joinRoomSuffix', codigo);
             await jogador.page.click('#btnJoinRoom');
-            await jogador.page.waitForURL(/game\.html/, { timeout: 20000 });
-            await jogador.esperar(() => window.Game && Game.network && Game.network.connectionState.getPeer() &&
-                Game.network.connectionState.getPeer().open === true);
+        },
+
+        /**
+         * "Criar sala" na tela inicial com o código informado. Devolve se
+         * chegou à tela "Sala criada", o aviso de erro (se houver) e
+         * quantos segundos levou do clique até a resposta.
+         */
+        async criarSalaPelaTelaInicial(codigo) {
+            if (!jogador.page || jogador.page.isClosed()) await jogador.novaAba();
+            const page = jogador.page;
+            await page.goto(SITE + '/index.html');
+            await page.click('#btnChooseCreate');
+            await page.fill('#createPlayerName', nome);
+            await page.fill('#createRoomId', codigo);
+            const inicio = Date.now();
+            await page.click('#btnCreateRoom');
+            await page.waitForFunction(() => document.getElementById('screenCreated').style.display === 'block' ||
+                document.getElementById('createFeedback').classList.contains('feedback-error'),
+            null, { timeout: 20000, polling: 100 });
+            const segundos = (Date.now() - inicio) / 1000;
+            const resultado = await page.evaluate(() => ({
+                criada: document.getElementById('screenCreated').style.display === 'block',
+                aviso: document.getElementById('createFeedback').classList.contains('feedback-error')
+                    ? document.getElementById('createFeedback').textContent : ''
+            }));
+            return { ...resultado, segundos };
+        },
+
+        /**
+         * Faz o estado salvo deste navegador parecer gravado há `minutos`
+         * minutos (o jogo só restaura o que tem menos de 5). Usa uma aba
+         * à parte, no endereço do site. Devolve false se não havia estado salvo.
+         */
+        async envelhecerEstadoSalvo(minutos) {
+            const aba = await contexto.newPage();
+            await aba.goto(SITE + '/index.html');
+            const havia = await aba.evaluate((ms) => {
+                const salvo = localStorage.getItem('pmKPI_roomState');
+                if (!salvo) return false;
+                const estado = JSON.parse(salvo);
+                estado.timestamp = new Date(Date.now() - ms).toISOString();
+                localStorage.setItem('pmKPI_roomState', JSON.stringify(estado));
+                return true;
+            }, minutos * 60 * 1000);
+            await aba.close();
+            return havia;
         },
 
         /**

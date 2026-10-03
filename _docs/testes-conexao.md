@@ -68,7 +68,7 @@ só automatizado (falta o manual).
 
 ---
 
-## 2. Casos cobertos por teste automatizado (63 testes)
+## 2. Casos cobertos por teste automatizado (66 testes)
 
 ### Entrada na sala e identidade
 | Caso | Testes | Manual |
@@ -82,7 +82,7 @@ só automatizado (falta o manual).
 | Estado salvo antes do token (transição) | 🤖 T27 | — |
 | Guest manda o token na 1ª conexão e nas reconexões | 🤖 T28 | 👤 |
 | Tela inicial acha a sala migrada; sala inexistente e erro de rede com a mensagem certa | 🤖 T47 | 👤 entrou pelo código depois da troca de host |
-| Criar sala com código de partida em andamento numa versão migrada | 🤖 T47 · 🤖 no Chromium real: "já está em uso" em 0,7s, sem travar | ⬜ no Edge do Windows houve travamento de ~5s (seção 5) |
+| Criar sala com código de sala aberta ou de partida em andamento numa versão migrada: "já está em uso" em até 3s; código livre é aceito | 🤖 T47 · 🌐 E13 | ⬜ no Edge do Windows houve travamento de ~5s (seção 5) |
 
 ### Queda e volta de guest
 | Caso | Testes | Manual |
@@ -92,7 +92,7 @@ só automatizado (falta o manual).
 | Falta só conexão: partida pausa e retoma com o mesmo evento | 🤖 T6, T33 | — |
 | Ciclo da rodada termina sem esperar o desconectado | 🤖 T8 | — |
 | Guest volta com o relógio andando e sem reabrir pergunta já respondida | 🤖 T30–T34 | 👤 (diferença de ~1s entre relógios, esperada) |
-| Sala cheia: quem caiu consegue voltar | 🤖 T9 | — |
+| Sala cheia: 7º nome recusado no lobby; quem caiu consegue voltar | 🤖 T9 · 🌐 E16 | — (coberto por E16) |
 
 ### Queda e troca de host
 | Caso | Testes | Manual |
@@ -111,7 +111,8 @@ só automatizado (falta o manual).
 | Troca de host com a rodada encerrada: continua encerrada, nada começa sozinho | 🤖 T35, T50 · 🌐 E5 | 👤 |
 | Troca de host no meio da rodada: quem ia responder não perde a vez; ninguém responde duas vezes | 🤖 T50, T51 · 🌐 E4 | — (coberto por E4) |
 | Novo host confere o token pelos hashes da lista | 🤖 T26 | — |
-| Troca de host no lobby | 🤖 T18 | ⬜ P2 |
+| Troca de host no lobby: os outros voltam como jogadores novos; host antigo pelo link antigo vira jogador comum | 🤖 T18 · 🌐 E14 | — (coberto por E14) |
+| Duas trocas de host seguidas: sala em `-h2`, achada pela tela inicial e pelo link antigo do host de `-h1` | 🌐 E15 | — (coberto por E15) |
 | Host antigo volta como jogador comum, com o KPI dele | 🤖 T41, T43 · 🌐 E5 (link antigo), E3 (tela inicial) | 👤 (pela tela inicial) |
 | Quem assumiu fica com `host=true` na URL (F5 continua host) | 🤖 T42 · 🌐 E2 | — (coberto por E2) |
 | Guest acha o host em qualquer versão (`-h1`, `-h2`...) | 🤖 T44, T45 | 👤 (versão 0 e -h1) |
@@ -128,6 +129,7 @@ só automatizado (falta o manual).
 | Guest sai da partida, ela acaba, e o host inicia outra | 🤖 T48 · 🌐 E8 | 👤 |
 | Pausa retomada com todos os conectados já tendo respondido: rodada encerra em vez de recomeçar | 🤖 T52 | — |
 | Sair da partida: se faltar jogador, a partida acaba | 🤖 T7 | 👤 |
+| Todos saem e a sala é reaberta: até 5 min a partida é restaurada (pausada, com o mesmo evento); depois, lobby novo | 🌐 E17, E18 | — (coberto por E17 e E18) |
 
 ---
 
@@ -172,12 +174,12 @@ janelas visíveis lado a lado (aba em segundo plano fica mais lenta).
 | M8 | **P1** | Celular com tela bloqueada / navegador em segundo plano | Bloquear o celular por 1 min no meio da partida | Ao desbloquear, volta à partida (ou ao recarregar) |
 | M9 | **P1** | Redes diferentes | Host no Wi-Fi da instituição, guest no 4G | Conecta. **Risco:** redes corporativas/universitárias podem bloquear a conexão direta entre navegadores sem um servidor de retransmissão (TURN) |
 | M10 | ✅ 🌐 E8 | Nova partida depois de "saiu da partida" | 2 jogadores; guest sai; host volta ao lobby e inicia outra | Conferido em 30/09/2026 |
-| M11 | P2 | Duas trocas de host seguidas | 3 jogadores: host sai; depois o novo host sai | Sala vai para `-h2`; entrar pela tela inicial com o código funciona |
-| M12 | P2 | Troca de host no lobby | Host fecha a aba antes de iniciar | Backup assume; os outros voltam como jogadores novos |
-| M13 | P2 | Host sai com a partida pausada | Pausar (guest cai), depois o host fecha | Novo host segue pausado e retoma quando der |
-| M14 | P2 | Criar sala com código em uso | Código de sala aberta e de sala migrada | "Já está em uso", em até ~2s |
-| M15 | P2 | Sala cheia (6 jogadores) | 6 navegadores/dispositivos; 1 cai e volta | Volta ao lugar; 7º nome é recusado |
-| M16 | P2 | Reusar o código depois que todos saem | Todos fecham; reabrir em 1 min e depois de 5 min | Até 5 min restaura a partida; depois, lobby novo |
+| M11 | ✅ 🌐 E15 | Duas trocas de host seguidas | 3 jogadores: host sai; depois o novo host sai | Sala vai para `-h2`; entrar pela tela inicial com o código funciona |
+| M12 | ✅ 🌐 E14 | Troca de host no lobby | Host fecha a aba antes de iniciar | Backup assume; os outros voltam como jogadores novos |
+| M13 | ✅ 🌐 E17 | Host sai com a partida pausada | Guest cai (a partida pausa), depois o host fecha a aba e a reabre | Continua pausada com o mesmo evento e retoma quando o guest volta. Obs.: a partida só pausa quando o host é o único conectado, então não sobra ninguém para assumir — o caso real é o host voltar em até 5 min (M16) |
+| M14 | ✅ 🌐 E13 | Criar sala com código em uso | Código de sala aberta e de sala migrada | "Já está em uso", em até ~2s (no teste, até 3s) |
+| M15 | ✅ 🌐 E16 | Sala cheia (6 jogadores) | 6 navegadores/dispositivos; 1 cai e volta | Volta ao lugar; 7º nome é recusado |
+| M16 | ✅ 🌐 E17, E18 | Reusar o código depois que todos saem | Todos fecham; reabrir em 1 min e depois de 5 min | Até 5 min restaura a partida; depois, lobby novo |
 | M17 | P2 | Navegadores | Chrome, Edge (inclusive InPrivate), Firefox, Safari no iPhone | Mesmo comportamento |
 | M18 | P2 | Aba em segundo plano por muito tempo | Deixar a aba escondida 10 min | Ao voltar, o jogo se recupera (pode precisar de F5) |
 | M19 | ✅ 👤 🌐 E5 | Troca de host com a rodada encerrada | Todos respondem; com "Rodada encerrada" na tela, o host fecha a aba | O novo host vê "Rodada encerrada" com o "Nova Rodada" liberado; quando os outros voltam, nada começa sozinho |
@@ -218,13 +220,22 @@ não mudam: o teste só aponta o PeerJS para o servidor local.
 | E10 | F5 do host logo depois de responder: a partida segue (próxima dupla ou fim da rodada) e a rodada seguinte começa | B4 |
 | E11 | F5 do host com a partida pausada: continua pausada com o mesmo evento, sem mostrar outro; retoma quando o outro volta | B5 |
 | E12 | 3 jogadores; um guest pede assessoria, o assessor não responde e o host dá F5: o guest volta com os botões e o "Pedir Assessoria" liberados, responde e a partida segue | BUG-019 |
+| E13 | Criar sala pela tela inicial com o código de uma sala aberta e, depois da troca de host, de uma sala migrada: "já está em uso" em até 3s, sem derrubar ninguém; código livre chega a "Sala criada" | M14 |
+| E14 | Host fecha a aba no lobby: outro assume em `-h1` e fica só com quem voltou; o terceiro entra como jogador novo; o host antigo reabre o link antigo e vira jogador comum; a partida começa com os três | M12 |
+| E15 | Duas trocas de host seguidas (sala em `-h2`): o primeiro host volta pela tela inicial, com o KPI dele; o host de `-h1` reabre o link dele e vira jogador comum; a partida retoma | M11 |
+| E16 | 6 jogadores: o 7º é recusado no lobby ("Sala cheia"); com a partida em andamento, um cai e volta ao próprio lugar | M15 |
+| E17 | Guest sai (pausa), depois o host; o host reabre: continua pausada com o mesmo evento, sem mostrar outro; retoma quando o guest volta | M13, M16 (até 5 min) |
+| E18 | Todos saem e voltam depois de 5 min: lobby novo, quem volta entra como jogador novo e uma partida nova começa | M16 (depois de 5 min) |
 
 Queda de rede (M7) não entrou: a simulação de "sem rede" do navegador
 não derruba a conexão direta entre janelas na mesma máquina (conferido —
 as mensagens continuaram chegando), então o cenário não testaria nada.
 Continua manual.
 
-Ainda automatizáveis: os P2 M11–M16.
+No E18, os 5 minutos não são esperados de verdade (cada cenário tem
+limite de 2 minutos): antes de reabrir, o teste muda a hora gravada no
+estado salvo de cada navegador para 6 minutos atrás — o mesmo dado que
+o jogo usa para decidir se restaura.
 
 **Continuam manuais:** M7 (queda de rede real), M8 (celular), M9 (redes
 reais diferentes), M17 (Firefox, Safari) e M18 (aba esquecida em

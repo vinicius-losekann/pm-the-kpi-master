@@ -1,8 +1,8 @@
 // ============================================
 // PM: The KPI Master - Ponta a ponta: quedas, voltas e nova partida
 // ============================================
-// Checklist: _docs/testes-conexao.md (M1, M5, M6, M10, M20 e a volta
-// do host antigo pela tela inicial).
+// Checklist: _docs/testes-conexao.md (M1, M5, M6, M10, M14, M15, M20 e
+// a volta do host antigo pela tela inicial).
 // ============================================
 
 const {
@@ -161,4 +161,73 @@ test('E8 Jogador sai da partida, ela acaba, e o host consegue iniciar outra', as
     await ana.clicar('#btnStartGame');
     await ana.esperar(() => Game.state.gameStarted === true && Game.state.gameOver === false && Game.state.currentRound !== null);
     await beto.esperar(() => Game.state.gameStarted === true && Game.state.gameOver === false);
+});
+
+test('E13 Criar sala com código em uso (sala aberta e sala migrada): "já está em uso" em até 3s; código livre é aceito', async ({ jogadores }) => {
+    const codigo = codigoDeSala();
+    const sala = idDaSala(codigo);
+    const ana = await jogadores.novo('Ana');
+    const beto = await jogadores.novo('Beto');
+    const caio = await jogadores.novo('Caio');
+    await iniciarPartida(ana, [beto], codigo);
+
+    // Sala aberta: o ID base está ocupado pelo host.
+    const aberta = await caio.criarSalaPelaTelaInicial(codigo);
+    expect(aberta.criada, 'não deveria criar sala com o código de uma sala aberta').toBe(false);
+    expect(aberta.aviso).toContain('já está em uso');
+    expect(aberta.segundos, 'a resposta deveria vir em até 3s (levou ' + aberta.segundos + 's)').toBeLessThan(3);
+    expect(await beto.conectadoA(sala), 'a tentativa não deveria derrubar quem está na sala').toBe(true);
+    expect(await ana.estado(() => Game.state.isHost === true && Game.state.peerId === Game.state.hostPeerId)).toBe(true);
+
+    // Código livre: chega à tela "Sala criada" (a checagem não recusa tudo).
+    const livre = await caio.criarSalaPelaTelaInicial(codigoDeSala());
+    expect(livre.criada, 'código livre deveria ser aceito: ' + livre.aviso).toBe(true);
+
+    // Sala migrada: o ID base ficou livre, mas a partida continua em -h1.
+    await ana.fecharAba();
+    await esperarNovoHost([beto]);
+    expect(await beto.estado(() => Game.state.hostPeerId)).toBe(sala + '-h1');
+    const migrada = await caio.criarSalaPelaTelaInicial(codigo);
+    expect(migrada.criada, 'não deveria criar sala com o código de uma partida que continua em -h1').toBe(false);
+    expect(migrada.aviso).toContain('já está em uso');
+    expect(migrada.segundos, 'a resposta deveria vir em até 3s (levou ' + migrada.segundos + 's)').toBeLessThan(3);
+    expect(await beto.estado(() => Game.state.isHost === true && Game.state.peerId === Game.state.hostPeerId),
+        'o novo host continua host').toBe(true);
+});
+
+test('E16 Sala cheia: o 7º nome é recusado no lobby; com 6 na partida, quem cai volta ao lugar', async ({ jogadores }) => {
+    const codigo = codigoDeSala();
+    const nomes = ['Ana', 'Beto', 'Caio', 'Davi', 'Eva', 'Fabi'];
+    const seis = [];
+    for (const nome of nomes) seis.push(await jogadores.novo(nome));
+    const [ana, ...guests] = seis;
+
+    await ana.abrirJogo(codigo, { host: true });
+    for (const g of guests) await g.abrirJogo(codigo, { host: false });
+    await ana.esperar(() => Game.state.players.length === 6);
+
+    // 7º nome no lobby: recusado com o aviso de sala cheia.
+    const gil = await jogadores.novo('Gil');
+    await gil.tentarEntrarPelaTelaInicial(codigo);
+    await expect.poll(() => gil.logs.some(l => l.includes('Sala cheia')), { timeout: 25000, message: 'Gil deveria ver o aviso de sala cheia' }).toBe(true);
+    expect(await ana.estado(() => Game.state.players.map(p => p.name)), 'Gil não deveria entrar na lista').not.toContain('Gil');
+    expect(await ana.estado(() => Game.state.players.length)).toBe(6);
+
+    await ana.clicar('#btnStartGame');
+    for (const j of seis) await j.esperar(() => Game.state.gameStarted === true);
+
+    // Com a sala lotada, um jogador cai e volta pelo mesmo link.
+    const caio = guests[1];
+    const antes = await ana.estado(() => Game.state.players.find(p => p.name === 'Caio'));
+    const linkDoCaio = await caio.fecharAba();
+    await ana.esperar(() => Game.state.players.find(p => p.name === 'Caio').disconnected === true);
+    await caio.reabrir(linkDoCaio);
+    await ana.esperar((antigo) => {
+        const c = Game.state.players.find(p => p.name === 'Caio');
+        return c && c.disconnected === false && c.peerId !== antigo;
+    }, { arg: antes.peerId, timeout: 25000 });
+    const depois = await ana.estado(() => Game.state.players.find(p => p.name === 'Caio'));
+    expect(depois.kpi, 'Caio volta com o KPI dele').toBe(antes.kpi);
+    expect(await ana.estado(() => Game.state.players.length), 'a lista continua com 6').toBe(6);
+    expect(await ana.estado(() => Game.state.players.filter(p => p.disconnected).length), 'todos conectados de novo').toBe(0);
 });

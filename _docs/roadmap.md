@@ -85,7 +85,7 @@
 | 7.3 | **Linter (ESLint) e formatter (Prettier)** | Manter estilo consistente e evitar erros comuns. |
 | 7.5 | **Separar helpers em arquivos próprios** | Funções como `buildRanking` poderiam estar em um arquivo `ranking-utils.js`. |
 | 7.6 | **Extrair helper compartilhado de renderização de alternativas** | `questionComponent.js` (Respondedor) e `advisoryModal.js` (Assessor) duplicam a lógica de montar a lista de alternativas + timer — visualmente quase idênticas, mas disparam ações diferentes no clique (`handleAnswer` vs `responderAssessoria`). Não fundir os dois modais (são interações conceitualmente diferentes), só extrair a parte genuinamente igual (montagem da lista + texto do timer) para uma função compartilhada tipo `Game.ui.renderAlternativesList(container, alternativas, onEscolher)`. Baixo risco, ganho pequeno — não é bug, é redução de duplicação. |
-| 7.7 | **Testes de ponta a ponta com navegadores de verdade** | Hoje os testes automatizados (`tests/`) simulam o PeerJS. Rodar o jogo em navegadores reais no GitHub Actions (Playwright + servidor PeerJS local + servidor estático) cobre quase todo o checklist manual de `testes-conexao.md`. **D4a e D4b feitas**: estrutura em `tests/e2e` e 11 cenários (troca de host, F5 do host em vários momentos da partida — inclusive com assessoria pendente —, volta pela tela inicial, 3 jogadores, nova partida). Faltam os P2 automatizáveis (M11–M16). |
+| 7.7 | **Testes de ponta a ponta com navegadores de verdade** | Hoje os testes automatizados (`tests/`) simulam o PeerJS. Rodar o jogo em navegadores reais no GitHub Actions (Playwright + servidor PeerJS local + servidor estático) cobre quase todo o checklist manual de `testes-conexao.md`. ✅ **Feito**: estrutura em `tests/e2e` e 17 cenários (troca de host — inclusive no lobby e duas seguidas —, F5 do host em vários momentos da partida — inclusive com assessoria pendente —, volta pela tela inicial, 3 jogadores, sala cheia, criar sala com código em uso, reabrir a sala depois que todos saíram, nova partida). O que depende de rede real, celular ou outros navegadores continua manual (M7, M8, M9, M17, M18). |
 | 7.8 | **Node 24 nos testes** | O workflow roda os testes com `node-version: 20`, fora de suporte desde 04/2026 (as ações do workflow já usam Node 24). Trocar pode mudar o resultado dos testes (`vm`, `crypto`, Playwright), por isso fica como frente própria, com o Actions conferido antes e depois. |
 
 ---
@@ -157,8 +157,8 @@ Objetivo confirmado com o usuário: recurso vira punição só por errar, não m
 
 Checklist de conexão (casos cobertos, testes manuais pendentes e
 limitações): `testes-conexao.md`. Falta: testes manuais P1 que não dão
-para automatizar (M7, M8, M9). **D4** (item 7.7): D4a e D4b feitas; a
-D3f acrescentou 3 cenários.
+para automatizar (M7, M8, M9). **D4** (item 7.7): feita — 17 cenários
+de ponta a ponta, cobrindo também os P2 M11–M16.
 
 ### Fase E — tradução completa de identificadores para inglês (por último)
 
