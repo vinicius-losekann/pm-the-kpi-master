@@ -178,8 +178,7 @@ function criarAmbiente(opcoes = {}) {
             broadcastAll: (msg) => { registro.broadcasts.push(msg); },
             sendToPlayer: (peerId, msg) => { registro.enviados.push({ para: peerId, msg }); },
             sendToHost: () => {},
-            cleanup: () => {},
-            reconnectToNewHost: () => {}
+            cleanup: () => {}
         }
     };
 
@@ -199,7 +198,6 @@ function criarAmbiente(opcoes = {}) {
         sendToPlayer: (peerId, msg) => { registro.enviados.push({ para: peerId, msg }); },
         sendToHost: (msg) => { registro.paraHost.push(msg); },
         cleanup: () => {},
-        reconnectToNewHost: () => {},
         handleHostDisconnect: () => {}
     });
 
@@ -2792,6 +2790,78 @@ teste('T60 F5 do host com a assessoria já resolvida: a sugestão (ou a recusa) 
     novo2.limparRegistro();
     novo2.Game.network.handleMessage({ type: 'assessoria-request', assessorName: 'B', requesterName: 'A' }, 'peer-a2');
     confere(novo2.broadcastsDoTipo('assessoria-started').length === 0, 'só um pedido de assessoria por pergunta, como sem o F5');
+});
+
+teste('T61 Quem assume como host liga o relógio da partida (a mesma contagem do início) e não manda host-changed', (usar) => {
+    // A era o Perguntador: a rodada continua com o novo host (como no T21b).
+    function guestNaPartida() {
+        const a = usar(criarAmbiente());
+        const r = a.relogioFalso();
+        a.state.isHost = false;
+        a.state.playerName = 'A';
+        a.state.peerId = 'peer-a';
+        a.state.baseRoomPeerId = 'sala';
+        a.state.hostVersion = 0;
+        a.state.gameStarted = true;
+        a.state.gameOver = false;
+        a.state.timer = 11;
+        const pergunta = { type: 'question', question: 'Pergunta?', alternatives: ['a', 'b', 'c', 'd'], correct: 'a', id: 'q9', isPerguntador: true };
+        a.state.currentRound = { evento: { id: 'e1' }, perguntador: 'A', respondedor: 'B', pergunta, respondeu: false };
+        a.state.players = [
+            { name: 'Host', peerId: 'sala', isHost: true, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0 },
+            { name: 'A', peerId: 'peer-a', isHost: false, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0 },
+            { name: 'B', peerId: 'peer-b', isHost: false, kpi: 0, recursos: 10, phase: 'iniciacao', activities: 0 }
+        ];
+        return { amb: a, relogio: r };
+    }
+
+    // Sem contagem ligada antes: quem liga é a troca de host.
+    const { amb, relogio } = guestNaPartida();
+    amb.assumirComoHost();
+    confere(amb.state.isHost, 'pré-condição: A deveria ser o novo host');
+    confere(relogio.ativos() === 1, 'assumir com a partida em andamento deveria ligar o relógio, ligados: ' + relogio.ativos());
+    confere(amb.broadcastsDoTipo('host-changed').length === 0, 'não deveria mandar host-changed (ninguém está conectado à sala nova)');
+
+    relogio.tic();
+    const aviso = amb.broadcastsDoTipo('timer-update').pop();
+    confere(amb.state.timer === 10 && aviso && aviso.remaining === 10, 'o novo host deveria contar e avisar os guests a cada 10 segundos');
+
+    amb.state.timer = 1;
+    relogio.tic();
+    confere(amb.state.gameOver && amb.broadcastsDoTipo('game-over').length === 1 && relogio.ativos() === 0,
+        'no zero, o novo host encerra a partida');
+
+    // Com a contagem que o guest já tinha (ligada na entrada ou na
+    // reconexão): continua uma só.
+    const comRelogio = guestNaPartida();
+    comRelogio.amb.Game.core.iniciarRelogio();
+    confere(comRelogio.relogio.ativos() === 1, 'pré-condição: relógio do guest ligado');
+    comRelogio.amb.assumirComoHost();
+    confere(comRelogio.relogio.ativos() === 1, 'só pode haver uma contagem ligada depois de assumir, ligadas: ' + comRelogio.relogio.ativos());
+
+    // No lobby, assumir não liga relógio.
+    const lobby = usar(criarAmbiente());
+    const relogio2 = lobby.relogioFalso();
+    lobby.state.isHost = false;
+    lobby.state.playerName = 'B';
+    lobby.state.peerId = 'peer-b';
+    lobby.state.baseRoomPeerId = 'sala';
+    lobby.state.hostVersion = 0;
+    lobby.state.gameStarted = false;
+    lobby.state.players = [
+        { name: 'Host', peerId: 'sala', isHost: true },
+        { name: 'B', peerId: 'peer-b', isHost: false }
+    ];
+    lobby.assumirComoHost();
+    confere(relogio2.ativos() === 0, 'no lobby não deveria ligar o relógio');
+    confere(lobby.broadcastsDoTipo('host-changed').length === 0, 'no lobby também não deveria mandar host-changed');
+
+    // Uma contagem só (sessionEngine.iniciarRelogio) e nada de host-changed no código.
+    const migracao = fs.readFileSync(path.join(RAIZ, 'js/network/hostMigration.js'), 'utf8');
+    const mensagens = fs.readFileSync(path.join(RAIZ, 'js/network/messageHandler.js'), 'utf8');
+    confere(!/setInterval/.test(migracao), 'hostMigration.js não deveria ter contagem própria (usar Game.core.iniciarRelogio())');
+    confere(!/host-changed/.test(migracao) && !/host-changed/.test(mensagens), 'a mensagem host-changed não deveria existir mais');
+    confere(typeof amb.Game.network.reconnectToNewHost === 'undefined', 'reconnectToNewHost() só servia ao host-changed e deveria ter saído');
 });
 
 console.log('\n' + (falhou === 0 ? '🎉' : '⚠️') + ' ' + passou + ' passaram, ' + falhou + ' falharam\n');
