@@ -105,12 +105,17 @@ async function criarJogador(browser, nome) {
             await jogador.page.click(seletor, { timeout: 10000 });
         },
 
-        /** Está com a pergunta aberta para responder (modal visível, botões ativos)? */
+        /**
+         * Está com a pergunta aberta para responder (modal visível, botões
+         * ativos)? #altA é o texto da alternativa; o botão é o elemento
+         * em volta dele.
+         */
         temPerguntaAberta() {
             return jogador.page.evaluate(() => {
                 const modal = document.getElementById('modalResponderPergunta');
                 const alt = document.getElementById('altA');
-                return !!modal && modal.style.display === 'flex' && !!alt && !alt.disabled;
+                const botao = alt && alt.closest('button');
+                return !!modal && modal.style.display === 'flex' && !!botao && !botao.disabled;
             });
         },
 
@@ -150,8 +155,9 @@ async function criarJogador(browser, nome) {
             return jogador.page.evaluate(() => {
                 const modal = document.getElementById('modalResponderPergunta');
                 const alt = document.getElementById('altA');
-                if (!modal || modal.style.display !== 'flex' || !alt || alt.disabled) return false;
-                alt.click();
+                const botao = alt && alt.closest('button');
+                if (!modal || modal.style.display !== 'flex' || !botao || botao.disabled) return false;
+                botao.click();
                 return true;
             });
         }
