@@ -89,7 +89,8 @@ function iniciarRelogio() {
  *     segue com nextTurn() (próxima dupla ou fim da rodada). "Já
  *     respondida" = `respondeu` ou o Respondedor já no rodízio, o mesmo
  *     critério de becomeHost() (network/hostMigration.js);
- *   - pergunta em aberto → reexibe a mesma pergunta e rearma o prazo de
+ *   - pergunta em aberto → reexibe a mesma pergunta (ou, com o host fora
+ *     da dupla, a tela de espectador — BUG-020) e rearma o prazo de
  *     resposta (correção do BUG-001, ver ISSUES.md: antes cada F5 trocava
  *     a pergunta). Um pedido de assessoria ainda sem resposta é cancelado
  *     antes (BUG-019, ver cancelarAssessoriaPendente()).
@@ -132,9 +133,17 @@ function retomarPartidaAposRecarregar() {
         }
     } else {
         if (cancelarAssessoriaPendente(round)) return;
-        Game.ui.displayRoundStart();
-        if (round.pergunta) {
-            Game.ui.displayQuestion(round.pergunta);
+        // BUG-020: fora da dupla, o host vê a tela de espectador, como
+        // veria sem o F5 (pickNewPair() faz a mesma escolha) — antes via
+        // a área da pergunta.
+        const naDupla = state.playerName === round.perguntador || state.playerName === round.respondedor;
+        if (naDupla) {
+            Game.ui.displayRoundStart();
+            if (round.pergunta) {
+                Game.ui.displayQuestion(round.pergunta);
+            }
+        } else {
+            Game.ui.displaySpectatorView(round.perguntador, round.respondedor);
         }
         Game.engine.turn.armarRespostaTimeout(round.respondedor);
         Game.ui.refreshNovaRodadaButton();

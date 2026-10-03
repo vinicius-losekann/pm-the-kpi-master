@@ -68,7 +68,7 @@ só automatizado (falta o manual).
 
 ---
 
-## 2. Casos cobertos por teste automatizado (66 testes)
+## 2. Casos cobertos por teste automatizado (68 testes)
 
 ### Entrada na sala e identidade
 | Caso | Testes | Manual |
@@ -100,6 +100,7 @@ só automatizado (falta o manual).
 | F5/fechar do host encerra as conexões sem mexer no jogo | 🤖 T12, T13 | — |
 | Host volta dentro de 10s: guests reconectam, sem troca de host | 🤖 T38 · 🌐 E1 | — (coberto por E1) |
 | F5 do host com a pergunta aberta: a mesma pergunta continua; relógio e prazo de resposta religados | 🤖 T56 · 🌐 E1 | — (coberto por E1) |
+| F5 do host fora da dupla com a pergunta aberta: o host vê a tela de espectador; etiquetas de domínio e área aparecem depois do F5 e para quem volta (BUG-020) | 🤖 T64, T65 | — |
 | F5 do host com a rodada encerrada: continua encerrada para todos, nada começa sozinho | 🤖 T53, T57 · 🌐 E9 | — (coberto por E9) |
 | F5 do host logo depois de uma resposta: segue para a próxima dupla ou encerra a rodada; se a resposta completou a última fase, a partida termina | 🤖 T54, T58 · 🌐 E10 | — (coberto por E10) |
 | F5 do host com a partida pausada: continua pausada com o mesmo evento e retoma quando alguém volta | 🤖 T55, T57 · 🌐 E11 | — (coberto por E11) |
@@ -137,14 +138,15 @@ só automatizado (falta o manual).
 
 Nenhum no momento.
 
-Em investigação fora da conexão: BUG-020 (tela do host depois do F5 com
-a pergunta aberta), em `ISSUES.md`.
+Em investigação: BUG-021 (F5 na tela de fim de jogo volta para a
+partida), em `ISSUES.md`.
 
 Corrigidos: B1 (botão "Iniciar" desabilitado depois de um "Sair da
 partida") na D3d; B2 (rodada que começava sozinha depois de uma troca de
 host) na D3e; B3, B4 e B5 (F5 do host em momentos específicos da
 partida, encontrados com navegadores reais em 03/10/2026) na D3f;
-BUG-019 (F5 do host com assessoria pendente, ver `ISSUES.md`) em
+BUG-019 (F5 do host com assessoria pendente) e BUG-020 (tela do host
+fora da dupla e etiquetas da pergunta depois do F5), ver `ISSUES.md`, em
 03/10/2026:
 
 | ID | Situação antes da correção | Causa |
@@ -153,6 +155,7 @@ BUG-019 (F5 do host com assessoria pendente, ver `ISSUES.md`) em
 | B4 | F5 do host logo depois de uma resposta, nos ~3s antes da próxima dupla: a partida travava ("Nova Rodada" bloqueado, nenhuma dupla nova) | O aviso para seguir à próxima dupla (agendado para 3s depois) se perdia com a página, e a retomada reabria a pergunta já respondida |
 | B5 | F5 do host com a partida pausada: sorteava outro evento e reaplicava os efeitos | A pausa não era salva, e a retomada começava uma rodada nova |
 | BUG-019 | F5 do host com um pedido de assessoria sem resposta: quem responde ficava com os botões travados e a rodada parada até acabar o tempo da partida | O prazo do assessor se perdia com a página, e o assessor perdia a pergunta ao reconectar |
+| BUG-020 | F5 do host fora da dupla: o host via a área da pergunta; etiquetas de domínio e área vazias depois do F5 e para quem voltava | A retomada não olhava o papel do host; a pergunta guardada na rodada não tinha os nomes |
 
 ---
 

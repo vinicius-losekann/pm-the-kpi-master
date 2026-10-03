@@ -137,13 +137,21 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
         return;
     }
 
+    // BUG-020: os nomes de domínio e área (as etiquetas da tela) ficam na
+    // própria pergunta da rodada — é ela que vai no estado salvo e no
+    // state-sync, e antes só a mensagem 'question' os levava: depois de
+    // um F5 do host, ou para quem voltava à partida, as etiquetas
+    // apareciam vazias.
+    const domainNome = state.questionsData.domains[pergunta.domain_key]?.name || pergunta.domain_key;
+    const areaNome = Game.getFaseById(respondedor.phase).nome;
+
     state.partidaPausada = null;
     state.rodadaEncerrada = false;
     state.currentRound = {
         evento,
         perguntador: perguntador.name,
         respondedor: respondedor.name,
-        pergunta,
+        pergunta: { ...pergunta, domain: domainNome, area: areaNome },
         respondeu: false
     };
 
@@ -178,9 +186,6 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
     } else {
         Game.ui.displayRoundStart();
     }
-
-    const domainNome = state.questionsData.domains[pergunta.domain_key]?.name || pergunta.domain_key;
-    const areaNome = Game.getFaseById(respondedor.phase).nome;
 
     const perguntaData = {
         type: 'question',
