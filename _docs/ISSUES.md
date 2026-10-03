@@ -27,6 +27,23 @@ corrigidos recentemente (Fase D).
 - **Próximo passo:** conferir no navegador; se confirmar, corrigir como
   frente própria (só tela, sem mudar regra do jogo).
 
+### BUG-021: F5 na tela de fim de jogo volta para a partida
+
+- **Status:** 🔍 Suspeita, encontrada por leitura do código (03/10/2026),
+  ainda não conferida no navegador
+- **Local:** `utils/persistence.js` (`saveState()`/`tryRestoreState()`)
+  e `network/messageHandler.js` (`addPlayer()` → `state-sync`)
+- **Sintoma esperado:** (1) o host dá F5 com o ranking final na tela e
+  volta para a tela de jogo; se a partida acabou porque alguém completou
+  a última fase, uma dupla nova é sorteada e a partida recomeça; (2) um
+  guest que dá F5 (ou reconecta) no fim de jogo volta para a tela de
+  jogo em vez do ranking.
+- **Causa provável:** `gameOver` não é gravado no estado salvo nem vai
+  no `state-sync`; a retomada (`retomarPartidaAposRecarregar()`) vê
+  `gameStarted` sem `gameOver` e, sem rodada, chama `pickNewPair()`.
+- **Próximo passo:** frente própria, com teste (F5 do host e volta de
+  guest no fim de jogo).
+
 ---
 
 ## Fase D (conexão, identidade e troca de host) — corrigidos

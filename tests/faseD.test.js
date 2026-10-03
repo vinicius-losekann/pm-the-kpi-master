@@ -12,7 +12,8 @@
 // tela inicial (Fase D3c), da volta ao lobby (D3d), do rodízio da
 // rodada que continua depois de uma troca de host (D3e) e da retomada
 // da partida depois de um F5 do host (D3f; com um pedido de assessoria
-// em andamento, BUG-019) e da versão do estado salvo (roadmap 3.1) num
+// em andamento, BUG-019; com o host fora da dupla e as etiquetas da
+// pergunta, BUG-020) e da versão do estado salvo (roadmap 3.1) num
 // ambiente simulado, sem
 // navegador e sem PeerJS: a rede é trocada por conexões falsas, a UI
 // por um registro de chamadas e o localStorage por um objeto em
@@ -2995,6 +2996,114 @@ teste('T63 Migração do estado salvo: passos em ordem até a versão atual, e a
     confere(restaurou === true, 'com a migração trazendo o nome da sala de volta, o estado deveria ser restaurado');
     confere(novo.state.roomName === 'sala' && novo.state.players.length === 2, 'a restauração deveria usar a sala migrada');
     confere(novo.jogador('Host').kpi === 42, 'os dados do próprio jogador deveriam vir da migração');
+});
+
+// ============================================
+// BUG-020 — TELA DO HOST DEPOIS DO F5 E ETIQUETAS DA PERGUNTA
+// ============================================
+
+/**
+ * Passa a registrar também os argumentos das funções de tela chamadas
+ * (o registro padrão guarda só os nomes). Devolve a lista { nome, args }.
+ */
+function gravarTelas(amb) {
+    const chamadas = [];
+    const uiAnterior = amb.Game.ui;
+    amb.Game.ui = new Proxy({}, {
+        get: (_, nome) => (...args) => {
+            chamadas.push({ nome: String(nome), args });
+            return uiAnterior[nome](...args);
+        }
+    });
+    return chamadas;
+}
+
+/**
+ * Partida de 3 (Host, A, B) com a dupla fixada e a pergunta aberta;
+ * o host dá F5 e a partida é retomada. Devolve o host recarregado, o
+ * tempo controlado e as telas que ele montou na retomada.
+ */
+function f5ComPerguntaAberta(usar, papeis) {
+    const amb = usar(criarAmbiente());
+    salaParaRecarregar(amb);
+    amb.entrar('A', 'peer-a');
+    amb.entrar('B', 'peer-b');
+    amb.iniciarPartida();
+    // O sorteio da dupla é aleatório: fixa os papéis (mesma pergunta e evento).
+    amb.state.currentRound = { ...amb.state.currentRound, ...papeis, respondeu: false };
+    amb.state.usedRespondedorThisRound = [];
+    amb.Game.saveState();
+
+    const novo = usar(recarregarHost(amb));
+    const tempo = novo.tempoFalso();
+    const telas = gravarTelas(novo);
+    novo.Game.core.retomarPartidaAposRecarregar();
+    return { novo, tempo, telas };
+}
+
+teste('T64 F5 do host fora da dupla com a pergunta aberta: volta vendo a tela de espectador e o prazo de resposta continua (BUG-020)', (usar) => {
+    const { novo, tempo, telas } = f5ComPerguntaAberta(usar, { perguntador: 'A', respondedor: 'B' });
+    const nomes = telas.map(t => t.nome);
+    const espectador = telas.find(t => t.nome === 'displaySpectatorView');
+    confere(espectador && espectador.args[0] === 'A' && espectador.args[1] === 'B',
+        'o host fora da dupla deveria ver "A pergunta para B", viu: ' + nomes.join(', '));
+    confere(!nomes.includes('displayRoundStart') && !nomes.includes('displayQuestion'),
+        'o host fora da dupla não pode ver a área da pergunta, viu: ' + nomes.join(', '));
+    const r = novo.state.currentRound;
+    confere(r && r.perguntador === 'A' && r.respondedor === 'B' && !r.respondeu, 'a mesma pergunta deveria continuar em andamento');
+    confere(novo.broadcastsDoTipo('round-start').length === 0, 'não pode trocar a pergunta');
+    tempo.avancar(novo.CONFIG.JOGO.RESPOSTA_TIMEOUT);
+    confere(novo.broadcastsDoTipo('kpi-update').some(m => m.playerName === 'B'),
+        'o prazo de resposta deveria estar rearmado (sem resposta, a vez de B é pulada)');
+
+    // Controle: o host na dupla (perguntando ou respondendo) continua vendo a pergunta.
+    for (const papeis of [{ perguntador: 'Host', respondedor: 'A' }, { perguntador: 'A', respondedor: 'Host' }]) {
+        const c = f5ComPerguntaAberta(usar, papeis);
+        const n = c.telas.map(t => t.nome);
+        confere(n.includes('displayRoundStart') && n.includes('displayQuestion') && !n.includes('displaySpectatorView'),
+            'host como ' + (papeis.perguntador === 'Host' ? 'Perguntador' : 'Respondedor') + ' deveria ver a pergunta, viu: ' + n.join(', '));
+        c.tempo.avancar(c.novo.CONFIG.JOGO.RESPOSTA_TIMEOUT);
+        confere(c.novo.broadcastsDoTipo('kpi-update').some(m => m.playerName === papeis.respondedor),
+            'o prazo de resposta também deveria estar rearmado com o host na dupla');
+    }
+});
+
+teste('T65 A pergunta da rodada leva domínio e área: o F5 do host e quem volta à partida veem as etiquetas (BUG-020)', (usar) => {
+    const amb = usar(criarAmbiente());
+    salaParaRecarregar(amb);
+    amb.entrar('A', 'peer-a');
+    amb.entrar('B', 'peer-b');
+    amb.iniciarPartida();
+    const r = amb.state.currentRound;
+    const area = amb.Game.getFaseById(amb.jogador(r.respondedor).phase).nome;
+    confere(r.pergunta.domain === 'Domínio de teste' && r.pergunta.area === area,
+        'a pergunta guardada na rodada deveria ter domínio e área, veio: ' + JSON.stringify({ domain: r.pergunta.domain, area: r.pergunta.area }));
+
+    // A mensagem do início da rodada continua igual: mesmos nomes, gabarito só para o Perguntador.
+    const perguntas = amb.registro.enviados.filter(e => e.msg.type === 'question').map(e => e.msg);
+    confere(perguntas.length === 2 && perguntas.every(m => m.domain === 'Domínio de teste' && m.area === area),
+        'as perguntas enviadas deveriam ter domínio e área');
+    confere(perguntas.find(m => m.isPerguntador).correct === r.pergunta.correct && perguntas.find(m => m.isRespondedor).correct === undefined,
+        'só o Perguntador recebe o gabarito');
+
+    // F5 do host Perguntador: a pergunta reexibida tem as etiquetas.
+    const { novo, telas } = f5ComPerguntaAberta(usar, { perguntador: 'Host', respondedor: 'A' });
+    const naTela = telas.find(t => t.nome === 'displayQuestion');
+    confere(naTela && naTela.args[0].domain === 'Domínio de teste' && naTela.args[0].area === 'Iniciação',
+        'depois do F5, o host deveria ver as etiquetas, veio: ' + JSON.stringify(naTela && { domain: naTela.args[0].domain, area: naTela.args[0].area }));
+
+    // A (o Respondedor) volta à partida: recebe a pergunta com as etiquetas e sem o gabarito.
+    novo.entrar('A', 'peer-a2');
+    const sync = syncPara(novo, 'peer-a2');
+    const p = sync && sync.currentRound && sync.currentRound.pergunta;
+    confere(p && p.domain === 'Domínio de teste' && p.area === 'Iniciação', 'quem volta deveria receber domínio e área, veio: ' + JSON.stringify(p && { domain: p.domain, area: p.area }));
+    confere(p.correct === undefined, 'o Respondedor não pode receber o gabarito');
+    const guest = usar(criarAmbiente());
+    const telasGuest = gravarTelas(guest);
+    guest.receberSync('A', sync);
+    const naTelaGuest = telasGuest.find(t => t.nome === 'displayQuestion');
+    confere(naTelaGuest && naTelaGuest.args[0].domain === 'Domínio de teste' && naTelaGuest.args[0].area === 'Iniciação',
+        'A deveria ver as etiquetas ao voltar');
 });
 
 console.log('\n' + (falhou === 0 ? '🎉' : '⚠️') + ' ' + passou + ' passaram, ' + falhou + ' falharam\n');
