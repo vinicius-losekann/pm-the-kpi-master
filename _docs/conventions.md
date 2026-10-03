@@ -68,7 +68,7 @@ Mensagem que chega sem um campo novo (de uma versão anterior do jogo) mantém o
 - **Chaves de schema de dados** (`data/questions.*.json` e os campos que viajam com uma pergunta pela rede): já estão em inglês desde a Fase 8 (`domains`, `name`, `areas`, `questions`, `question`, `alternatives`, `correct`, `domain_key`). Motivo: precisam ser estáveis entre arquivos de idiomas diferentes (`questions.en-US.json` reusa as mesmas chaves, só traduz os valores).
 - **Identificadores internos do código** (nomes de função, variável, parâmetro): ainda em português (`sortearPergunta`, `respondedorName`, `handleAssessoriaAnswer`). Isso muda quando a Fase E for feita — até lá, **código novo deve seguir português**, pra não ficar meio-traduzido no meio de uma feature só.
 - **Comentários**: sempre em português, inclusive depois da Fase E (só os identificadores serão traduzidos, não os comentários).
-- **Tipos de mensagem de rede** (`msg.type`): sempre em português, kebab-case (`assessoria-request`, `venda-confirmed`... na real "venda" já virou "ajuda", ver exemplo acima).
+- **Tipos de mensagem de rede** (`msg.type`): kebab-case, com o nome da coisa em português e os sufixos do padrão acima (`assessoria-request`, `ajuda-oferta-response`, `partida-pausada`). Exceções antigas, mantidas por compatibilidade: `player-join`, `state-sync`, `round-start` e outras da tabela da Fase D.
 - **IDs de elemento HTML e classes CSS**: camelCase pra IDs (`btnPedirAjuda`, `modalAjudaOferta`), kebab-case pra classes (`.phase-item`, `.stat-chip`).
 - **Nomes de arquivo `.js`**: camelCase (`profileComponent.js`, `tradeEngine.js`, `deckRules.js`).
 

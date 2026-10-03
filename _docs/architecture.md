@@ -127,11 +127,11 @@ Pendência remanescente dessa frente: internacionalização (pt-BR religado, fal
 
 ### NOTA-003 — i18n: UI religada em pt-BR, faltam os outros idiomas
 
-**Atualizado:** a UI foi religada. Todas as strings de usuário em `ui/*.js`, `engine/answerEngine.js`, `engine/advisoryEngine.js`, `network/peerService.js`, `network/hostMigration.js` e `main.js` agora chamam `Game.i18n.t('namespace.chave')` em vez de texto fixo. O dicionário `pt-BR.js` tem 51 chaves, todas em uso (conferido via script que carrega o dicionário de verdade em Node e cruza com todas as chamadas `Game.i18n.t(...)` do código — zero chaves quebradas).
+**Atualizado:** a UI foi religada. Todas as strings de usuário em `ui/*.js`, `engine/answerEngine.js`, `engine/advisoryEngine.js`, `network/peerService.js`, `network/hostMigration.js` e `main.js` agora chamam `Game.i18n.t('namespace.chave')` em vez de texto fixo. O dicionário `pt-BR.js` tem 54 chaves (contagem de 03/10/2026). Os motivos de recusa de entrada na sala (`join-rejected`, Fase D) ainda são texto fixo em `network/messageHandler.js`.
 
 O que ainda falta:
 1. ~~Trocar cada string fixa em `ui/*.js` por `Game.i18n.t('...')`~~ ✅ feito
-2. Criar `en-US.js` e `es-ES.js` com as mesmas 51 chaves de `pt-BR.js`
+2. Criar `en-US.js` e `es-ES.js` com as mesmas chaves de `pt-BR.js` (antes, conferir se todas as chaves estão em uso e se sobrou texto fixo, como os motivos de recusa acima)
 3. Adicionar um seletor de idioma na UI que chama `Game.i18n.setLocale()`
 4. Testar troca de idioma em tempo real (critério do checklist final do roadmap)
 

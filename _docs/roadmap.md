@@ -25,7 +25,7 @@
 | 2.3 | **Religar `Game.logger.*` no lugar de `console.*`** | Infraestrutura já pronta (`utils/logger.js`). Prioritário: com múltiplas salas simultâneas em produção, não dá para depurar via `console.log` de uma sala que ninguém está observando ao vivo. Trabalho mecânico, mas espalhado por praticamente todo arquivo `.js` — ver **NOTA-004** em `architecture.md`. |
 | 2.4 | **Validação de dados recebidos via rede** | Mensagens de outros peers podem estar malformadas; validar com esquemas (ex: JSON Schema) para evitar crashes. |
 | 2.5 | **Fallback para quando o host migra** | Garantir que a migração de host seja atômica e que o novo host sincronize completamente o estado com todos os peers. Grande parte feita na **Fase D** (seção 9): prazo de 10s, sala encontrada em qualquer versão do host, host antigo volta como jogador comum, rodízio da rodada preservado. Resta: janela de menos de 1s com dois hosts, se o host antigo recarregar exatamente enquanto o outro assume. |
-| 2.6 | **Relógio pela hora de término** | Guests que reconectam ficam ~1s diferentes do host (a contagem é local, corrigida a cada 10s). Mandar a hora de término em vez do tempo restante acabaria com a diferença, mas exige estimar a diferença entre os relógios dos aparelhos. Só se valer a complexidade. |
+| 2.6 | **Relógio pela hora de término** | Guests que reconectam ficam ~1s diferentes do host (a contagem é local, corrigida a cada 10s). Mandar a hora de término em vez do tempo restante acabaria com a diferença, mas exige estimar a diferença entre os relógios dos aparelhos (que podem divergir em vários segundos) — sem isso, fica pior que hoje. Baixa prioridade: a diferença atual é imperceptível no jogo. |
 | 2.7 | **Servidor de retransmissão (TURN) para redes restritivas** | Redes de instituição podem bloquear a conexão direta entre navegadores. Um servidor TURN resolve, mas as credenciais não podem ir para os arquivos do site (o GitHub Pages é público) — exige um serviço com credenciais temporárias. Validar antes com o teste manual M9 de `testes-conexao.md`. |
 | 2.8 | **Travamento do Edge no Windows** | Relatado em teste (uma vez travou o computador inteiro; outra, ~5s ao criar sala). Não reproduz no Chromium. Investigar: Chrome na mesma máquina, Edge sem aceleração de hardware, Gerenciador de Tarefas aberto antes. |
 
@@ -35,7 +35,7 @@
 
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
-| 3.1 | **Versionamento do estado salvo** | `localStorage` não tem versão; mudanças futuras podem corromper o carregamento. Adicionar `version` e função de migração. |
+| 3.1 | **Versionamento do estado salvo** | `localStorage` não tem versão; mudanças futuras podem corromper o carregamento. Adicionar `version` e função de migração. Pré-requisito da Fase E (seção 9). |
 | 3.2 | **Compressão de dados** | O estado pode crescer; usar compressão (ex: LZString) para reduzir tamanho. |
 | 3.3 | **Sincronização parcial (delta sync)** | Em vez de enviar o estado completo em `state-sync`, enviar apenas as mudanças (diffs), economizando banda. |
 
@@ -43,11 +43,10 @@
 
 ## 4. Segurança
 
-> Nota: itens abaixo tratam de superfícies gerais de segurança que ainda não
-> foram endereçadas. Para o que **já foi corrigido** (XSS via nome de
-> jogador, falsificação de identidade em mensagens de rede), ver `SEC-001` e
-> `SEC-002` em `ISSUES.md` — mitigam parte do risco descrito em 4.1/4.2, mas
-> não substituem uma autenticação real.
+> Nota: para o que **já foi corrigido** — XSS via nome de jogador e
+> falsificação de identidade em mensagens de rede (`SEC-001` e `SEC-002`,
+> em `../CHANGELOG.md`); nome do host tomado e reconexão no lugar de outro
+> jogador (`SEC-003` e `SEC-004`, em `ISSUES.md`).
 
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
@@ -86,7 +85,8 @@
 | 7.3 | **Linter (ESLint) e formatter (Prettier)** | Manter estilo consistente e evitar erros comuns. |
 | 7.5 | **Separar helpers em arquivos próprios** | Funções como `buildRanking` poderiam estar em um arquivo `ranking-utils.js`. |
 | 7.6 | **Extrair helper compartilhado de renderização de alternativas** | `questionComponent.js` (Respondedor) e `advisoryModal.js` (Assessor) duplicam a lógica de montar a lista de alternativas + timer — visualmente quase idênticas, mas disparam ações diferentes no clique (`handleAnswer` vs `responderAssessoria`). Não fundir os dois modais (são interações conceitualmente diferentes), só extrair a parte genuinamente igual (montagem da lista + texto do timer) para uma função compartilhada tipo `Game.ui.renderAlternativesList(container, alternativas, onEscolher)`. Baixo risco, ganho pequeno — não é bug, é redução de duplicação. |
-| 7.7 | **Testes de ponta a ponta com navegadores de verdade** | Hoje os testes automatizados (`tests/`) simulam o PeerJS. Rodar o jogo em navegadores reais no GitHub Actions (Playwright + servidor PeerJS local + servidor estático) cobre quase todo o checklist manual de `testes-conexao.md`. **D4a e D4b feitas**: estrutura em `tests/e2e` e 10 cenários (troca de host, F5 do host em vários momentos da partida, volta pela tela inicial, 3 jogadores, nova partida). Faltam os P2 automatizáveis (M11–M16). |
+| 7.7 | **Testes de ponta a ponta com navegadores de verdade** | Hoje os testes automatizados (`tests/`) simulam o PeerJS. Rodar o jogo em navegadores reais no GitHub Actions (Playwright + servidor PeerJS local + servidor estático) cobre quase todo o checklist manual de `testes-conexao.md`. **D4a e D4b feitas**: estrutura em `tests/e2e` e 11 cenários (troca de host, F5 do host em vários momentos da partida — inclusive com assessoria pendente —, volta pela tela inicial, 3 jogadores, nova partida). Faltam os P2 automatizáveis (M11–M16). |
+| 7.8 | **Node 24 nos testes** | O workflow roda os testes com `node-version: 20`, fora de suporte desde 04/2026 (as ações do workflow já usam Node 24). Trocar pode mudar o resultado dos testes (`vm`, `crypto`, Playwright), por isso fica como frente própria, com o Actions conferido antes e depois. |
 
 ---
 
@@ -95,7 +95,7 @@
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
 | 8.1 | **QR code no tabuleiro** | Facilitar a entrada de jogadores em sala física, sem precisar digitar o código manualmente. |
-| 8.4 | **Suporte a múltiplos idiomas (i18n)** | Criar `en-US.js` e `es-ES.js` seguindo o mesmo dicionário de `pt-BR.js` (51 chaves) e adicionar seletor de idioma na UI — infraestrutura já pronta, ver **NOTA-003** em `architecture.md`. Conteúdo das perguntas: `data/questions.pt-BR.json` já usa chaves de schema em inglês (Fase 8), então um `questions.en-US.json`/`questions.es-ES.json` futuro só precisa traduzir os valores, reusando as mesmas chaves de domínio — ver `architecture.md`. |
+| 8.4 | **Suporte a múltiplos idiomas (i18n)** | Criar `en-US.js` e `es-ES.js` seguindo o mesmo dicionário de `pt-BR.js` (54 chaves em 03/10/2026) e adicionar seletor de idioma na UI — infraestrutura já pronta, ver **NOTA-003** em `architecture.md`. Conteúdo das perguntas: `data/questions.pt-BR.json` já usa chaves de schema em inglês (Fase 8), então um `questions.en-US.json`/`questions.es-ES.json` futuro só precisa traduzir os valores, reusando as mesmas chaves de domínio — ver `architecture.md`. |
 | 8.5 | **Nome do jogador sem diferenciar maiúsculas** | Em teste, "vHost" e "Vhost" foram tratados como jogadores diferentes: quem volta digitando o nome com outra grafia é recusado no meio da partida. Comparar nomes ignorando maiúsculas/minúsculas. |
 
 ---
@@ -152,14 +152,15 @@ Objetivo confirmado com o usuário: recurso vira punição só por errar, não m
 | D3d | "Voltar ao lobby" zera os jogadores (nova partida depois de "Sair da partida") | ✅ |
 | D3e | Quem já respondeu na rodada é conhecido por todos: depois da troca de host a rodada continua de onde parou, sem ninguém responder duas vezes; rodada encerrada não recomeça sozinha | ✅ |
 | D3f | F5 do host em qualquer momento da partida faz o que aconteceria sem o F5: rodada encerrada continua encerrada, partida pausada continua pausada com o mesmo evento, resposta recém-dada segue para a próxima dupla (ou encerra a partida, se completou a última fase) | ✅ |
+| BUG-019 | F5 do host com um pedido de assessoria sem resposta: o pedido é cancelado (quem responde pode pedir de novo) em vez de a rodada ficar presa | ✅ |
 
 Checklist de conexão (casos cobertos, testes manuais pendentes e
 limitações): `testes-conexao.md`. Falta: testes manuais P1 que não dão
-para automatizar (M7, M8, M9) e documentação de fechamento. **D4**
-(item 7.7): D4a e D4b feitas; a D3f acrescentou 3 cenários.
+para automatizar (M7, M8, M9). **D4** (item 7.7): D4a e D4b feitas; a
+D3f acrescentou 3 cenários.
 
 ### Fase E — tradução completa de identificadores para inglês (por último)
 
 - Todas as funções e variáveis do código (ex: `sortearPergunta` → `drawQuestion`) traduzidas para inglês; comentários continuam em português.
-- Decisão do usuário: varredura completa, risco aceito — mas só **depois** das Fases A–D estarem implementadas e estáveis. Rename de identificador não deve ser misturado com mudança de comportamento (mesmo princípio já registrado no cabeçalho do `ISSUES.md`), e essa é a maior mudança de superfície do lote — vale isolar.
-- 2.6 | **Relógio da partida pela hora de término** | Hoje cada aparelho conta o próprio segundo a partir de quando ligou o relógio, e o host corrige o valor a cada 10s (`timer-update`) — sobra uma diferença de até ~1s entre as telas. Alternativa: o host envia a hora exata de término e cada aparelho calcula o tempo restante. Só compensa se também estimar a diferença entre os relógios dos aparelhos (que não são sincronizados entre si e podem divergir em vários segundos); do contrário, fica pior que hoje. Baixa prioridade — a diferença atual é imperceptível no jogo. |
+- Decisão do usuário: varredura completa, risco aceito — mas só **depois** das Fases A–D estarem implementadas e estáveis. Rename de identificador não deve ser misturado com mudança de comportamento, e essa é a maior mudança de superfície do lote — vale isolar.
+- Pré-requisito: versão no estado salvo (item **3.1**), para que partidas salvas antes da tradução não quebrem ao carregar.
