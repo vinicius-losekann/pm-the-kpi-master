@@ -2,9 +2,6 @@
 # PM: The KPI Master - .gitignore
 # ============================================
 
-# --- Desenvolvimento (NÃO comitar) ---
-_docs-pessoais/
-
 # --- Sistema ---
 .DS_Store
 Thumbs.db
