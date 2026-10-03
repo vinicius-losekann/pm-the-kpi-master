@@ -9,7 +9,7 @@
 
 const {
     fs, path, vm, RAIZ, createEnvironment, tokenOf, test, check, start, finish,
-    syncTo, roundScreens, unavailable, roomToReload, reloadHost, tryReloadHost
+    syncTo, roundScreens, unavailable, roomToReload, reloadHost, tryReloadHost, recordScreens
 } = require('./environment');
 
 start('F5 do host');
@@ -423,22 +423,6 @@ test('T60 F5 do host com a assessoria já resolvida: a sugestão (ou a recusa) c
     novo2.Game.network.handleMessage({ type: 'assessoria-request', assessorName: 'B', requesterName: 'A' }, 'peer-a2');
     check(novo2.broadcastsOfType('assessoria-started').length === 0, 'só um pedido de assessoria por pergunta, como sem o F5');
 });
-
-/**
- * Passa a registrar também os argumentos das funções de tela chamadas
- * (o registro padrão guarda só os nomes). Devolve a lista { nome, args }.
- */
-function recordScreens(amb) {
-    const chamadas = [];
-    const uiAnterior = amb.Game.ui;
-    amb.Game.ui = new Proxy({}, {
-        get: (_, nome) => (...args) => {
-            chamadas.push({ nome: String(nome), args });
-            return uiAnterior[nome](...args);
-        }
-    });
-    return chamadas;
-}
 
 /**
  * Partida de 3 (Host, A, B) com a dupla fixada e a pergunta aberta;

@@ -10,7 +10,7 @@
 
 const {
     fs, path, vm, RAIZ, createEnvironment, tokenOf, test, check, start, finish,
-    syncTo, roundScreens, unavailable, roomToReload, reloadHost, tryReloadHost
+    syncTo, roundScreens, unavailable, roomToReload, reloadHost, tryReloadHost, recordScreens
 } = require('./environment');
 
 start('Troca de host');

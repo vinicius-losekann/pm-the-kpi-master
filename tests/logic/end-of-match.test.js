@@ -8,7 +8,7 @@
 
 const {
     fs, path, vm, RAIZ, createEnvironment, tokenOf, test, check, start, finish,
-    syncTo, roundScreens, unavailable, roomToReload, reloadHost, tryReloadHost
+    syncTo, roundScreens, unavailable, roomToReload, reloadHost, tryReloadHost, recordScreens
 } = require('./environment');
 
 start('Fim de partida e lobby');
@@ -136,6 +136,141 @@ test('T48 Guest sai da partida e ela acaba: no lobby, o host consegue iniciar ou
 
     amb.startMatch();
     check(amb.state.gameStarted && !amb.state.gameOver && amb.state.currentRound, 'deveria conseguir iniciar outra partida');
+});
+
+// ============================================
+// BUG-021 — F5 E VOLTA NA TELA DE FIM DE JOGO
+// ============================================
+
+/** Chamadas de tela com o nome informado (registro de recordScreens). */
+function screenCalls(telas, nome) {
+    return telas.filter(t => t.nome === nome);
+}
+
+/** A tela final apareceu, com o ranking informado? */
+function showedFinalRanking(telas, ranking) {
+    const final = screenCalls(telas, 'displayFinalRanking').pop();
+    return screenCalls(telas, 'showScreen').some(t => t.args[0] === 'gameover') &&
+        !!final && JSON.stringify(final.args[0]) === JSON.stringify(ranking);
+}
+
+test('T66 F5 do host no fim de jogo: volta ao ranking final e a partida não recomeça (BUG-021)', (usar) => {
+    // A partida acaba porque alguém completou a última fase (ainda sobra tempo).
+    const amb = usar(createEnvironment());
+    const tempo = amb.fakeTime();
+    roomToReload(amb);
+    amb.join('A', 'peer-a');
+    amb.join('B', 'peer-b');
+    amb.startMatch();
+    const r = amb.state.currentRound;
+    const ultimaFase = amb.CONFIG.FASES[amb.CONFIG.FASES.length - 1].id;
+    Object.assign(amb.player(r.respondedor), { phase: ultimaFase, activities: amb.CONFIG.JOGO.ACTIVITIES_PER_PHASE - 1 });
+    amb.Game.core.handleAnswer({ alternativa: r.pergunta.correct, playerName: r.respondedor });
+    tempo.advance(3000);
+    check(amb.state.gameOver === true && amb.state.timer > 0, 'pré-condição: a partida acabou antes do tempo');
+    const ranking = amb.broadcastsOfType('game-over').pop().ranking;
+
+    const novo = usar(reloadHost(amb));
+    const relogio = novo.fakeClock();
+    novo.fakeTime();
+    const telas = recordScreens(novo);
+    check(novo.state.gameOver === true, 'o fim de jogo deveria ser restaurado do estado salvo');
+    // O ranking mostrado é o do fim da partida, não um recalculado agora.
+    novo.player(r.respondedor).kpi = 999;
+    novo.Game.core.retomarPartidaAposRecarregar();
+    novo.Game.core.mostrarFimDeJogo();
+    check(showedFinalRanking(telas, ranking), 'o host deveria ver a tela final com o mesmo ranking, viu: ' + telas.map(t => t.nome).join(', '));
+    check(novo.state.currentRound === null && novo.broadcastsOfType('round-start').length === 0 && novo.broadcastsOfType('show-evento').length === 0,
+        'nenhuma dupla nova pode ser sorteada');
+    check(relogio.activeCount() === 0, 'o relógio da partida não pode voltar a contar');
+    check(roundScreens(novo).length === 0, 'nenhuma tela de rodada deveria aparecer');
+
+    // main.js: com o fim de jogo restaurado, só chama a tela final (host e guest).
+    const main = fs.readFileSync(path.join(RAIZ, 'js/main.js'), 'utf8');
+    check(/if \(restaurou && state\.gameStarted && state\.gameOver\) \{\s*Game\.core\.mostrarFimDeJogo\(\);/.test(main),
+        'init() deveria chamar Game.core.mostrarFimDeJogo() quando o estado restaurado é de fim de jogo');
+});
+
+test('T67 Guest volta à sala no fim de jogo: não é recusado e vê o ranking final (BUG-021)', (usar) => {
+    const host = usar(createEnvironment());
+    host.createRoomAsHost();
+    host.join('A', 'peer-a');
+    host.join('B', 'peer-b');
+    host.startMatch();
+    host.Game.core.endGame(host.Game.core.buildRanking());
+    const ranking = host.broadcastsOfType('game-over').pop().ranking;
+
+    // A dá F5 na tela final: cai (sai da lista, T11) e volta com o mesmo nome.
+    host.drop('peer-a');
+    check(!host.player('A'), 'pré-condição: quem cai no fim de jogo sai da lista');
+    host.clearLog();
+    host.join('A', 'peer-a2');
+    check(host.rejectionFor('peer-a2') === null, 'A não deveria ser recusado no fim de jogo, veio: ' + host.rejectionFor('peer-a2'));
+    check(host.player('A'), 'A deveria voltar à lista');
+    const sync = syncTo(host, 'peer-a2');
+    check(sync && sync.gameOver === true, 'quem volta deveria saber que a partida acabou');
+    check(JSON.stringify(sync.rankingFinal) === JSON.stringify(ranking), 'quem volta deveria receber o ranking final');
+    check(host.broadcastsOfType('round-start').length === 0 && host.state.gameOver === true, 'a volta de A não pode recomeçar a partida');
+
+    const guest = usar(createEnvironment());
+    const relogio = guest.fakeClock();
+    const telas = recordScreens(guest);
+    guest.receiveSync('A', sync);
+    check(guest.state.gameOver === true, 'o guest deveria ficar com o fim de jogo');
+    check(showedFinalRanking(telas, ranking), 'A deveria ver a tela final com o ranking, viu: ' + telas.map(t => t.nome).join(', '));
+    check(roundScreens(guest).length === 0, 'A não pode ver tela de rodada');
+    check(relogio.activeCount() === 0, 'o relógio da partida não pode voltar a contar');
+
+    // Controle: durante a partida, quem volta recebe "partida não acabou".
+    const amb2 = usar(createEnvironment());
+    amb2.createRoomAsHost();
+    amb2.join('A', 'peer-a');
+    amb2.join('B', 'peer-b');
+    amb2.startMatch();
+    amb2.drop('peer-a');
+    amb2.join('A', 'peer-a2');
+    const sync2 = syncTo(amb2, 'peer-a2');
+    check(sync2 && sync2.gameOver === false, 'durante a partida, o state-sync deveria dizer que ela não acabou');
+});
+
+test('T68 Estado salvo guarda o fim de jogo e o ranking; estado antigo restaura como antes; voltar ao lobby limpa (BUG-021)', (usar) => {
+    const ranking = [{ posicao: 1, name: 'A', kpi: 30, recursos: 0, kpiFinal: 30 }, { posicao: 2, name: 'Host', kpi: 10, recursos: 0, kpiFinal: 10 }];
+    const guestNaSala = (armazenamento) => {
+        const g = usar(createEnvironment(armazenamento ? { armazenamento } : {}));
+        g.ctx.location.search = '?' + new URLSearchParams({ host: 'false', room: 'sala', playerName: 'A', peerId: 'sala' }).toString();
+        Object.assign(g.state, { isHost: false, playerName: 'A', roomName: 'sala', baseRoomPeerId: 'sala', hostPeerId: 'sala', hostVersion: 0 });
+        return g;
+    };
+
+    // O guest recebe o fim de jogo do host: o estado salvo guarda os dois.
+    const g = guestNaSala();
+    g.state.gameStarted = true;
+    g.state.players = [{ name: 'Host', peerId: 'sala', isHost: true, kpi: 10 }, { name: 'A', peerId: 'peer-a', isHost: false, kpi: 30 }];
+    g.Game.network.handleMessage({ type: 'game-over', ranking }, 'sala');
+    const salvo = JSON.parse(g.armazenamento['pmKPI_roomState']);
+    check(salvo.gameOver === true, 'o estado salvo deveria ter gameOver');
+    check(JSON.stringify(salvo.rankingFinal) === JSON.stringify(ranking), 'o estado salvo deveria ter o ranking final');
+
+    // F5 do guest: restaura o fim de jogo e o ranking.
+    const f5 = guestNaSala(g.armazenamento);
+    check(f5.Game.persistence.tryRestoreState() === true, 'pré-condição: o F5 restaura o estado salvo');
+    check(f5.state.gameOver === true && JSON.stringify(f5.state.rankingFinal) === JSON.stringify(ranking),
+        'o F5 deveria restaurar o fim de jogo e o ranking');
+
+    // Estado salvo antes da correção (sem os campos): restaura como antes.
+    const antigo = { ...salvo };
+    delete antigo.gameOver;
+    delete antigo.rankingFinal;
+    g.armazenamento['pmKPI_roomState'] = JSON.stringify(antigo);
+    const f5Antigo = guestNaSala(g.armazenamento);
+    check(f5Antigo.Game.persistence.tryRestoreState() === true, 'estado salvo antigo deveria continuar restaurando');
+    check(f5Antigo.state.gameOver === false && !f5Antigo.state.rankingFinal, 'estado antigo: sem fim de jogo, como antes');
+
+    // Voltar ao lobby limpa o fim de jogo e o ranking (também no estado salvo).
+    f5.Game.core.voltarAoLobby();
+    check(f5.state.gameOver === false && !f5.state.rankingFinal, 'voltar ao lobby deveria limpar o fim de jogo e o ranking');
+    const depois = JSON.parse(f5.armazenamento['pmKPI_roomState']);
+    check(depois.gameOver === false && !depois.rankingFinal, 'o estado salvo depois de voltar ao lobby não pode ter o ranking antigo');
 });
 
 finish('Fim de partida e lobby');
