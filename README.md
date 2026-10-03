@@ -209,6 +209,13 @@ Respondedor recebe pergunta
 ├── 📁 data/
 │   ├── questions.pt-BR.json
 │   └── events.json
+├── 📁 _docs/                 # arquitetura, convenções, roadmap, issues, checklist de conexão
+├── 📁 tests/
+│   ├── faseD.test.js        # testes de lógica (Node, sem dependências)
+│   └── e2e/                 # ponta a ponta: jogo real no Chromium (Playwright)
+├── 📁 .github/workflows/
+│   └── testes.yml           # roda os testes a cada push
+├── 📄 package.json           # dependências só dos testes de ponta a ponta
 └── 📁 js/
     ├── main.js
     ├── entry/
@@ -232,6 +239,7 @@ Respondedor recebe pergunta
     │   └── advisoryEngine.js
     ├── network/
     │   ├── connectionState.js
+    │   ├── hostSearch.js
     │   ├── peerService.js
     │   ├── messageHandler.js
     │   └── hostMigration.js
@@ -255,9 +263,9 @@ Respondedor recebe pergunta
     ├── dev/
     │   └── debugTools.js
     └── utils/
-        ├── eventBus.js
         ├── logger.js
         ├── persistence.js
+        ├── identity.js
         ├── sanitize.js
         └── i18n.js
 ```
@@ -278,6 +286,15 @@ python3 -m http.server 8000
 # http://localhost:8000
 ```
 
+### Testes
+Rodam automaticamente no GitHub Actions a cada push (aba "Actions" do
+repositório). Localmente, com Node.js:
+```bash
+node tests/faseD.test.js                                     # lógica
+npm ci && npx playwright install chromium                    # ponta a ponta (1ª vez)
+npx playwright test --config tests/e2e/playwright.config.js
+```
+
 ---
 
 ## 🎯 Funcionalidades
@@ -291,12 +308,14 @@ python3 -m http.server 8000
 | 📋 6 eventos | ✅ |
 | 🪟 Modal de evento | ✅ |
 | 📦 Sistema de recursos | ✅ |
-| 💰 Venda de recursos | ✅ |
+| 🆘 Pedido de Ajuda (recursos) | ✅ |
 | 🧭 Sistema de Assessoria (com recusa) | ✅ |
 | ⏱️ Timer 90min | ✅ |
 | 🏆 Ranking com KPI Final | ✅ |
 | 🚪 Sair/Encerrar | ✅ |
-| 👑 Host migration | ✅ |
+| 👑 Troca de host (outro jogador assume se o host sair) | ✅ |
+| 🔌 Reconexão no meio da partida (com identidade por navegador) | ✅ |
+| 🧪 Testes automatizados (lógica e ponta a ponta) | ✅ |
 | 🐛 Debug mode | ✅ |
 
 ---

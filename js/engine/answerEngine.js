@@ -89,7 +89,7 @@ function handleAnswer(msg) {
 
     // Nunca fica negativo — se já estava em 0 e errou de novo, só não ganha
     // recurso nenhum, sem penalidade extra (ver decisão registrada em
-    // ARCHITECTURE.md / CONTINUITY.md).
+    // _docs/architecture.md e _docs/roadmap.md).
     if (resultado.gastaRecurso) {
         respondedor.recursos = Math.max(0, respondedor.recursos - 1);
     }

@@ -10,16 +10,15 @@
 
 - **Vanilla JavaScript**, sem framework (React, Vue, etc.) e sem bundler/build step. Todo arquivo `.js` é carregado via `<script>` simples em `game.html`/`index.html`, na ordem em que aparece — a ordem importa (um arquivo que usa `Game.domain.kpi` precisa ser carregado depois de `domain/kpiRules.js`).
 - **Namespace global único**: `window.Game`, subdividido em `Game.domain`, `Game.state`, `Game.engine`, `Game.network`, `Game.ui`. Todo arquivo exporta pra dentro desse namespace no final (bloco `// EXPORTAÇÃO`).
-- **PeerJS** para conexão P2P (WebRTC) — sem servidor próprio, usa o broker público gratuito do PeerJS só para sinalização inicial; depois disso a comunicação é direta entre os navegadores.
+- **PeerJS** para conexão P2P (WebRTC) — sem servidor próprio, usa o broker público gratuito do PeerJS só para sinalização inicial; depois disso a comunicação é direta entre os navegadores. Todo `new Peer(...)` recebe uma cópia de `CONFIG.PEER` (`config/game-config.js`) — é o único lugar para apontar outro servidor de sinalização.
 - **CSS puro**, sem pré-processador, tema único "dark + glassmorphism" definido via custom properties em `:root` (`css/style.css`).
-- **Sem testes automatizados** — decisão registrada (ver NOTA-005 em `architecture.md`). Validação é sempre manual (multi-cliente, F5, DevTools).
+- **Testes automatizados no GitHub Actions** (desde a Fase D) — ver "Testes" abaixo. O que depende de rede real, celular ou outros navegadores continua manual (`testes-conexao.md`).
 
 ## Padrão de arquitetura: camadas
 
 ```
 domain/   → regras puras (sem DOM, sem rede, sem Game.state). Recebem
-            parâmetros, retornam resultado. Testáveis isoladamente
-            (mesmo sem teste automatizado hoje).
+            parâmetros, retornam resultado. Testáveis isoladamente.
 state/    → Game.state é a fonte única da verdade. selectors.js lê,
             mutations.js escreve (ver exceção abaixo).
 engine/   → orquestração: chama domain/, mexe em state, aciona
@@ -30,7 +29,7 @@ ui/       → tudo que mexe no DOM: components/ (telas/elementos
             persistentes) e modals/ (overlays).
 ```
 
-**Exceção conhecida, aceita:** o contrato original previa que só `mutations.js` escrevesse em `Game.state`, e que `domain/` retornasse deltas em vez de mutar. Isso não foi seguido à risca — `engine/*.js` escreve direto em `Game.state.players`, e algumas funções de `domain/` mutam o objeto recebido. Registrado como dívida arquitetural aceita (NOTA-005) — só valeria a pena corrigir se o projeto um dia tiver testes automatizados de verdade, o que não está nos planos.
+**Exceção conhecida, aceita:** o contrato original previa que só `mutations.js` escrevesse em `Game.state`, e que `domain/` retornasse deltas em vez de mutar. Isso não foi seguido à risca — `engine/*.js` escreve direto em `Game.state.players`, e algumas funções de `domain/` mutam o objeto recebido. Registrado como dívida arquitetural aceita (NOTA-005) — decisão de não corrigir, mantida mesmo depois de o projeto ganhar testes automatizados.
 
 ## Padrão de rede: host autoritativo
 
@@ -39,6 +38,28 @@ O **host é sempre a fonte da verdade**. Um guest nunca aplica uma mudança de e
 **Pegadinha recorrente (já causou BUG-002, BUG-006 e BUG-007 — vale ler antes de mexer em qualquer fluxo de rede novo):** `Game.network.sendToPlayer()`/`broadcastAll()`, quando o destinatário é o próprio host, processam a mensagem **na hora, de forma síncrona** — não passam pela rede de verdade. Isso significa que a ordem de execução no host pode ficar diferente da ordem que um guest recebe (que é sempre sequencial, via rede). Ao adicionar um fluxo novo que envolve o host mandar algo pra si mesmo, sempre perguntar: "essa sequência de eventos faz sentido também quando roda tudo de uma vez, sem esperar a rede?"
 
 Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` ou `<coisa>-oferta` (o host processa e encaminha) → `<coisa>-response` (resposta de quem foi perguntado) → `<coisa>-confirmada`/`<coisa>-confirmed` (resultado final, broadcast pra todos). Ver `engine/tradeEngine.js` (`ajuda-request` → `ajuda-oferta` → `ajuda-oferta-response` → `ajuda-confirmada`) como referência mais recente e mais limpa desse padrão.
+
+### Mensagens de conexão e identidade (Fase D)
+
+| Mensagem | Quem envia | Campos / observação |
+|---|---|---|
+| `player-join` | guest → host | `playerName`, `peerId`, `token` (identidade por sala; o host guarda só o hash). Montada só em `enviarPlayerJoin()` (`network/peerService.js`) |
+| `join-rejected` | host → quem tentou entrar | `reason`: `room-full`, `room-locked` (partida em andamento, nome novo), `name-taken`, `identity-mismatch` (token diferente do registrado) |
+| `state-sync` | host → quem entra ou volta | `fullState` com a rodada, o relógio, `rodadaEncerrada`, `partidaPausada` e `respondidos` (quem já respondeu na rodada) |
+| `round-start` | host → todos | também leva `respondidos` |
+| `kpi-update` (da resposta) | host → todos | também leva `respondidos` |
+| `round-ended` | host → todos | rodada encerrada, aguardando o "Nova Rodada" |
+| `partida-pausada` | host → todos | faltam jogadores conectados; retoma sozinha quando alguém volta |
+
+Mensagem que chega sem um campo novo (de uma versão anterior do jogo) mantém o comportamento antigo.
+
+## Testes
+
+- `tests/faseD.test.js`: lógica do jogo. Carrega os arquivos reais em contextos isolados do Node, com rede, tela e `localStorage` simulados. Sem dependências: `node tests/faseD.test.js`.
+- `tests/e2e/*.spec.js`: ponta a ponta com Playwright — o jogo real em janelas separadas do Chromium, com o site e um servidor PeerJS locais. As dependências do `package.json` são só destes testes; o jogo não usa nenhuma.
+- Os dois rodam no GitHub Actions a cada push e pull request (`.github/workflows/testes.yml`); o resumo aparece na página da execução.
+- Toda mudança de lógica vem com teste. A frente vai em dois commits: primeiro só os testes (os novos devem falhar no Actions), depois o código (tudo passa). Isso confirma que os testes novos de fato pegam o problema.
+- Código novo de lógica fica onde o teste alcança (`engine/`, `network/`, `state/`, `utils/`); `main.js` só orquestra a inicialização.
 
 ## Nomenclatura — estado atual (em transição)
 
@@ -53,4 +74,4 @@ Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` o
 
 ## Convenção de commit
 
-Sem padrão rígido tipo Conventional Commits, mas os commits deste projeto seguem informalmente `tipo: descrição curta` no título (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`), com corpo explicando o quê e o porquê quando a mudança não é óbvia.
+Conventional Commits, em português: `tipo(escopo opcional): descrição curta` — por exemplo `fix(rede): ...`, `feat(jogo): ...`, `test: ...`, `docs: ...`, `chore: ...` — com corpo explicando o quê e o porquê quando a mudança não é óbvia.

@@ -176,7 +176,7 @@ A matemática da troca em si não mudou (`domain/tradeRules.js` reaproveitado se
 
 ### Economia de recursos: erro é que custa, não participar (feedback do piloto, Fase C)
 
-Antes: toda resposta gastava 1 recurso, acertando ou errando (exceto evento Reserva de Contingência). Reformulado — decisão do usuário, registrada em `roadmap.md`/`CONTINUITY.md`:
+Antes: toda resposta gastava 1 recurso, acertando ou errando (exceto evento Reserva de Contingência). Reformulado — decisão do usuário, registrada em `roadmap.md`:
 
 - Recursos iniciais: 20 → **10** (`config/game-config.js`)
 - **Acertar nunca gasta recurso** (antes gastava igual a errar)

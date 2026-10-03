@@ -11,8 +11,8 @@
 >
 > **NOTA-005** em `architecture.md` (`domain/` muta o estado recebido em vez
 > de retornar deltas) foi avaliada e fechada como "não será corrigida" —
-> decisão do usuário de não escrever testes automatizados, que era a única
-> situação em que valeria o risco de mexer nessa lógica.
+> decisão do usuário, mantida mesmo depois de o projeto ganhar testes
+> automatizados (Fase D).
 
 ---
 

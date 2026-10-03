@@ -9,6 +9,58 @@ não é mais um arquivo de arquivo morto.
 
 ---
 
+## [Sem versão] - 2026-10-03 — Fase D: conexão, identidade e troca de host
+
+Detalhes de cada bug corrigido (sintoma, causa e testes) em
+`_docs/ISSUES.md`; mapa de casos cobertos e testes manuais pendentes em
+`_docs/testes-conexao.md`.
+
+### Added
+- **Sala travada durante a partida:** nome novo é recusado; só volta
+  quem já estava na partida.
+- **Jogador desconectado:** quem cai no meio da partida continua na
+  lista (📴), com KPI, recursos, fase e vaga preservados, fora do
+  sorteio até voltar.
+- **Partida pausada** quando faltam jogadores conectados (mas não
+  jogadores da partida); retoma sozinha, com o mesmo evento, quando
+  alguém volta.
+- **Identidade por sala:** cada navegador gera um token por sala
+  (`js/utils/identity.js`); a reconexão exige o mesmo token, não só o
+  nome. O host guarda só o hash (SHA-256 próprio, que funciona também
+  fora de HTTPS).
+- **Troca de host:** os jogadores esperam o host voltar por até 10s
+  (`CONFIG.JOGO.HOST_TIMEOUT`); depois, outro assume numa versão nova
+  da sala (`-h1`, `-h2`...). O host antigo volta como jogador comum.
+  A sala é encontrada em qualquer versão, inclusive pela tela inicial
+  (`js/network/hostSearch.js`).
+- **Opções do PeerJS num lugar só** (`CONFIG.PEER`).
+- **Testes automatizados** no GitHub Actions: lógica
+  (`tests/faseD.test.js`, 61 testes) e ponta a ponta com o jogo real no
+  Chromium (`tests/e2e`, 10 cenários).
+
+### Changed
+- Saída da página (fechar aba, F5) encerra as conexões na hora, para os
+  outros perceberem sem esperar o tempo limite da rede.
+- Quem reconecta volta com o relógio contando e na situação certa da
+  rodada (em andamento, encerrada, pausada ou entre duas duplas).
+- Depois de uma troca de host, a rodada continua de onde parou (todos
+  sabem quem já respondeu).
+- F5 do host em qualquer momento da partida faz o que aconteceria sem o
+  F5. A retomada saiu de `js/main.js` para
+  `js/engine/sessionEngine.js` (`retomarPartidaAposRecarregar()`).
+- "Voltar ao lobby" zera os jogadores e tira da lista quem estava
+  desconectado.
+
+### Fixed
+- BUG-008 a BUG-018 (inclusive B1–B5 do checklist de conexão).
+
+### Security
+- **SEC-003:** o nome do host não pode mais ser tomado por quem entra.
+- **SEC-004:** reconexão no lugar de um jogador desconectado exige o
+  token de identidade dele.
+
+---
+
 ## [Sem versão] - 2026-09-18
 
 ### Changed
@@ -57,9 +109,7 @@ não é mais um arquivo de arquivo morto.
   (ex-`todo.md`) e `ISSUES.md` movidos pra lá; `README.md` e
   `CHANGELOG.md` continuam na raiz. Criado `_docs/conventions.md`
   (padrões de nomenclatura, arquitetura em camadas, pegadinha do
-  host-autoritativo que já causou 3 bugs, stack técnica) e
-  `_docs-pessoais/` (notas do usuário, fora do git — adicionado ao
-  `.gitignore`).
+  host-autoritativo que já causou 3 bugs, stack técnica).
 - **Feedback do piloto com alunos (roadmap.md, seção 9), Fases A-C:**
   - **Fase A:** botões reordenados (Nova Rodada primeiro, Encerrar
     Partida discreto e separado no fim — reduz clique acidental no

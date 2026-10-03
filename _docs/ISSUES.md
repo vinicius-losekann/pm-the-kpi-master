@@ -4,7 +4,51 @@ Registro de bugs em aberto ou em investigação. Bugs da migração inicial
 (Fases 0–7: BUG-001 a BUG-007, REGRESSÃO-001/002, SEC-001/002,
 ESCLARECIMENTO-001) foram corrigidos, estão estáveis há tempo e seu
 histórico técnico completo (causa raiz, correção aplicada) foi movido
-para `../CHANGELOG.md` — este arquivo agora foca em bugs atuais.
+para `../CHANGELOG.md` — este arquivo agora foca em bugs atuais e nos
+corrigidos recentemente (Fase D).
+
+---
+
+## Em investigação
+
+### BUG-019: F5 do host com um pedido de assessoria em andamento
+
+- **Status:** 🔍 Suspeita, não confirmada (registrada em 03/10/2026)
+- **Local:** `engine/sessionEngine.js` → `retomarPartidaAposRecarregar()`;
+  `engine/advisoryEngine.js` (prazo da assessoria)
+- **Sintoma esperado:** se o host recarregar a página enquanto um assessor
+  ainda não respondeu, a rodada pode ficar parada caso o assessor também
+  não responda depois.
+- **Causa provável:** o prazo de 20s da assessoria é um `setTimeout` e se
+  perde com a página; a retomada rearma só o prazo de resposta do
+  Respondedor, e a resposta dele fica guardada esperando a assessoria.
+- **Próximo passo:** confirmar lendo o fluxo (e com teste automatizado);
+  se confirmar, corrigir como frente própria.
+
+---
+
+## Fase D (conexão, identidade e troca de host) — corrigidos
+
+Encontrados nos testes da Fase D (automatizados e com navegadores reais).
+Cada correção veio com teste automatizado — os números (T…, E…) são os
+de `tests/faseD.test.js` e `tests/e2e`; o mapa completo está em
+`testes-conexao.md`.
+
+| ID | Sintoma | Causa | Correção |
+|---|---|---|---|
+| SEC-003 | Alguém entrando com o nome do host tomava o lugar dele na lista | `addPlayer()` tratava o nome do host como reconexão (o host não tem conexão consigo mesmo) | D1a: nome do host sempre "em uso" (`name-taken`) — T3b |
+| SEC-004 | Quem soubesse o nome de um jogador desconectado entrava no lugar dele e herdava KPI, recursos e fase | Reconexão conferia só o nome | D2: token de identidade por sala; o host guarda só o hash e exige o mesmo token (`identity-mismatch`) — T22–T29 |
+| BUG-008 | Troca de host falhava: o guest que tentava achar a sala nova perdia a própria conexão | Qualquer erro do PeerJS (inclusive o esperado `peer-unavailable`) destruía o peer local | D1b: depois de aberto, erro não destrói mais o peer; tentativa sem peer conta como falha — T19, T20 |
+| BUG-009 | Rodada travada depois da troca de host | O novo host continuava uma pergunta sem ter o gabarito | D1b: sem gabarito, a pergunta é descartada e a partida segue com o mesmo evento — T21, T21b |
+| BUG-010 | Relógio de quem reconectava andava de 10 em 10 segundos | A contagem local só era ligada no início da partida | D2b: `iniciarRelogio()` também na reconexão — T30, T31 |
+| BUG-011 | Quem reconectava via de novo uma pergunta já respondida | O `state-sync` não dizia se a rodada estava encerrada, pausada ou entre duas duplas | D2b: `state-sync` leva a situação da rodada — T32–T34 |
+| BUG-012 | Erro "cannot reconnect" 3s depois de assumir como host | O aviso de desconexão do peer antigo mandava reconectar o peer novo | D3c: só reconecta o peer em uso e de fato desconectado — T46 |
+| BUG-013 | Depois de uma troca de host, entrar pela tela inicial dava "Sala não encontrada" | A procura olhava só o ID base da sala (a sala muda para `-h1`, `-h2`...) | D3c: procura o ID base e as versões seguintes ao mesmo tempo — T44, T45, T47 · E3 |
+| BUG-014 (B1) | Depois de um "Sair da partida", o host não conseguia iniciar outra com 2 jogadores | "Voltar ao lobby" não zerava a marca de "aguardando no lobby" | D3d: voltar ao lobby zera os jogadores — T48 · E8 |
+| BUG-015 (B2) | Depois de uma troca de host, uma rodada nova começava sozinha ou alguém respondia duas vezes | Só o host sabia quem já tinha respondido na rodada | D3e: todos recebem a lista (`respondidos`) — T35, T49–T52 · E4, E5 |
+| BUG-016 (B3) | F5 do host com a rodada encerrada: telas erradas ("Aguardando início da rodada...", última dupla como em andamento) | "Rodada encerrada" não era salvo; a retomada reabria a última rodada | D3f: estado salvo leva a situação; `retomarPartidaAposRecarregar()` — T53, T57 · E9 |
+| BUG-017 (B4) | F5 do host logo depois de uma resposta: partida travada | O aviso para seguir à próxima dupla (3s depois) se perdia com a página | D3f: a retomada segue para a próxima dupla, encerra a rodada ou encerra a partida — T54, T58 · E10 |
+| BUG-018 (B5) | F5 do host com a partida pausada: outro evento sorteado, efeitos reaplicados | A pausa não era salva | D3f: continua pausada com o mesmo evento — T55, T57 · E11 |
 
 ---
 
