@@ -77,33 +77,6 @@ function handleMessage(msg, fromPeerId) {
             window.location.href = './';
             break;
 
-        case 'host-changed':
-            state.hostPeerId = msg.newHostPeerId;
-            if (msg.hostVersion !== undefined) state.hostVersion = msg.hostVersion;
-            if (msg.players) state.players = msg.players;
-            if (!state.isHost) Game.network.reconnectToNewHost(msg.newHostPeerId);
-            if (state.gameStarted && !state.gameOver) {
-                Game.ui.showScreen('game');
-                Game.ui.updatePlayersOnlineList();
-                Game.ui.updateRankingList();
-                Game.ui.updateTimerDisplay();
-                if (state.currentRound) {
-                    const isParticipant =
-                        state.playerName === state.currentRound.perguntador ||
-                        state.playerName === state.currentRound.respondedor;
-                    if (isParticipant) {
-                        Game.ui.displayRoundStart();
-                        if (state.currentRound.pergunta) {
-                            Game.ui.displayQuestion(state.currentRound.pergunta);
-                        }
-                    } else {
-                        Game.ui.displaySpectatorView(state.currentRound.perguntador, state.currentRound.respondedor);
-                    }
-                }
-            }
-            Game.saveState();
-            break;
-
         // --- PARTIDA ---
         case 'game-start':
             state.timer = msg.timer;

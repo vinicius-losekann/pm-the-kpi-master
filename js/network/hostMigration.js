@@ -349,7 +349,9 @@ function becomeHost() {
         const proximoBackup = state.players.find(p => p.name !== state.playerName);
         state.backupPeerId = proximoBackup ? proximoBackup.peerId : '';
 
-        Game.network.broadcastAll({ type: 'host-changed', newHostPeerId: id, hostVersion: newVersion, players: state.players });
+        // Não há aviso de troca para mandar: as conexões acabaram de ser
+        // zeradas e ninguém conseguiu se conectar ao peer novo ainda. Cada
+        // guest acha a sala nova sozinho (attemptReconnectToNewHost()).
 
         Game.ui.setupUI();
 
@@ -358,19 +360,7 @@ function becomeHost() {
             Game.ui.updatePlayersOnlineList();
             Game.ui.updateRankingList();
             Game.ui.updateTimerDisplay();
-
-            clearInterval(state.timerInterval);
-            state.timerInterval = setInterval(() => {
-                state.timer--;
-                Game.ui.updateTimerDisplay();
-                if (state.timer % 10 === 0) {
-                    Game.network.broadcastAll({ type: 'timer-update', remaining: state.timer });
-                }
-                if (state.timer <= 0) {
-                    clearInterval(state.timerInterval);
-                    Game.core.endGame(Game.core.buildRanking());
-                }
-            }, 1000);
+            Game.core.iniciarRelogio();
 
             // Fase D: só dá para continuar a rodada em andamento se este
             // jogador tem o gabarito — ou seja, se era o Perguntador (só
@@ -553,18 +543,6 @@ function voltarComoJogadorComum(versaoSeguinte, idSeguinte) {
     Game.saveState();
 }
 
-/**
- * Reconecta a um novo host (usado após receber host-changed).
- */
-function reconnectToNewHost(newHostPeerId) {
-    const cs = Game.network.connectionState;
-    Game.state.hostPeerId = newHostPeerId;
-    Object.values(cs.getConnections()).forEach(c => c.close());
-    cs.resetConnections();
-    const conn = cs.getPeer().connect(newHostPeerId, { reliable: true });
-    Game.network.handleConnection(conn);
-}
-
 // ============================================
 // EXPORTAÇÃO
 // ============================================
@@ -576,7 +554,6 @@ Object.assign(window.Game.network, {
     attemptReconnectToNewHost,
     retryOrGiveUp,
     becomeHost,
-    reconnectToNewHost,
     registrarPapelNaUrl,
     retomarComoJogadorSeOutroAssumiu
 });

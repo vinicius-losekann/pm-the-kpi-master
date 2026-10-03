@@ -47,6 +47,9 @@ function startGame() {
  * contagem só era ligada em startGame() — quem reconectava ficava com
  * o relógio parado, andando só de 10 em 10 segundos a cada
  * 'timer-update'.
+ *
+ * Também é a contagem de quem assume como host (becomeHost(), em
+ * network/hostMigration.js), que antes tinha uma cópia própria.
  */
 function iniciarRelogio() {
     const state = Game.state;

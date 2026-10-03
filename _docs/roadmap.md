@@ -153,6 +153,7 @@ Objetivo confirmado com o usuário: recurso vira punição só por errar, não m
 | D3e | Quem já respondeu na rodada é conhecido por todos: depois da troca de host a rodada continua de onde parou, sem ninguém responder duas vezes; rodada encerrada não recomeça sozinha | ✅ |
 | D3f | F5 do host em qualquer momento da partida faz o que aconteceria sem o F5: rodada encerrada continua encerrada, partida pausada continua pausada com o mesmo evento, resposta recém-dada segue para a próxima dupla (ou encerra a partida, se completou a última fase) | ✅ |
 | BUG-019 | F5 do host com um pedido de assessoria sem resposta: o pedido é cancelado (quem responde pode pedir de novo) em vez de a rodada ficar presa | ✅ |
+| — | Refatoração sem mudança para quem joga: quem assume como host usa a mesma contagem do relógio do início da partida; removido o aviso de troca de host que não chegava a ninguém | ✅ |
 
 Checklist de conexão (casos cobertos, testes manuais pendentes e
 limitações): `testes-conexao.md`. Falta: testes manuais P1 que não dão
