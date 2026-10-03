@@ -1,8 +1,9 @@
 // ============================================
 // PM: The KPI Master - Ponta a ponta: F5 do host em cada momento
 // ============================================
-// Checklist: _docs/testes-conexao.md (M2 e os bugs B3, B4 e B5). O F5
-// no meio da pergunta está em conexao.spec.js (E1).
+// Checklist: _docs/testes-conexao.md (M2 e os bugs B3, B4 e B5) e
+// _docs/ISSUES.md (BUG-019, assessoria pendente). O F5 no meio da
+// pergunta está em conexao.spec.js (E1).
 // ============================================
 
 const { test, expect, codigoDeSala, idDaSala, iniciarPartida, responderAteEncerrarRodada, esperarPerguntaAbertaPara } = require('./apoio');
@@ -108,4 +109,35 @@ test('E11 F5 do host com a partida pausada: continua pausada com o mesmo evento 
     expect(await ana.estado(() => Game.state.currentRound.evento.id), 'a rodada retomada deveria usar o mesmo evento').toBe(evento);
     await expect(ana.page.locator('#modalEvento')).toBeHidden();
     await beto.esperar(() => Game.state.currentRound !== null && Game.state.rodadaEncerrada === false);
+});
+
+test('E12 F5 do host com um pedido de assessoria sem resposta: o pedido é cancelado e quem responde pode seguir (BUG-019)', async ({ jogadores }) => {
+    const codigo = codigoDeSala();
+    const sala = idDaSala(codigo);
+    const ana = await jogadores.novo('Ana');
+    const beto = await jogadores.novo('Beto');
+    const caio = await jogadores.novo('Caio');
+    await iniciarPartida(ana, [beto, caio], codigo);
+
+    // Um guest com a pergunta aberta pede assessoria; o assessor não responde.
+    const respondedor = await esperarPerguntaAbertaPara(ana, [ana, beto, caio], [beto, caio]);
+    await respondedor.clicar('#btnPedirAssessoria');
+    await respondedor.page.click('#assessoriaJogadoresList .assessor-select-btn', { timeout: 10000 });
+    await ana.esperar(() => !!Game.state.currentRound && !!Game.state.currentRound.assessoria &&
+        Game.state.currentRound.assessoria.status === 'pending');
+    expect(await respondedor.temPerguntaAberta(), 'pré-condição: botões travados esperando o assessor').toBe(false);
+
+    await ana.page.reload();
+    await esperarHostDeVolta(ana, sala);
+    await expect.poll(() => respondedor.conectadoA(sala), { timeout: 25000, message: respondedor.nome + ' deveria reconectar ao mesmo host' }).toBe(true);
+
+    // Volta com a pergunta aberta, botões e "Pedir Assessoria" liberados.
+    await expect.poll(() => respondedor.temPerguntaAberta(),
+        { timeout: 15000, message: respondedor.nome + ' deveria voltar com os botões liberados (pedido cancelado)' }).toBe(true);
+    await expect(respondedor.page.locator('#btnPedirAssessoria'), 'deveria poder pedir assessoria de novo').toBeEnabled();
+    expect(await ana.estado(() => Game.state.currentRound.assessoria || null), 'o host não deveria mais esperar o assessor').toBeNull();
+
+    // Responde e a partida segue.
+    expect(await respondedor.responderSeForMinhaVez()).toBe(true);
+    await ana.esperar((nome) => Game.state.usedRespondedorThisRound.includes(nome), { arg: respondedor.nome, timeout: 10000 });
 });

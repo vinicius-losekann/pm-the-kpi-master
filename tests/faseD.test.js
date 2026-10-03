@@ -11,7 +11,8 @@
 // D3b), da procura da sala depois de migrações de host, inclusive na
 // tela inicial (Fase D3c), da volta ao lobby (D3d), do rodízio da
 // rodada que continua depois de uma troca de host (D3e) e da retomada
-// da partida depois de um F5 do host (D3f) num ambiente simulado, sem
+// da partida depois de um F5 do host (D3f; com um pedido de assessoria
+// em andamento, BUG-019) num ambiente simulado, sem
 // navegador e sem PeerJS: a rede é trocada por conexões falsas, a UI
 // por um registro de chamadas e o localStorage por um objeto em
 // memória (um F5 é um ambiente novo com o mesmo localStorage).
@@ -55,6 +56,7 @@ const ARQUIVOS = [
     'js/engine/sessionEngine.js',
     'js/engine/turnEngine.js',
     'js/engine/answerEngine.js',
+    'js/engine/advisoryEngine.js',
     'js/network/peerService.js',
     'js/network/messageHandler.js',
     'js/network/hostMigration.js',
@@ -2634,6 +2636,161 @@ teste('T58 F5 do host logo depois da resposta que completa a última fase: a par
     confere(novo.broadcastsDoTipo('game-over').length === 1, 'deveria avisar os guests do fim de jogo');
     confere(novo.broadcastsDoTipo('round-start').length === 0 && novo.broadcastsDoTipo('round-ended').length === 0,
         'não pode seguir para outra dupla nem encerrar só a rodada');
+});
+
+// ============================================
+// BUG-019 — F5 DO HOST COM UM PEDIDO DE ASSESSORIA EM ANDAMENTO
+// ============================================
+
+/**
+ * Partida de 3 (Host, A, B) com a dupla fixada e um pedido de
+ * assessoria aceito pelo host, ainda sem resposta do assessor.
+ */
+function prepararAssessoriaPendente(amb, { perguntador, respondedor, assessor }) {
+    salaParaRecarregar(amb);
+    amb.entrar('A', 'peer-a');
+    amb.entrar('B', 'peer-b');
+    amb.iniciarPartida();
+    // O sorteio da dupla é aleatório: fixa os papéis (mesma pergunta e evento).
+    amb.state.currentRound = { ...amb.state.currentRound, perguntador, respondedor, respondeu: false };
+    amb.state.usedRespondedorThisRound = [];
+    if (respondedor === 'Host') {
+        amb.Game.core.requestAssessoria(assessor);
+    } else {
+        amb.Game.network.handleMessage({ type: 'assessoria-request', assessorName: assessor, requesterName: respondedor }, amb.jogador(respondedor).peerId);
+    }
+    const a = amb.state.currentRound.assessoria;
+    confere(a && a.status === 'pending' && a.assessorName === assessor, 'pré-condição: assessoria pendente');
+    confere(amb.registro.enviados.some(e => e.para === amb.jogador(assessor).peerId && e.msg.type === 'assessoria-question'),
+        'pré-condição: o assessor recebeu a pergunta');
+    return amb.state.currentRound;
+}
+
+teste('T59 F5 do host com assessoria pendente: o pedido é cancelado, quem responde pode pedir de novo e a rodada não fica presa (BUG-019)', (usar) => {
+    // 1) Respondedor guest (A), assessor guest (B), o host pergunta.
+    const amb = usar(criarAmbiente());
+    const r = prepararAssessoriaPendente(amb, { perguntador: 'Host', respondedor: 'A', assessor: 'B' });
+
+    const novo = usar(recarregarHost(amb));
+    const tempo = novo.tempoFalso();
+    novo.limparRegistro();
+    novo.Game.core.retomarPartidaAposRecarregar();
+    const r2 = novo.state.currentRound;
+    confere(r2 && r2.respondedor === 'A' && r2.pergunta.id === r.pergunta.id && !r2.respondeu,
+        'a mesma pergunta deveria continuar em andamento');
+    confere(!r2.assessoria, 'o pedido de assessoria pendente deveria ser cancelado no F5, veio: ' + JSON.stringify(r2.assessoria));
+
+    // Resposta atrasada do assessor do pedido cancelado: ignorada.
+    novo.Game.network.handleMessage({ type: 'assessoria-answer', alternativa: r.pergunta.correct, recusado: false }, 'peer-b');
+    confere(novo.broadcastsDoTipo('assessoria-result').length === 0 && !novo.state.currentRound.assessoria,
+        'a resposta atrasada do assessor do pedido cancelado deveria ser ignorada');
+
+    // Quem responde volta e recebe a pergunta sem o pedido pendente (botões liberados).
+    novo.entrar('A', 'peer-a2');
+    const sync = syncPara(novo, 'peer-a2');
+    confere(sync && sync.currentRound && sync.currentRound.respondedor === 'A' && !sync.currentRound.assessoria,
+        'A deveria receber a pergunta sem assessoria pendente, veio: ' + JSON.stringify(sync && sync.currentRound && sync.currentRound.assessoria));
+
+    // Prazo de resposta rearmado: sem resposta, a vez é pulada e a partida segue.
+    tempo.avancar(novo.CONFIG.JOGO.RESPOSTA_TIMEOUT);
+    confere(novo.state.currentRound.respondeu === true && novo.broadcastsDoTipo('kpi-update').some(m => m.playerName === 'A'),
+        'ao fim do prazo de resposta, a vez de A deveria ser pulada (a rodada não pode ficar presa)');
+    tempo.avancar(3000);
+    confere(novo.broadcastsDoTipo('round-start').length === 1, 'depois disso, a próxima dupla deveria começar');
+
+    // 2) Depois do F5, quem responde pode pedir assessoria de novo — e o pedido corre normalmente.
+    const amb2 = usar(criarAmbiente());
+    prepararAssessoriaPendente(amb2, { perguntador: 'Host', respondedor: 'A', assessor: 'B' });
+    const novo2 = usar(recarregarHost(amb2));
+    const tempo2 = novo2.tempoFalso();
+    novo2.Game.core.retomarPartidaAposRecarregar();
+    novo2.entrar('A', 'peer-a2');
+    novo2.entrar('B', 'peer-b2');
+    novo2.limparRegistro();
+    novo2.Game.network.handleMessage({ type: 'assessoria-request', assessorName: 'B', requesterName: 'A' }, 'peer-a2');
+    confere(novo2.broadcastsDoTipo('assessoria-started').length === 1 &&
+        novo2.registro.enviados.some(e => e.para === 'peer-b2' && e.msg.type === 'assessoria-question'),
+        'A deveria conseguir pedir assessoria de novo, e B receber a pergunta');
+    tempo2.avancar(novo2.CONFIG.JOGO.ASSESSORIA_TIMEOUT);
+    const resultado = novo2.broadcastsDoTipo('assessoria-result').pop();
+    confere(resultado && resultado.timeout === true, 'o novo pedido deveria ter o prazo de assessoria normal');
+    tempo2.avancar(novo2.CONFIG.JOGO.RESPOSTA_TIMEOUT);
+    confere(novo2.broadcastsDoTipo('kpi-update').some(m => m.playerName === 'A'), 'e depois o prazo de resposta normal');
+
+    // 3) O host é quem responde: a tela dele já abre sem o pedido pendente.
+    const amb3 = usar(criarAmbiente());
+    prepararAssessoriaPendente(amb3, { perguntador: 'A', respondedor: 'Host', assessor: 'B' });
+    const novo3 = usar(recarregarHost(amb3));
+    const tempo3 = novo3.tempoFalso();
+    const assessoriaNaTela = [];
+    const uiReal = novo3.Game.ui;
+    novo3.Game.ui = new Proxy({}, {
+        get: (_, nome) => (...args) => {
+            if (nome === 'displayQuestion') assessoriaNaTela.push(novo3.state.currentRound && novo3.state.currentRound.assessoria);
+            return uiReal[nome](...args);
+        }
+    });
+    novo3.Game.core.retomarPartidaAposRecarregar();
+    confere(assessoriaNaTela.length === 1 && !assessoriaNaTela[0],
+        'o host deveria ver a pergunta sem o pedido pendente (botões liberados), viu: ' + JSON.stringify(assessoriaNaTela));
+    tempo3.avancar(novo3.CONFIG.JOGO.RESPOSTA_TIMEOUT);
+    confere(novo3.broadcastsDoTipo('kpi-update').some(m => m.playerName === 'Host'),
+        'ao fim do prazo de resposta, a vez do host deveria ser pulada');
+
+    // 4) A resposta já tinha chegado e esperava o assessor: é processada no F5.
+    const amb4 = usar(criarAmbiente());
+    const r4 = prepararAssessoriaPendente(amb4, { perguntador: 'Host', respondedor: 'A', assessor: 'B' });
+    amb4.Game.network.handleMessage({ type: 'answer', alternativa: r4.pergunta.correct, playerName: 'A' }, 'peer-a');
+    confere(amb4.state.currentRound.pendingAnswer, 'pré-condição: resposta guardada esperando a assessoria');
+    amb4.Game.saveState(); // salvo por outro motivo antes do F5 (ex.: alguém caiu)
+    const novo4 = usar(recarregarHost(amb4));
+    const tempo4 = novo4.tempoFalso();
+    novo4.limparRegistro();
+    novo4.Game.core.retomarPartidaAposRecarregar();
+    const kpiDeA = novo4.broadcastsDoTipo('kpi-update').find(m => m.playerName === 'A');
+    confere(kpiDeA && kpiDeA.acertou === true, 'a resposta guardada deveria ser processada depois do F5');
+    const r5 = novo4.state.currentRound;
+    confere(novo4.state.usedRespondedorThisRound.includes('A') && r5 && !r5.pendingAnswer && !r5.assessoria,
+        'A entra no rodízio; nada fica guardado nem pendente, veio: ' + JSON.stringify(r5 && { p: r5.pendingAnswer, a: r5.assessoria }));
+    tempo4.avancar(3000);
+    confere(novo4.broadcastsDoTipo('round-start').length === 1, 'e a partida segue para a próxima dupla');
+});
+
+teste('T60 F5 do host com a assessoria já resolvida: a sugestão (ou a recusa) continua valendo', (usar) => {
+    // Sugestão recebida antes do F5: continua na rodada e o bônus do assessor vale.
+    const amb = usar(criarAmbiente());
+    const r = prepararAssessoriaPendente(amb, { perguntador: 'Host', respondedor: 'A', assessor: 'B' });
+    amb.Game.network.handleMessage({ type: 'assessoria-answer', alternativa: r.pergunta.correct, recusado: false }, 'peer-b');
+    confere(amb.state.currentRound.assessoria.status === 'accepted', 'pré-condição: sugestão recebida');
+
+    const novo = usar(recarregarHost(amb));
+    novo.tempoFalso();
+    novo.limparRegistro();
+    novo.Game.core.retomarPartidaAposRecarregar();
+    const a = novo.state.currentRound.assessoria;
+    confere(a && a.status === 'accepted' && a.assessorName === 'B' && a.sugestao === r.pergunta.correct,
+        'a sugestão deveria continuar na rodada, veio: ' + JSON.stringify(a));
+    novo.entrar('A', 'peer-a2');
+    const sync = syncPara(novo, 'peer-a2');
+    confere(sync && sync.currentRound.assessoria && sync.currentRound.assessoria.status === 'accepted', 'A deveria voltar vendo a sugestão');
+    novo.Game.network.handleMessage({ type: 'answer', alternativa: r.pergunta.correct, playerName: 'A' }, 'peer-a2');
+    confere(novo.broadcastsDoTipo('kpi-update').some(m => m.playerName === 'B' && m.assessoriaBonus === novo.CONFIG.KPI.ASSESSORIA_ACERTO),
+        'seguindo a sugestão certa, o assessor deveria ganhar o bônus');
+
+    // Prazo do assessor esgotado antes do F5: continua recusada e não dá para pedir de novo.
+    const amb2 = usar(criarAmbiente());
+    const tempo2 = amb2.tempoFalso();
+    prepararAssessoriaPendente(amb2, { perguntador: 'Host', respondedor: 'A', assessor: 'B' });
+    tempo2.avancar(amb2.CONFIG.JOGO.ASSESSORIA_TIMEOUT);
+    confere(amb2.state.currentRound.assessoria.status === 'declined', 'pré-condição: prazo do assessor esgotado');
+    const novo2 = usar(recarregarHost(amb2));
+    novo2.tempoFalso();
+    novo2.Game.core.retomarPartidaAposRecarregar();
+    confere(novo2.state.currentRound.assessoria && novo2.state.currentRound.assessoria.status === 'declined', 'a recusa deveria continuar valendo');
+    novo2.entrar('A', 'peer-a2');
+    novo2.limparRegistro();
+    novo2.Game.network.handleMessage({ type: 'assessoria-request', assessorName: 'B', requesterName: 'A' }, 'peer-a2');
+    confere(novo2.broadcastsDoTipo('assessoria-started').length === 0, 'só um pedido de assessoria por pergunta, como sem o F5');
 });
 
 console.log('\n' + (falhou === 0 ? '🎉' : '⚠️') + ' ' + passou + ' passaram, ' + falhou + ' falharam\n');
