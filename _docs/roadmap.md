@@ -35,7 +35,7 @@
 
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
-| 3.1 | **Versionamento do estado salvo** | `localStorage` não tem versão; mudanças futuras podem corromper o carregamento. Adicionar `version` e função de migração. Pré-requisito da Fase E (seção 9). |
+| 3.1 | **Versionamento do estado salvo** | ✅ Feito (03/10/2026): o estado salvo tem `version` (hoje 1) e passa por `migrarEstadoSalvo()` em `utils/persistence.js` antes de ser restaurado. Estado sem versão conta como 1; versão mais nova é ignorada sem ser apagada; versão inválida é apagada. Ao mudar o formato (ex.: Fase E), aumentar `VERSAO_ESTADO` e acrescentar o passo em `MIGRACOES`. |
 | 3.2 | **Compressão de dados** | O estado pode crescer; usar compressão (ex: LZString) para reduzir tamanho. |
 | 3.3 | **Sincronização parcial (delta sync)** | Em vez de enviar o estado completo em `state-sync`, enviar apenas as mudanças (diffs), economizando banda. |
 
@@ -164,4 +164,4 @@ D3f acrescentou 3 cenários.
 
 - Todas as funções e variáveis do código (ex: `sortearPergunta` → `drawQuestion`) traduzidas para inglês; comentários continuam em português.
 - Decisão do usuário: varredura completa, risco aceito — mas só **depois** das Fases A–D estarem implementadas e estáveis. Rename de identificador não deve ser misturado com mudança de comportamento, e essa é a maior mudança de superfície do lote — vale isolar.
-- Pré-requisito: versão no estado salvo (item **3.1**), para que partidas salvas antes da tradução não quebrem ao carregar.
+- Pré-requisito: versão no estado salvo (item **3.1**, ✅ feito), para que partidas salvas antes da tradução não quebrem ao carregar. Se a tradução mudar nomes de campos do estado salvo, acrescentar o passo de migração 1→2. Atenção: os mesmos campos vão pela rede (`state-sync`), onde não há versão.

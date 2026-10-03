@@ -107,7 +107,7 @@ pm-the-kpi-master/
     │
     └── utils/
         ├── logger.js              # 🟡 infra pronta, religamento pendente — ver NOTA-004
-        ├── persistence.js         # ✅ criado (Fase 7) — extraído de main.js, já em uso
+        ├── persistence.js         # ✅ criado (Fase 7) — estado salvo, com versão e migração (roadmap 3.1)
         ├── identity.js            # token de identidade por sala + SHA-256 próprio (Fase D2)
         ├── sanitize.js            # escape de texto vindo de outros jogadores (SEC-001)
         └── i18n.js                # ✅ criado (Fase 6) — ver NOTA-003
@@ -222,6 +222,17 @@ O roadmap original previa mover a configuração para `js/config/constants.js`; 
 ### Por que o projeto não usa ES Modules
 
 Nunca foi decidido usar — o projeto inteiro usa `<script>` simples + namespace global `window.Game`, o mesmo padrão do código original antes da migração. Avaliação ao ser questionado sobre isso: ES Modules exigem servidor HTTP (não funcionam abrindo o HTML direto via `file://`, o que este jogo provavelmente faz em uso casual), tocariam os ~40 arquivos `.js` do projeto, e removeriam toda a camada de compatibilidade `Game.core`/`Game.engine`/`Game.domain` construída ao longo da migração — sem corrigir nenhum bug existente. Recomendação: não migrar, a menos que haja um plano de investir bem mais tempo no projeto com tooling de build.
+
+### Versão do estado salvo (roadmap 3.1)
+
+O estado salvo no `localStorage` (`pmKPI_roomState` e `pmKPI_myData`, gravados juntos por `utils/persistence.js`) tem um número de versão, no campo `version` de `pmKPI_roomState` (`VERSAO_ESTADO`, hoje 1). Antes de restaurar, `migrarEstadoSalvo()` aplica em ordem os passos da tabela `MIGRACOES` (passo N converte da versão N para N+1) até a versão atual. Regras:
+
+- **Sem versão** (salvo antes do 3.1): conta como versão 1 — o formato é o mesmo. No próximo salvamento passa a ter `version: 1`.
+- **Versão mais nova que o código** (ex.: arquivos antigos em cache logo depois de um deploy): não restaura e não apaga — a versão nova do código ainda consegue usar.
+- **Versão inválida** ou passo de migração faltando: tratado como estado corrompido (apagado, jogo começa do zero).
+- A versão é conferida antes de sala e jogador, porque num formato mais novo esses campos podem ter mudado de nome.
+
+Para mudar o formato (ex.: renomear campos na Fase E): aumentar `VERSAO_ESTADO` e acrescentar o passo em `MIGRACOES`, com teste. Como o estado salvo só vale 5 minutos, o risco real é um F5 logo depois de um deploy.
 
 ### `connectionState.js` — por que existe (Fase 4)
 

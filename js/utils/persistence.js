@@ -4,11 +4,44 @@
 // Salva e restaura o estado da partida no localStorage, permitindo
 // retomar a sessão após um F5 (dentro de uma janela de 5 minutos).
 // Fase 7.2 do roadmap — extraído de js/main.js (antes js/game-main.js).
+// Roadmap 3.1: o estado salvo tem versão e passa pela migração antes de
+// ser restaurado (ver VERSAO_ESTADO e MIGRACOES abaixo).
 // ============================================
 
 const ROOM_STATE_KEY = 'pmKPI_roomState';
 const MY_DATA_KEY = 'pmKPI_myData';
 const RESTORE_WINDOW_MS = 5 * 60 * 1000;
+
+// Roadmap 3.1: versão do formato do estado salvo. Ao mudar o formato
+// (ex.: renomear um campo), aumentar a versão e acrescentar em
+// MIGRACOES o passo que converte da versão anterior. Estado salvo sem
+// versão (antes do 3.1) é a versão 1. O número vale para as duas
+// chaves (são sempre gravadas juntas).
+const VERSAO_ESTADO = 1;
+
+// Passo N: converte da versão N para N+1. Recebe e devolve
+// { sala, eu } (pmKPI_roomState e pmKPI_myData).
+const MIGRACOES = {};
+
+/**
+ * Leva o estado salvo da versão em que foi gravado até a versão atual,
+ * aplicando os passos de MIGRACOES em ordem. Erro se faltar um passo.
+ * @param {object} sala - conteúdo de pmKPI_roomState
+ * @param {object} eu - conteúdo de pmKPI_myData
+ * @returns {{sala: object, eu: object}}
+ */
+function migrarEstadoSalvo(sala, eu, versaoAlvo = VERSAO_ESTADO, migracoes = MIGRACOES) {
+    let versao = sala.version === undefined ? 1 : sala.version;
+    let atual = { sala, eu };
+    while (versao < versaoAlvo) {
+        const passo = migracoes[versao];
+        if (!passo) throw new Error('Falta a migração do estado salvo da versão ' + versao);
+        atual = passo(atual.sala, atual.eu);
+        versao++;
+        atual.sala = { ...atual.sala, version: versao };
+    }
+    return atual;
+}
 
 /**
  * Salva o estado completo no localStorage.
@@ -16,6 +49,7 @@ const RESTORE_WINDOW_MS = 5 * 60 * 1000;
 function saveState() {
     const state = Game.state;
     localStorage.setItem(ROOM_STATE_KEY, JSON.stringify({
+        version: VERSAO_ESTADO,
         hostPeerId: state.hostPeerId,
         backupPeerId: state.backupPeerId,
         baseRoomPeerId: state.baseRoomPeerId,
@@ -47,6 +81,8 @@ function saveState() {
 /**
  * Tenta restaurar o estado salvo no localStorage.
  * Só restaura se pertencer à mesma sala/jogador e tiver menos de 5 minutos.
+ * Versão mais nova que VERSAO_ESTADO: ignora sem apagar; versão inválida:
+ * apaga, como estado corrompido.
  * @returns {boolean} true se restaurou com sucesso
  */
 function tryRestoreState() {
@@ -56,8 +92,26 @@ function tryRestoreState() {
     if (!savedState || !savedMyData) return false;
 
     try {
-        const saved = JSON.parse(savedState);
-        const myData = JSON.parse(savedMyData);
+        const lido = JSON.parse(savedState);
+        const versao = lido.version;
+
+        // Versão conferida antes de tudo: num formato mais novo, até o
+        // nome da sala pode ter mudado de campo.
+        if (versao !== undefined && !(Number.isInteger(versao) && versao >= 1)) {
+            throw new Error('versão inválida: ' + JSON.stringify(versao));
+        }
+        if (versao > VERSAO_ESTADO) {
+            // Gravado por um código mais novo (ex.: arquivos antigos em
+            // cache logo depois de um deploy): não restaura e não apaga,
+            // para a versão nova ainda poder usar.
+            console.log('💾 Estado salvo por uma versão mais nova do jogo. Ignorando.');
+            return false;
+        }
+
+        // Chamado por Game.persistence para o teste poder trocar a migração.
+        const migrado = Game.persistence.migrarEstadoSalvo(lido, JSON.parse(savedMyData));
+        const saved = migrado.sala;
+        const myData = migrado.eu;
 
         const currentParams = new URLSearchParams(window.location.search);
         const currentRoom = currentParams.get('room') || 'Sala';
@@ -128,7 +182,9 @@ window.Game = window.Game || {};
 window.Game.persistence = {
     saveState,
     tryRestoreState,
-    clearSavedState
+    clearSavedState,
+    migrarEstadoSalvo,
+    VERSAO_ESTADO
 };
 
 // Compatibilidade: Game.saveState() é chamado diretamente em vários
