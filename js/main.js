@@ -3,7 +3,8 @@
 // ============================================
 // Responsabilidades:
 //   - Inicializar o jogo na ordem correta (DOM, perguntas, PeerJS)
-//   - Retomar partida após recarregar a página (F5)
+//   - Retomar partida após recarregar a página (F5) — a lógica fica em
+//     engine/sessionEngine.js (retomarPartidaAposRecarregar, Fase D3f)
 //   - Ponto de entrada único (DOMContentLoaded)
 //
 // Fase 7: saveState()/tryRestoreState() foram extraídos para
@@ -77,53 +78,6 @@ async function loadQuestions() {
 
     const domains = Object.keys(state.questionsData.domains || {});
     console.log('📚 Domínios carregados:', domains.length);
-}
-
-// ============================================
-// RETOMAR PARTIDA (HOST)
-// ============================================
-function resumeGameEngineIfHost() {
-    const state = Game.state;
-    if (!state.isHost || !state.gameStarted || state.gameOver) return;
-
-    console.log('🔁 Retomando motor da partida após reload do host...');
-
-    Game.ui.showScreen('game');
-    Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
-    Game.ui.updateTimerDisplay();
-
-    clearInterval(state.timerInterval);
-    state.timerInterval = setInterval(() => {
-        state.timer--;
-        Game.ui.updateTimerDisplay();
-
-        if (state.timer % 10 === 0) {
-            Game.network.broadcastAll({ type: 'timer-update', remaining: state.timer });
-        }
-
-        if (state.timer <= 0) {
-            clearInterval(state.timerInterval);
-            Game.core.endGame(Game.core.buildRanking());
-        }
-    }, 1000);
-
-    Game.network.broadcastAll({ type: 'player-list', players: state.players });
-
-    if (!state.currentRound) {
-        Game.core.pickNewPair();
-    } else {
-        // BUG-001 (ver ISSUES.md): antes, os dois ramos deste if/else
-        // chamavam pickNewPair() incondicionalmente, trocando a pergunta
-        // a cada F5 do host. Agora, se já existe uma rodada em andamento,
-        // ela é reexibida em vez de substituída — mesmo padrão já usado
-        // em becomeHost() (js/game-network.js).
-        Game.ui.displayRoundStart();
-        if (state.currentRound.pergunta) {
-            Game.ui.displayQuestion(state.currentRound.pergunta);
-        }
-        Game.core.armarRespostaTimeout(state.currentRound.respondedor);
-        Game.ui.refreshNovaRodadaButton();
-    }
 }
 
 // ============================================
@@ -211,9 +165,11 @@ async function init() {
 
     Game.ui.setupUI();
 
+    // Fase D3f: a retomada do host (o que fazer conforme o momento da
+    // partida em que o F5 aconteceu) fica em engine/sessionEngine.js.
     if (restaurou && state.gameStarted && !state.gameOver) {
         if (state.isHost) {
-            resumeGameEngineIfHost();
+            Game.core.retomarPartidaAposRecarregar();
         } else {
             Game.ui.showScreen('game');
             Game.ui.updateTimerDisplay();

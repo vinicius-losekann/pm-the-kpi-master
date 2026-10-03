@@ -68,7 +68,7 @@ só automatizado (falta o manual).
 
 ---
 
-## 2. Casos cobertos por teste automatizado (55 testes)
+## 2. Casos cobertos por teste automatizado (61 testes)
 
 ### Entrada na sala e identidade
 | Caso | Testes | Manual |
@@ -99,6 +99,10 @@ só automatizado (falta o manual).
 |---|---|---|
 | F5/fechar do host encerra as conexões sem mexer no jogo | 🤖 T12, T13 | — |
 | Host volta dentro de 10s: guests reconectam, sem troca de host | 🤖 T38 · 🌐 E1 | — (coberto por E1) |
+| F5 do host com a pergunta aberta: a mesma pergunta continua; relógio e prazo de resposta religados | 🤖 T56 · 🌐 E1 | — (coberto por E1) |
+| F5 do host com a rodada encerrada: continua encerrada para todos, nada começa sozinho | 🤖 T53, T57 · 🌐 E9 | — (coberto por E9) |
+| F5 do host logo depois de uma resposta: segue para a próxima dupla ou encerra a rodada; se a resposta completou a última fase, a partida termina | 🤖 T54, T58 · 🌐 E10 | — (coberto por E10) |
+| F5 do host com a partida pausada: continua pausada com o mesmo evento e retoma quando alguém volta | 🤖 T55, T57 · 🌐 E11 | — (coberto por E11) |
 | Host não volta: backup assume em ~10s, não antes | 🤖 T39, T40 · 🌐 E2 | 👤 |
 | Backup desconectado é pulado, o próximo assume | 🤖 T10 | — |
 | Novo host marca os outros como desconectados, pausa e retoma | 🤖 T17, T21, T21b | 👤 |
@@ -128,13 +132,18 @@ só automatizado (falta o manual).
 
 ## 3. Bugs encontrados, ainda não corrigidos
 
-| ID | Situação | Causa |
-|---|---|---|
-| 🐛 B3 | F5 do host com a rodada encerrada (esperando o "Nova Rodada"): o host volta mostrando "Aguardando início da rodada..." e os outros veem a última dupla como se a pergunta estivesse em andamento ("Beto pergunta para Ana..."), em vez de "Rodada encerrada". O "Nova Rodada" continua liberado e nada começa sozinho. Encontrado ao experimentar o M2 com navegadores reais (03/10/2026). | `rodadaEncerrada` não é salvo junto com o estado do host, e a retomada depois do F5 reexibe a última rodada (já respondida) como se estivesse em andamento. |
+Nenhum no momento.
 
 Corrigidos: B1 (botão "Iniciar" desabilitado depois de um "Sair da
 partida") na D3d; B2 (rodada que começava sozinha depois de uma troca de
-host) na D3e.
+host) na D3e; B3, B4 e B5 (F5 do host em momentos específicos da
+partida, encontrados com navegadores reais em 03/10/2026) na D3f:
+
+| ID | Situação antes da correção | Causa |
+|---|---|---|
+| B3 | F5 do host com a rodada encerrada: o host voltava com "Aguardando início da rodada..." e os outros viam a última dupla como em andamento, em vez de "Rodada encerrada" | "Rodada encerrada" não era salvo, e a retomada reexibia a última rodada (já respondida) |
+| B4 | F5 do host logo depois de uma resposta, nos ~3s antes da próxima dupla: a partida travava ("Nova Rodada" bloqueado, nenhuma dupla nova) | O aviso para seguir à próxima dupla (agendado para 3s depois) se perdia com a página, e a retomada reabria a pergunta já respondida |
+| B5 | F5 do host com a partida pausada: sorteava outro evento e reaplicava os efeitos | A pausa não era salva, e a retomada começava uma rodada nova |
 
 ---
 
@@ -147,7 +156,7 @@ janelas visíveis lado a lado (aba em segundo plano fica mais lenta).
 | # | Prioridade | Caso | Como testar | Esperado |
 |---|---|---|---|---|
 | M1 | ✅ 🌐 E1 | F5 do host no meio de uma pergunta | Host dá F5 com a pergunta aberta | Guests reconectam em poucos segundos, sem troca de host; a partida segue |
-| M2 | **P1** 🐛 B3 | F5 do host com "rodada encerrada" | Host dá F5 esperando o "Nova Rodada" | Continua esperando o clique (hoje suspeito de reabrir a rodada — a investigar) |
+| M2 | ✅ 🌐 E9 | F5 do host com "rodada encerrada" | Host dá F5 esperando o "Nova Rodada" | Continua "Rodada encerrada" para todos, esperando o clique (B3 corrigido na D3f) |
 | M3 | ✅ 🌐 E2 | F5 do novo host depois da troca | Depois que o guest assumiu, ele dá F5 | Volta como host na mesma sala; os outros reconectam |
 | M4 | ✅ 🌐 E5 | Host antigo reabre o **link antigo** da partida (não a tela inicial), em até 5 min | Fechar a aba do host, esperar a troca, reabrir pelo histórico | Entra como jogador comum; URL passa a `host=false` |
 | M5 | ✅ 🌐 E4 | Troca de host com 3 jogadores | Host fecha a aba | O backup assume e o terceiro jogador acha o novo host sozinho |
@@ -198,13 +207,16 @@ não mudam: o teste só aponta o PeerJS para o servidor local.
 | E5 | Troca de host com a rodada encerrada: continua encerrada; host antigo volta pelo link antigo como jogador comum; nada começa até o "Nova Rodada" | M4, M19 |
 | E6 | Jogador dá F5; outro fecha e volta pela tela inicial; nome novo é recusado; a rodada vai até o fim | M6 |
 | E8 | Jogador sai da partida, ela acaba; voltar ao lobby e iniciar outra | M10 |
+| E9 | F5 do host com a rodada encerrada: continua encerrada para os dois, "Nova Rodada" liberado, nada começa sozinho | M2, B3 |
+| E10 | F5 do host logo depois de responder: a partida segue (próxima dupla ou fim da rodada) e a rodada seguinte começa | B4 |
+| E11 | F5 do host com a partida pausada: continua pausada com o mesmo evento, sem mostrar outro; retoma quando o outro volta | B5 |
 
 Queda de rede (M7) não entrou: a simulação de "sem rede" do navegador
 não derruba a conexão direta entre janelas na mesma máquina (conferido —
 as mensagens continuaram chegando), então o cenário não testaria nada.
 Continua manual.
 
-Ainda automatizáveis: M2 (depois de corrigir o B3) e os P2 M11–M16.
+Ainda automatizáveis: os P2 M11–M16.
 
 **Continuam manuais:** M7 (queda de rede real), M8 (celular), M9 (redes
 reais diferentes), M17 (Firefox, Safari) e M18 (aba esquecida em

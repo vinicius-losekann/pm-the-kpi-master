@@ -86,7 +86,7 @@
 | 7.3 | **Linter (ESLint) e formatter (Prettier)** | Manter estilo consistente e evitar erros comuns. |
 | 7.5 | **Separar helpers em arquivos próprios** | Funções como `buildRanking` poderiam estar em um arquivo `ranking-utils.js`. |
 | 7.6 | **Extrair helper compartilhado de renderização de alternativas** | `questionComponent.js` (Respondedor) e `advisoryModal.js` (Assessor) duplicam a lógica de montar a lista de alternativas + timer — visualmente quase idênticas, mas disparam ações diferentes no clique (`handleAnswer` vs `responderAssessoria`). Não fundir os dois modais (são interações conceitualmente diferentes), só extrair a parte genuinamente igual (montagem da lista + texto do timer) para uma função compartilhada tipo `Game.ui.renderAlternativesList(container, alternativas, onEscolher)`. Baixo risco, ganho pequeno — não é bug, é redução de duplicação. |
-| 7.7 | **Testes de ponta a ponta com navegadores de verdade** | Hoje os testes automatizados (`tests/`) simulam o PeerJS. Rodar o jogo em navegadores reais no GitHub Actions (Playwright + servidor PeerJS local + servidor estático) cobre quase todo o checklist manual de `testes-conexao.md`. **D4a e D4b feitas**: estrutura em `tests/e2e` e 7 cenários (troca de host, F5, volta pela tela inicial, 3 jogadores, nova partida). Faltam os P2 automatizáveis (M11–M16). |
+| 7.7 | **Testes de ponta a ponta com navegadores de verdade** | Hoje os testes automatizados (`tests/`) simulam o PeerJS. Rodar o jogo em navegadores reais no GitHub Actions (Playwright + servidor PeerJS local + servidor estático) cobre quase todo o checklist manual de `testes-conexao.md`. **D4a e D4b feitas**: estrutura em `tests/e2e` e 10 cenários (troca de host, F5 do host em vários momentos da partida, volta pela tela inicial, 3 jogadores, nova partida). Faltam os P2 automatizáveis (M11–M16). |
 
 ---
 
@@ -151,11 +151,12 @@ Objetivo confirmado com o usuário: recurso vira punição só por errar, não m
 | D3c | Sala encontrada em qualquer versão do host (tela inicial, link antigo, conexão inicial) | ✅ |
 | D3d | "Voltar ao lobby" zera os jogadores (nova partida depois de "Sair da partida") | ✅ |
 | D3e | Quem já respondeu na rodada é conhecido por todos: depois da troca de host a rodada continua de onde parou, sem ninguém responder duas vezes; rodada encerrada não recomeça sozinha | ✅ |
+| D3f | F5 do host em qualquer momento da partida faz o que aconteceria sem o F5: rodada encerrada continua encerrada, partida pausada continua pausada com o mesmo evento, resposta recém-dada segue para a próxima dupla (ou encerra a partida, se completou a última fase) | ✅ |
 
 Checklist de conexão (casos cobertos, testes manuais pendentes e
 limitações): `testes-conexao.md`. Falta: testes manuais P1 que não dão
-para automatizar (M2, M7, M8, M9) e documentação de fechamento. **D4**
-(item 7.7): D4a e D4b feitas.
+para automatizar (M7, M8, M9) e documentação de fechamento. **D4**
+(item 7.7): D4a e D4b feitas; a D3f acrescentou 3 cenários.
 
 ### Fase E — tradução completa de identificadores para inglês (por último)
 

@@ -15,8 +15,8 @@
  * Chamada em 3 situações: (1) início da partida (sessionEngine.startGame),
  * (2) clique manual do host no botão "Nova Rodada" (ver ISSUES.md BUG-005
  * — antes disso era automático ao final do ciclo, agora é sempre uma
- * ação explícita do host), (3) recovery paths (resumeGameEngineIfHost,
- * becomeHost) quando não há state.currentRound nenhum.
+ * ação explícita do host), (3) recovery paths (retomarPartidaPausada,
+ * quando o evento da pausa se perdeu).
  */
 function startNewRound() {
     const state = Game.state;

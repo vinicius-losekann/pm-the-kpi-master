@@ -27,6 +27,11 @@ function saveState() {
         timer: state.timer,
         gameStarted: state.gameStarted,
         usedRespondedorThisRound: state.usedRespondedorThisRound,
+        // Fase D3f: sem estes dois, um F5 do host com a rodada encerrada
+        // ou com a partida pausada perdia essa situação (ver
+        // retomarPartidaAposRecarregar() em engine/sessionEngine.js).
+        rodadaEncerrada: !!state.rodadaEncerrada,
+        partidaPausada: state.partidaPausada || null,
         timestamp: new Date().toISOString()
     }));
 
@@ -88,6 +93,10 @@ function tryRestoreState() {
         Game.state.currentRound = saved.currentRound || null;
         Game.state.baralhos = saved.baralhos || {};
         Game.state.usedRespondedorThisRound = saved.usedRespondedorThisRound || [];
+        // Estado salvo antes da Fase D3f não tem os campos: sem rodada
+        // encerrada e sem pausa, como antes.
+        Game.state.rodadaEncerrada = !!saved.rodadaEncerrada;
+        Game.state.partidaPausada = saved.partidaPausada || null;
 
         const me = Game.getPlayerByName(myData.playerName);
         if (me) {

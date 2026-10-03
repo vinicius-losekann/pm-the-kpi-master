@@ -68,6 +68,85 @@ function iniciarRelogio() {
 }
 
 /**
+ * Host: retoma a partida depois de recarregar a página (F5), a partir do
+ * estado salvo (utils/persistence.js). Chamada por init() (main.js).
+ *
+ * Fase D3f: antes ficava em main.js (resumeGameEngineIfHost()) e tratava
+ * só "sem rodada" e "rodada em andamento" — um F5 em outros momentos
+ * deixava a partida errada ou travada. Agora a retomada faz o que
+ * aconteceria sem o F5, conforme o momento:
+ *   - partida pausada → continua pausada com o mesmo evento (sem sortear
+ *     outro nem reaplicar os efeitos); retoma quando alguém reconectar
+ *     (addPlayer() em network/messageHandler.js);
+ *   - rodada encerrada → continua encerrada, aguardando o "Nova Rodada";
+ *   - sem rodada → começa uma (como antes);
+ *   - pergunta já respondida (F5 nos ~3s antes da próxima dupla, quando
+ *     o setTimeout de answerEngine.handleAnswer() se perde com a página)
+ *     → encerra a partida, se essa resposta completou a última fase, ou
+ *     segue com nextTurn() (próxima dupla ou fim da rodada). "Já
+ *     respondida" = `respondeu` ou o Respondedor já no rodízio, o mesmo
+ *     critério de becomeHost() (network/hostMigration.js);
+ *   - pergunta em aberto → reexibe a mesma pergunta e rearma o prazo de
+ *     resposta (correção do BUG-001, ver ISSUES.md: antes cada F5 trocava
+ *     a pergunta).
+ */
+function retomarPartidaAposRecarregar() {
+    const state = Game.state;
+    if (!state.isHost || !state.gameStarted || state.gameOver) return;
+
+    console.log('🔁 Retomando motor da partida após reload do host...');
+
+    Game.ui.showScreen('game');
+    Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
+    Game.ui.updateTimerDisplay();
+    iniciarRelogio();
+
+    Game.network.broadcastAll({ type: 'player-list', players: state.players });
+
+    const round = state.currentRound;
+    const perguntaJaRespondida = !!round &&
+        (!!round.respondeu || state.usedRespondedorThisRound.includes(round.respondedor));
+
+    if (state.partidaPausada) {
+        console.log('⏸️ A partida estava pausada — continua pausada até alguém reconectar.');
+        state.currentRound = null;
+        Game.ui.showPartidaPausadaMessage();
+        Game.ui.refreshNovaRodadaButton();
+    } else if (state.rodadaEncerrada) {
+        console.log('✅ A rodada já tinha terminado — aguardando o host clicar em "Nova Rodada".');
+        Game.ui.showRoundEndedMessage();
+        Game.ui.refreshNovaRodadaButton();
+    } else if (!round) {
+        Game.engine.turn.pickNewPair();
+    } else if (perguntaJaRespondida) {
+        if (completouUltimaFase(Game.getPlayerByName(round.respondedor))) {
+            console.log('🏁 A última resposta completou a última fase — encerrando a partida.');
+            endGame(buildRanking());
+        } else {
+            console.log('➡️ A pergunta já tinha sido respondida — seguindo para a próxima dupla.');
+            Game.engine.turn.nextTurn();
+        }
+    } else {
+        Game.ui.displayRoundStart();
+        if (round.pergunta) {
+            Game.ui.displayQuestion(round.pergunta);
+        }
+        Game.engine.turn.armarRespostaTimeout(round.respondedor);
+        Game.ui.refreshNovaRodadaButton();
+    }
+}
+
+/**
+ * Fase D3f: o jogador terminou a última fase? Mesma condição usada por
+ * answerEngine.handleAnswer() para encerrar a partida depois da resposta.
+ */
+function completouUltimaFase(jogador) {
+    if (!jogador) return false;
+    return Game.getFaseIndex(jogador.phase) === CONFIG.FASES.length - 1 &&
+        jogador.activities >= CONFIG.JOGO.ACTIVITIES_PER_PHASE;
+}
+
+/**
  * Encerra a partida, exibe o ranking final e notifica todos os jogadores.
  */
 function endGame(ranking) {
@@ -318,6 +397,7 @@ window.Game.engine = window.Game.engine || {};
 window.Game.engine.session = {
     startGame,
     iniciarRelogio,
+    retomarPartidaAposRecarregar,
     endGame,
     endMatch,
     handleMatchEnded,
