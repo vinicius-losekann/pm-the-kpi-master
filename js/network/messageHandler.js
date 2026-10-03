@@ -320,7 +320,10 @@ function addPlayer(msg, fromPeerId) {
         state.players[existingIdx].disconnected = false;
         console.log('🔄 Reconectado:', msg.playerName);
     } else {
-        if (state.gameStarted) {
+        // BUG-021: depois do fim de jogo a sala não fica mais travada —
+        // quem caiu na tela final (e saiu da lista) consegue voltar e ver
+        // o ranking; o próximo passo de todos é voltar ao lobby.
+        if (state.gameStarted && !state.gameOver) {
             console.warn('🔒 Entrada recusada: partida em andamento, "' + msg.playerName + '" não fazia parte dela.');
             rejeitarEntrada(fromPeerId, 'room-locked');
             return;
@@ -381,7 +384,10 @@ function addPlayer(msg, fromPeerId) {
                 partidaPausada: !!state.partidaPausada,
                 // Fase D3e: quem já respondeu nesta rodada — quem volta
                 // também pode assumir como host depois.
-                respondidos: state.usedRespondedorThisRound.slice()
+                respondidos: state.usedRespondedorThisRound.slice(),
+                // BUG-021: fim de jogo — quem volta vê o ranking final.
+                gameOver: !!state.gameOver,
+                rankingFinal: state.rankingFinal || null
             }
         });
     }
@@ -482,6 +488,9 @@ function guardarRespondidos(respondidos) {
  * encerrada, aguardando o host"; pergunta já respondida (intervalo até
  * a próxima dupla) → visão de espectador, sem reabrir a pergunta; senão,
  * a rodada em andamento, como antes.
+ *
+ * BUG-021: no fim de jogo, mostra a tela final com o ranking que veio do
+ * host, sem religar o relógio.
  */
 function restoreState(fullState) {
     const state = Game.state;
@@ -493,13 +502,18 @@ function restoreState(fullState) {
     if (fullState.hostVersion !== undefined) state.hostVersion = fullState.hostVersion;
     state.rodadaEncerrada = !!fullState.rodadaEncerrada;
     guardarRespondidos(fullState.respondidos);
+    // BUG-021: host de versão anterior não manda os campos — como antes.
+    state.gameOver = !!fullState.gameOver;
+    state.rankingFinal = fullState.rankingFinal || null;
 
-    if (state.gameStarted) {
+    if (state.gameStarted && state.gameOver) {
+        Game.core.mostrarFimDeJogo();
+    } else if (state.gameStarted) {
         Game.ui.showScreen('game');
         Game.ui.updateTimerDisplay();
         Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
 
-        if (!state.gameOver) Game.core.iniciarRelogio();
+        Game.core.iniciarRelogio();
 
         if (fullState.partidaPausada) {
             state.currentRound = null;

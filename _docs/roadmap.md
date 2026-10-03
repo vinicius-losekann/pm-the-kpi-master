@@ -154,6 +154,7 @@ Objetivo confirmado com o usuário: recurso vira punição só por errar, não m
 | D3f | F5 do host em qualquer momento da partida faz o que aconteceria sem o F5: rodada encerrada continua encerrada, partida pausada continua pausada com o mesmo evento, resposta recém-dada segue para a próxima dupla (ou encerra a partida, se completou a última fase) | ✅ |
 | BUG-019 | F5 do host com um pedido de assessoria sem resposta: o pedido é cancelado (quem responde pode pedir de novo) em vez de a rodada ficar presa | ✅ |
 | BUG-020 | F5 do host fora da dupla: o host volta vendo a tela de espectador; etiquetas de domínio e área aparecem depois do F5 e para quem volta à partida | ✅ |
+| BUG-021 | F5 na tela de fim de jogo volta à tela final com o mesmo ranking (antes a partida podia recomeçar); quem cai no fim de jogo pode voltar à sala | ✅ |
 | — | Refatoração sem mudança para quem joga: quem assume como host usa a mesma contagem do relógio do início da partida; removido o aviso de troca de host que não chegava a ninguém | ✅ |
 
 Checklist de conexão (casos cobertos, testes manuais pendentes e

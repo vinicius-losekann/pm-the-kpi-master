@@ -30,6 +30,7 @@ const gameState = {
     timerInterval: null,
     gameStarted: false,
     gameOver: false,
+    rankingFinal: null,          // ranking do fim da partida (BUG-021: F5 e volta na tela final)
     questionsData: null,
     usedRespondedorThisRound: [],
     // Campos para timeouts (não persistidos)

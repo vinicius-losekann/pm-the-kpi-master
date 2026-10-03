@@ -167,7 +167,10 @@ async function init() {
 
     // Fase D3f: a retomada do host (o que fazer conforme o momento da
     // partida em que o F5 aconteceu) fica em engine/sessionEngine.js.
-    if (restaurou && state.gameStarted && !state.gameOver) {
+    // BUG-021: F5 na tela final volta à tela final (host e guest).
+    if (restaurou && state.gameStarted && state.gameOver) {
+        Game.core.mostrarFimDeJogo();
+    } else if (restaurou && state.gameStarted) {
         if (state.isHost) {
             Game.core.retomarPartidaAposRecarregar();
         } else {

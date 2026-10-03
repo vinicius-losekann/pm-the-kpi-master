@@ -68,7 +68,7 @@ só automatizado (falta o manual).
 
 ---
 
-## 2. Casos cobertos por teste automatizado (68 testes)
+## 2. Casos cobertos por teste automatizado (71 testes)
 
 ### Entrada na sala e identidade
 | Caso | Testes | Manual |
@@ -125,6 +125,7 @@ só automatizado (falta o manual).
 | Caso | Testes | Manual |
 |---|---|---|
 | Fim de jogo: quem cai sai da lista | 🤖 T11 | — |
+| F5 na tela de fim de jogo (host e guest) volta à tela final com o mesmo ranking, sem recomeçar a partida; quem cai no fim de jogo pode voltar à sala e vê o ranking (BUG-021) | 🤖 T66, T67, T68 | — |
 | Encerrar partida (normal e pausada) | 🤖 T14, T15 | — |
 | Voltar ao lobby após o fim de jogo (host e guest) | 🤖 T16, T16b | — |
 | Guest sai da partida, ela acaba, e o host inicia outra | 🤖 T48 · 🌐 E8 | 👤 |
@@ -138,16 +139,13 @@ só automatizado (falta o manual).
 
 Nenhum no momento.
 
-Em investigação: BUG-021 (F5 na tela de fim de jogo volta para a
-partida), em `ISSUES.md`.
-
 Corrigidos: B1 (botão "Iniciar" desabilitado depois de um "Sair da
 partida") na D3d; B2 (rodada que começava sozinha depois de uma troca de
 host) na D3e; B3, B4 e B5 (F5 do host em momentos específicos da
 partida, encontrados com navegadores reais em 03/10/2026) na D3f;
-BUG-019 (F5 do host com assessoria pendente) e BUG-020 (tela do host
-fora da dupla e etiquetas da pergunta depois do F5), ver `ISSUES.md`, em
-03/10/2026:
+BUG-019 (F5 do host com assessoria pendente), BUG-020 (tela do host
+fora da dupla e etiquetas da pergunta depois do F5) e BUG-021 (F5 na
+tela de fim de jogo), ver `ISSUES.md`, em 03/10/2026:
 
 | ID | Situação antes da correção | Causa |
 |---|---|---|
@@ -156,6 +154,7 @@ fora da dupla e etiquetas da pergunta depois do F5), ver `ISSUES.md`, em
 | B5 | F5 do host com a partida pausada: sorteava outro evento e reaplicava os efeitos | A pausa não era salva, e a retomada começava uma rodada nova |
 | BUG-019 | F5 do host com um pedido de assessoria sem resposta: quem responde ficava com os botões travados e a rodada parada até acabar o tempo da partida | O prazo do assessor se perdia com a página, e o assessor perdia a pergunta ao reconectar |
 | BUG-020 | F5 do host fora da dupla: o host via a área da pergunta; etiquetas de domínio e área vazias depois do F5 e para quem voltava | A retomada não olhava o papel do host; a pergunta guardada na rodada não tinha os nomes |
+| BUG-021 | F5 na tela final: o host voltava à partida (e ela podia recomeçar); o guest era recusado ("a partida já começou") | O fim de jogo não era salvo nem ia no `state-sync`; a sala continuava travada depois do fim |
 
 ---
 

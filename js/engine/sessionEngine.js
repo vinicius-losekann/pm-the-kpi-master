@@ -208,14 +208,30 @@ function endGame(ranking) {
     }
     state.ajudaFila = null;
     state.currentRound = null;
+    // BUG-021: o ranking do fim da partida fica guardado (estado salvo e
+    // state-sync) — um F5 ou quem volta à sala vê o mesmo ranking.
+    state.rankingFinal = ranking;
 
     if (state.isHost) {
         Game.network.broadcastAll({ type: 'game-over', ranking });
     }
 
-    Game.ui.showScreen('gameover');
-    Game.ui.displayFinalRanking(ranking);
+    mostrarFimDeJogo();
     Game.saveState();
+}
+
+/**
+ * Mostra a tela de fim de jogo com o ranking guardado no fim da partida.
+ *
+ * BUG-021: usada também depois de um F5 na tela final (init(), main.js)
+ * e por quem volta à sala depois do fim de jogo (restoreState(), em
+ * network/messageHandler.js). Antes, o F5 do host recomeçava a partida e
+ * quem voltava era recusado ("a partida já começou").
+ */
+function mostrarFimDeJogo() {
+    const state = Game.state;
+    Game.ui.showScreen('gameover');
+    Game.ui.displayFinalRanking(state.rankingFinal || buildRanking());
 }
 
 /**
@@ -439,6 +455,7 @@ window.Game.engine.session = {
     iniciarRelogio,
     retomarPartidaAposRecarregar,
     endGame,
+    mostrarFimDeJogo,
     endMatch,
     handleMatchEnded,
     voltarAoLobby,

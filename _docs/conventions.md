@@ -45,7 +45,7 @@ Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` o
 |---|---|---|
 | `player-join` | guest → host | `playerName`, `peerId`, `token` (identidade por sala; o host guarda só o hash). Montada só em `enviarPlayerJoin()` (`network/peerService.js`) |
 | `join-rejected` | host → quem tentou entrar | `reason`: `room-full`, `room-locked` (partida em andamento, nome novo), `name-taken`, `identity-mismatch` (token diferente do registrado) |
-| `state-sync` | host → quem entra ou volta | `fullState` com a rodada, o relógio, `rodadaEncerrada`, `partidaPausada` e `respondidos` (quem já respondeu na rodada) |
+| `state-sync` | host → quem entra ou volta | `fullState` com a rodada, o relógio, `rodadaEncerrada`, `partidaPausada`, `respondidos` (quem já respondeu na rodada), `gameOver` e `rankingFinal` (fim de jogo) |
 | `round-start` | host → todos | também leva `respondidos` |
 | `kpi-update` (da resposta) | host → todos | também leva `respondidos` |
 | `round-ended` | host → todos | rodada encerrada, aguardando o "Nova Rodada" |

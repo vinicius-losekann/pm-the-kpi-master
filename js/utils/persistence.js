@@ -67,6 +67,9 @@ function saveState() {
         // retomarPartidaAposRecarregar() em engine/sessionEngine.js).
         rodadaEncerrada: !!state.rodadaEncerrada,
         partidaPausada: state.partidaPausada || null,
+        // BUG-021: sem estes dois, um F5 na tela final recomeçava a partida.
+        gameOver: !!state.gameOver,
+        rankingFinal: state.rankingFinal || null,
         timestamp: new Date().toISOString()
     }));
 
@@ -152,6 +155,10 @@ function tryRestoreState() {
         // encerrada e sem pausa, como antes.
         Game.state.rodadaEncerrada = !!saved.rodadaEncerrada;
         Game.state.partidaPausada = saved.partidaPausada || null;
+        // Estado salvo antes do BUG-021 não tem os campos: partida não
+        // acabada, como antes.
+        Game.state.gameOver = !!saved.gameOver;
+        Game.state.rankingFinal = saved.rankingFinal || null;
 
         const me = Game.getPlayerByName(myData.playerName);
         if (me) {

@@ -42,6 +42,8 @@ function resetGameState(state, config) {
     // Fase D2b: idem para o aviso de "rodada encerrada, aguardando o
     // host" (ver turnEngine.nextTurn()).
     state.rodadaEncerrada = false;
+    // BUG-021: o ranking da partida anterior não sobra para a próxima.
+    state.rankingFinal = null;
 }
 
 /**

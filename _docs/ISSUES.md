@@ -11,22 +11,7 @@ corrigidos recentemente (Fase D).
 
 ## Em investigação
 
-### BUG-021: F5 na tela de fim de jogo volta para a partida
-
-- **Status:** 🔍 Suspeita, encontrada por leitura do código (03/10/2026),
-  ainda não conferida no navegador
-- **Local:** `utils/persistence.js` (`saveState()`/`tryRestoreState()`)
-  e `network/messageHandler.js` (`addPlayer()` → `state-sync`)
-- **Sintoma esperado:** (1) o host dá F5 com o ranking final na tela e
-  volta para a tela de jogo; se a partida acabou porque alguém completou
-  a última fase, uma dupla nova é sorteada e a partida recomeça; (2) um
-  guest que dá F5 (ou reconecta) no fim de jogo volta para a tela de
-  jogo em vez do ranking.
-- **Causa provável:** `gameOver` não é gravado no estado salvo nem vai
-  no `state-sync`; a retomada (`retomarPartidaAposRecarregar()`) vê
-  `gameStarted` sem `gameOver` e, sem rodada, chama `pickNewPair()`.
-- **Próximo passo:** frente própria, com teste (F5 do host e volta de
-  guest no fim de jogo).
+Nenhum no momento.
 
 ---
 
@@ -54,6 +39,7 @@ de `tests/logic` e `tests/browser`; o mapa completo está em
 | BUG-018 (B5) | F5 do host com a partida pausada: outro evento sorteado, efeitos reaplicados | A pausa não era salva | D3f: continua pausada com o mesmo evento — T55, T57 · E11 |
 | BUG-019 | F5 do host com um pedido de assessoria sem resposta: rodada presa (quem responde com os botões travados, "Nova Rodada" bloqueado) até acabar o tempo da partida | O prazo de 20s do assessor (`setTimeout`) se perdia com a página, e o assessor perdia a pergunta ao reconectar (a reconexão fecha os modais); a resposta ficava guardada esperando para sempre | O F5 cancela o pedido pendente (quem responde pode pedir de novo, como numa troca de host); resposta já guardada é processada — T59, T60 · E12 |
 | BUG-020 | F5 do host fora da dupla com a pergunta aberta: o host via a área da pergunta em vez de "Fulano pergunta para Beltrano"; as etiquetas de domínio e área ficavam vazias depois do F5 do host e para quem voltava à partida | A retomada não olhava o papel do host; a pergunta guardada na rodada (estado salvo, `state-sync`) não tinha os nomes de domínio e área — só a mensagem `question` tinha | A retomada mostra a tela de espectador fora da dupla; a pergunta da rodada guarda domínio e área — T64, T65 |
+| BUG-021 | F5 na tela de fim de jogo: o host voltava à tela de jogo e, se a partida tinha acabado por alguém completar a última fase, uma dupla nova era sorteada e ela recomeçava; o guest era recusado ("a partida desta sala já começou") e voltava à tela inicial | O fim de jogo não era gravado no estado salvo nem ia no `state-sync`; a sala continuava travada para nomes novos depois do fim (e quem cai no fim de jogo sai da lista) | Estado salvo e `state-sync` levam `gameOver` e o ranking final (`rankingFinal`); `mostrarFimDeJogo()` no F5 e na volta; depois do fim de jogo a sala não fica travada — T66, T67, T68 |
 
 ---
 
