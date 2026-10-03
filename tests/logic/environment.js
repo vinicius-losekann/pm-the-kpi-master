@@ -43,6 +43,8 @@ const ARQUIVOS = [
     'js/engine/turnEngine.js',
     'js/engine/answerEngine.js',
     'js/engine/advisoryEngine.js',
+    'js/domain/tradeRules.js',
+    'js/engine/tradeEngine.js',
     'js/network/peerService.js',
     'js/network/messageHandler.js',
     'js/network/hostMigration.js',
@@ -66,7 +68,7 @@ var CONFIG = {
         { id: 'planejamento', nome: 'Planejamento', emoji: '📋' }
     ],
     RECURSOS_INICIAIS: 10,
-    KPI: { VALOR_RECURSO_FINAL: 2, ACERTO_BASE: 10, ASSESSORIA_ACERTO: 5 },
+    KPI: { VALOR_RECURSO_FINAL: 2, ACERTO_BASE: 10, ASSESSORIA_ACERTO: 5, VALOR_VENDA_RECURSO: 10 },
     PEER: { debug: 0 }
 };
 `;
