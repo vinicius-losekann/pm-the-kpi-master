@@ -273,4 +273,62 @@ test('T68 Estado salvo guarda o fim de jogo e o ranking; estado antigo restaura 
     check(depois.gameOver === false && !depois.rankingFinal, 'o estado salvo depois de voltar ao lobby não pode ter o ranking antigo');
 });
 
+/**
+ * Partida de 4 (Host, A, B, C) com a pergunta aberta para A (o host
+ * pergunta) e B sem recursos, com um pedido de ajuda em andamento.
+ */
+function matchWithPendingDeadlines(usar) {
+    const amb = usar(createEnvironment());
+    const tempo = amb.fakeTime();
+    amb.createRoomAsHost();
+    amb.join('A', 'peer-a');
+    amb.join('B', 'peer-b');
+    amb.join('C', 'peer-c');
+    amb.startMatch();
+    // O sorteio da dupla é aleatório: fixa os papéis e rearma o prazo de resposta de A.
+    amb.state.currentRound = { ...amb.state.currentRound, perguntador: 'Host', respondedor: 'A', respondeu: false };
+    amb.state.usedRespondedorThisRound = [];
+    amb.Game.core.armarRespostaTimeout('A');
+    Object.assign(amb.player('B'), { recursos: 0, kpi: 20 });
+    amb.Game.network.handleMessage({ type: 'ajuda-request', requesterName: 'B' }, 'peer-b');
+    check(amb.state.ajudaFila && amb.state.ajudaTimeout, 'pré-condição: pedido de ajuda em andamento');
+    return { amb, tempo };
+}
+
+test('T72 Fim de jogo, encerrar a partida e troca de dupla cancelam os prazos pendentes (resposta, assessoria, pedido de ajuda)', (usar) => {
+    // Fim de jogo com a pergunta aberta e um pedido de ajuda em andamento.
+    const fim = matchWithPendingDeadlines(usar);
+    check(fim.amb.state.respostaTimeout, 'pré-condição: prazo de resposta armado');
+    fim.amb.Game.core.endGame(fim.amb.Game.core.buildRanking());
+    const s1 = fim.amb.state;
+    check(!s1.respostaTimeout && !s1.assessoriaTimeout && !s1.ajudaTimeout && !s1.ajudaFila,
+        'o fim de jogo deveria zerar os prazos e o pedido de ajuda');
+    check(fim.tempo.pending() === 0, 'nenhum prazo antigo pode continuar agendado, sobraram: ' + fim.tempo.pending());
+
+    // Encerrar a partida com um pedido de assessoria pendente e o pedido de ajuda.
+    const enc = matchWithPendingDeadlines(usar);
+    enc.amb.Game.network.handleMessage({ type: 'assessoria-request', assessorName: 'C', requesterName: 'A' }, 'peer-a');
+    check(enc.amb.state.assessoriaTimeout, 'pré-condição: prazo do assessor armado');
+    enc.amb.Game.core.endMatch();
+    const s2 = enc.amb.state;
+    check(!s2.respostaTimeout && !s2.assessoriaTimeout && !s2.ajudaTimeout && !s2.ajudaFila,
+        'encerrar a partida deveria zerar os prazos e o pedido de ajuda');
+    check(enc.tempo.pending() === 0, 'nenhum prazo antigo pode continuar agendado, sobraram: ' + enc.tempo.pending());
+    enc.amb.clearLog();
+    enc.tempo.advance(enc.amb.CONFIG.JOGO.RESPOSTA_TIMEOUT * 2);
+    check(enc.amb.registro.broadcasts.length === 0 && enc.amb.registro.enviados.length === 0,
+        'depois de encerrar, nada pode ser enviado por prazo antigo');
+
+    // Troca de dupla (quem responde cai com a assessoria pendente): os prazos
+    // da rodada são cancelados, mas o pedido de ajuda continua.
+    const troca = matchWithPendingDeadlines(usar);
+    troca.amb.Game.network.handleMessage({ type: 'assessoria-request', assessorName: 'C', requesterName: 'A' }, 'peer-a');
+    troca.amb.drop('peer-a');
+    const s3 = troca.amb.state;
+    check(s3.currentRound && s3.currentRound.respondedor !== 'A', 'pré-condição: nova dupla sem A');
+    check(!s3.assessoriaTimeout, 'o prazo do assessor da pergunta descartada deveria ser cancelado');
+    check(s3.ajudaFila && s3.ajudaTimeout, 'o pedido de ajuda continua entre uma dupla e outra');
+    check(troca.tempo.pending() === 2, 'deveriam sobrar só o prazo de resposta da nova dupla e o do pedido de ajuda, sobraram: ' + troca.tempo.pending());
+});
+
 finish('Fim de partida e lobby');

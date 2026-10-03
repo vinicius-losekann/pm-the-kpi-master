@@ -359,6 +359,8 @@ function createEnvironment(opcoes = {}) {
             ctx.Date = class extends Date { static now() { return agora; } };
             return {
                 agora: () => agora,
+                // Quantos timers ainda estão agendados (não venceram nem foram cancelados).
+                pending: () => fila.length,
                 advance(ms) {
                     const fim = agora + ms;
                     for (;;) {
