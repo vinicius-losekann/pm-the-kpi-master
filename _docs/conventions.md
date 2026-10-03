@@ -55,7 +55,7 @@ Mensagem que chega sem um campo novo (de uma versão anterior do jogo) mantém o
 
 ## Testes
 
-- `tests/logic/*.test.js`: lógica do jogo, um arquivo por assunto (entrada e identidade, queda e volta, troca de host, F5 do host, estado salvo, fim de partida). Carrega os arquivos reais em contextos isolados do Node, com rede, tela e `localStorage` simulados; o ambiente simulado e os ajudantes ficam em `tests/logic/environment.js`. Sem dependências: `node tests/logic/<arquivo>`. Teste novo entra no arquivo do assunto dele, com o próximo número (T66, T67...).
+- `tests/logic/*.test.js`: lógica do jogo, um arquivo por assunto (entrada e identidade, queda e volta, troca de host, F5 do host, estado salvo, fim de partida, pedido de ajuda e assessoria). Carrega os arquivos reais em contextos isolados do Node, com rede, tela e `localStorage` simulados; o ambiente simulado e os ajudantes ficam em `tests/logic/environment.js`. Sem dependências: `node tests/logic/<arquivo>`. Teste novo entra no arquivo do assunto dele, com o próximo número (T66, T67...).
 - `tests/browser/*.spec.js`: o jogo no navegador, com Playwright — o jogo real em janelas separadas do Chromium, com o site e um servidor PeerJS locais. As dependências do `package.json` são só destes testes; o jogo não usa nenhuma.
 - Os dois rodam no GitHub Actions a cada push e pull request (`.github/workflows/testes.yml`); o resumo aparece na página da execução.
 - Toda mudança de lógica vem com teste. A frente vai em dois commits: primeiro só os testes (os novos devem falhar no Actions), depois o código (tudo passa). Isso confirma que os testes novos de fato pegam o problema.

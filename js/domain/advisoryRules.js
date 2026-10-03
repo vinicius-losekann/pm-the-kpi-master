@@ -23,9 +23,13 @@ function validarPedidoAssessoria({ assessor, requester, assessorName, perguntado
     const requesterEmEncerramento = !!requester &&
         fases.findIndex(f => f.id === requester.phase) === fases.length - 1;
 
+    // Assessor que caiu (Fase D: continua na lista, desconectado) também
+    // é inválido — sem isso, a pergunta ia para quem não podia responder
+    // e o Respondedor ficava com os botões travados até o prazo acabar.
     const invalido =
         !assessor ||
         assessor.waitingInLobby ||
+        assessor.disconnected ||
         requesterEmEncerramento ||
         assessorName === perguntadorName ||
         assessorName === respondedorName;

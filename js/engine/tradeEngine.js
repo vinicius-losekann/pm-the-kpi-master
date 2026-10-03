@@ -86,8 +86,9 @@ function enviarProximaOfertaAjuda() {
     const fila = state.ajudaFila;
     if (!fila) return;
 
+    // Quem pediu saiu da partida ou caiu: o pedido é cancelado.
     const requester = Game.getPlayerByName(fila.requesterName);
-    if (!requester || requester.waitingInLobby) {
+    if (!requester || requester.waitingInLobby || requester.disconnected) {
         state.ajudaFila = null;
         return;
     }
@@ -104,9 +105,10 @@ function enviarProximaOfertaAjuda() {
     const candidatoName = fila.candidatos[fila.indice];
     const candidato = Game.getPlayerByName(candidatoName);
 
-    // Candidato desconectou ou tem 0 recursos agora (gastou nesse meio
-    // tempo) — pula pro próximo sem perguntar.
-    if (!candidato || candidato.waitingInLobby || candidato.recursos < 1) {
+    // Candidato saiu da partida, caiu ou tem 0 recursos agora (gastou
+    // nesse meio tempo) — pula pro próximo sem perguntar. Sem olhar a
+    // queda, quem pediu esperava o prazo inteiro por quem tinha caído.
+    if (!candidato || candidato.waitingInLobby || candidato.disconnected || candidato.recursos < 1) {
         fila.indice++;
         return enviarProximaOfertaAjuda();
     }
@@ -147,6 +149,14 @@ function handleAjudaOfertaResponse(msg) {
     if (!msg.aceito) {
         fila.indice++;
         enviarProximaOfertaAjuda();
+        return;
+    }
+
+    // Quem pediu caiu ou saiu da partida enquanto o candidato decidia:
+    // o pedido é cancelado, sem transferir nada.
+    const requester = Game.getPlayerByName(fila.requesterName);
+    if (!requester || requester.waitingInLobby || requester.disconnected) {
+        state.ajudaFila = null;
         return;
     }
 

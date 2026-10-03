@@ -155,6 +155,7 @@ Objetivo confirmado com o usuário: recurso vira punição só por errar, não m
 | BUG-019 | F5 do host com um pedido de assessoria sem resposta: o pedido é cancelado (quem responde pode pedir de novo) em vez de a rodada ficar presa | ✅ |
 | BUG-020 | F5 do host fora da dupla: o host volta vendo a tela de espectador; etiquetas de domínio e área aparecem depois do F5 e para quem volta à partida | ✅ |
 | BUG-021 | F5 na tela de fim de jogo volta à tela final com o mesmo ranking (antes a partida podia recomeçar); quem cai no fim de jogo pode voltar à sala | ✅ |
+| BUG-022, BUG-023 | Quem caiu fica fora do pedido de ajuda e da assessoria (ninguém espera 20s à toa); nomes com "&" aparecem certos no aviso de ajuda | ✅ |
 | — | Refatoração sem mudança para quem joga: quem assume como host usa a mesma contagem do relógio do início da partida; removido o aviso de troca de host que não chegava a ninguém | ✅ |
 
 Checklist de conexão (casos cobertos, testes manuais pendentes e

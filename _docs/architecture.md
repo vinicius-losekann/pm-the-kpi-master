@@ -251,7 +251,7 @@ Não estava no roadmap original. `game-network.js` tinha `myPeer` e `connections
 
 Resumo dos mecanismos; detalhes nos comentários de cada arquivo e no checklist `testes-conexao.md`.
 
-- **Jogador desconectado:** durante a partida, quem cai continua na lista com `disconnected: true` (KPI, recursos e vaga preservados), fora do sorteio, do rodízio e dos efeitos de evento. No lobby e no fim de jogo, quem cai sai da lista. `getActivePlayers()` exclui desconectados; `getMatchPlayers()` inclui.
+- **Jogador desconectado:** durante a partida, quem cai continua na lista com `disconnected: true` (KPI, recursos e vaga preservados), fora do sorteio, do rodízio, dos efeitos de evento, da fila do pedido de ajuda e da escolha de assessor (BUG-022). No lobby e no fim de jogo, quem cai sai da lista. `getActivePlayers()` exclui desconectados; `getMatchPlayers()` inclui.
 - **Sala travada:** com a partida em andamento, nome novo é recusado (`join-rejected` com `room-locked`); só volta quem já estava na partida.
 - **Pausa:** se faltam jogadores *conectados* mas não jogadores da partida, a partida pausa (`partida-pausada`) e retoma sozinha quando alguém volta, com o mesmo evento. Se todos os conectados já tinham respondido, a rodada é encerrada em vez de recomeçar (D3e).
 - **Saída da página:** `pagehide`/`beforeunload` encerram as conexões na hora, para os outros perceberem a saída sem esperar o tempo limite da rede.

@@ -34,8 +34,10 @@ function fecharPedirAjudaModal() {
  * o pedido está sendo feito agora (a fila avança automaticamente).
  */
 function showAjudaTentando(msg) {
+    // textContent já mostra o texto como texto (sem interpretar HTML) —
+    // escapar aqui fazia "Ana & Bia" aparecer como "Ana &amp; Bia".
     const el = document.getElementById('ajudaTentandoCom');
-    if (el) el.textContent = Game.sanitize.escapeHtml(msg.candidatoName);
+    if (el) el.textContent = msg.candidatoName;
 }
 
 /**

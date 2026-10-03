@@ -68,7 +68,7 @@ só automatizado (falta o manual).
 
 ---
 
-## 2. Casos cobertos por teste automatizado (71 testes)
+## 2. Casos cobertos por teste automatizado (74 testes)
 
 ### Entrada na sala e identidade
 | Caso | Testes | Manual |
@@ -88,6 +88,7 @@ só automatizado (falta o manual).
 | Caso | Testes | Manual |
 |---|---|---|
 | Espectador cai: fica na lista, fora do sorteio, volta com tudo | 🤖 T4 | — |
+| Quem caiu fica fora do pedido de ajuda (é pulado na fila; se quem pediu cai, o pedido é cancelado) e não pode ser chamado como assessor (recusa na hora) | 🤖 T69, T70 | — |
 | Participante da rodada cai: rodada abortada, nova dupla | 🤖 T5 | — |
 | Falta só conexão: partida pausa e retoma com o mesmo evento | 🤖 T6, T33 | — |
 | Ciclo da rodada termina sem esperar o desconectado | 🤖 T8 | — |
@@ -155,6 +156,8 @@ tela de fim de jogo), ver `ISSUES.md`, em 03/10/2026:
 | BUG-019 | F5 do host com um pedido de assessoria sem resposta: quem responde ficava com os botões travados e a rodada parada até acabar o tempo da partida | O prazo do assessor se perdia com a página, e o assessor perdia a pergunta ao reconectar |
 | BUG-020 | F5 do host fora da dupla: o host via a área da pergunta; etiquetas de domínio e área vazias depois do F5 e para quem voltava | A retomada não olhava o papel do host; a pergunta guardada na rodada não tinha os nomes |
 | BUG-021 | F5 na tela final: o host voltava à partida (e ela podia recomeçar); o guest era recusado ("a partida já começou") | O fim de jogo não era salvo nem ia no `state-sync`; a sala continuava travada depois do fim |
+| BUG-022 | Pedido de ajuda e assessoria com quem caiu: quem pedia esperava 20s por cada jogador caído na fila (e a fila seguia mesmo com quem pediu fora); o assessor caído recebia a pergunta e quem respondia ficava 20s com os botões travados | A fila e a validação do assessor olhavam só quem saiu da partida, não quem caiu |
+| BUG-023 | Aviso "pedindo ajuda para…" mostrava "Ana &amp; Bia" | O nome era escapado para HTML e mostrado como texto |
 
 ---
 
