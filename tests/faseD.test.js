@@ -12,7 +12,8 @@
 // tela inicial (Fase D3c), da volta ao lobby (D3d), do rodízio da
 // rodada que continua depois de uma troca de host (D3e) e da retomada
 // da partida depois de um F5 do host (D3f; com um pedido de assessoria
-// em andamento, BUG-019) num ambiente simulado, sem
+// em andamento, BUG-019) e da versão do estado salvo (roadmap 3.1) num
+// ambiente simulado, sem
 // navegador e sem PeerJS: a rede é trocada por conexões falsas, a UI
 // por um registro de chamadas e o localStorage por um objeto em
 // memória (um F5 é um ambiente novo com o mesmo localStorage).
@@ -2330,6 +2331,16 @@ function salaParaRecarregar(amb) {
  * dublês de que precisar.
  */
 function recarregarHost(amb) {
+    const { novo, restaurou } = tentarRecarregarHost(amb);
+    confere(restaurou === true, 'o F5 deveria restaurar o estado salvo');
+    return novo;
+}
+
+/**
+ * Como recarregarHost(), mas sem exigir que o estado seja restaurado
+ * (roadmap 3.1: versão desconhecida ou inválida não restaura).
+ */
+function tentarRecarregarHost(amb) {
     const novo = criarAmbiente({ armazenamento: amb.armazenamento });
     const s = novo.state;
     const base = amb.state.baseRoomPeerId;
@@ -2340,9 +2351,9 @@ function recarregarHost(amb) {
     s.hostPeerId = base;
     s.baseRoomPeerId = base;
     s.hostVersion = 0;
-    confere(novo.Game.persistence.tryRestoreState() === true, 'o F5 deveria restaurar o estado salvo');
+    const restaurou = novo.Game.persistence.tryRestoreState();
     s.peerId = amb.state.peerId; // initPeer() abre de novo com o mesmo ID
-    return novo;
+    return { novo, restaurou };
 }
 
 /** Responde (certo) cada pergunta e avança, até o host encerrar a rodada. */
@@ -2862,6 +2873,123 @@ teste('T61 Quem assume como host liga o relógio da partida (a mesma contagem do
     confere(!/setInterval/.test(migracao), 'hostMigration.js não deveria ter contagem própria (usar Game.core.iniciarRelogio())');
     confere(!/host-changed/.test(migracao) && !/host-changed/.test(mensagens), 'a mensagem host-changed não deveria existir mais');
     confere(typeof amb.Game.network.reconnectToNewHost === 'undefined', 'reconnectToNewHost() só servia ao host-changed e deveria ter saído');
+});
+
+// ============================================
+// ROADMAP 3.1 — VERSÃO NO ESTADO SALVO
+// ============================================
+
+teste('T62 Estado salvo tem versão: sem versão restaura como hoje; versão mais nova é guardada sem restaurar; inválida é apagada', (usar) => {
+    const amb = usar(criarAmbiente());
+    salaParaRecarregar(amb);
+    amb.entrar('A', 'peer-a');
+    amb.iniciarPartida();
+    amb.Game.saveState();
+    const salvo = JSON.parse(amb.armazenamento['pmKPI_roomState']);
+    confere(salvo.version === 1, 'o estado salvo deveria ter version: 1, veio: ' + JSON.stringify(salvo.version));
+    const meusDados = amb.armazenamento['pmKPI_myData'];
+    const perguntaAberta = amb.state.currentRound.pergunta.id;
+
+    // Sem versão (salvo antes do 3.1): restaura igual e, ao salvar, ganha a versão.
+    const semVersao = { ...salvo };
+    delete semVersao.version;
+    amb.armazenamento['pmKPI_roomState'] = JSON.stringify(semVersao);
+    const novo = usar(recarregarHost(amb));
+    confere(novo.state.gameStarted === true && novo.state.players.length === 2 &&
+        novo.state.currentRound && novo.state.currentRound.pergunta.id === perguntaAberta,
+        'estado sem versão deveria restaurar como hoje');
+    novo.Game.saveState();
+    confere(JSON.parse(amb.armazenamento['pmKPI_roomState']).version === 1, 'ao salvar de novo, o estado deveria passar a ter version: 1');
+
+    // Versão mais nova que o código: não restaura e continua guardado.
+    const maisNovo = JSON.stringify({ ...salvo, version: 2 });
+    amb.armazenamento['pmKPI_roomState'] = maisNovo;
+    amb.armazenamento['pmKPI_myData'] = meusDados;
+    const t1 = tentarRecarregarHost(amb);
+    usar(t1.novo);
+    confere(t1.restaurou === false, 'versão mais nova não deveria ser restaurada');
+    confere(t1.novo.state.gameStarted === false && t1.novo.state.players.length === 0, 'nada do estado mais novo deveria ser copiado');
+    confere(amb.armazenamento['pmKPI_roomState'] === maisNovo && amb.armazenamento['pmKPI_myData'] === meusDados,
+        'o estado de versão mais nova deveria continuar guardado (a versão nova do código ainda o usa)');
+
+    // Versão inválida: tratada como estado corrompido (apagado).
+    for (const versao of ['x', '1', 0, -1, 1.5, null]) {
+        amb.armazenamento['pmKPI_roomState'] = JSON.stringify({ ...salvo, version: versao });
+        amb.armazenamento['pmKPI_myData'] = meusDados;
+        const t = tentarRecarregarHost(amb);
+        usar(t.novo);
+        confere(t.restaurou === false, 'versão ' + JSON.stringify(versao) + ' não deveria ser restaurada');
+        confere(!('pmKPI_roomState' in amb.armazenamento) && !('pmKPI_myData' in amb.armazenamento),
+            'versão ' + JSON.stringify(versao) + ' deveria ser apagada, como estado corrompido');
+    }
+});
+
+teste('T63 Migração do estado salvo: passos em ordem até a versão atual, e a restauração usa o resultado', (usar) => {
+    const amb = usar(criarAmbiente());
+    const P = amb.Game.persistence;
+    confere(typeof P.migrarEstadoSalvo === 'function', 'Game.persistence.migrarEstadoSalvo deveria existir');
+    confere(P.VERSAO_ESTADO === 1, 'a versão atual do estado salvo deveria ser 1, veio: ' + P.VERSAO_ESTADO);
+
+    // Cadeia de mentira 1 → 2 → 3: cada passo recebe o resultado do anterior.
+    const ordem = [];
+    const migracoes = {
+        1: (sala, eu) => { ordem.push(1); const { baralhos, ...resto } = sala; return { sala: { ...resto, decks: baralhos }, eu: { ...eu, pontos: eu.kpi } }; },
+        2: (sala, eu) => { ordem.push(2); return { sala: { ...sala, decksV3: sala.decks }, eu }; }
+    };
+    const r = P.migrarEstadoSalvo({ version: 1, baralhos: { d1: 'x' } }, { kpi: 5 }, 3, migracoes);
+    confere(ordem.join(',') === '1,2', 'deveria rodar os passos 1 e 2, nessa ordem, rodou: ' + ordem.join(','));
+    confere(r.sala.version === 3, 'o resultado deveria estar na versão 3, veio: ' + r.sala.version);
+    confere(r.sala.decksV3 && r.sala.decksV3.d1 === 'x' && !('baralhos' in r.sala), 'o passo 2 deveria receber o resultado do passo 1');
+    confere(r.eu.pontos === 5, 'os dados do próprio jogador também passam pelos passos');
+
+    // A partir da versão 2: só o passo 2. Sem versão conta como 1.
+    ordem.length = 0;
+    P.migrarEstadoSalvo({ version: 2, decks: {} }, {}, 3, migracoes);
+    confere(ordem.join(',') === '2', 'da versão 2 deveria rodar só o passo 2, rodou: ' + ordem.join(','));
+    ordem.length = 0;
+    const r2 = P.migrarEstadoSalvo({ baralhos: {} }, { kpi: 1 }, 2, migracoes);
+    confere(ordem.join(',') === '1' && r2.sala.version === 2, 'sem versão deveria contar como 1 e rodar só o passo 1');
+
+    // Já na versão final: nada muda.
+    ordem.length = 0;
+    const r3 = P.migrarEstadoSalvo({ version: 3, a: 1 }, { kpi: 2 }, 3, migracoes);
+    confere(ordem.length === 0 && r3.sala.a === 1 && r3.eu.kpi === 2, 'na versão final, nenhum passo deveria rodar');
+
+    // Passo faltando: erro (vira estado corrompido na restauração).
+    let erro = null;
+    try { P.migrarEstadoSalvo({ version: 1 }, {}, 3, { 1: migracoes[1] }); } catch (e) { erro = e; }
+    confere(erro, 'faltando o passo 2, a migração deveria dar erro');
+
+    // Tabela real de hoje: versão 1 passa sem mudança.
+    const r4 = P.migrarEstadoSalvo({ version: 1, roomName: 'sala' }, { kpi: 3 });
+    confere(r4.sala.roomName === 'sala' && r4.sala.version === 1 && r4.eu.kpi === 3, 'na versão 1, a tabela real não muda nada');
+
+    // A restauração usa o resultado da migração (antes de conferir sala e jogador).
+    salaParaRecarregar(amb);
+    amb.entrar('A', 'peer-a');
+    amb.iniciarPartida();
+    amb.Game.saveState();
+    const salvo = JSON.parse(amb.armazenamento['pmKPI_roomState']);
+    const meus = JSON.parse(amb.armazenamento['pmKPI_myData']);
+    const { roomName, ...semNome } = salvo;
+    amb.armazenamento['pmKPI_roomState'] = JSON.stringify({ ...semNome, nomeDaSala: roomName });
+    amb.armazenamento['pmKPI_myData'] = JSON.stringify({ ...meus, kpi: undefined, pontos: 42 });
+    const { novo, restaurou } = (() => {
+        // Ambiente novo com a migração trocada por uma que desfaz o nome trocado.
+        const n = criarAmbiente({ armazenamento: amb.armazenamento });
+        n.Game.persistence.migrarEstadoSalvo = (sala, eu) => {
+            const { nomeDaSala, ...resto } = sala;
+            const { pontos, ...euResto } = eu;
+            return { sala: { ...resto, roomName: nomeDaSala }, eu: { ...euResto, kpi: pontos } };
+        };
+        n.ctx.location.search = '?' + new URLSearchParams({ host: 'true', room: 'sala', playerName: 'Host', peerId: 'sala' }).toString();
+        Object.assign(n.state, { isHost: true, roomName: 'sala', playerName: 'Host', hostPeerId: 'sala', baseRoomPeerId: 'sala', hostVersion: 0 });
+        return { novo: n, restaurou: n.Game.persistence.tryRestoreState() };
+    })();
+    usar(novo);
+    confere(restaurou === true, 'com a migração trazendo o nome da sala de volta, o estado deveria ser restaurado');
+    confere(novo.state.roomName === 'sala' && novo.state.players.length === 2, 'a restauração deveria usar a sala migrada');
+    confere(novo.jogador('Host').kpi === 42, 'os dados do próprio jogador deveriam vir da migração');
 });
 
 console.log('\n' + (falhou === 0 ? '🎉' : '⚠️') + ' ' + passou + ' passaram, ' + falhou + ' falharam\n');
