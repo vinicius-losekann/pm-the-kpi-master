@@ -9,11 +9,12 @@
 // D2b) — das opções centralizadas do PeerJS (Fase D3a), do prazo de
 // espera pelo host / volta do host antigo como jogador comum (Fase
 // D3b), da procura da sala depois de migrações de host, inclusive na
-// tela inicial (Fase D3c), da volta ao lobby (D3d) e do rodízio da
-// rodada que continua depois de uma troca de host (D3e) num ambiente
-// simulado, sem navegador e sem PeerJS: a rede é trocada por conexões
-// falsas, a UI por um registro de chamadas e o localStorage por um
-// objeto em memória.
+// tela inicial (Fase D3c), da volta ao lobby (D3d), do rodízio da
+// rodada que continua depois de uma troca de host (D3e) e da retomada
+// da partida depois de um F5 do host (D3f) num ambiente simulado, sem
+// navegador e sem PeerJS: a rede é trocada por conexões falsas, a UI
+// por um registro de chamadas e o localStorage por um objeto em
+// memória (um F5 é um ambiente novo com o mesmo localStorage).
 //
 // Roda automaticamente no GitHub a cada push (ver
 // .github/workflows/testes.yml) — resultado na aba "Actions" do
@@ -32,7 +33,7 @@
 // - a parte visual (📴 na lista, aviso de partida pausada).
 //
 // Os números dos testes (T1, T2...) batem com o roteiro de teste
-// manual da D1a, da D1b, da D2, da D2b e da D3 (a a e).
+// manual da D1a, da D1b, da D2, da D2b e da D3 (a a f).
 // ============================================
 
 const fs = require('fs');
@@ -43,6 +44,7 @@ const RAIZ = path.resolve(__dirname, '..');
 
 // Mesma ordem de carregamento do game.html para os arquivos envolvidos.
 const ARQUIVOS = [
+    'js/utils/persistence.js',
     'js/utils/identity.js',
     'js/network/hostSearch.js',
     'js/state/store.js',
@@ -93,8 +95,10 @@ function tokenDe(nome) {
 /**
  * Cria um "navegador" novo e isolado, carrega os arquivos reais do
  * jogo nele e devolve atalhos para simular jogadores entrando/saindo.
+ * D3f: `opcoes.armazenamento` reaproveita o localStorage de outro
+ * ambiente — a mesma página depois de um F5 (ver recarregarHost()).
  */
-function criarAmbiente() {
+function criarAmbiente(opcoes = {}) {
     const registro = {
         enviados: [],     // { para, msg } — mensagens diretas (sendToPlayer / conn.send)
         broadcasts: [],   // msg — broadcastAll
@@ -122,8 +126,9 @@ function criarAmbiente() {
         consoleSilencioso[nivel] = (...args) => registro.logs.push(nivel + ': ' + args.join(' '));
     });
 
-    // localStorage em memória (D2: guarda o token de identidade por sala).
-    const armazenamento = {};
+    // localStorage em memória (D2: guarda o token de identidade por sala;
+    // D3f: e o estado salvo da partida, pelo persistence.js real).
+    const armazenamento = opcoes.armazenamento || {};
     const localStorageFalso = {
         getItem: (k) => (k in armazenamento ? armazenamento[k] : null),
         setItem: (k, v) => { armazenamento[k] = String(v); },
@@ -142,17 +147,17 @@ function criarAmbiente() {
         alert: () => {},
         confirm: () => true,
         addEventListener: (evento) => { registro.listeners.push(evento); },
-        location: { reload: () => {}, href: '' }
+        URLSearchParams,
+        location: { reload: () => {}, href: '', search: '' }
     });
     vm.runInContext('var window = this;' + CONFIG_TESTE, ctx);
 
+    // Game.saveState / Game.persistence vêm do persistence.js real (D3f).
     ctx.Game = {
         ui: new Proxy({}, {
             get: (_, nome) => (...args) => { registro.ui.push(String(nome)); }
         }),
         i18n: { t: (chave) => chave },
-        saveState: () => {},
-        persistence: { clearSavedState: () => {} },
         domain: {
             event: {
                 sortearEvento: () => ({ id: 'e' + Math.random().toString(36).slice(2, 7), titulo: 'Evento de teste' }),
@@ -2300,6 +2305,335 @@ teste('T52 Retomar a pausa quando todos os conectados já responderam: encerra a
     amb2.entrar('A', 'peer-a2');
     confere(amb2.state.currentRound && amb2.state.currentRound.respondedor === 'A' && !amb2.state.rodadaEncerrada,
         'faltando A, a retomada deveria sortear A');
+});
+
+// ============================================
+// D3f — F5 DO HOST EM CADA MOMENTO DA PARTIDA
+// ============================================
+
+/**
+ * Host sozinho no lobby, com nome e ID de sala — o estado salvo só é
+ * restaurado no F5 se a sala e o jogador da URL baterem com ele.
+ */
+function salaParaRecarregar(amb) {
+    amb.criarSalaComoHost();
+    amb.state.roomName = 'sala';
+    amb.state.baseRoomPeerId = 'sala';
+    amb.state.hostPeerId = 'sala';
+}
+
+/**
+ * F5 do host: página nova (outro ambiente, mesmo localStorage) que lê a
+ * URL como init() (main.js) e restaura o estado salvo pelo
+ * persistence.js real. A retomada da partida fica para o teste chamar
+ * (Game.core.retomarPartidaAposRecarregar()), depois de instalar os
+ * dublês de que precisar.
+ */
+function recarregarHost(amb) {
+    const novo = criarAmbiente({ armazenamento: amb.armazenamento });
+    const s = novo.state;
+    const base = amb.state.baseRoomPeerId;
+    novo.ctx.location.search = '?' + new URLSearchParams({ host: 'true', room: amb.state.roomName, playerName: amb.state.playerName, peerId: base }).toString();
+    s.isHost = true;
+    s.roomName = amb.state.roomName;
+    s.playerName = amb.state.playerName;
+    s.hostPeerId = base;
+    s.baseRoomPeerId = base;
+    s.hostVersion = 0;
+    confere(novo.Game.persistence.tryRestoreState() === true, 'o F5 deveria restaurar o estado salvo');
+    s.peerId = amb.state.peerId; // initPeer() abre de novo com o mesmo ID
+    return novo;
+}
+
+/** Responde (certo) cada pergunta e avança, até o host encerrar a rodada. */
+function responderAteEncerrar(amb) {
+    for (let i = 0; i < 10 && !amb.state.rodadaEncerrada; i++) {
+        const r = amb.state.currentRound;
+        amb.Game.core.handleAnswer({ alternativa: r.pergunta.correct, playerName: r.respondedor });
+        amb.Game.core.nextTurn();
+    }
+}
+
+teste('T53 F5 do host com a rodada encerrada: continua encerrada, "Nova Rodada" liberado, nada começa sozinho (B3)', (usar) => {
+    const amb = usar(criarAmbiente());
+    salaParaRecarregar(amb);
+    amb.entrar('A', 'peer-a');
+    amb.iniciarPartida();
+    responderAteEncerrar(amb);
+    confere(amb.state.rodadaEncerrada === true, 'pré-condição: rodada encerrada, aguardando o "Nova Rodada"');
+
+    const novo = usar(recarregarHost(amb));
+    const tempo = novo.tempoFalso();
+    novo.limparRegistro();
+    novo.Game.core.retomarPartidaAposRecarregar();
+    confere(novo.state.rodadaEncerrada === true, 'depois do F5, a rodada deveria continuar encerrada');
+    const telas = telasDaRodada(novo);
+    confere(telas.includes('showRoundEndedMessage'), 'o host deveria ver "Rodada encerrada", viu: ' + telas.join(', '));
+    confere(!telas.includes('displayQuestion') && !telas.includes('displayRoundStart'), 'não pode reabrir a última pergunta, viu: ' + telas.join(', '));
+    confere(novo.Game.selectors.isCycleComplete(novo.Game.getActivePlayers(), novo.state.usedRespondedorThisRound),
+        'o "Nova Rodada" deveria ficar liberado (rodízio completo preservado)');
+    tempo.avancar(novo.CONFIG.JOGO.RESPOSTA_TIMEOUT * 2);
+    confere(novo.state.rodadaEncerrada === true && novo.broadcastsDoTipo('round-start').length === 0,
+        'nada pode começar sozinho depois do F5');
+
+    // A volta: recebe "rodada encerrada" e nada começa.
+    novo.entrar('A', 'peer-a2');
+    const sync = syncPara(novo, 'peer-a2');
+    confere(sync && sync.rodadaEncerrada === true && sync.partidaPausada === false, 'quem volta deveria receber "rodada encerrada"');
+    confere(novo.broadcastsDoTipo('round-start').length === 0, 'a volta de A não pode começar rodada sozinha');
+    const guest = usar(criarAmbiente());
+    guest.receberSync('A', sync);
+    const telasGuest = telasDaRodada(guest);
+    confere(telasGuest.includes('showRoundEndedMessage') && !telasGuest.includes('displaySpectatorView'),
+        'A deveria ver "Rodada encerrada" (não a última dupla em andamento), viu: ' + telasGuest.join(', '));
+
+    // O host clica em "Nova Rodada".
+    novo.Game.core.startNewRound();
+    const rs = novo.broadcastsDoTipo('round-start').pop();
+    confere(novo.state.currentRound && !novo.state.currentRound.respondeu && novo.state.rodadaEncerrada === false,
+        'Nova Rodada deveria começar uma dupla nova');
+    confere(rs && rs.respondidos.length === 0, 'rodada nova começa com o rodízio zerado');
+});
+
+teste('T54 F5 do host logo depois de uma resposta (antes da próxima dupla): a partida segue (B4)', (usar) => {
+    // Faltam outros: segue para a próxima dupla, com o mesmo evento.
+    const amb = usar(criarAmbiente());
+    salaParaRecarregar(amb);
+    amb.entrar('A', 'peer-a');
+    amb.entrar('B', 'peer-b');
+    amb.iniciarPartida();
+    const r = amb.state.currentRound;
+    amb.Game.core.handleAnswer({ alternativa: r.pergunta.correct, playerName: r.respondedor });
+    const kpiDeQuemRespondeu = amb.jogador(r.respondedor).kpi;
+    // F5 antes do nextTurn(): o setTimeout de 3s se perde com a página.
+
+    const novo = usar(recarregarHost(amb));
+    novo.limparRegistro();
+    novo.Game.core.retomarPartidaAposRecarregar();
+    const r2 = novo.state.currentRound;
+    confere(r2 && r2.respondeu === false && r2.respondedor !== r.respondedor,
+        'deveria seguir para a próxima dupla, com outro Respondedor, veio: ' + JSON.stringify(r2 && { r: r2.respondedor, respondeu: r2.respondeu }));
+    confere(r2.evento && r2.evento.id === r.evento.id, 'a rodada continua com o mesmo evento');
+    confere(novo.broadcastsDoTipo('round-start').length === 1, 'deveria avisar a nova dupla');
+    confere(novo.broadcastsDoTipo('show-evento').length === 0 && !novo.registro.ui.includes('showEventoModal'), 'não deveria reexibir o evento');
+    confere(JSON.stringify(novo.state.usedRespondedorThisRound) === JSON.stringify([r.respondedor]), 'quem respondeu continua no rodízio');
+    confere(!novo.state.rodadaEncerrada, 'a rodada ainda não acabou');
+    confere(novo.jogador(r.respondedor).kpi === kpiDeQuemRespondeu, 'a resposta não pode ser contada de novo');
+
+    // Era a última resposta da rodada: a rodada encerra.
+    const amb2 = usar(criarAmbiente());
+    salaParaRecarregar(amb2);
+    amb2.entrar('A', 'peer-a');
+    amb2.iniciarPartida();
+    let rr = amb2.state.currentRound;
+    amb2.Game.core.handleAnswer({ alternativa: rr.pergunta.correct, playerName: rr.respondedor });
+    amb2.Game.core.nextTurn();
+    rr = amb2.state.currentRound;
+    amb2.Game.core.handleAnswer({ alternativa: rr.pergunta.correct, playerName: rr.respondedor });
+    confere(!amb2.state.rodadaEncerrada, 'pré-condição: F5 antes de a rodada ser encerrada');
+
+    const novo2 = usar(recarregarHost(amb2));
+    novo2.limparRegistro();
+    novo2.Game.core.retomarPartidaAposRecarregar();
+    confere(novo2.state.rodadaEncerrada === true, 'todos já responderam: a rodada deveria encerrar');
+    confere(novo2.broadcastsDoTipo('round-ended').length === 1 && novo2.broadcastsDoTipo('round-start').length === 0,
+        'deveria avisar "rodada encerrada", sem começar outra dupla');
+    confere(novo2.registro.ui.includes('showRoundEndedMessage'), 'o host deveria ver "Rodada encerrada"');
+
+    // Pergunta respondida pelo outro sinal (Respondedor já no rodízio, sem `respondeu`).
+    const amb3 = usar(criarAmbiente());
+    salaParaRecarregar(amb3);
+    amb3.entrar('A', 'peer-a');
+    amb3.entrar('B', 'peer-b');
+    amb3.iniciarPartida();
+    const r3 = amb3.state.currentRound;
+    amb3.Game.core.handleAnswer({ alternativa: r3.pergunta.correct, playerName: r3.respondedor });
+    amb3.state.currentRound.respondeu = false;
+    amb3.Game.saveState();
+
+    const novo3 = usar(recarregarHost(amb3));
+    novo3.limparRegistro();
+    novo3.Game.core.retomarPartidaAposRecarregar();
+    confere(novo3.state.currentRound && novo3.state.currentRound.respondedor !== r3.respondedor,
+        'Respondedor já no rodízio: a pergunta conta como respondida e a partida segue');
+    confere(novo3.broadcastsDoTipo('round-start').length === 1 && !novo3.registro.ui.includes('displayQuestion'),
+        'deveria formar a próxima dupla, sem reabrir a pergunta já respondida');
+});
+
+teste('T55 F5 do host com a partida pausada: continua pausada com o mesmo evento e retoma quando alguém volta (B5)', (usar) => {
+    const amb = usar(criarAmbiente());
+    salaParaRecarregar(amb);
+    amb.entrar('A', 'peer-a');
+    amb.iniciarPartida();
+    amb.cair('peer-a');
+    confere(amb.state.partidaPausada && amb.state.partidaPausada.evento, 'pré-condição: partida pausada, com o evento');
+    const eventoPausado = amb.state.partidaPausada.evento;
+
+    const novo = usar(recarregarHost(amb));
+    const ev = novo.Game.domain.event;
+    const sortear = ev.sortearEvento;
+    const aplicar = ev.aplicarEfeitosEvento;
+    let sorteios = 0;
+    let efeitos = 0;
+    ev.sortearEvento = (...a) => { sorteios++; return sortear(...a); };
+    ev.aplicarEfeitosEvento = (...a) => { efeitos++; return aplicar(...a); };
+    novo.limparRegistro();
+    novo.Game.core.retomarPartidaAposRecarregar();
+    confere(novo.state.partidaPausada && novo.state.partidaPausada.evento && novo.state.partidaPausada.evento.id === eventoPausado.id,
+        'deveria continuar pausada com o MESMO evento, veio: ' + JSON.stringify(novo.state.partidaPausada));
+    confere(novo.state.currentRound === null, 'não deveria haver dupla durante a pausa');
+    confere(sorteios === 0 && efeitos === 0, 'não pode sortear outro evento nem reaplicar efeitos (sorteios: ' + sorteios + ', efeitos: ' + efeitos + ')');
+    confere(novo.broadcastsDoTipo('show-evento').length === 0 && !novo.registro.ui.includes('showEventoModal'), 'não deveria mostrar evento');
+    confere(novo.registro.ui.includes('showPartidaPausadaMessage'), 'o host deveria ver o aviso de pausa');
+
+    // A volta: retoma com o mesmo evento, sem modal.
+    novo.entrar('A', 'peer-a2');
+    confere(!novo.state.partidaPausada, 'a volta de A deveria retomar a partida');
+    const r = novo.state.currentRound;
+    confere(r && r.evento && r.evento.id === eventoPausado.id, 'a rodada retomada deveria usar o mesmo evento');
+    confere(novo.broadcastsDoTipo('round-start').length === 1 && novo.broadcastsDoTipo('show-evento').length === 0,
+        'deveria mandar a nova dupla, sem reexibir o evento');
+    confere(sorteios === 0 && efeitos === 0, 'a retomada também não sorteia nem reaplica');
+});
+
+teste('T56 F5 do host com a pergunta aberta e sem rodada: como antes; relógio e prazo de resposta religados', (usar) => {
+    // Pergunta aberta: reexibida, com o prazo de resposta rearmado.
+    const amb = usar(criarAmbiente());
+    salaParaRecarregar(amb);
+    amb.entrar('A', 'peer-a');
+    amb.iniciarPartida();
+    const r = amb.state.currentRound;
+
+    const novo = usar(recarregarHost(amb));
+    const tempo = novo.tempoFalso();
+    const relogio = novo.relogioFalso();
+    novo.limparRegistro();
+    novo.Game.core.retomarPartidaAposRecarregar();
+    const r2 = novo.state.currentRound;
+    confere(r2 && r2.perguntador === r.perguntador && r2.respondedor === r.respondedor && r2.pergunta.id === r.pergunta.id && !r2.respondeu,
+        'a mesma pergunta deveria continuar em andamento');
+    const telas = telasDaRodada(novo);
+    confere(telas.includes('displayRoundStart') && telas.includes('displayQuestion'), 'deveria reexibir a pergunta, viu: ' + telas.join(', '));
+    confere(novo.broadcastsDoTipo('round-start').length === 0 && novo.broadcastsDoTipo('show-evento').length === 0,
+        'não pode trocar a pergunta (BUG-001)');
+
+    confere(relogio.ativos() === 1, 'o relógio da partida deveria voltar a contar, ligados: ' + relogio.ativos());
+    const t0 = novo.state.timer;
+    relogio.tic();
+    confere(novo.state.timer === t0 - 1, 'deveria contar 1 segundo, veio: ' + novo.state.timer);
+
+    tempo.avancar(novo.CONFIG.JOGO.RESPOSTA_TIMEOUT);
+    confere(novo.state.currentRound.respondeu === true && novo.broadcastsDoTipo('kpi-update').some(m => m.playerName === r.respondedor),
+        'o prazo de resposta deveria estar rearmado (a vez é pulada ao fim do prazo)');
+
+    // Partida em andamento sem rodada (nem pausada, nem encerrada): começa uma.
+    const amb2 = usar(criarAmbiente());
+    salaParaRecarregar(amb2);
+    amb2.entrar('A', 'peer-a');
+    amb2.state.gameStarted = true;
+    amb2.Game.saveState();
+    const novo2 = usar(recarregarHost(amb2));
+    novo2.limparRegistro();
+    novo2.Game.core.retomarPartidaAposRecarregar();
+    confere(novo2.state.currentRound && !novo2.state.currentRound.respondeu, 'sem rodada, deveria começar uma dupla');
+    confere(novo2.broadcastsDoTipo('show-evento').length === 1, 'rodada nova, com o evento');
+
+    // Lobby: nada a retomar.
+    const amb3 = usar(criarAmbiente());
+    salaParaRecarregar(amb3);
+    amb3.entrar('A', 'peer-a');
+    const novo3 = usar(recarregarHost(amb3));
+    novo3.limparRegistro();
+    novo3.Game.core.retomarPartidaAposRecarregar();
+    confere(novo3.registro.ui.length === 0 && novo3.registro.broadcasts.length === 0 && novo3.state.currentRound === null,
+        'no lobby, a retomada não faz nada');
+
+    // Guest e fim de jogo: nada a retomar (o motor da partida é do host).
+    for (const caso of ['guest', 'fim de jogo']) {
+        const novo4 = usar(recarregarHost(amb2));
+        if (caso === 'guest') novo4.state.isHost = false;
+        else novo4.state.gameOver = true;
+        const rodadaAntes = JSON.stringify(novo4.state.currentRound);
+        novo4.limparRegistro();
+        novo4.Game.core.retomarPartidaAposRecarregar();
+        confere(novo4.registro.ui.length === 0 && novo4.registro.broadcasts.length === 0 && JSON.stringify(novo4.state.currentRound) === rodadaAntes,
+            caso + ': a retomada não deveria fazer nada');
+    }
+
+    // main.js só chama a retomada (a lógica fica no sessionEngine.js, testável aqui).
+    const main = fs.readFileSync(path.join(RAIZ, 'js/main.js'), 'utf8');
+    confere(/if \(state\.isHost\) \{\s*Game\.core\.retomarPartidaAposRecarregar\(\);/.test(main),
+        'init() deveria chamar Game.core.retomarPartidaAposRecarregar() para o host');
+    confere(!/armarRespostaTimeout|pickNewPair|setInterval/.test(main), 'main.js não deveria ter lógica própria de retomada');
+});
+
+teste('T57 Estado salvo leva "rodada encerrada" e a pausa (com o evento); estado salvo antigo restaura sem eles', (usar) => {
+    const amb = usar(criarAmbiente());
+    salaParaRecarregar(amb);
+    amb.entrar('A', 'peer-a');
+    amb.iniciarPartida();
+    amb.state.rodadaEncerrada = true;
+    amb.state.partidaPausada = { evento: { id: 'e-x', titulo: 'Evento X' } };
+    amb.Game.saveState();
+    const salvo = JSON.parse(amb.armazenamento['pmKPI_roomState']);
+    confere(salvo.rodadaEncerrada === true, 'o estado salvo deveria ter rodadaEncerrada');
+    confere(salvo.partidaPausada && salvo.partidaPausada.evento && salvo.partidaPausada.evento.id === 'e-x', 'o estado salvo deveria ter a pausa com o evento');
+
+    const novo = usar(recarregarHost(amb));
+    confere(novo.state.rodadaEncerrada === true, 'rodadaEncerrada deveria ser restaurado');
+    confere(novo.state.partidaPausada && novo.state.partidaPausada.evento.id === 'e-x', 'a pausa deveria ser restaurada com o evento');
+
+    // Sem rodada encerrada e sem pausa: restaura zerado.
+    amb.state.rodadaEncerrada = false;
+    amb.state.partidaPausada = null;
+    amb.Game.saveState();
+    const novo2 = usar(recarregarHost(amb));
+    confere(novo2.state.rodadaEncerrada === false && novo2.state.partidaPausada === null, 'sem pausa nem rodada encerrada, restaura zerado');
+
+    // Estado salvo por uma versão anterior (sem os campos): restaura como antes.
+    const antigo = JSON.parse(amb.armazenamento['pmKPI_roomState']);
+    delete antigo.rodadaEncerrada;
+    delete antigo.partidaPausada;
+    amb.armazenamento['pmKPI_roomState'] = JSON.stringify(antigo);
+    const novo3 = usar(recarregarHost(amb));
+    confere(novo3.state.rodadaEncerrada === false && novo3.state.partidaPausada === null, 'estado salvo antigo: sem pausa e sem rodada encerrada');
+    confere(novo3.state.gameStarted === true && novo3.state.players.length === 2, 'o resto do estado continua sendo restaurado');
+});
+
+teste('T58 F5 do host logo depois da resposta que completa a última fase: a partida termina, como sem o F5', (usar) => {
+    // 3 jogadores: a rodada ainda não acabou, então só o fim de jogo explica parar.
+    const prepararUltimaResposta = (amb) => {
+        salaParaRecarregar(amb);
+        amb.entrar('A', 'peer-a');
+        amb.entrar('B', 'peer-b');
+        amb.iniciarPartida();
+        const r = amb.state.currentRound;
+        const ultimaFase = amb.CONFIG.FASES[amb.CONFIG.FASES.length - 1].id;
+        Object.assign(amb.jogador(r.respondedor), { phase: ultimaFase, activities: amb.CONFIG.JOGO.ACTIVITIES_PER_PHASE - 1 });
+        return r;
+    };
+
+    // Controle, sem F5: 3s depois da resposta, a partida termina.
+    const semF5 = usar(criarAmbiente());
+    const tempo = semF5.tempoFalso();
+    const r0 = prepararUltimaResposta(semF5);
+    semF5.Game.core.handleAnswer({ alternativa: r0.pergunta.correct, playerName: r0.respondedor });
+    tempo.avancar(3000);
+    confere(semF5.state.gameOver === true, 'pré-condição: sem F5, a resposta que completa a última fase encerra a partida');
+
+    // Com F5 antes dos 3s: a retomada também encerra.
+    const amb = usar(criarAmbiente());
+    const r = prepararUltimaResposta(amb);
+    amb.Game.core.handleAnswer({ alternativa: r.pergunta.correct, playerName: r.respondedor });
+    confere(!amb.state.gameOver, 'pré-condição: F5 antes de a partida terminar');
+
+    const novo = usar(recarregarHost(amb));
+    novo.limparRegistro();
+    novo.Game.core.retomarPartidaAposRecarregar();
+    confere(novo.state.gameOver === true, 'depois do F5, a partida deveria terminar');
+    confere(novo.broadcastsDoTipo('game-over').length === 1, 'deveria avisar os guests do fim de jogo');
+    confere(novo.broadcastsDoTipo('round-start').length === 0 && novo.broadcastsDoTipo('round-ended').length === 0,
+        'não pode seguir para outra dupla nem encerrar só a rodada');
 });
 
 console.log('\n' + (falhou === 0 ? '🎉' : '⚠️') + ' ' + passou + ' passaram, ' + falhou + ' falharam\n');
