@@ -1,5 +1,5 @@
 // ============================================
-// PM: The KPI Master - Testes de ponta a ponta: servidores locais
+// PM: The KPI Master - Testes no navegador: servidores locais
 // ============================================
 // Sobe, na própria máquina dos testes:
 //   - um servidor estático com os arquivos do jogo (a raiz do

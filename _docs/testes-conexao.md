@@ -8,16 +8,16 @@ deploy: nenhum item marcado **P1** pode ficar pendente.
 
 | Marca | Significado |
 |---|---|
-| 🤖 | Coberto por teste automatizado (`tests/faseD.test.js`, roda no GitHub Actions a cada push) |
-| 🌐 | Coberto por teste de ponta a ponta (`tests/e2e`, jogo de verdade no Chromium, roda no GitHub Actions a cada push) |
+| 🤖 | Coberto por teste automatizado de lógica (`tests/logic`, roda no GitHub Actions a cada push) |
+| 🌐 | Coberto por teste de ponta a ponta (`tests/browser`, jogo de verdade no Chromium, roda no GitHub Actions a cada push) |
 | 👤 | Conferido em teste manual (navegadores reais, GitHub Pages) |
 | ⬜ | Falta testar manualmente |
 | 🐛 | Bug encontrado, ainda não corrigido |
 | ⚠️ | Limitação conhecida (comportamento aceito por ora) |
 | **P1** | Obrigatório antes do deploy · **P2** desejável |
 
-> Os testes de `tests/faseD.test.js` simulam o PeerJS: garantem a
-> **lógica** do jogo em cada situação. Os de ponta a ponta (`tests/e2e`)
+> Os testes de `tests/logic` simulam o PeerJS: garantem a
+> **lógica** do jogo em cada situação. Os de ponta a ponta (`tests/browser`)
 > rodam o jogo de verdade em janelas separadas do Chromium, com um
 > servidor PeerJS local — cobrem a conexão, mas não redes reais
 > diferentes, celular nem outros navegadores. Esses continuam na lista
@@ -202,7 +202,7 @@ janelas visíveis lado a lado (aba em segundo plano fica mais lenta).
 
 ---
 
-## 6. Testes de ponta a ponta (`tests/e2e`)
+## 6. Testes de ponta a ponta (`tests/browser`)
 
 O jogo de verdade, em janelas separadas do Chromium (cada uma com
 armazenamento e token próprios, como navegadores diferentes), com um
@@ -245,7 +245,7 @@ reais diferentes) — roteiros na seção 7 —, M17 (Firefox, Safari) e M18
 (aba esquecida em segundo plano).
 
 Rodar localmente (precisa de Node): `npm ci`, `npx playwright install
-chromium` e `npx playwright test --config tests/e2e/playwright.config.js`.
+chromium` e `npx playwright test --config tests/browser/playwright.config.js`.
 
 ---
 

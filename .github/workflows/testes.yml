@@ -2,14 +2,15 @@
 # PM: The KPI Master - Testes automatizados
 # ============================================
 # Dois conjuntos, a cada push e pull request:
-#   - "testes": tests/*.test.js — lógica do jogo, com rede e tela
-#     simuladas (rápido, sem dependências).
-#   - "ponta-a-ponta": tests/e2e — o jogo de verdade em várias janelas
-#     do Chromium, com servidor PeerJS e site locais (alguns minutos).
+#   - "testes": tests/logic/*.test.js — lógica do jogo, com rede e tela
+#     simuladas (rápido, sem dependências); uma tabela por arquivo.
+#   - "ponta-a-ponta": tests/browser — o jogo de verdade em várias
+#     janelas do Chromium, com servidor PeerJS e site locais (alguns
+#     minutos).
 # Resultado: aba "Actions" do repositório — tabelas de resumo na página
 # da execução; log dos testes (artefato "resultado-testes") e relatório
-# de ponta a ponta com o console de cada jogador nos cenários que
-# falharem (artefato "relatorio-ponta-a-ponta").
+# do navegador com o console de cada jogador nos cenários que falharem
+# (artefato "relatorio-ponta-a-ponta").
 # Também pode ser disparado manualmente pelo botão "Run workflow".
 # ============================================
 
@@ -43,7 +44,7 @@ jobs:
             echo "Commit:   ${GITHUB_SHA}"
             echo "Branch:   ${GITHUB_REF_NAME}"
           } > resultado-testes.txt
-          for arquivo in tests/*.test.js; do
+          for arquivo in tests/logic/*.test.js; do
             echo "" | tee -a resultado-testes.txt
             echo "===== ${arquivo} =====" | tee -a resultado-testes.txt
             node "$arquivo" 2>&1 | tee -a resultado-testes.txt || falhou=1
@@ -78,8 +79,8 @@ jobs:
       - name: Instalar o Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Rodar os testes de ponta a ponta
-        run: npx playwright test --config tests/e2e/playwright.config.js
+      - name: Rodar os testes no navegador
+        run: npx playwright test --config tests/browser/playwright.config.js
 
       - name: Guardar o relatório
         if: always()

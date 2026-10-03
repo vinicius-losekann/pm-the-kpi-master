@@ -34,7 +34,7 @@ corrigidos recentemente (Fase D).
 
 Encontrados nos testes da Fase D (automatizados e com navegadores reais).
 Cada correção veio com teste automatizado — os números (T…, E…) são os
-de `tests/faseD.test.js` e `tests/e2e`; o mapa completo está em
+de `tests/logic` e `tests/browser`; o mapa completo está em
 `testes-conexao.md`.
 
 | ID | Sintoma | Causa | Correção |

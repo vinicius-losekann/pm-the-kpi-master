@@ -2,10 +2,10 @@
   "name": "pm-the-kpi-master",
   "version": "1.0.0",
   "private": true,
-  "description": "PM: The KPI Master. As dependências abaixo são só para os testes de ponta a ponta (tests/e2e); o jogo publicado não usa nada daqui.",
+  "description": "PM: The KPI Master. As dependências abaixo são só para os testes no navegador (tests/browser); o jogo publicado não usa nada daqui.",
   "scripts": {
-    "test": "node tests/faseD.test.js",
-    "test:e2e": "playwright test --config tests/e2e/playwright.config.js"
+    "test": "node tests/logic/joining-and-identity.test.js && node tests/logic/drop-and-return.test.js && node tests/logic/host-migration.test.js && node tests/logic/host-reload.test.js && node tests/logic/saved-state.test.js && node tests/logic/end-of-match.test.js",
+    "test:browser": "playwright test --config tests/browser/playwright.config.js"
   },
   "devDependencies": {
     "@playwright/test": "1.56.0",

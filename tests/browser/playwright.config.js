@@ -1,10 +1,10 @@
 // ============================================
-// PM: The KPI Master - Testes de ponta a ponta: configuração
+// PM: The KPI Master - Testes no navegador: configuração
 // ============================================
 // Rodar a partir da raiz do repositório:
 //   npm ci
 //   npx playwright install chromium
-//   npx playwright test --config tests/e2e/playwright.config.js
+//   npx playwright test --config tests/browser/playwright.config.js
 // ============================================
 
 const path = require('path');
@@ -27,7 +27,7 @@ module.exports = defineConfig({
     // de rede; o relatório mostra se precisou repetir.
     retries: NO_ACTIONS ? 1 : 0,
     reporter: NO_ACTIONS
-        ? [['list'], ['github'], ['./resumo.js'], ['html', { open: 'never', outputFolder: path.join(RAIZ, 'playwright-report') }]]
+        ? [['list'], ['github'], ['./summary.js'], ['html', { open: 'never', outputFolder: path.join(RAIZ, 'playwright-report') }]]
         : [['list']],
     outputDir: path.join(RAIZ, 'test-results'),
     use: {
@@ -36,7 +36,7 @@ module.exports = defineConfig({
         trace: 'retain-on-failure'
     },
     webServer: {
-        command: 'node tests/e2e/servidores.js',
+        command: 'node tests/browser/servers.js',
         cwd: RAIZ,
         url: 'http://127.0.0.1:8080/index.html',
         reuseExistingServer: !NO_ACTIONS,

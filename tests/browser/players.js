@@ -1,5 +1,5 @@
 // ============================================
-// PM: The KPI Master - Testes de ponta a ponta: apoio
+// PM: The KPI Master - Testes no navegador: jogadores e ajudantes
 // ============================================
 // Cada "jogador" é um contexto separado do navegador: armazenamento,
 // token de identidade e abas próprios — como um navegador diferente.
@@ -18,16 +18,16 @@ const PEERJS_LOCAL = path.join(RAIZ, 'node_modules', 'peerjs', 'dist', 'peerjs.m
 const PREFIXO_SALA = 'pm-the-kpi-master-';
 
 /** Código de sala único por cenário (evita sobra de um cenário no outro). */
-function codigoDeSala() {
+function roomCode() {
     return 'e2e' + Date.now().toString(36).slice(-5) + Math.floor(Math.random() * 1000);
 }
 
 /** ID completo da sala (prefixo + código), como o jogo monta. */
-function idDaSala(codigo) {
+function roomId(codigo) {
     return PREFIXO_SALA + codigo;
 }
 
-async function criarJogador(browser, nome) {
+async function createPlayer(browser, nome) {
     const contexto = await browser.newContext();
     const logs = [];
 
@@ -57,7 +57,7 @@ async function criarJogador(browser, nome) {
         logs,
         page: null,
 
-        async novaAba() {
+        async newTab() {
             const page = await contexto.newPage();
             page.on('console', (m) => logs.push('[' + nome + '] ' + m.text()));
             page.on('pageerror', (e) => logs.push('[' + nome + '] ERRO NA PÁGINA: ' + e.message));
@@ -67,12 +67,12 @@ async function criarJogador(browser, nome) {
         },
 
         /** Abre o jogo direto pelo link da partida (como o link gerado pela tela inicial). */
-        async abrirJogo(codigo, { host }) {
-            const id = idDaSala(codigo);
+        async openGame(codigo, { host }) {
+            const id = roomId(codigo);
             const params = new URLSearchParams({ host: host ? 'true' : 'false', room: id, playerName: nome, peerId: id });
-            if (!jogador.page || jogador.page.isClosed()) await jogador.novaAba();
+            if (!jogador.page || jogador.page.isClosed()) await jogador.newTab();
             await jogador.page.goto(SITE + '/game.html?' + params.toString());
-            await jogador.esperar(() => window.Game && Game.network && Game.network.connectionState.getPeer() &&
+            await jogador.waitFor(() => window.Game && Game.network && Game.network.connectionState.getPeer() &&
                 Game.network.connectionState.getPeer().open === true);
         },
 
@@ -80,10 +80,10 @@ async function criarJogador(browser, nome) {
          * Entra pela tela inicial, como um jogador faria: "Entrar em uma
          * sala", nome e código. Espera chegar ao jogo e o PeerJS abrir.
          */
-        async entrarPelaTelaInicial(codigo) {
-            await jogador.tentarEntrarPelaTelaInicial(codigo);
+        async joinFromHomeScreen(codigo) {
+            await jogador.tryJoinFromHomeScreen(codigo);
             await jogador.page.waitForURL(/game\.html/, { timeout: 20000 });
-            await jogador.esperar(() => window.Game && Game.network && Game.network.connectionState.getPeer() &&
+            await jogador.waitFor(() => window.Game && Game.network && Game.network.connectionState.getPeer() &&
                 Game.network.connectionState.getPeer().open === true);
         },
 
@@ -91,8 +91,8 @@ async function criarJogador(browser, nome) {
          * Preenche "Entrar em uma sala" na tela inicial e clica em entrar,
          * sem esperar o resultado (para quem pode ser recusado).
          */
-        async tentarEntrarPelaTelaInicial(codigo) {
-            if (!jogador.page || jogador.page.isClosed()) await jogador.novaAba();
+        async tryJoinFromHomeScreen(codigo) {
+            if (!jogador.page || jogador.page.isClosed()) await jogador.newTab();
             await jogador.page.goto(SITE + '/index.html');
             await jogador.page.click('#btnChooseJoin');
             await jogador.page.fill('#joinPlayerName', nome);
@@ -105,8 +105,8 @@ async function criarJogador(browser, nome) {
          * chegou à tela "Sala criada", o aviso de erro (se houver) e
          * quantos segundos levou do clique até a resposta.
          */
-        async criarSalaPelaTelaInicial(codigo) {
-            if (!jogador.page || jogador.page.isClosed()) await jogador.novaAba();
+        async createRoomFromHomeScreen(codigo) {
+            if (!jogador.page || jogador.page.isClosed()) await jogador.newTab();
             const page = jogador.page;
             await page.goto(SITE + '/index.html');
             await page.click('#btnChooseCreate');
@@ -131,7 +131,7 @@ async function criarJogador(browser, nome) {
          * minutos (o jogo só restaura o que tem menos de 5). Usa uma aba
          * à parte, no endereço do site. Devolve false se não havia estado salvo.
          */
-        async envelhecerEstadoSalvo(minutos) {
+        async ageSavedState(minutos) {
             const aba = await contexto.newPage();
             await aba.goto(SITE + '/index.html');
             const havia = await aba.evaluate((ms) => {
@@ -150,7 +150,7 @@ async function criarJogador(browser, nome) {
          * Clica num botão como o jogador faria: antes, fecha os avisos que
          * cobrem a tela (evento da rodada, resultado da resposta).
          */
-        async clicar(seletor) {
+        async click(seletor) {
             for (const [modal, fechar] of [['#modalEvento', '#btnFecharEvento'], ['#modalResult', '#btnCloseResult']]) {
                 if (await jogador.page.locator(modal).isVisible()) {
                     await jogador.page.evaluate((sel) => document.querySelector(sel).click(), fechar);
@@ -164,7 +164,7 @@ async function criarJogador(browser, nome) {
          * ativos)? #altA é o texto da alternativa; o botão é o elemento
          * em volta dele.
          */
-        temPerguntaAberta() {
+        hasOpenQuestion() {
             return jogador.page.evaluate(() => {
                 const modal = document.getElementById('modalResponderPergunta');
                 const alt = document.getElementById('altA');
@@ -174,7 +174,7 @@ async function criarJogador(browser, nome) {
         },
 
         /** Está conectado ao host do ID informado (conexão aberta)? */
-        conectadoA(idDoHost) {
+        isConnectedTo(idDoHost) {
             return jogador.page.evaluate((id) => {
                 const c = Game.network.connectionState.getConnection(id);
                 return Game.state.isHost === false && Game.state.hostPeerId === id && !!c && c.open === true;
@@ -182,30 +182,30 @@ async function criarJogador(browser, nome) {
         },
 
         /** Reabre o mesmo endereço numa aba nova (como reabrir pelo histórico). */
-        async reabrir(url) {
-            await jogador.novaAba();
+        async reopen(url) {
+            await jogador.newTab();
             await jogador.page.goto(url);
         },
 
         /** Fecha a aba como um usuário fecharia (dispara pagehide/beforeunload). */
-        async fecharAba() {
+        async closeTab() {
             const url = jogador.page.url();
             await jogador.page.close({ runBeforeUnload: true });
             return url;
         },
 
         /** Lê um valor do estado do jogo na página. */
-        estado(funcao, arg) {
+        state(funcao, arg) {
             return jogador.page.evaluate(funcao, arg);
         },
 
         /** Espera uma condição (função executada na página) ficar verdadeira. */
-        async esperar(funcao, opcoes = {}) {
+        async waitFor(funcao, opcoes = {}) {
             await jogador.page.waitForFunction(funcao, opcoes.arg, { timeout: opcoes.timeout || 20000, polling: 200 });
         },
 
         /** Se for a vez deste jogador responder, clica na alternativa A. */
-        async responderSeForMinhaVez() {
+        async answerIfMyTurn() {
             return jogador.page.evaluate(() => {
                 const modal = document.getElementById('modalResponderPergunta');
                 const alt = document.getElementById('altA');
@@ -221,15 +221,15 @@ async function criarJogador(browser, nome) {
 }
 
 /**
- * Fixture `jogadores`: cria jogadores (navegadores separados) e, se o
+ * Fixture `players`: cria jogadores (navegadores separados) e, se o
  * cenário falhar, anexa o console de cada um ao relatório.
  */
 const test = base.extend({
-    jogadores: async ({ browser }, use, testInfo) => {
+    players: async ({ browser }, use, testInfo) => {
         const lista = [];
         await use({
-            novo: async (nome) => {
-                const j = await criarJogador(browser, nome);
+            add: async (nome) => {
+                const j = await createPlayer(browser, nome);
                 lista.push(j);
                 return j;
             }
@@ -247,14 +247,14 @@ const test = base.extend({
  * Prepara uma partida em andamento: o primeiro jogador cria a sala como
  * host, os outros entram, e o host inicia.
  */
-async function iniciarPartida(host, guests, codigo) {
-    await host.abrirJogo(codigo, { host: true });
-    for (const g of guests) await g.abrirJogo(codigo, { host: false });
+async function startMatch(host, guests, codigo) {
+    await host.openGame(codigo, { host: true });
+    for (const g of guests) await g.openGame(codigo, { host: false });
     const total = guests.length + 1;
-    await host.esperar((n) => Game.state.players.length === n, { arg: total });
-    await host.clicar('#btnStartGame');
+    await host.waitFor((n) => Game.state.players.length === n, { arg: total });
+    await host.click('#btnStartGame');
     for (const j of [host, ...guests]) {
-        await j.esperar(() => Game.state.gameStarted === true);
+        await j.waitFor(() => Game.state.gameStarted === true);
     }
 }
 
@@ -262,11 +262,11 @@ async function iniciarPartida(host, guests, codigo) {
  * Responde (sempre a alternativa A) a cada vez que alguém do grupo é o
  * Respondedor, até o host marcar a rodada como encerrada.
  */
-async function responderAteEncerrarRodada(host, todos) {
+async function answerUntilRoundEnds(host, todos) {
     const limite = Date.now() + 60000;
     while (Date.now() < limite) {
-        if (await host.estado(() => Game.state.rodadaEncerrada === true)) return;
-        for (const j of todos) await j.responderSeForMinhaVez();
+        if (await host.state(() => Game.state.rodadaEncerrada === true)) return;
+        for (const j of todos) await j.answerIfMyTurn();
         await host.page.waitForTimeout(500);
     }
     throw new Error('A rodada não terminou em 60s');
@@ -278,17 +278,17 @@ async function responderAteEncerrarRodada(host, todos) {
  * dos jogadores de `alvos` estar com a pergunta aberta. Devolve esse
  * jogador.
  */
-async function esperarPerguntaAbertaPara(host, todos, alvos) {
+async function waitForOpenQuestion(host, todos, alvos) {
     const limite = Date.now() + 60000;
     while (Date.now() < limite) {
         for (const j of alvos) {
-            if (await j.temPerguntaAberta()) return j;
+            if (await j.hasOpenQuestion()) return j;
         }
-        if (await host.estado(() => Game.state.rodadaEncerrada === true)) {
-            await host.clicar('#btnNovaRodada');
+        if (await host.state(() => Game.state.rodadaEncerrada === true)) {
+            await host.click('#btnNovaRodada');
         }
         for (const j of todos) {
-            if (!alvos.includes(j)) await j.responderSeForMinhaVez();
+            if (!alvos.includes(j)) await j.answerIfMyTurn();
         }
         await host.page.waitForTimeout(300);
     }
@@ -296,11 +296,11 @@ async function esperarPerguntaAbertaPara(host, todos, alvos) {
 }
 
 /** Espera um dos jogadores assumir como host (com o peer novo aberto). Devolve quem assumiu. */
-async function esperarNovoHost(candidatos, timeout = 25000) {
+async function waitForNewHost(candidatos, timeout = 25000) {
     const limite = Date.now() + timeout;
     while (Date.now() < limite) {
         for (const j of candidatos) {
-            const assumiu = await j.estado(() => Game.state.isHost === true && Game.state.peerId === Game.state.hostPeerId);
+            const assumiu = await j.state(() => Game.state.isHost === true && Game.state.peerId === Game.state.hostPeerId);
             if (assumiu) return j;
         }
         await candidatos[0].page.waitForTimeout(200);
@@ -309,6 +309,6 @@ async function esperarNovoHost(candidatos, timeout = 25000) {
 }
 
 module.exports = {
-    test, expect, codigoDeSala, idDaSala, iniciarPartida, responderAteEncerrarRodada,
-    esperarPerguntaAbertaPara, esperarNovoHost, SITE
+    test, expect, roomCode, roomId, startMatch, answerUntilRoundEnds,
+    waitForOpenQuestion, waitForNewHost, SITE
 };

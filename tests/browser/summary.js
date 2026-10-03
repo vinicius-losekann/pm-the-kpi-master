@@ -1,13 +1,13 @@
 // ============================================
-// PM: The KPI Master - Testes de ponta a ponta: resumo no Actions
+// PM: The KPI Master - Testes no navegador: resumo no Actions
 // ============================================
 // Escreve a tabela de resultados na página da execução do GitHub
-// Actions (mesmo formato do resumo dos testes de tests/faseD.test.js).
+// Actions (mesmo formato do resumo dos testes de tests/logic).
 // ============================================
 
 const fs = require('fs');
 
-class Resumo {
+class Summary {
     constructor() {
         this.resultados = new Map();
     }
@@ -26,7 +26,7 @@ class Resumo {
         const falhou = lista.length - passou;
 
         const linhas = [
-            '### 🌐 Ponta a ponta — ' + passou + ' passaram, ' + falhou + ' falharam',
+            '### 🌐 No navegador — ' + passou + ' passaram, ' + falhou + ' falharam',
             '',
             '| | Cenário | Tempo | Detalhe |',
             '|---|---|---|---|'
@@ -46,4 +46,4 @@ class Resumo {
     }
 }
 
-module.exports = Resumo;
+module.exports = Summary;

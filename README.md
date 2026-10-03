@@ -211,11 +211,11 @@ Respondedor recebe pergunta
 │   └── events.json
 ├── 📁 _docs/                 # arquitetura, convenções, roadmap, issues, checklist de conexão
 ├── 📁 tests/
-│   ├── faseD.test.js        # testes de lógica (Node, sem dependências)
-│   └── e2e/                 # ponta a ponta: jogo real no Chromium (Playwright)
+│   ├── logic/               # lógica do jogo com rede simulada (Node, sem dependências)
+│   └── browser/             # o jogo real no Chromium (Playwright)
 ├── 📁 .github/workflows/
 │   └── testes.yml           # roda os testes a cada push
-├── 📄 package.json           # dependências só dos testes de ponta a ponta
+├── 📄 package.json           # dependências só dos testes no navegador
 └── 📁 js/
     ├── main.js
     ├── entry/
@@ -290,9 +290,10 @@ python3 -m http.server 8000
 Rodam automaticamente no GitHub Actions a cada push (aba "Actions" do
 repositório). Localmente, com Node.js:
 ```bash
-node tests/faseD.test.js                                     # lógica
-npm ci && npx playwright install chromium                    # ponta a ponta (1ª vez)
-npx playwright test --config tests/e2e/playwright.config.js
+node tests/logic/host-reload.test.js                             # lógica (um arquivo por assunto)
+npm test                                                         # lógica (todos os arquivos)
+npm ci && npx playwright install chromium                        # no navegador (1ª vez)
+npx playwright test --config tests/browser/playwright.config.js
 ```
 
 ---
