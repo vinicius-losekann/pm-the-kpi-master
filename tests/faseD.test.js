@@ -2749,6 +2749,7 @@ teste('T59 F5 do host com assessoria pendente: o pedido é cancelado, quem respo
     novo4.Game.core.retomarPartidaAposRecarregar();
     const kpiDeA = novo4.broadcastsDoTipo('kpi-update').find(m => m.playerName === 'A');
     confere(kpiDeA && kpiDeA.acertou === true, 'a resposta guardada deveria ser processada depois do F5');
+    confere(!novo4.registro.ui.includes('displayQuestion'), 'a pergunta já respondida não pode ser reexibida');
     const r5 = novo4.state.currentRound;
     confere(novo4.state.usedRespondedorThisRound.includes('A') && r5 && !r5.pendingAnswer && !r5.assessoria,
         'A entra no rodízio; nada fica guardado nem pendente, veio: ' + JSON.stringify(r5 && { p: r5.pendingAnswer, a: r5.assessoria }));

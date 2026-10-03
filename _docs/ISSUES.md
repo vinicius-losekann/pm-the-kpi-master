@@ -11,19 +11,21 @@ corrigidos recentemente (Fase D).
 
 ## Em investigação
 
-### BUG-019: F5 do host com um pedido de assessoria em andamento
+### BUG-020: tela do host depois do F5 com a pergunta aberta
 
-- **Status:** 🔍 Suspeita, não confirmada (registrada em 03/10/2026)
-- **Local:** `engine/sessionEngine.js` → `retomarPartidaAposRecarregar()`;
-  `engine/advisoryEngine.js` (prazo da assessoria)
-- **Sintoma esperado:** se o host recarregar a página enquanto um assessor
-  ainda não respondeu, a rodada pode ficar parada caso o assessor também
-  não responda depois.
-- **Causa provável:** o prazo de 20s da assessoria é um `setTimeout` e se
-  perde com a página; a retomada rearma só o prazo de resposta do
-  Respondedor, e a resposta dele fica guardada esperando a assessoria.
-- **Próximo passo:** confirmar lendo o fluxo (e com teste automatizado);
-  se confirmar, corrigir como frente própria.
+- **Status:** 🔍 Suspeita, encontrada por leitura do código (03/10/2026),
+  ainda não conferida no navegador
+- **Local:** `engine/sessionEngine.js` → `retomarPartidaAposRecarregar()`,
+  caso "pergunta em aberto"
+- **Sintoma esperado:** (1) se o host não está na dupla (espectador),
+  volta do F5 vendo a área da pergunta em vez de "Aguardando pergunta...";
+  (2) os selos de domínio e área da pergunta ficam vazios na tela do host.
+- **Causa provável:** (1) a retomada chama `displayRoundStart()` sem olhar
+  o papel do host — `pickNewPair()` escolhe entre ela e
+  `displaySpectatorView()`; (2) a pergunta guardada na rodada é a do
+  baralho (`domain_key`), sem os campos `domain`/`area` que a tela usa.
+- **Próximo passo:** conferir no navegador; se confirmar, corrigir como
+  frente própria (só tela, sem mudar regra do jogo).
 
 ---
 
@@ -49,6 +51,7 @@ de `tests/faseD.test.js` e `tests/e2e`; o mapa completo está em
 | BUG-016 (B3) | F5 do host com a rodada encerrada: telas erradas ("Aguardando início da rodada...", última dupla como em andamento) | "Rodada encerrada" não era salvo; a retomada reabria a última rodada | D3f: estado salvo leva a situação; `retomarPartidaAposRecarregar()` — T53, T57 · E9 |
 | BUG-017 (B4) | F5 do host logo depois de uma resposta: partida travada | O aviso para seguir à próxima dupla (3s depois) se perdia com a página | D3f: a retomada segue para a próxima dupla, encerra a rodada ou encerra a partida — T54, T58 · E10 |
 | BUG-018 (B5) | F5 do host com a partida pausada: outro evento sorteado, efeitos reaplicados | A pausa não era salva | D3f: continua pausada com o mesmo evento — T55, T57 · E11 |
+| BUG-019 | F5 do host com um pedido de assessoria sem resposta: rodada presa (quem responde com os botões travados, "Nova Rodada" bloqueado) até acabar o tempo da partida | O prazo de 20s do assessor (`setTimeout`) se perdia com a página, e o assessor perdia a pergunta ao reconectar (a reconexão fecha os modais); a resposta ficava guardada esperando para sempre | O F5 cancela o pedido pendente (quem responde pode pedir de novo, como numa troca de host); resposta já guardada é processada — T59, T60 · E12 |
 
 ---
 

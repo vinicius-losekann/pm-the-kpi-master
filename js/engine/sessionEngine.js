@@ -88,7 +88,8 @@ function iniciarRelogio() {
  *     critério de becomeHost() (network/hostMigration.js);
  *   - pergunta em aberto → reexibe a mesma pergunta e rearma o prazo de
  *     resposta (correção do BUG-001, ver ISSUES.md: antes cada F5 trocava
- *     a pergunta).
+ *     a pergunta). Um pedido de assessoria ainda sem resposta é cancelado
+ *     antes (BUG-019, ver cancelarAssessoriaPendente()).
  */
 function retomarPartidaAposRecarregar() {
     const state = Game.state;
@@ -127,6 +128,7 @@ function retomarPartidaAposRecarregar() {
             Game.engine.turn.nextTurn();
         }
     } else {
+        if (cancelarAssessoriaPendente(round)) return;
         Game.ui.displayRoundStart();
         if (round.pergunta) {
             Game.ui.displayQuestion(round.pergunta);
@@ -134,6 +136,32 @@ function retomarPartidaAposRecarregar() {
         Game.engine.turn.armarRespostaTimeout(round.respondedor);
         Game.ui.refreshNovaRodadaButton();
     }
+}
+
+/**
+ * BUG-019: no F5 do host, um pedido de assessoria ainda sem resposta é
+ * cancelado. O prazo de 20s do assessor (setTimeout de
+ * advisoryEngine.handleAssessoriaRequest()) se perde com a página, e o
+ * assessor perde a pergunta (a reconexão fecha os modais) — sem cancelar,
+ * a rodada ficava presa esperando uma resposta que não vinha. Quem
+ * responde pode pedir de novo; é o mesmo resultado de uma troca de host.
+ *
+ * Se a resposta já tinha chegado e esperava o assessor, ela é processada
+ * agora (answerEngine.handleAnswer() segue para a próxima dupla).
+ * @returns {boolean} true se processou a resposta guardada (a pergunta
+ *   não deve ser reexibida)
+ */
+function cancelarAssessoriaPendente(round) {
+    if (!round.assessoria || round.assessoria.status !== 'pending') return false;
+
+    console.log('🧭 Pedido de assessoria sem resposta cancelado pelo F5 do host — quem responde pode pedir de novo.');
+    round.assessoria = null;
+
+    if (!round.pendingAnswer) return false;
+    const pendente = round.pendingAnswer;
+    round.pendingAnswer = null;
+    Game.engine.answer.handleAnswer(pendente);
+    return true;
 }
 
 /**

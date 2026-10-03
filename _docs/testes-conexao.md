@@ -68,7 +68,7 @@ só automatizado (falta o manual).
 
 ---
 
-## 2. Casos cobertos por teste automatizado (61 testes)
+## 2. Casos cobertos por teste automatizado (63 testes)
 
 ### Entrada na sala e identidade
 | Caso | Testes | Manual |
@@ -103,6 +103,7 @@ só automatizado (falta o manual).
 | F5 do host com a rodada encerrada: continua encerrada para todos, nada começa sozinho | 🤖 T53, T57 · 🌐 E9 | — (coberto por E9) |
 | F5 do host logo depois de uma resposta: segue para a próxima dupla ou encerra a rodada; se a resposta completou a última fase, a partida termina | 🤖 T54, T58 · 🌐 E10 | — (coberto por E10) |
 | F5 do host com a partida pausada: continua pausada com o mesmo evento e retoma quando alguém volta | 🤖 T55, T57 · 🌐 E11 | — (coberto por E11) |
+| F5 do host com um pedido de assessoria sem resposta: o pedido é cancelado, quem responde pode pedir de novo e a rodada segue; assessoria já respondida continua valendo | 🤖 T59, T60 · 🌐 E12 | — (coberto por E12) |
 | Host não volta: backup assume em ~10s, não antes | 🤖 T39, T40 · 🌐 E2 | 👤 |
 | Backup desconectado é pulado, o próximo assume | 🤖 T10 | — |
 | Novo host marca os outros como desconectados, pausa e retoma | 🤖 T17, T21, T21b | 👤 |
@@ -134,16 +135,22 @@ só automatizado (falta o manual).
 
 Nenhum no momento.
 
+Em investigação fora da conexão: BUG-020 (tela do host depois do F5 com
+a pergunta aberta), em `ISSUES.md`.
+
 Corrigidos: B1 (botão "Iniciar" desabilitado depois de um "Sair da
 partida") na D3d; B2 (rodada que começava sozinha depois de uma troca de
 host) na D3e; B3, B4 e B5 (F5 do host em momentos específicos da
-partida, encontrados com navegadores reais em 03/10/2026) na D3f:
+partida, encontrados com navegadores reais em 03/10/2026) na D3f;
+BUG-019 (F5 do host com assessoria pendente, ver `ISSUES.md`) em
+03/10/2026:
 
 | ID | Situação antes da correção | Causa |
 |---|---|---|
 | B3 | F5 do host com a rodada encerrada: o host voltava com "Aguardando início da rodada..." e os outros viam a última dupla como em andamento, em vez de "Rodada encerrada" | "Rodada encerrada" não era salvo, e a retomada reexibia a última rodada (já respondida) |
 | B4 | F5 do host logo depois de uma resposta, nos ~3s antes da próxima dupla: a partida travava ("Nova Rodada" bloqueado, nenhuma dupla nova) | O aviso para seguir à próxima dupla (agendado para 3s depois) se perdia com a página, e a retomada reabria a pergunta já respondida |
 | B5 | F5 do host com a partida pausada: sorteava outro evento e reaplicava os efeitos | A pausa não era salva, e a retomada começava uma rodada nova |
+| BUG-019 | F5 do host com um pedido de assessoria sem resposta: quem responde ficava com os botões travados e a rodada parada até acabar o tempo da partida | O prazo do assessor se perdia com a página, e o assessor perdia a pergunta ao reconectar |
 
 ---
 
@@ -210,6 +217,7 @@ não mudam: o teste só aponta o PeerJS para o servidor local.
 | E9 | F5 do host com a rodada encerrada: continua encerrada para os dois, "Nova Rodada" liberado, nada começa sozinho | M2, B3 |
 | E10 | F5 do host logo depois de responder: a partida segue (próxima dupla ou fim da rodada) e a rodada seguinte começa | B4 |
 | E11 | F5 do host com a partida pausada: continua pausada com o mesmo evento, sem mostrar outro; retoma quando o outro volta | B5 |
+| E12 | 3 jogadores; um guest pede assessoria, o assessor não responde e o host dá F5: o guest volta com os botões e o "Pedir Assessoria" liberados, responde e a partida segue | BUG-019 |
 
 Queda de rede (M7) não entrou: a simulação de "sem rede" do navegador
 não derruba a conexão direta entre janelas na mesma máquina (conferido —
