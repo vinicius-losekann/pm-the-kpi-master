@@ -6,70 +6,70 @@
 // por parâmetro e retorna/mutação apenas dos objetos passados.
 //
 // Nomenclatura PMBOK 8ª ed.: questionsData.domains são os Domínios de
-// Desempenho, e o campo "areas" de cada domínio lista as fases
-// compatíveis (Áreas de Foco).
+// Desempenho, e o campo "areas" de cada domínio lista as áreas foco
+// compatíveis.
 // ============================================
 
 /**
- * Sorteia uma pergunta não utilizada de um domínio compatível com a fase
- * (grupoProcesso) informada. Se todas as perguntas de um domínio elegível
- * estiverem usadas, reinicia o(s) baralho(s) desse(s) domínio(s) antes de sortear.
+ * Sorteia uma pergunta não utilizada de um domínio compatível com a área
+ * foco informada. Se todas as perguntas dos domínios elegíveis estiverem
+ * usadas, reinicia o(s) baralho(s) desse(s) domínio(s) antes de sortear.
  *
- * @param {object} baralhos - Game.state.baralhos (mutado in-place)
+ * @param {object} decks - Game.state.baralhos (mutado in-place)
  * @param {object} questionsData - Game.state.questionsData
- * @param {string} grupoProcesso - fase/grupo do Respondedor
+ * @param {string} focusAreaId - área foco do Respondedor
  * @returns {object|null} pergunta sorteada (com domain_key) ou null se não houver nenhuma
  */
-function sortearPergunta(baralhos, questionsData, grupoProcesso) {
-    let domainsDisponiveis = [];
+function drawQuestion(decks, questionsData, focusAreaId) {
+    let availableDomains = [];
 
     for (const [key, domain] of Object.entries(questionsData?.domains || {})) {
-        if (domain.areas.includes(grupoProcesso) && baralhos[key]?.disponiveis > 0) {
-            domainsDisponiveis.push(key);
+        if (domain.areas.includes(focusAreaId) && decks[key]?.disponiveis > 0) {
+            availableDomains.push(key);
         }
     }
 
-    if (domainsDisponiveis.length === 0) {
+    if (availableDomains.length === 0) {
         for (const [key, domain] of Object.entries(questionsData?.domains || {})) {
-            if (domain.areas.includes(grupoProcesso)) {
-                resetBaralho(baralhos, key);
-                domainsDisponiveis.push(key);
+            if (domain.areas.includes(focusAreaId)) {
+                resetDeck(decks, key);
+                availableDomains.push(key);
             }
         }
     }
 
-    if (domainsDisponiveis.length === 0) return null;
+    if (availableDomains.length === 0) return null;
 
-    const domainSorteado = domainsDisponiveis[Math.floor(Math.random() * domainsDisponiveis.length)];
-    const baralho = baralhos[domainSorteado];
-    if (!baralho || baralho.disponiveis <= 0) return null;
+    const drawnDomain = availableDomains[Math.floor(Math.random() * availableDomains.length)];
+    const deck = decks[drawnDomain];
+    if (!deck || deck.disponiveis <= 0) return null;
 
-    const disponiveis = baralho.perguntas.filter(p => !p.usada);
-    if (disponiveis.length === 0) return null;
+    const unused = deck.perguntas.filter(p => !p.usada);
+    if (unused.length === 0) return null;
 
-    const pergunta = disponiveis[Math.floor(Math.random() * disponiveis.length)];
-    pergunta.usada = true;
-    baralho.disponiveis--;
+    const question = unused[Math.floor(Math.random() * unused.length)];
+    question.usada = true;
+    deck.disponiveis--;
 
-    return { ...pergunta, domain_key: domainSorteado };
+    return { ...question, domain_key: drawnDomain };
 }
 
 /**
  * Reinicia o baralho de um domínio, marcando todas as perguntas como não usadas.
  */
-function resetBaralho(baralhos, domainKey) {
-    const baralho = baralhos[domainKey];
-    if (baralho) {
-        baralho.perguntas.forEach(p => p.usada = false);
-        baralho.disponiveis = baralho.total;
+function resetDeck(decks, domainKey) {
+    const deck = decks[domainKey];
+    if (deck) {
+        deck.perguntas.forEach(p => p.usada = false);
+        deck.disponiveis = deck.total;
     }
 }
 
 /**
  * Reinicia todos os baralhos (usado ao iniciar uma nova partida).
  */
-function resetAllBaralhos(baralhos) {
-    Object.keys(baralhos).forEach(key => resetBaralho(baralhos, key));
+function resetAllDecks(decks) {
+    Object.keys(decks).forEach(key => resetDeck(decks, key));
 }
 
 // ============================================
@@ -78,7 +78,7 @@ function resetAllBaralhos(baralhos) {
 window.Game = window.Game || {};
 window.Game.domain = window.Game.domain || {};
 window.Game.domain.deck = {
-    sortearPergunta,
-    resetBaralho,
-    resetAllBaralhos
+    drawQuestion,
+    resetDeck,
+    resetAllDecks
 };

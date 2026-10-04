@@ -140,12 +140,12 @@ test('T55 F5 do host com a partida pausada: continua pausada com o mesmo evento 
 
     const novo = usar(reloadHost(amb));
     const ev = novo.Game.domain.event;
-    const sortear = ev.sortearEvento;
-    const aplicar = ev.aplicarEfeitosEvento;
+    const sortear = ev.drawEvent;
+    const aplicar = ev.applyEventEffects;
     let sorteios = 0;
     let efeitos = 0;
-    ev.sortearEvento = (...a) => { sorteios++; return sortear(...a); };
-    ev.aplicarEfeitosEvento = (...a) => { efeitos++; return aplicar(...a); };
+    ev.drawEvent = (...a) => { sorteios++; return sortear(...a); };
+    ev.applyEventEffects = (...a) => { efeitos++; return aplicar(...a); };
     novo.clearLog();
     novo.Game.core.retomarPartidaAposRecarregar();
     check(novo.state.partidaPausada && novo.state.partidaPausada.evento && novo.state.partidaPausada.evento.id === eventoPausado.id,

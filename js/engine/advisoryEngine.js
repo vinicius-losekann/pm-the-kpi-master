@@ -61,18 +61,18 @@ function handleAssessoriaRequest(msg) {
     const assessor = Game.getPlayerByName(msg.assessorName);
 
     // Validação pura delegada a domain/advisoryRules.js
-    const validacao = Game.domain.advisory.validarPedidoAssessoria({
-        assessor,
+    const validacao = Game.domain.advisory.validateAdvisoryRequest({
+        advisor: assessor,
         requester,
-        assessorName: msg.assessorName,
-        perguntadorName: state.currentRound.perguntador,
-        respondedorName: state.currentRound.respondedor,
-        fases: CONFIG.FASES
+        advisorName: msg.assessorName,
+        askerName: state.currentRound.perguntador,
+        answererName: state.currentRound.respondedor,
+        focusAreas: CONFIG.FASES
     });
 
-    if (validacao.invalido) {
+    if (validacao.invalid) {
         console.warn('⚠️ Pedido de assessoria rejeitado pelo host:', msg.assessorName,
-            validacao.motivo === 'fase-encerramento' ? '(Respondedor na fase de Encerramento)' : '');
+            validacao.reason === 'fase-encerramento' ? '(Respondedor na Área Foco Encerramento)' : '');
         if (requester) {
             Game.network.sendToPlayer(requester.peerId, {
                 type: 'assessoria-result',
@@ -80,7 +80,7 @@ function handleAssessoriaRequest(msg) {
                 sugestao: null,
                 recusado: true,
                 invalido: true,
-                motivo: validacao.motivo
+                motivo: validacao.reason
             });
         }
         return;

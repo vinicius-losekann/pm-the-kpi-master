@@ -66,7 +66,24 @@ Mensagem que chega sem um campo novo (de uma versão anterior do jogo) mantém o
 **Isto está deliberadamente inconsistente hoje** — é o assunto da Fase E do roadmap (tradução completa pra inglês, ainda não feita):
 
 - **Chaves de schema de dados** (`data/questions.*.json` e os campos que viajam com uma pergunta pela rede): já estão em inglês desde a Fase 8 (`domains`, `name`, `areas`, `questions`, `question`, `alternatives`, `correct`, `domain_key`). Motivo: precisam ser estáveis entre arquivos de idiomas diferentes (`questions.en-US.json` reusa as mesmas chaves, só traduz os valores).
-- **Identificadores internos do código** (nomes de função, variável, parâmetro): ainda em português (`sortearPergunta`, `respondedorName`, `handleAssessoriaAnswer`). Isso muda quando a Fase E for feita — até lá, **código novo deve seguir português**, pra não ficar meio-traduzido no meio de uma feature só.
+- **Identificadores internos do código** (nomes de função, variável, parâmetro): em tradução para inglês na Fase E, camada por camada (E1: domain → state → engine → network → ui → main; E2: campos do estado e mensagens de rede; E3: chaves de configuração, de eventos e de idioma; E4: IDs e classes do HTML/CSS). Já em inglês: `js/domain/` e os testes. **Código novo usa inglês e o glossário abaixo.**
+- **Glossário** (português → inglês), para todo o código usar os mesmos nomes:
+
+  | Português | Inglês |
+  |---|---|
+  | partida / rodada / sala / jogador | match / round / room / player |
+  | Perguntador / Respondedor | asker / answerer |
+  | assessoria / assessor / sugestão | advisory / advisor / suggestion |
+  | pedido de ajuda / doador / quem pediu / fila / oferta | help request / donor / requester / queue / offer |
+  | recursos / baralho / pergunta / alternativa | resources / deck / question / alternative |
+  | evento / reserva de contingência | event / contingency reserve |
+  | área foco (PMBOK 8; antes "fase") / atividades | focus area (`focusArea`) / activities |
+  | sortear / acertou / KPI ganho | draw / isCorrect / kpiGained |
+  | partida pausada / rodada encerrada / fim de jogo | paused / round ended / game over |
+  | quem já respondeu na rodada (rodízio) | answeredThisRound |
+  | relógio / prazo | clock / timeout |
+  | troca de host / host antigo / backup | host migration / old host / backup |
+  | token de identidade / estado salvo | identity token / saved state |
 - **Comentários**: sempre em português, inclusive depois da Fase E (só os identificadores serão traduzidos, não os comentários). Explicam o que o código faz e por quê — sem fase, número de bug ou item do roadmap e sem a história do "antes era assim": isso fica no `roadmap.md`, no `ISSUES.md`, no `CHANGELOG.md` e no histórico do Git. Os títulos dos testes continuam com os números (T…, E…, BUG-…), que ligam o teste ao registro.
 - **Tipos de mensagem de rede** (`msg.type`): kebab-case, com o nome da coisa em português e os sufixos do padrão acima (`assessoria-request`, `ajuda-oferta-response`, `partida-pausada`). Exceções antigas, mantidas por compatibilidade: `player-join`, `state-sync`, `round-start` e outras da tabela da Fase D.
 - **IDs de elemento HTML e classes CSS**: camelCase pra IDs (`btnPedirAjuda`, `modalAjudaOferta`), kebab-case pra classes (`.phase-item`, `.stat-chip`).

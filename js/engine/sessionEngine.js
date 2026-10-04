@@ -341,7 +341,7 @@ function buildRanking() {
  * Reinicia todos os baralhos (usado ao voltar ao lobby / preparar nova partida).
  */
 function resetAllBaralhos() {
-    Game.domain.deck.resetAllBaralhos(Game.state.baralhos);
+    Game.domain.deck.resetAllDecks(Game.state.baralhos);
     console.log('🔄 Baralhos de perguntas resetados para a próxima partida.');
 }
 

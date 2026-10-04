@@ -169,7 +169,7 @@ function processAjuda(doadorName, requesterName) {
     const doador = Game.getPlayerByName(doadorName);
     const requester = Game.getPlayerByName(requesterName);
 
-    const erro = Game.domain.trade.validarVenda(doador, requester, CONFIG);
+    const erro = Game.domain.trade.validateResourceTransfer(doador, requester, CONFIG);
     if (erro) {
         console.warn('⚠️ Ajuda cancelada na validação final:', erro);
         if (requester) {

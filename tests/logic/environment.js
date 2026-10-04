@@ -150,12 +150,12 @@ function createEnvironment(opcoes = {}) {
         i18n: { t: (chave) => chave },
         domain: {
             event: {
-                sortearEvento: () => ({ id: 'e' + Math.random().toString(36).slice(2, 7), titulo: 'Evento de teste' }),
-                aplicarEfeitosEvento: () => []
+                drawEvent: () => ({ id: 'e' + Math.random().toString(36).slice(2, 7), titulo: 'Evento de teste' }),
+                applyEventEffects: () => []
             },
             deck: {
-                sortearPergunta: () => ({ id: 'q1', question: 'Pergunta?', alternatives: ['A', 'B', 'C', 'D'], correct: 'A', domain_key: 'd1' }),
-                resetAllBaralhos: () => {}
+                drawQuestion: () => ({ id: 'q1', question: 'Pergunta?', alternatives: ['A', 'B', 'C', 'D'], correct: 'A', domain_key: 'd1' }),
+                resetAllDecks: () => {}
             },
             ranking: {
                 buildRanking: (players) => players.map((p, i) => ({ posicao: i + 1, name: p.name, kpiFinal: p.kpi }))

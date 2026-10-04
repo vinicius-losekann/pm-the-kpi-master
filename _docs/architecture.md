@@ -64,11 +64,11 @@ pm-the-kpi-master/
     │   └── roomEntry.js         # ex js/index.js — criar/entrar em sala
     │
     ├── domain/                  # 🧠 regras puras — sem DOM, sem rede, sem i18n
-    │   ├── kpiRules.js          # calcularResultadoResposta(...)
-    │   ├── eventRules.js        # sortearEvento(...), aplicarEfeitosEvento(...)
-    │   ├── deckRules.js         # sortearPergunta(...), resetBaralho(...)
-    │   ├── tradeRules.js        # validarVenda(...)
-    │   ├── advisoryRules.js     # validarPedidoAssessoria(...), calcularBonusAssessor(...)
+    │   ├── kpiRules.js          # calculateAnswerResult(...)
+    │   ├── eventRules.js        # drawEvent(...), applyEventEffects(...)
+    │   ├── deckRules.js         # drawQuestion(...), resetDeck(...)
+    │   ├── tradeRules.js        # validateResourceTransfer(...)
+    │   ├── advisoryRules.js     # validateAdvisoryRequest(...), calculateAdvisorBonus(...)
     │   └── rankingRules.js      # buildRanking(...)
     │
     ├── state/
@@ -157,8 +157,8 @@ Não fazia parte do roadmap original. O botão `btnNovaRodada` já existia no HT
 
 O roadmap mais detalhado (fornecido pelo usuário após a Fase 5) descreve o contrato de `domain/` como: "recebem estado (ou fatia dele) e retornam um RESULTADO/DELTA, nunca mutam diretamente" e "SÓ o mutations.js pode escrever no store, domain/ nunca muta diretamente". **Esse contrato não foi seguido.**
 
-- `domain/eventRules.js` → `aplicarEfeitosEvento()` muta os objetos de jogador recebidos diretamente (`p.recursos += ...`) em vez de retornar um delta
-- `domain/deckRules.js` → `sortearPergunta()` muta o baralho recebido diretamente (`pergunta.usada = true`, `baralho.disponiveis--`)
+- `domain/eventRules.js` → `applyEventEffects()` muta os objetos de jogador recebidos diretamente (`p.recursos += ...`) em vez de retornar um delta
+- `domain/deckRules.js` → `drawQuestion()` muta o baralho recebido diretamente (`pergunta.usada = true`, `baralho.disponiveis--`)
 - `state/mutations.js` só tem `resetAllPlayers()`/`resetGameState()` — nunca ganhou os setters por campo (`applyKpiDelta`, `setPlayerPhase` etc.) que o roadmap detalhado previa
 - Os `engine/*.js` escrevem direto em `Game.state.players` (ex: `respondedor.kpi = resultado.novoKpi` em `answerEngine.js`) em vez de passar por `mutations.js`
 
@@ -187,7 +187,7 @@ Antes: toda resposta gastava 1 recurso, acertando ou errando (exceto evento Rese
 - Recursos iniciais: 20 → **10** (`config/game-config.js`)
 - **Acertar nunca gasta recurso** (antes gastava igual a errar)
 - **Errar continua gastando 1 recurso**, protegido pela Reserva de Contingência
-- A decisão de quando gastar recurso foi movida pra dentro de `domain/kpiRules.js` → `calcularResultadoResposta()` (campo `gastaRecurso` do retorno, antes calculado — e nunca lido — separadamente em `answerEngine.js`; agora é a fonte real da verdade)
+- A decisão de quando gastar recurso foi movida pra dentro de `domain/kpiRules.js` → `calculateAnswerResult()` (campo `spendsResource` do retorno, antes calculado — e nunca lido — separadamente em `answerEngine.js`; agora é a fonte real da verdade)
 - **Removido o "pular vez por falta de recurso"** (decisão do usuário — opção 1 entre duas propostas): qualquer jogador ativo sempre tenta responder, mesmo com 0 recursos. Se errar já estando em 0, o recurso trava em 0 (nunca fica negativo), sem penalidade extra. Isso também tirou o filtro por `recursos > 0` que existia em `engine/turnEngine.js` → `pickNewPair()` na escolha de quem pode ser Respondedor — antes um jogador zerado nem entrava no sorteio.
 - Efeito colateral: o "Pedido de Ajuda" (Fase 9 acima) fica naturalmente mais raro — só é acionado depois de errar o suficiente pra zerar, não mais um evento comum de partida.
 

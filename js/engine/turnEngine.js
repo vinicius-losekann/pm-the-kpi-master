@@ -25,14 +25,14 @@ function startNewRound() {
     state.usedRespondedorThisRound = [];
     Game.ui.refreshNovaRodadaButton();
 
-    const evento = Game.domain.event.sortearEvento(state.questionsData?.eventos || []);
+    const evento = Game.domain.event.drawEvent(state.questionsData?.eventos || []);
     if (!evento) {
         console.error('❌ Nenhum evento disponível!');
         return;
     }
 
     const ativos = Game.getActivePlayers();
-    const logs = Game.domain.event.aplicarEfeitosEvento(evento, ativos);
+    const logs = Game.domain.event.applyEventEffects(evento, ativos);
     logs.forEach(msg => console.log(msg));
 
     Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
@@ -61,11 +61,11 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
 
     // Se não foi passado um evento, sorteia um novo
     if (!evento) {
-        evento = Game.domain.event.sortearEvento(state.questionsData?.eventos || []);
+        evento = Game.domain.event.drawEvent(state.questionsData?.eventos || []);
         if (!evento) return;
 
         const ativos = Game.getActivePlayers();
-        const logs = Game.domain.event.aplicarEfeitosEvento(evento, ativos);
+        const logs = Game.domain.event.applyEventEffects(evento, ativos);
         logs.forEach(msg => console.log(msg));
 
         Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
@@ -121,7 +121,7 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
     if (askers.length === 0) return;
 
     const perguntador = askers[Math.floor(Math.random() * askers.length)];
-    const pergunta = Game.domain.deck.sortearPergunta(state.baralhos, state.questionsData, respondedor.phase);
+    const pergunta = Game.domain.deck.drawQuestion(state.baralhos, state.questionsData, respondedor.phase);
 
     if (!pergunta) {
         console.error('❌ Sem pergunta disponível!');

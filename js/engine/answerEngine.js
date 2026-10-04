@@ -66,28 +66,28 @@ function handleAnswer(msg) {
     // sempre tenta responder, mesmo com 0 recursos. O gasto de recurso
     // depende do resultado (só erro gasta, protegido pela reserva de
     // contingência), por isso é decidido dentro de
-    // calcularResultadoResposta() e aplicado depois.
+    // calculateAnswerResult() e aplicado depois.
 
     // Cálculo puro delegado a domain/kpiRules.js
-    const resultado = Game.domain.kpi.calcularResultadoResposta({
-        alternativaEscolhida: msg.alternativa,
+    const resultado = Game.domain.kpi.calculateAnswerResult({
+        chosenAlternative: msg.alternativa,
         correct: pergunta.correct,
-        kpiAtual: respondedor.kpi,
-        phaseId: respondedor.phase,
+        currentKpi: respondedor.kpi,
+        focusAreaId: respondedor.phase,
         activities: respondedor.activities,
-        temReserva,
+        hasReserve: temReserva,
         config: CONFIG,
-        fases: CONFIG.FASES
+        focusAreas: CONFIG.FASES
     });
 
-    const kpiGanho = resultado.kpiGanho;
-    respondedor.kpi = resultado.novoKpi;
-    respondedor.phase = resultado.novaFase;
-    respondedor.activities = resultado.novasActivities;
+    const kpiGanho = resultado.kpiGained;
+    respondedor.kpi = resultado.newKpi;
+    respondedor.phase = resultado.newFocusArea;
+    respondedor.activities = resultado.newActivities;
 
     // Nunca fica negativo — se já estava em 0 e errou de novo, só não perde
     // recurso nenhum, sem penalidade extra.
-    if (resultado.gastaRecurso) {
+    if (resultado.spendsResource) {
         respondedor.recursos = Math.max(0, respondedor.recursos - 1);
     }
 
@@ -126,7 +126,7 @@ function handleAnswer(msg) {
     // Bônus de assessoria (se a sugestão foi seguida e correta) — cálculo
     // puro delegado a domain/advisoryRules.js
     const assessoria = state.currentRound.assessoria;
-    const bonusAssessor = Game.domain.advisory.calcularBonusAssessor(assessoria, msg.alternativa, acertou, CONFIG);
+    const bonusAssessor = Game.domain.advisory.calculateAdvisorBonus(assessoria, msg.alternativa, acertou, CONFIG);
     if (bonusAssessor > 0) {
         const assessor = Game.getPlayerByName(assessoria.assessorName);
         if (assessor) {

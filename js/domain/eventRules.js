@@ -8,61 +8,61 @@
 /**
  * Sorteia um evento, dando 50% de chance para o evento neutro (se houver)
  * e distribuindo os outros 50% entre os demais.
- * @param {Array} eventos - lista de eventos possíveis (questionsData.eventos)
+ * @param {Array} events - lista de eventos possíveis (questionsData.eventos)
  */
-function sortearEvento(eventos) {
-    if (!eventos || eventos.length === 0) return null;
+function drawEvent(events) {
+    if (!events || events.length === 0) return null;
 
-    const neutro = eventos.find(e => e.neutro === true);
-    const outros = eventos.filter(e => e.neutro !== true);
+    const neutral = events.find(e => e.neutro === true);
+    const others = events.filter(e => e.neutro !== true);
 
-    if (neutro && (outros.length === 0 || Math.random() < 0.5)) {
-        return neutro;
+    if (neutral && (others.length === 0 || Math.random() < 0.5)) {
+        return neutral;
     }
-    return outros[Math.floor(Math.random() * outros.length)];
+    return others[Math.floor(Math.random() * others.length)];
 }
 
 /**
  * Aplica os efeitos do evento sobre os recursos dos jogadores ativos (mutação in-place).
- * @param {object} evento
- * @param {Array} jogadoresAtivos - lista de jogadores ativos (Game.getActivePlayers())
+ * @param {object} event
+ * @param {Array} activePlayers - lista de jogadores ativos (Game.getActivePlayers())
  * @returns {Array<string>} mensagens de log descrevendo os efeitos aplicados
  */
-function aplicarEfeitosEvento(evento, jogadoresAtivos) {
+function applyEventEffects(event, activePlayers) {
     const logs = [];
-    if (!evento) return logs;
+    if (!event) return logs;
 
-    const ativos = jogadoresAtivos || [];
+    const active = activePlayers || [];
 
-    if (evento.recursos_todos > 0) {
-        ativos.forEach(p => p.recursos += evento.recursos_todos);
-        logs.push('🟢 Evento: +' + evento.recursos_todos + ' recurso(s) para todos os ativos');
+    if (event.recursos_todos > 0) {
+        active.forEach(p => p.recursos += event.recursos_todos);
+        logs.push('🟢 Evento: +' + event.recursos_todos + ' recurso(s) para todos os ativos');
     }
 
-    if (evento.recursos_todos < 0) {
-        ativos.forEach(p => {
-            p.recursos = Math.max(0, p.recursos + evento.recursos_todos);
+    if (event.recursos_todos < 0) {
+        active.forEach(p => {
+            p.recursos = Math.max(0, p.recursos + event.recursos_todos);
         });
-        logs.push('🔴 Evento: ' + evento.recursos_todos + ' recurso(s) de todos os ativos');
+        logs.push('🔴 Evento: ' + event.recursos_todos + ' recurso(s) de todos os ativos');
     }
 
-    if (evento.recursos_menos && ativos.length > 0) {
-        const minRecursos = Math.min(...ativos.map(p => p.recursos));
-        const beneficiados = ativos.filter(p => p.recursos === minRecursos);
-        beneficiados.forEach(p => p.recursos += evento.recursos_menos);
-        logs.push('🎁 Evento: +' + evento.recursos_menos + ' recursos para ' + beneficiados.map(p => p.name).join(', '));
+    if (event.recursos_menos && active.length > 0) {
+        const minResources = Math.min(...active.map(p => p.recursos));
+        const beneficiaries = active.filter(p => p.recursos === minResources);
+        beneficiaries.forEach(p => p.recursos += event.recursos_menos);
+        logs.push('🎁 Evento: +' + event.recursos_menos + ' recursos para ' + beneficiaries.map(p => p.name).join(', '));
     }
 
-    if (evento.troca_recursos && ativos.length > 0) {
-        const maxRecursos = Math.max(...ativos.map(p => p.recursos));
-        const minRecursos = Math.min(...ativos.map(p => p.recursos));
-        if (maxRecursos > minRecursos) {
-            const rico = ativos.find(p => p.recursos === maxRecursos);
-            const pobre = ativos.find(p => p.recursos === minRecursos);
-            if (rico && pobre && rico !== pobre) {
-                rico.recursos--;
-                pobre.recursos++;
-                logs.push('🔄 Evento: ' + rico.name + ' deu 1 recurso para ' + pobre.name);
+    if (event.troca_recursos && active.length > 0) {
+        const maxResources = Math.max(...active.map(p => p.recursos));
+        const minResources = Math.min(...active.map(p => p.recursos));
+        if (maxResources > minResources) {
+            const richest = active.find(p => p.recursos === maxResources);
+            const poorest = active.find(p => p.recursos === minResources);
+            if (richest && poorest && richest !== poorest) {
+                richest.recursos--;
+                poorest.recursos++;
+                logs.push('🔄 Evento: ' + richest.name + ' deu 1 recurso para ' + poorest.name);
             }
         }
     }
@@ -76,6 +76,6 @@ function aplicarEfeitosEvento(evento, jogadoresAtivos) {
 window.Game = window.Game || {};
 window.Game.domain = window.Game.domain || {};
 window.Game.domain.event = {
-    sortearEvento,
-    aplicarEfeitosEvento
+    drawEvent,
+    applyEventEffects
 };

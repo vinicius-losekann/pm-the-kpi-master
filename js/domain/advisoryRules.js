@@ -10,32 +10,32 @@
  * Valida se um pedido de assessoria pode ser aceito.
  *
  * @param {object} params
- * @param {object} params.assessor - jogador escolhido como assessor (ou undefined/null)
+ * @param {object} params.advisor - jogador escolhido como assessor (ou undefined/null)
  * @param {object} params.requester - jogador que pediu a assessoria (o Respondedor)
- * @param {string} params.assessorName - nome do assessor solicitado
- * @param {string} params.perguntadorName - nome do Perguntador da rodada atual
- * @param {string} params.respondedorName - nome do Respondedor da rodada atual
- * @param {Array} params.fases - CONFIG.FASES
- * @returns {{invalido: boolean, motivo: (string|undefined)}}
+ * @param {string} params.advisorName - nome do assessor solicitado
+ * @param {string} params.askerName - nome do Perguntador da rodada atual
+ * @param {string} params.answererName - nome do Respondedor da rodada atual
+ * @param {Array} params.focusAreas - CONFIG.FASES
+ * @returns {{invalid: boolean, reason: (string|undefined)}}
  */
-function validarPedidoAssessoria({ assessor, requester, assessorName, perguntadorName, respondedorName, fases }) {
-    const requesterEmEncerramento = !!requester &&
-        fases.findIndex(f => f.id === requester.phase) === fases.length - 1;
+function validateAdvisoryRequest({ advisor, requester, advisorName, askerName, answererName, focusAreas }) {
+    const requesterInClosing = !!requester &&
+        focusAreas.findIndex(f => f.id === requester.phase) === focusAreas.length - 1;
 
     // Assessor que caiu (continua na lista, desconectado) também
     // é inválido — sem isso, a pergunta ia para quem não podia responder
     // e o Respondedor ficava com os botões travados até o prazo acabar.
-    const invalido =
-        !assessor ||
-        assessor.waitingInLobby ||
-        assessor.disconnected ||
-        requesterEmEncerramento ||
-        assessorName === perguntadorName ||
-        assessorName === respondedorName;
+    const invalid =
+        !advisor ||
+        advisor.waitingInLobby ||
+        advisor.disconnected ||
+        requesterInClosing ||
+        advisorName === askerName ||
+        advisorName === answererName;
 
     return {
-        invalido,
-        motivo: requesterEmEncerramento ? 'fase-encerramento' : undefined
+        invalid,
+        reason: requesterInClosing ? 'fase-encerramento' : undefined
     };
 }
 
@@ -43,19 +43,19 @@ function validarPedidoAssessoria({ assessor, requester, assessorName, perguntado
  * Calcula o bônus de KPI do assessor, caso a sugestão dele tenha sido
  * seguida pelo Respondedor e a resposta esteja correta.
  *
- * @param {object} assessoria - state.currentRound.assessoria
- * @param {string} alternativaEscolhida - alternativa marcada pelo Respondedor
- * @param {boolean} acertou - se o Respondedor acertou a pergunta
+ * @param {object} advisory - state.currentRound.assessoria
+ * @param {string} chosenAlternative - alternativa marcada pelo Respondedor
+ * @param {boolean} isCorrect - se o Respondedor acertou a pergunta
  * @param {object} config - CONFIG (usa config.KPI.ASSESSORIA_ACERTO)
  * @returns {number} bônus de KPI (0 se não elegível)
  */
-function calcularBonusAssessor(assessoria, alternativaEscolhida, acertou, config) {
-    const elegivel = !!assessoria &&
-        assessoria.status === 'accepted' &&
-        assessoria.sugestao === alternativaEscolhida &&
-        acertou;
+function calculateAdvisorBonus(advisory, chosenAlternative, isCorrect, config) {
+    const eligible = !!advisory &&
+        advisory.status === 'accepted' &&
+        advisory.sugestao === chosenAlternative &&
+        isCorrect;
 
-    return elegivel ? config.KPI.ASSESSORIA_ACERTO : 0;
+    return eligible ? config.KPI.ASSESSORIA_ACERTO : 0;
 }
 
 // ============================================
@@ -64,6 +64,6 @@ function calcularBonusAssessor(assessoria, alternativaEscolhida, acertou, config
 window.Game = window.Game || {};
 window.Game.domain = window.Game.domain || {};
 window.Game.domain.advisory = {
-    validarPedidoAssessoria,
-    calcularBonusAssessor
+    validateAdvisoryRequest,
+    calculateAdvisorBonus
 };
