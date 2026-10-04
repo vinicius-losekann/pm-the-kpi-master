@@ -29,10 +29,10 @@ async function initPeer() {
 
         // Fica true depois do 'open' — a partir daí o peer já está
         // em uso (conexões, migração de host) e erros não o destroem mais.
-        let peerAberto = false;
+        let peerOpened = false;
 
         peer.on('open', (id) => {
-            peerAberto = true;
+            peerOpened = true;
             state.peerId = id;
             if (state.isHost) {
                 state.hostPeerId = id;
@@ -59,12 +59,12 @@ async function initPeer() {
             // ID procurado não está online" — esperado durante as
             // tentativas de reconexão e de migração de host
             // (hostMigration.js), que tratam a falha sozinhas.
-            if (peerAberto) {
+            if (peerOpened) {
                 if (err && err.type === 'peer-unavailable') {
                     console.warn('⚠️ Peer procurado não está online:', err.message);
                     // A busca da sala (hostSearch.js) descarta
                     // na hora a versão do host que não existe.
-                    Game.network.avisarPeerIndisponivel(err);
+                    Game.network.reportPeerUnavailable(err);
                 } else {
                     console.error('❌ PeerJS Error:', err);
                     Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.erro'));
@@ -113,13 +113,13 @@ function connectToHost() {
     const state = Game.state;
     const cs = Game.network.connectionState;
 
-    Game.network.procurarHost(cs.getPeer(), state.baseRoomPeerId, {
-        versaoInicial: state.hostVersion || 0,
-        aoAchar: (conn, versao, id) => {
-            if (versao !== state.hostVersion) {
+    Game.network.findHost(cs.getPeer(), state.baseRoomPeerId, {
+        startVersion: state.hostVersion || 0,
+        onFound: (conn, version, id) => {
+            if (version !== state.hostVersion) {
                 console.log('🔄 A sala mudou de host enquanto você estava fora — conectando a ' + id);
             }
-            state.hostVersion = versao;
+            state.hostVersion = version;
             state.hostPeerId = id;
             cs.setConnection(id, conn);
             console.log('🔗 Conectado a:', id);
@@ -127,10 +127,10 @@ function connectToHost() {
             // A conexão já abriu: o 'open' registrado em handleConnection()
             // não roda mais, então o player-join vai daqui.
             handleConnection(conn);
-            enviarPlayerJoin();
+            sendPlayerJoin();
             Game.saveState();
         },
-        aoDesistir: () => {
+        onGiveUp: () => {
             console.error('❌ Sala não encontrada:', state.baseRoomPeerId);
             Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.naoFoiPossivelConectar'));
         }
@@ -149,7 +149,7 @@ function handleConnection(conn) {
         console.log('🔗 Conectado a:', conn.peer);
 
         if (!state.isHost) {
-            enviarPlayerJoin();
+            sendPlayerJoin();
         }
     });
 
@@ -159,11 +159,11 @@ function handleConnection(conn) {
 
     conn.on('close', () => {
         // Se esta própria página está fechando/recarregando, o
-        // 'close' é consequência da saída (ver encerrarConexoesAoSair()),
+        // 'close' é consequência da saída (ver closeConnectionsOnExit()),
         // não de alguém ter caído — não mexe no estado do jogo. Sem isso,
         // um F5 do host marcaria todos os guests como desconectados e
         // abortaria a rodada durante o próprio reload.
-        if (paginaEncerrando) return;
+        if (pageClosing) return;
 
         console.warn('⚠️ Conexão fechada:', conn.peer);
         cs.removeConnection(conn.peer);
@@ -190,7 +190,7 @@ function handleConnection(conn) {
  * (ver utils/identity.js). O host guarda só o hash e o confere quando
  * alguém tenta voltar com o nome de um jogador desconectado.
  */
-function enviarPlayerJoin() {
+function sendPlayerJoin() {
     const state = Game.state;
     Game.network.sendToHost({
         type: 'player-join',
@@ -252,7 +252,7 @@ function cleanup() {
 // Fica true a partir do momento em que a página começa a fechar ou
 // recarregar. Daí em diante, os 'close' das conexões são consequência
 // da própria saída e são ignorados em handleConnection().
-let paginaEncerrando = false;
+let pageClosing = false;
 
 /**
  * Ao fechar a aba, recarregar (F5) ou navegar para fora, encerra
@@ -263,9 +263,9 @@ let paginaEncerrando = false;
  * Diferente de cleanup(), NÃO apaga o estado salvo: um F5 continua
  * restaurando a partida normalmente.
  */
-function encerrarConexoesAoSair() {
-    if (paginaEncerrando) return;
-    paginaEncerrando = true;
+function closeConnectionsOnExit() {
+    if (pageClosing) return;
+    pageClosing = true;
 
     const cs = Game.network.connectionState;
     Object.values(cs.getConnections()).forEach(c => {
@@ -282,8 +282,8 @@ function encerrarConexoesAoSair() {
 // 'beforeunload'); 'beforeunload' cobre os navegadores de desktop. A
 // função só age na primeira chamada, então rodar pelos dois não tem
 // efeito duplicado.
-window.addEventListener('pagehide', encerrarConexoesAoSair);
-window.addEventListener('beforeunload', encerrarConexoesAoSair);
+window.addEventListener('pagehide', closeConnectionsOnExit);
+window.addEventListener('beforeunload', closeConnectionsOnExit);
 
 // Se o navegador guardou a página no cache de voltar/avançar (bfcache) e
 // o usuário voltar para ela, as conexões já foram encerradas acima — a
@@ -302,11 +302,11 @@ Object.assign(window.Game.network, {
     initPeer,
     connectToHost,
     handleConnection,
-    enviarPlayerJoin,
+    sendPlayerJoin,
     sendToHost,
     broadcast,
     broadcastAll,
     sendToPlayer,
     cleanup,
-    encerrarConexoesAoSair
+    closeConnectionsOnExit
 });

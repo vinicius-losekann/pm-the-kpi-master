@@ -180,7 +180,7 @@ function createEnvironment(opcoes = {}) {
 
     // peerService.js real substitui o envio de mensagens pelo envio via
     // PeerJS; aqui voltam os stubs que só registram (handleConnection e
-    // encerrarConexoesAoSair continuam os reais).
+    // closeConnectionsOnExit continuam os reais).
     Object.assign(ctx.Game.network, {
         broadcastAll: (msg) => { registro.broadcasts.push(msg); },
         sendToPlayer: (peerId, msg) => { registro.enviados.push({ para: peerId, msg }); },

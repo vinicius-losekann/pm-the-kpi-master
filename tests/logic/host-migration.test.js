@@ -532,13 +532,13 @@ test('T42 Quem assume como host marca host=true na URL (F5 volta como host na sa
         'os outros parâmetros (peerId = ID base da sala) não mudam: ' + amb.ctx.location.href);
     check(url.trocas.length === 1, 'deveria trocar a URL sem recarregar (replaceState), uma vez');
 
-    amb.Game.network.registrarPapelNaUrl(false);
-    check(url.param('host') === 'false', 'registrarPapelNaUrl(false) deveria voltar para host=false');
+    amb.Game.network.saveRoleInUrl(false);
+    check(url.param('host') === 'false', 'saveRoleInUrl(false) deveria voltar para host=false');
 
     // Sem history/URL disponíveis: não quebra.
     const amb2 = usar(createEnvironment());
     let erro = null;
-    try { amb2.Game.network.registrarPapelNaUrl(true); } catch (e) { erro = e; }
+    try { amb2.Game.network.saveRoleInUrl(true); } catch (e) { erro = e; }
     check(!erro, 'sem URL/history, não deveria lançar erro');
 });
 
@@ -582,7 +582,7 @@ test('T43 Host antigo recarregando: se outro assumiu, volta como jogador comum; 
     const url = prepareOldHost(amb);
     const conns = connectionsByTarget();
     const peers = amb.installFakePeer({ aoConectar: conns.aoConectar });
-    amb.Game.network.retomarComoJogadorSeOutroAssumiu();
+    amb.Game.network.rejoinAsPlayerIfTakenOver();
     const sonda = peers[0];
     check(sonda && sonda.id === undefined, 'deveria sondar com um peer temporário (ID aleatório), não com o ID da sala');
     check(sonda.opcoesPeer && sonda.opcoesPeer !== amb.CONFIG.PEER && sonda.opcoesPeer.debug === amb.CONFIG.PEER.debug, 'a sonda usa uma cópia de CONFIG.PEER');
@@ -603,7 +603,7 @@ test('T43 Host antigo recarregando: se outro assumiu, volta como jogador comum; 
     prepareOldHost(ambB);
     const connsB = connectionsByTarget();
     const peersB = ambB.installFakePeer({ aoConectar: connsB.aoConectar });
-    ambB.Game.network.retomarComoJogadorSeOutroAssumiu();
+    ambB.Game.network.rejoinAsPlayerIfTakenOver();
     peersB[0].fire('open', 'peer-sonda');
     unavailableForAll(peersB[0], ['sala-h2']);
     check(ambB.state.isHost, 'enquanto sala-h2 não responde, nada muda');
@@ -615,7 +615,7 @@ test('T43 Host antigo recarregando: se outro assumiu, volta como jogador comum; 
     const amb2 = usar(createEnvironment());
     const url2 = prepareOldHost(amb2);
     const peers2 = amb2.installFakePeer({ aoConectar: connectionsByTarget().aoConectar });
-    amb2.Game.network.retomarComoJogadorSeOutroAssumiu();
+    amb2.Game.network.rejoinAsPlayerIfTakenOver();
     peers2[0].fire('open', 'peer-sonda');
     unavailableForAll(peers2[0]);
     check(amb2.state.isHost && amb2.state.hostVersion === 0 && amb2.state.hostPeerId === 'sala', 'sem migração, continua host da sala de sempre');
@@ -628,7 +628,7 @@ test('T43 Host antigo recarregando: se outro assumiu, volta como jogador comum; 
     prepareOldHost(amb3);
     const conns3 = connectionsByTarget();
     const peers3 = amb3.installFakePeer({ aoConectar: conns3.aoConectar });
-    amb3.Game.network.retomarComoJogadorSeOutroAssumiu();
+    amb3.Game.network.rejoinAsPlayerIfTakenOver();
     peers3[0].fire('open', 'peer-sonda');
     tempo3.advance(10000);
     check(amb3.state.isHost && peers3[0].destroyed, 'sem resposta, segue como host e encerra a sonda');
@@ -639,14 +639,14 @@ test('T43 Host antigo recarregando: se outro assumiu, volta como jogador comum; 
     const amb4 = usar(createEnvironment());
     const peers4 = amb4.installFakePeer();
     amb4.state.isHost = false;
-    amb4.Game.network.retomarComoJogadorSeOutroAssumiu();
+    amb4.Game.network.rejoinAsPlayerIfTakenOver();
     check(peers4.length === 0, 'guest não deveria criar sonda');
 
     // 5) main.js: a verificação roda só para host com sessão restaurada,
     // antes de abrir o ID de host.
     const main = fs.readFileSync(path.join(RAIZ, 'js/main.js'), 'utf8');
-    const chamada = main.search(/if \(restaurou && state\.isHost\) \{\s*await Game\.network\.retomarComoJogadorSeOutroAssumiu\(\);/);
-    check(chamada >= 0, 'init() deveria chamar retomarComoJogadorSeOutroAssumiu() para host com sessão restaurada');
+    const chamada = main.search(/if \(restaurou && state\.isHost\) \{\s*await Game\.network\.rejoinAsPlayerIfTakenOver\(\);/);
+    check(chamada >= 0, 'init() deveria chamar rejoinAsPlayerIfTakenOver() para host com sessão restaurada');
     check(chamada < main.indexOf('await initPeerWithRetry()'), 'a verificação deveria vir antes de abrir o peer');
 });
 
@@ -674,54 +674,54 @@ test('T44 Procura da sala: várias versões ao mesmo tempo, descarta as que não
     let achado = null;
     let desistiu = 0;
 
-    net.procurarHost(peer, 'sala', {
-        aoAchar: (conn, versao, id) => { achado = { conn, versao, id }; },
-        aoDesistir: () => { desistiu++; }
+    net.findHost(peer, 'sala', {
+        onFound: (conn, versao, id) => { achado = { conn, versao, id }; },
+        onGiveUp: () => { desistiu++; }
     });
     check(peer.pedidos.join(',') === 'sala,sala-h1,sala-h2,sala-h3,sala-h4,sala-h5',
         'deveria procurar o ID base e 5 versões seguintes, procurou: ' + peer.pedidos.join(','));
 
     // "sala-h1 não existe" não pode descartar "sala" (o nome de um contém o do outro).
-    net.avisarPeerIndisponivel(unavailable('sala-h1'));
+    net.reportPeerUnavailable(unavailable('sala-h1'));
     check(peer.conexoes['sala-h1'].fechada && !peer.conexoes['sala'].fechada, 'só a versão indisponível deveria ser descartada');
-    ['sala', 'sala-h3', 'sala-h4', 'sala-h5'].forEach(id => net.avisarPeerIndisponivel(unavailable(id)));
+    ['sala', 'sala-h3', 'sala-h4', 'sala-h5'].forEach(id => net.reportPeerUnavailable(unavailable(id)));
     check(!achado && desistiu === 0, 'ainda falta sala-h2 responder');
     peer.openNow('sala-h2');
     check(achado && achado.versao === 2 && achado.id === 'sala-h2' && achado.conn === peer.conexoes['sala-h2'], 'deveria achar sala-h2');
     check(!achado.conn.fechada, 'a conexão achada fica aberta para quem chamou');
-    net.avisarPeerIndisponivel(unavailable('sala-h2'));
+    net.reportPeerUnavailable(unavailable('sala-h2'));
     check(desistiu === 0, 'depois de achar, avisos atrasados não mudam nada');
 
     // Nenhuma versão existe: desiste uma vez só.
     const peer2 = searchPeer();
     let desistiu2 = 0;
-    net.procurarHost(peer2, 'sala', { versaoInicial: 3, versoes: 2, aoAchar: () => { throw new Error('não deveria achar'); }, aoDesistir: () => { desistiu2++; } });
+    net.findHost(peer2, 'sala', { startVersion: 3, versionCount: 2, onFound: () => { throw new Error('não deveria achar'); }, onGiveUp: () => { desistiu2++; } });
     check(peer2.pedidos.join(',') === 'sala-h3,sala-h4', 'deveria começar da versão inicial, procurou: ' + peer2.pedidos.join(','));
-    peer2.pedidos.forEach(id => net.avisarPeerIndisponivel(unavailable(id)));
-    net.avisarPeerIndisponivel(unavailable('sala-h4'));
+    peer2.pedidos.forEach(id => net.reportPeerUnavailable(unavailable(id)));
+    net.reportPeerUnavailable(unavailable('sala-h4'));
     check(desistiu2 === 1, 'deveria desistir exatamente uma vez, desistiu ' + desistiu2);
 
     // Sem resposta nenhuma: desiste no tempo máximo, fechando tudo.
     const tempo = amb.fakeTime();
     const peer3 = searchPeer();
     let desistiu3 = 0;
-    net.procurarHost(peer3, 'sala', { aoAchar: () => {}, aoDesistir: () => { desistiu3++; } });
+    net.findHost(peer3, 'sala', { onFound: () => {}, onGiveUp: () => { desistiu3++; } });
     tempo.advance(4000);
     check(desistiu3 === 0, 'não deveria desistir antes do tempo máximo');
     tempo.advance(2000);
     check(desistiu3 === 1 && Object.values(peer3.conexoes).every(c => c.fechada), 'no tempo máximo, desiste e fecha as conexões');
 
-    // cancelar(): encerra sem chamar nada.
+    // cancel(): encerra sem chamar nada.
     const peer4 = searchPeer();
     let chamou = false;
-    const busca = net.procurarHost(peer4, 'sala', { aoAchar: () => { chamou = true; }, aoDesistir: () => { chamou = true; } });
-    busca.cancelar();
+    const busca = net.findHost(peer4, 'sala', { onFound: () => { chamou = true; }, onGiveUp: () => { chamou = true; } });
+    busca.cancel();
     tempo.advance(10000);
     check(!chamou && Object.values(peer4.conexoes).every(c => c.fechada), 'cancelada, não chama ninguém e fecha tudo');
 
     // Sem peer utilizável: desiste na hora, sem erro.
     let desistiu5 = 0;
-    net.procurarHost({ destroyed: true, connect: () => { throw new Error('não'); } }, 'sala', { aoAchar: () => {}, aoDesistir: () => { desistiu5++; } });
+    net.findHost({ destroyed: true, connect: () => { throw new Error('não'); } }, 'sala', { onFound: () => {}, onGiveUp: () => { desistiu5++; } });
     check(desistiu5 === 1, 'sem peer utilizável, deveria desistir na hora');
     check(amb.Game.computeHostPeerId('sala', 0) === 'sala' && amb.Game.computeHostPeerId('sala', 3) === 'sala-h3', 'regra dos IDs de host inalterada');
 });

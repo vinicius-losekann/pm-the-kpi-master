@@ -44,13 +44,13 @@ function handleMessage(msg, fromPeerId) {
 
         case 'join-rejected':
             Game.network.cleanup();
-            const motivos = {
+            const reasons = {
                 'room-full': '⚠️ Sala cheia (máximo de ' + CONFIG.JOGO.MAX_PLAYERS + ' jogadores).',
                 'room-locked': '⚠️ A partida desta sala já começou. Só quem já estava na partida pode reconectar — aguarde o host voltar ao lobby para entrar.',
                 'name-taken': '⚠️ Esse nome já está em uso nesta sala. Escolha outro nome e entre novamente.',
                 'identity-mismatch': '⚠️ Esse nome pertence a um jogador desta partida e não foi possível confirmar que é você. Para voltar, entre pelo mesmo navegador em que você começou a partida (sem aba anônima e sem ter apagado os dados do site) — ou aguarde o host voltar ao lobby.'
             };
-            alert(motivos[msg.reason] || motivos['name-taken']);
+            alert(reasons[msg.reason] || reasons['name-taken']);
             window.location.href = './';
             break;
 
@@ -98,7 +98,7 @@ function handleMessage(msg, fromPeerId) {
         // --- RODADA ---
         case 'round-start':
             state.rodadaEncerrada = false;
-            guardarRespondidos(msg.respondidos);
+            storeAnsweredThisRound(msg.respondidos);
             state.currentRound = {
                 evento: msg.evento,
                 perguntador: msg.perguntador,
@@ -147,7 +147,7 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'kpi-update':
-            guardarRespondidos(msg.respondidos);
+            storeAnsweredThisRound(msg.respondidos);
             Game.core.updatePlayerKPI(msg);
             break;
 
@@ -221,11 +221,11 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'ajuda-confirmada':
-            const doador = Game.getPlayerByName(msg.doador);
+            const donor = Game.getPlayerByName(msg.doador);
             const requester = Game.getPlayerByName(msg.requester);
-            if (doador) {
-                doador.kpi = msg.doadorKPI;
-                doador.recursos = msg.doadorRecursos;
+            if (donor) {
+                donor.kpi = msg.doadorKPI;
+                donor.recursos = msg.doadorRecursos;
             }
             if (requester) {
                 requester.kpi = msg.requesterKPI;
@@ -248,7 +248,7 @@ function handleMessage(msg, fromPeerId) {
  * Envia a recusa de entrada para o peer e fecha a conexão logo depois
  * (o atraso dá tempo da mensagem chegar antes do close).
  */
-function rejeitarEntrada(fromPeerId, reason) {
+function rejectJoin(fromPeerId, reason) {
     const c = Game.network.connectionState.getConnection(fromPeerId);
     if (c && c.open) {
         c.send({ type: 'join-rejected', reason });
@@ -261,7 +261,7 @@ function rejeitarEntrada(fromPeerId, reason) {
  * null se não veio (ou veio em formato inválido). O token em si nunca
  * é guardado — só o hash (ver utils/identity.js).
  */
-function hashDoTokenRecebido(msg) {
+function receivedTokenHash(msg) {
     const token = msg.token;
     if (typeof token !== 'string' || token.length === 0 || token.length > 128) return null;
     return Game.identity.hashToken(token);
@@ -284,7 +284,7 @@ function hashDoTokenRecebido(msg) {
 function addPlayer(msg, fromPeerId) {
     const state = Game.state;
     const cs = Game.network.connectionState;
-    const tokenHash = hashDoTokenRecebido(msg);
+    const tokenHash = receivedTokenHash(msg);
 
     const existingIdx = state.players.findIndex(p => p.name === msg.playerName);
     if (existingIdx >= 0) {
@@ -297,14 +297,14 @@ function addPlayer(msg, fromPeerId) {
             (oldConn && oldConn.open && existingPlayer.peerId !== fromPeerId);
 
         if (oldPeerStillConnected) {
-            rejeitarEntrada(fromPeerId, 'name-taken');
+            rejectJoin(fromPeerId, 'name-taken');
             return;
         }
 
         if (existingPlayer.tokenHash) {
             if (tokenHash !== existingPlayer.tokenHash) {
                 console.warn('🔐 Reconexão recusada: "' + msg.playerName + '" veio com um token de identidade diferente do registrado.');
-                rejeitarEntrada(fromPeerId, 'identity-mismatch');
+                rejectJoin(fromPeerId, 'identity-mismatch');
                 return;
             }
         } else if (tokenHash) {
@@ -323,12 +323,12 @@ function addPlayer(msg, fromPeerId) {
         // próximo passo de todos é voltar ao lobby.
         if (state.gameStarted && !state.gameOver) {
             console.warn('🔒 Entrada recusada: partida em andamento, "' + msg.playerName + '" não fazia parte dela.');
-            rejeitarEntrada(fromPeerId, 'room-locked');
+            rejectJoin(fromPeerId, 'room-locked');
             return;
         }
 
         if (state.players.length >= CONFIG.JOGO.MAX_PLAYERS) {
-            rejeitarEntrada(fromPeerId, 'room-full');
+            rejectJoin(fromPeerId, 'room-full');
             return;
         }
 
@@ -357,8 +357,8 @@ function addPlayer(msg, fromPeerId) {
     if (conn && conn.open) {
         let currentRoundForSync = state.currentRound;
         if (currentRoundForSync && currentRoundForSync.pergunta) {
-            const isPerguntadorDaRodada = msg.playerName === currentRoundForSync.perguntador;
-            if (!isPerguntadorDaRodada) {
+            const isRoundAsker = msg.playerName === currentRoundForSync.perguntador;
+            if (!isRoundAsker) {
                 currentRoundForSync = {
                     ...currentRoundForSync,
                     pergunta: { ...currentRoundForSync.pergunta, correct: undefined }
@@ -470,10 +470,10 @@ function removePlayerByPeerId(peerId) {
  * o campo (host de versão anterior) não mexe na lista. O host nunca
  * sobrescreve a própria lista com a de uma mensagem.
  */
-function guardarRespondidos(respondidos) {
+function storeAnsweredThisRound(answered) {
     const state = Game.state;
-    if (state.isHost || !Array.isArray(respondidos)) return;
-    state.usedRespondedorThisRound = respondidos.slice();
+    if (state.isHost || !Array.isArray(answered)) return;
+    state.usedRespondedorThisRound = answered.slice();
 }
 
 /**
@@ -496,7 +496,7 @@ function restoreState(fullState) {
     state.gameStarted = fullState.gameStarted;
     if (fullState.hostVersion !== undefined) state.hostVersion = fullState.hostVersion;
     state.rodadaEncerrada = !!fullState.rodadaEncerrada;
-    guardarRespondidos(fullState.respondidos);
+    storeAnsweredThisRound(fullState.respondidos);
     // Host de versão anterior não manda os campos: partida não acabada.
     state.gameOver = !!fullState.gameOver;
     state.rankingFinal = fullState.rankingFinal || null;

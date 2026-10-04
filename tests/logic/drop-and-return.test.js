@@ -119,14 +119,14 @@ test('T13 F5/fechar no host: encerra conexões sem mexer no estado do jogo', (us
 
     const rodadaAntes = amb.state.currentRound;
     amb.clearLog();
-    amb.Game.network.encerrarConexoesAoSair();
+    amb.Game.network.closeConnectionsOnExit();
     check(peerFalso.destroyed, 'o peer deveria ter sido destruído');
     check(amb.state.players.every(p => !p.disconnected), 'nenhum jogador deveria ser marcado como desconectado pelo próprio reload do host');
     check(amb.state.currentRound === rodadaAntes, 'a rodada em andamento não deveria mudar (seria o BUG-001 de volta)');
     check(amb.registro.broadcasts.length === 0, 'não deveria enviar nada durante a saída');
 
     // Idempotente: rodar de novo (pagehide + beforeunload) não faz nada.
-    amb.Game.network.encerrarConexoesAoSair();
+    amb.Game.network.closeConnectionsOnExit();
     check(amb.state.currentRound === rodadaAntes, 'segunda chamada não deveria ter efeito');
 });
 

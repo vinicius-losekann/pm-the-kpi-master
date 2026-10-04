@@ -15,16 +15,16 @@
 
 // Quantas versões do host são procuradas a partir da versão inicial
 // (a inicial + 5 migrações seguintes).
-const VERSOES_PROCURADAS = 6;
+const VERSIONS_TO_SEARCH = 6;
 
 // Tempo máximo da busca inteira. Um ID que não existe costuma responder
 // em uma fração de segundo ('peer-unavailable'); a sala que existe abre
 // a conexão em 1–2s.
-const ESPERA_BUSCA_MS = 5000;
+const SEARCH_TIMEOUT_MS = 5000;
 
 // Buscas em andamento — recebem os avisos de 'peer-unavailable' (ver
-// avisarPeerIndisponivel()).
-const buscasAtivas = new Set();
+// reportPeerUnavailable()).
+const activeSearches = new Set();
 
 /**
  * Calcula o ID do host para uma determinada versão de migração.
@@ -37,98 +37,98 @@ function computeHostPeerId(baseId, version) {
 }
 
 /**
- * Procura a sala nas versões `versaoInicial` até `versaoInicial +
- * versoes - 1`, todas ao mesmo tempo, usando o peer informado (já
+ * Procura a sala nas versões `startVersion` até `startVersion +
+ * versionCount - 1`, todas ao mesmo tempo, usando o peer informado (já
  * aberto). A primeira conexão que abrir é a sala; as outras são
  * fechadas.
  *
  * O PeerJS avisa que um ID não existe com um erro no PEER, não na
  * conexão — quem chama precisa repassar esses erros para
- * avisarPeerIndisponivel(err); sem isso, a busca só termina pelo tempo
+ * reportPeerUnavailable(err); sem isso, a busca só termina pelo tempo
  * máximo.
  *
  * @param {Peer} peer
  * @param {string} baseId - ID base da sala
- * @param {Object} opcoes
- * @param {number} [opcoes.versaoInicial=0]
- * @param {number} [opcoes.versoes]
- * @param {number} [opcoes.esperaMs]
- * @param {Function} opcoes.aoAchar - (conn já aberta, versao, id)
- * @param {Function} [opcoes.aoDesistir] - nenhuma versão respondeu
- * @returns {{ cancelar: Function }} cancelar() encerra sem chamar aoDesistir
+ * @param {Object} options
+ * @param {number} [options.startVersion=0]
+ * @param {number} [options.versionCount]
+ * @param {number} [options.timeoutMs]
+ * @param {Function} options.onFound - (conn já aberta, version, id)
+ * @param {Function} [options.onGiveUp] - nenhuma versão respondeu
+ * @returns {{ cancel: Function }} cancel() encerra sem chamar onGiveUp
  */
-function procurarHost(peer, baseId, opcoes = {}) {
-    const versaoInicial = opcoes.versaoInicial || 0;
-    const versoes = opcoes.versoes || VERSOES_PROCURADAS;
-    const esperaMs = opcoes.esperaMs || ESPERA_BUSCA_MS;
+function findHost(peer, baseId, options = {}) {
+    const startVersion = options.startVersion || 0;
+    const versionCount = options.versionCount || VERSIONS_TO_SEARCH;
+    const timeoutMs = options.timeoutMs || SEARCH_TIMEOUT_MS;
 
-    const busca = {
-        pendentes: new Map(), // id -> { conn, versao }
-        encerrada: false,
-        falhou: null
+    const search = {
+        pending: new Map(), // id -> { conn, version }
+        finished: false,
+        fail: null
     };
 
-    const fecharPendentes = () => {
-        busca.pendentes.forEach(({ conn }) => {
+    const closePending = () => {
+        search.pending.forEach(({ conn }) => {
             try { conn.close(); } catch (e) { /* ignora */ }
         });
-        busca.pendentes.clear();
+        search.pending.clear();
     };
 
-    const encerrar = () => {
-        busca.encerrada = true;
-        buscasAtivas.delete(busca);
-        fecharPendentes();
+    const finish = () => {
+        search.finished = true;
+        activeSearches.delete(search);
+        closePending();
     };
 
-    const desistir = () => {
-        if (busca.encerrada) return;
-        encerrar();
-        console.warn('🔎 Sala não encontrada nas versões ' + versaoInicial + ' a ' + (versaoInicial + versoes - 1) + ' de ' + baseId);
-        if (opcoes.aoDesistir) opcoes.aoDesistir();
+    const giveUp = () => {
+        if (search.finished) return;
+        finish();
+        console.warn('🔎 Sala não encontrada nas versões ' + startVersion + ' a ' + (startVersion + versionCount - 1) + ' de ' + baseId);
+        if (options.onGiveUp) options.onGiveUp();
     };
 
-    busca.falhou = (id) => {
-        if (busca.encerrada || !busca.pendentes.has(id)) return;
-        const { conn } = busca.pendentes.get(id);
-        busca.pendentes.delete(id);
+    search.fail = (id) => {
+        if (search.finished || !search.pending.has(id)) return;
+        const { conn } = search.pending.get(id);
+        search.pending.delete(id);
         try { conn.close(); } catch (e) { /* ignora */ }
-        if (busca.pendentes.size === 0) desistir();
+        if (search.pending.size === 0) giveUp();
     };
 
-    const achou = (id, conn, versao) => {
-        if (busca.encerrada) {
+    const found = (id, conn, version) => {
+        if (search.finished) {
             try { conn.close(); } catch (e) { /* ignora */ }
             return;
         }
-        busca.pendentes.delete(id);
-        encerrar();
-        console.log('🔎 Sala encontrada em ' + id + ' (versão ' + versao + ' do host)');
-        opcoes.aoAchar(conn, versao, id);
+        search.pending.delete(id);
+        finish();
+        console.log('🔎 Sala encontrada em ' + id + ' (versão ' + version + ' do host)');
+        options.onFound(conn, version, id);
     };
 
-    buscasAtivas.add(busca);
+    activeSearches.add(search);
 
     if (peer && !peer.destroyed) {
-        for (let i = 0; i < versoes && !busca.encerrada; i++) {
-            const versao = versaoInicial + i;
-            const id = computeHostPeerId(baseId, versao);
+        for (let i = 0; i < versionCount && !search.finished; i++) {
+            const version = startVersion + i;
+            const id = computeHostPeerId(baseId, version);
             let conn = null;
             try { conn = peer.connect(id, { reliable: true }) || null; } catch (e) { conn = null; }
             if (!conn) continue;
-            busca.pendentes.set(id, { conn, versao });
-            conn.on('open', () => achou(id, conn, versao));
-            conn.on('error', () => busca.falhou(id));
+            search.pending.set(id, { conn, version });
+            conn.on('open', () => found(id, conn, version));
+            conn.on('error', () => search.fail(id));
         }
     }
 
-    if (busca.pendentes.size === 0) {
-        desistir();
+    if (search.pending.size === 0) {
+        giveUp();
     } else {
-        setTimeout(desistir, esperaMs);
+        setTimeout(giveUp, timeoutMs);
     }
 
-    return { cancelar: () => { if (!busca.encerrada) encerrar(); } };
+    return { cancel: () => { if (!search.finished) finish(); } };
 }
 
 /**
@@ -136,11 +136,11 @@ function procurarHost(peer, baseId, opcoes = {}) {
  * ("Could not connect to peer <id>"): a versão com esse ID é descartada
  * na hora, sem esperar o tempo máximo.
  */
-function avisarPeerIndisponivel(err) {
-    const mensagem = (err && err.message) || '';
-    buscasAtivas.forEach(busca => {
-        Array.from(busca.pendentes.keys()).forEach(id => {
-            if (mensagem.endsWith(' ' + id)) busca.falhou(id);
+function reportPeerUnavailable(err) {
+    const message = (err && err.message) || '';
+    activeSearches.forEach(search => {
+        Array.from(search.pending.keys()).forEach(id => {
+            if (message.endsWith(' ' + id)) search.fail(id);
         });
     });
 }
@@ -152,6 +152,6 @@ window.Game = window.Game || {};
 window.Game.computeHostPeerId = computeHostPeerId;
 window.Game.network = window.Game.network || {};
 Object.assign(window.Game.network, {
-    procurarHost,
-    avisarPeerIndisponivel
+    findHost,
+    reportPeerUnavailable
 });

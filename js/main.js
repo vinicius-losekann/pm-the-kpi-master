@@ -144,7 +144,7 @@ async function init() {
     // Se sim, volta como jogador comum (isHost passa a false e a URL a
     // host=false) e o initPeerWithRetry() abaixo já conecta como guest.
     if (restaurou && state.isHost) {
-        await Game.network.retomarComoJogadorSeOutroAssumiu();
+        await Game.network.rejoinAsPlayerIfTakenOver();
     }
 
     try {
