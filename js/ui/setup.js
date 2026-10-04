@@ -4,16 +4,10 @@
 // Alterna a visibilidade dos elementos conforme o papel do jogador
 // (host/guest) e delega o bind dos botões de ação para
 // ui/components/controlsComponent.js (Game.ui.bindControls()).
-// Fase 5.2 do roadmap.
 //
-// Reorganizado para resolver a sobreposição de responsabilidade com
-// controlsComponent.js (ver NOTA-001 em _docs/architecture.md): antes, os
-// listeners dos botões de ação (vender, assessoria, sessão, partida,
-// nova rodada) estavam aqui; agora moraram para controlsComponent.js,
-// que passa a ser o dono de fato da "barra de ações". Este arquivo
-// cuida só de: (1) mostrar/esconder elementos conforme o papel, e
-// (2) navegação de tela / fechamento de modais que não são,
-// estritamente, "ações do jogo".
+// Este arquivo cuida só de: (1) mostrar/esconder elementos conforme o
+// papel, e (2) navegação de tela / fechamento de modais que não são,
+// estritamente, "ações do jogo" (essas ficam em controlsComponent.js).
 // ============================================
 
 let commonListenersBound = false;
@@ -37,7 +31,7 @@ function setupUI() {
         document.getElementById('btnLeaveSession').style.display = 'none';
         document.getElementById('btnLeaveMatch').style.display = 'none';
 
-        // Fase D2: a entrada do host também leva o hash do token de
+        // A entrada do host também leva o hash do token de
         // identidade dele (ver utils/identity.js), para a lista ficar
         // uniforme. Um guest que vira host (becomeHost()) não passa por
         // aqui — a entrada dele já existe, com o hash de quando entrou.
@@ -83,7 +77,7 @@ function setupUI() {
         window.location.href = './';
     });
     document.getElementById('btnBackToLobby').addEventListener('click', () => {
-        // Lógica em sessionEngine.voltarAoLobby() (Fase D: também tira
+        // Lógica em sessionEngine.voltarAoLobby() (também tira
         // da lista quem caiu durante a partida e não voltou).
         Game.core.voltarAoLobby();
     });

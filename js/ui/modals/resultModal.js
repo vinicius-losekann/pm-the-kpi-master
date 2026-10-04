@@ -2,9 +2,8 @@
 // PM: The KPI Master - UI Modal: Resultado
 // ============================================
 // Modal de resultado (acertou/errou) e do bônus de assessoria.
-// Fase 5.9 do roadmap.
 //
-// Fase A (feedback do piloto, roadmap 9.3): ao acertar, mostra um
+// Ao acertar, mostra um
 // lembrete de avançar a peça no tabuleiro físico — o jogo tem um
 // componente físico junto do digital, e isso era fácil de esquecer.
 // ============================================

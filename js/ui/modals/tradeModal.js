@@ -1,11 +1,10 @@
 // ============================================
-// PM: The KPI Master - UI Modal: Pedido de Ajuda (ex-Negociação)
+// PM: The KPI Master - UI Modal: Pedido de Ajuda
 // ============================================
 // Cobre a modal de status de quem pediu ajuda (acompanha a fila
 // avançando automaticamente) e a modal de quem está sendo perguntado
-// (aceitar/recusar doar 1 recurso).
-// Reescrito para o novo fluxo de "rede de segurança" — ver
-// engine/tradeEngine.js e _docs/architecture.md.
+// (aceitar/recusar doar 1 recurso). A fila fica em
+// engine/tradeEngine.js.
 // ============================================
 
 let ofertaAjudaAtual = null;

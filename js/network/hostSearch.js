@@ -1,7 +1,7 @@
 // ============================================
 // PM: The KPI Master - Network: Host Search
 // ============================================
-// Fase D3c: encontra a sala mesmo depois de migrações de host.
+// Encontra a sala mesmo depois de migrações de host.
 //
 // Quando o host sai e outro jogador assume, a sala passa a existir num
 // ID novo: `<ID base>-h1`, depois `-h2`, e assim por diante (o ID base

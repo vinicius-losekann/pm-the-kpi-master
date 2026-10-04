@@ -4,12 +4,10 @@
 // Regras PURAS de sorteio e controle do baralho de perguntas.
 // Não acessa Game.state, network ou DOM diretamente — recebe tudo
 // por parâmetro e retorna/mutação apenas dos objetos passados.
-// Fase 1.3 do roadmap.
 //
-// Fase 8 (nomenclatura PMBOK 8ª ed.): questionsData.areas virou
-// questionsData.domains (Domínios de Desempenho), e o campo interno
-// de cada domínio que lista as fases compatíveis (antes "grupos")
-// virou "areas" (Áreas de Foco). Ver _docs/architecture.md.
+// Nomenclatura PMBOK 8ª ed.: questionsData.domains são os Domínios de
+// Desempenho, e o campo "areas" de cada domínio lista as fases
+// compatíveis (Áreas de Foco).
 // ============================================
 
 /**

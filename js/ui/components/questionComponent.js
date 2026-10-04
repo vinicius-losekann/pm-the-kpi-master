@@ -4,7 +4,6 @@
 // Exibição da rodada, da pergunta (perguntador/respondedor/espectador),
 // o contador de tempo visível do Respondedor e a captura do clique na
 // alternativa escolhida.
-// Fase 5.4 do roadmap.
 //
 // 🆕 Contador do Respondedor: puramente visual/local — o timeout real
 // que decide quando pular a vez continua em
@@ -188,7 +187,7 @@ function showRoundEndedMessage() {
 }
 
 /**
- * Fase D: aviso de partida pausada — não há jogadores conectados
+ * Aviso de partida pausada — não há jogadores conectados
  * suficientes para formar uma dupla. A partida retoma sozinha quando
  * alguém reconectar (host: turnEngine.retomarPartidaPausada()).
  */

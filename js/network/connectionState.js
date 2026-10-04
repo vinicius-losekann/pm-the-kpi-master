@@ -4,12 +4,8 @@
 // Guarda o estado de conexão compartilhado entre peerService.js,
 // messageHandler.js e hostMigration.js: a instância do PeerJS (`myPeer`)
 // e o mapa de conexões ativas (`connections`).
-//
-// ⚠️ Não estava no roadmap original — foi adicionado porque game-network.js
-// tinha essas duas variáveis como privadas do módulo (`let myPeer`,
-// `let connections = {}`). Ao dividir em 3 arquivos, cada um precisa
-// enxergar a MESMA conexão — daqui elas passam a ser acessadas via
-// getters/setters em vez de módulo-privadas.
+// Os três arquivos precisam enxergar a MESMA conexão — por isso ela fica
+// aqui, acessada por getters/setters.
 // ============================================
 
 let myPeer = null;

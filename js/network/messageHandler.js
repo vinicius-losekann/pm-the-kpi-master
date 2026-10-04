@@ -5,15 +5,13 @@
 // a lista de jogadores sincronizada (lado host). Não lida com PeerJS
 // em si (isso é peerService.js) nem com migração de host (isso é
 // hostMigration.js).
-// Fase 4.2 do roadmap.
 // ============================================
 
 /**
- * 🔴 CORREÇÃO DE SEGURANÇA (ver ISSUES.md): verifica se o peer que
- * enviou a mensagem (fromPeerId) é de fato o jogador que a mensagem
- * alega representar (claimedName). Sem isso, qualquer guest conectado
- * podia enviar mensagens alegando ser outro jogador — respondendo no
- * lugar dele, expulsando-o da partida, etc.
+ * Segurança: verifica se o peer que enviou a mensagem (fromPeerId) é de
+ * fato o jogador que a mensagem alega representar (claimedName). Sem
+ * isso, qualquer guest conectado poderia enviar mensagens alegando ser
+ * outro jogador — respondendo no lugar dele, tirando-o da partida etc.
  * Usada apenas no HOST, no momento do despacho das mensagens que
  * executam uma ação EM NOME de um jogador específico.
  */
@@ -59,7 +57,7 @@ function handleMessage(msg, fromPeerId) {
         case 'player-list':
             state.players = msg.players;
             Game.ui.updatePlayersList();
-            // Fase D: a lista também muda quando alguém cai/reconecta no
+            // A lista também muda quando alguém cai/reconecta no
             // meio da partida — atualiza a lista de jogadores e o ranking
             // da tela de jogo, não só a do lobby.
             if (state.gameStarted) Game.ui.syncPlayerViews(null);
@@ -116,13 +114,13 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'round-ended':
-            // Fase D2b: guarda também no guest, para a cópia dele do
+            // Guarda também no guest, para a cópia dele do
             // estado bater com a do host (ex: se ele assumir como host).
             state.rodadaEncerrada = true;
             Game.ui.showRoundEndedMessage();
             break;
 
-        // Fase D: host pausou a partida por falta de jogadores conectados
+        // Host pausou a partida por falta de jogadores conectados
         // (ver turnEngine.pickNewPair()). Retoma sozinha com um novo
         // 'round-start' quando alguém reconectar.
         case 'partida-pausada':
@@ -197,7 +195,7 @@ function handleMessage(msg, fromPeerId) {
             Game.ui.showAssessoriaResult(msg);
             break;
 
-        // --- PEDIDO DE AJUDA (ex-VENDA — feedback do piloto, roadmap 9; ver _docs/architecture.md) ---
+        // --- PEDIDO DE AJUDA ---
         case 'ajuda-request':
             if (state.isHost && isSenderVerified(msg.requesterName, fromPeerId)) {
                 Game.core.handleAjudaRequest(msg);
@@ -259,7 +257,7 @@ function rejeitarEntrada(fromPeerId, reason) {
 }
 
 /**
- * Fase D2: hash do token de identidade que veio no 'player-join', ou
+ * Hash do token de identidade que veio no 'player-join', ou
  * null se não veio (ou veio em formato inválido). O token em si nunca
  * é guardado — só o hash (ver utils/identity.js).
  */
@@ -272,12 +270,12 @@ function hashDoTokenRecebido(msg) {
 /**
  * Adiciona um jogador à sala (host). Verifica duplicidade de nome e limite.
  *
- * Fase D: com a partida em andamento, a sala fica travada — só entra
+ * Com a partida em andamento, a sala fica travada — só entra
  * quem já está na lista (reconexão). A checagem de "sala cheia" só vale
  * para nome novo: um jogador desconectado continua ocupando a vaga dele
  * e precisa conseguir voltar mesmo com a sala lotada.
  *
- * Fase D2: a reconexão exige o mesmo token de identidade da primeira
+ * A reconexão exige o mesmo token de identidade da primeira
  * entrada (o hash dele fica em `tokenHash`). Sem isso, quem soubesse o
  * nome de um jogador desconectado podia entrar no lugar dele e herdar
  * KPI, recursos e fase. Token diferente ou ausente → 'identity-mismatch',
@@ -311,8 +309,8 @@ function addPlayer(msg, fromPeerId) {
             }
         } else if (tokenHash) {
             // Transição: entrada registrada antes do token existir (estado
-            // salvo de uma versão anterior). Aceita pelo nome, como antes,
-            // e passa a exigir este token daqui em diante.
+            // salvo de uma versão anterior). Aceita pelo nome e passa a
+            // exigir este token daqui em diante.
             existingPlayer.tokenHash = tokenHash;
         }
 
@@ -320,9 +318,9 @@ function addPlayer(msg, fromPeerId) {
         state.players[existingIdx].disconnected = false;
         console.log('🔄 Reconectado:', msg.playerName);
     } else {
-        // BUG-021: depois do fim de jogo a sala não fica mais travada —
-        // quem caiu na tela final (e saiu da lista) consegue voltar e ver
-        // o ranking; o próximo passo de todos é voltar ao lobby.
+        // Depois do fim de jogo a sala não fica travada — quem caiu na
+        // tela final (e saiu da lista) consegue voltar e ver o ranking; o
+        // próximo passo de todos é voltar ao lobby.
         if (state.gameStarted && !state.gameOver) {
             console.warn('🔒 Entrada recusada: partida em andamento, "' + msg.playerName + '" não fazia parte dela.');
             rejeitarEntrada(fromPeerId, 'room-locked');
@@ -368,7 +366,7 @@ function addPlayer(msg, fromPeerId) {
             }
         }
 
-        // Fase D2b: além da rodada, o guest precisa saber em que ponto
+        // Além da rodada, o guest precisa saber em que ponto
         // ela está — ciclo encerrado aguardando o host, ou partida
         // pausada — para não reabrir uma pergunta que já acabou.
         conn.send({
@@ -382,17 +380,17 @@ function addPlayer(msg, fromPeerId) {
                 hostVersion: state.hostVersion,
                 rodadaEncerrada: !!state.rodadaEncerrada,
                 partidaPausada: !!state.partidaPausada,
-                // Fase D3e: quem já respondeu nesta rodada — quem volta
+                // Quem já respondeu nesta rodada — quem volta
                 // também pode assumir como host depois.
                 respondidos: state.usedRespondedorThisRound.slice(),
-                // BUG-021: fim de jogo — quem volta vê o ranking final.
+                // Fim de jogo — quem volta vê o ranking final.
                 gameOver: !!state.gameOver,
                 rankingFinal: state.rankingFinal || null
             }
         });
     }
 
-    // Fase D: se a partida estava pausada por falta de jogadores
+    // Se a partida estava pausada por falta de jogadores
     // conectados, a volta deste jogador pode ser o que faltava. Fica
     // depois do state-sync para o guest já estar com o estado em dia
     // quando o 'round-start' chegar.
@@ -408,7 +406,7 @@ function addPlayer(msg, fromPeerId) {
  * Host: trata a queda de conexão de um guest (chamada pelo 'close' da
  * conexão em peerService.js).
  *
- * Fase D: fora de partida (lobby ou fim de jogo), remove o jogador como
+ * Fora de partida (lobby ou fim de jogo), remove o jogador como
  * sempre. Com a partida em andamento, mantém o jogador na lista marcado
  * como `disconnected: true` — KPI, recursos e fase ficam preservados e
  * a vaga fica reservada para a reconexão (a sala está travada para
@@ -465,7 +463,7 @@ function removePlayerByPeerId(peerId) {
 // ============================================
 
 /**
- * Fase D3e: guest guarda a lista de quem já respondeu na rodada atual
+ * Guest guarda a lista de quem já respondeu na rodada atual
  * (`respondidos`, vinda do host em 'round-start', 'kpi-update' e
  * 'state-sync'). Só o host decidia o rodízio e só ele tinha a lista;
  * agora, se ele cair, quem assumir continua de onde parou. Mensagem sem
@@ -481,16 +479,13 @@ function guardarRespondidos(respondidos) {
 /**
  * Restaura o estado completo vindo do host (usado após reconexão).
  *
- * Fase D2b: (1) religa a contagem local do relógio — antes ela só era
- * ligada no início da partida, e quem reconectava ficava com o relógio
- * andando de 10 em 10 segundos; (2) escolhe a tela pela situação da
- * rodada: partida pausada → aviso de pausa; ciclo encerrado → "rodada
- * encerrada, aguardando o host"; pergunta já respondida (intervalo até
- * a próxima dupla) → visão de espectador, sem reabrir a pergunta; senão,
- * a rodada em andamento, como antes.
- *
- * BUG-021: no fim de jogo, mostra a tela final com o ranking que veio do
- * host, sem religar o relógio.
+ * (1) Religa a contagem local do relógio (sem ela, o relógio de quem
+ * volta só andaria a cada 'timer-update'); (2) escolhe a tela pela
+ * situação: fim de jogo → tela final com o ranking que veio do host, sem
+ * relógio; partida pausada → aviso de pausa; ciclo encerrado → "rodada
+ * encerrada, aguardando o host"; pergunta já respondida (intervalo até a
+ * próxima dupla) → visão de espectador, sem reabrir a pergunta; senão, a
+ * rodada em andamento.
  */
 function restoreState(fullState) {
     const state = Game.state;
@@ -502,7 +497,7 @@ function restoreState(fullState) {
     if (fullState.hostVersion !== undefined) state.hostVersion = fullState.hostVersion;
     state.rodadaEncerrada = !!fullState.rodadaEncerrada;
     guardarRespondidos(fullState.respondidos);
-    // BUG-021: host de versão anterior não manda os campos — como antes.
+    // Host de versão anterior não manda os campos: partida não acabada.
     state.gameOver = !!fullState.gameOver;
     state.rankingFinal = fullState.rankingFinal || null;
 

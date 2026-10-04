@@ -3,7 +3,6 @@
 // ============================================
 // Cobre a seleção do assessor, a pergunta enviada ao assessor e a
 // exibição do resultado (sugestão, recusa ou timeout).
-// Fase 5.12 do roadmap.
 // ============================================
 
 let assessoriaCountdownInterval = null;

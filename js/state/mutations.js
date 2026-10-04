@@ -3,7 +3,6 @@
 // ============================================
 // Funções de ESCRITA no estado. Recebem os dados a mutar por parâmetro,
 // mantendo a assinatura explícita sobre o que cada função modifica.
-// Fase 2.3 do roadmap.
 // ============================================
 
 /**
@@ -35,19 +34,19 @@ function resetGameState(state, config) {
     state.timer = config.JOGO.SESSION_DURATION;
     clearInterval(state.timerInterval);
     state.timerInterval = null;
-    // Fase D: uma pausa por falta de conexão não sobrevive ao fim da
+    // Uma pausa por falta de conexão não sobrevive ao fim da
     // partida — senão a primeira reconexão da partida seguinte poderia
     // "retomar" uma rodada antiga (ver turnEngine.retomarPartidaPausada()).
     state.partidaPausada = null;
-    // Fase D2b: idem para o aviso de "rodada encerrada, aguardando o
+    // Idem para o aviso de "rodada encerrada, aguardando o
     // host" (ver turnEngine.nextTurn()).
     state.rodadaEncerrada = false;
-    // BUG-021: o ranking da partida anterior não sobra para a próxima.
+    // O ranking da partida anterior não sobra para a próxima.
     state.rankingFinal = null;
 }
 
 /**
- * Fase D: remove da lista os jogadores marcados como desconectados.
+ * Remove da lista os jogadores marcados como desconectados.
  * Usada ao voltar ao lobby — fora de partida, quem não está conectado
  * não ocupa vaga nem conta para o mínimo de jogadores (quem voltar
  * depois entra de novo como qualquer jogador novo). Nunca remove o

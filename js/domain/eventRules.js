@@ -3,7 +3,6 @@
 // ============================================
 // Regras PURAS de sorteio e aplicação de efeitos de eventos.
 // Não acessa Game.state, network ou DOM diretamente.
-// Fase 1.2 do roadmap.
 // ============================================
 
 /**

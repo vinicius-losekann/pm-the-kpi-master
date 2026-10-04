@@ -4,7 +4,6 @@
 // Funções PURAS de leitura do estado. Recebem os dados por parâmetro
 // (nada de acessar Game.state internamente) para serem testáveis
 // isoladamente e reutilizáveis fora do namespace Game.
-// Fase 2.2 do roadmap.
 // ============================================
 
 /**
@@ -31,7 +30,7 @@ function getPlayerByName(players, name) {
 
 /**
  * Retorna os jogadores ativos na partida: não estão aguardando no lobby
- * e estão conectados. Desconectados no meio da partida (Fase D)
+ * e estão conectados. Desconectados no meio da partida
  * continuam na lista com `disconnected: true`, mas ficam fora do
  * sorteio de dupla, dos efeitos de evento, do rodízio da rodada e das
  * listas de assessoria/ajuda.
@@ -43,7 +42,7 @@ function getActivePlayers(players) {
 /**
  * Retorna quem faz parte da partida, conectado ou não (só exclui quem
  * saiu para o lobby). Usado para decidir entre pausar e encerrar a
- * partida e para a lista de jogadores da tela de jogo (Fase D).
+ * partida e para a lista de jogadores da tela de jogo.
  */
 function getMatchPlayers(players) {
     return players.filter(p => !p.waitingInLobby);

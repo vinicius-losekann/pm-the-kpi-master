@@ -783,10 +783,8 @@ body {
     gap: 16px;
 }
 
-/* Card do Jogador + Fases consolidado (Fase 9, todo.md 9.4) — antes
-   eram dois cards (.player-card com avatar/KPI/recursos/fase única +
-   .phases-card com a lista de fases); unidos num só card pra reduzir
-   quantidade de elementos pra rolar no celular. */
+/* Card do Jogador + Fases num só card (avatar/KPI/recursos + lista de
+   fases), para reduzir o que é preciso rolar no celular. */
 .player-summary {
     display: flex;
     align-items: center;

@@ -4,7 +4,6 @@
 // Orquestra o fluxo de pedido de assessoria: solicitação, validação
 // (delegada a js/domain/advisoryRules.js), envio da pergunta ao
 // assessor e processamento da resposta/recusa/timeout.
-// Fase 3.5 do roadmap.
 // ============================================
 
 /**

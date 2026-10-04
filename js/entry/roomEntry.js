@@ -2,11 +2,9 @@
 // PM: The KPI Master - Room Entry (Tela Inicial)
 // ============================================
 // Gerencia a criação e entrada em salas via PeerJS.
-// Fase 0.4: movido de js/index.js para js/entry/roomEntry.js,
-// sem mudança de lógica — apenas de localização.
 //
-// Fase D3c: depois de uma migração de host, a sala deixa o ID base e
-// passa a existir em `<ID base>-h1`, `-h2`... Entrar e criar sala agora
+// Depois de uma migração de host, a sala deixa o ID base e
+// passa a existir em `<ID base>-h1`, `-h2`... Entrar e criar sala
 // procuram também essas versões (Game.network.procurarHost(), em
 // network/hostSearch.js, carregado antes deste arquivo no index.html).
 // ============================================
@@ -135,7 +133,7 @@ btnCreateRoom.addEventListener('click', () => {
 
     testPeer.on('open', (id) => {
         console.log('[ENTRY] Peer ID confirmado:', id);
-        // Fase D3c: o ID base estar livre não basta — uma partida com
+        // O ID base estar livre não basta — uma partida com
         // este código pode continuar numa versão migrada do host
         // (`-h1`, `-h2`...). Nesse caso o código também está em uso.
         busca = Game.network.procurarHost(testPeer, createdRoomFullId, {
@@ -237,7 +235,7 @@ btnJoinRoom.addEventListener('click', () => {
 
     testPeer.on('open', (myTestId) => {
         console.log('[ENTRY] Peer teste:', myTestId);
-        // Fase D3c: procura a sala no ID base e nas versões migradas do
+        // Procura a sala no ID base e nas versões migradas do
         // host. O link do jogo continua com o ID base (peerId) — o jogo
         // faz a mesma procura ao conectar (peerService.connectToHost()).
         busca = Game.network.procurarHost(testPeer, roomId, {

@@ -5,7 +5,6 @@
 // (sair, encerrar, jogador saindo no meio do jogo).
 // Usa as regras puras de js/domain/*.js — não contém regra de
 // negócio, só coordenação entre domain, state, network e ui.
-// Fase 3.1 do roadmap.
 // ============================================
 
 // ============================================
@@ -42,14 +41,11 @@ function startGame() {
  * zero, encerra a partida. Guest: só conta — o 'timer-update' do host
  * corrige qualquer diferença e o 'game-over' do host encerra.
  *
- * Fase D2b: usada também quando um guest volta para uma partida em
- * andamento (restoreState(), em network/messageHandler.js). Antes, a
- * contagem só era ligada em startGame() — quem reconectava ficava com
- * o relógio parado, andando só de 10 em 10 segundos a cada
- * 'timer-update'.
- *
- * Também é a contagem de quem assume como host (becomeHost(), em
- * network/hostMigration.js), que antes tinha uma cópia própria.
+ * Usada também quando um guest volta para uma partida em andamento
+ * (restoreState(), em network/messageHandler.js) — sem ela, o relógio
+ * de quem volta só andaria de 10 em 10 segundos, a cada
+ * 'timer-update' — e por quem assume como host (becomeHost(), em
+ * network/hostMigration.js).
  */
 function iniciarRelogio() {
     const state = Game.state;
@@ -74,15 +70,12 @@ function iniciarRelogio() {
  * Host: retoma a partida depois de recarregar a página (F5), a partir do
  * estado salvo (utils/persistence.js). Chamada por init() (main.js).
  *
- * Fase D3f: antes ficava em main.js (resumeGameEngineIfHost()) e tratava
- * só "sem rodada" e "rodada em andamento" — um F5 em outros momentos
- * deixava a partida errada ou travada. Agora a retomada faz o que
- * aconteceria sem o F5, conforme o momento:
+ * Faz o que aconteceria sem o F5, conforme o momento:
  *   - partida pausada → continua pausada com o mesmo evento (sem sortear
  *     outro nem reaplicar os efeitos); retoma quando alguém reconectar
  *     (addPlayer() em network/messageHandler.js);
  *   - rodada encerrada → continua encerrada, aguardando o "Nova Rodada";
- *   - sem rodada → começa uma (como antes);
+ *   - sem rodada → começa uma;
  *   - pergunta já respondida (F5 nos ~3s antes da próxima dupla, quando
  *     o setTimeout de answerEngine.handleAnswer() se perde com a página)
  *     → encerra a partida, se essa resposta completou a última fase, ou
@@ -90,10 +83,10 @@ function iniciarRelogio() {
  *     respondida" = `respondeu` ou o Respondedor já no rodízio, o mesmo
  *     critério de becomeHost() (network/hostMigration.js);
  *   - pergunta em aberto → reexibe a mesma pergunta (ou, com o host fora
- *     da dupla, a tela de espectador — BUG-020) e rearma o prazo de
- *     resposta (correção do BUG-001, ver ISSUES.md: antes cada F5 trocava
- *     a pergunta). Um pedido de assessoria ainda sem resposta é cancelado
- *     antes (BUG-019, ver cancelarAssessoriaPendente()).
+ *     da dupla, a tela de espectador) e rearma o prazo de resposta — a
+ *     pergunta não pode ser trocada pelo F5. Um pedido de assessoria
+ *     ainda sem resposta é cancelado antes (ver
+ *     cancelarAssessoriaPendente()).
  */
 function retomarPartidaAposRecarregar() {
     const state = Game.state;
@@ -133,9 +126,8 @@ function retomarPartidaAposRecarregar() {
         }
     } else {
         if (cancelarAssessoriaPendente(round)) return;
-        // BUG-020: fora da dupla, o host vê a tela de espectador, como
-        // veria sem o F5 (pickNewPair() faz a mesma escolha) — antes via
-        // a área da pergunta.
+        // Fora da dupla, o host vê a tela de espectador, como veria sem
+        // o F5 (pickNewPair() faz a mesma escolha).
         const naDupla = state.playerName === round.perguntador || state.playerName === round.respondedor;
         if (naDupla) {
             Game.ui.displayRoundStart();
@@ -151,11 +143,11 @@ function retomarPartidaAposRecarregar() {
 }
 
 /**
- * BUG-019: no F5 do host, um pedido de assessoria ainda sem resposta é
+ * No F5 do host, um pedido de assessoria ainda sem resposta é
  * cancelado. O prazo de 20s do assessor (setTimeout de
  * advisoryEngine.handleAssessoriaRequest()) se perde com a página, e o
  * assessor perde a pergunta (a reconexão fecha os modais) — sem cancelar,
- * a rodada ficava presa esperando uma resposta que não vinha. Quem
+ * a rodada ficaria presa esperando uma resposta que não vem. Quem
  * responde pode pedir de novo; é o mesmo resultado de uma troca de host.
  *
  * Se a resposta já tinha chegado e esperava o assessor, ela é processada
@@ -177,7 +169,7 @@ function cancelarAssessoriaPendente(round) {
 }
 
 /**
- * Fase D3f: o jogador terminou a última fase? Mesma condição usada por
+ * O jogador terminou a última fase? Mesma condição usada por
  * answerEngine.handleAnswer() para encerrar a partida depois da resposta.
  */
 function completouUltimaFase(jogador) {
@@ -197,7 +189,7 @@ function endGame(ranking) {
     cancelarPrazosDaRodada();
     cancelarPedidoDeAjuda();
     state.currentRound = null;
-    // BUG-021: o ranking do fim da partida fica guardado (estado salvo e
+    // O ranking do fim da partida fica guardado (estado salvo e
     // state-sync) — um F5 ou quem volta à sala vê o mesmo ranking.
     state.rankingFinal = ranking;
 
@@ -242,10 +234,9 @@ function cancelarPedidoDeAjuda() {
 /**
  * Mostra a tela de fim de jogo com o ranking guardado no fim da partida.
  *
- * BUG-021: usada também depois de um F5 na tela final (init(), main.js)
- * e por quem volta à sala depois do fim de jogo (restoreState(), em
- * network/messageHandler.js). Antes, o F5 do host recomeçava a partida e
- * quem voltava era recusado ("a partida já começou").
+ * Usada também depois de um F5 na tela final (init(), main.js) e por
+ * quem volta à sala depois do fim de jogo (restoreState(), em
+ * network/messageHandler.js) — nos dois casos, a partida não recomeça.
  */
 function mostrarFimDeJogo() {
     const state = Game.state;
@@ -263,7 +254,7 @@ function endMatch() {
     cancelarPrazosDaRodada();
     cancelarPedidoDeAjuda();
 
-    // Fase D: quem caiu durante a partida e não voltou sai da lista
+    // Quem caiu durante a partida e não voltou sai da lista
     // antes de ir para o lobby — o 'match-ended' já leva a lista limpa
     // para os guests (ver handleMatchEnded()).
     const removidos = Game.mutations.removeDisconnectedPlayers(Game.state);
@@ -302,16 +293,15 @@ function handleMatchEnded(msg) {
  * Lobby"). Cada jogador clica na própria tela — não há mensagem de rede
  * própria para isso.
  *
- * Fase D: quem caiu durante a partida e não voltou sai da lista aqui.
+ * Quem caiu durante a partida e não voltou sai da lista aqui.
  * Se quem clicou é o host (dono da lista oficial), avisa os guests com
  * um 'player-list'; um guest só limpa a própria cópia (a lista do host
  * sobrescreve a dele a cada 'player-list').
  *
- * Fase D3d: os jogadores voltam zerados, como em endMatch() — em
- * especial, quem tinha saído da partida deixa de estar "aguardando no
- * lobby". Antes, essa marca sobrava e o botão "Iniciar" não contava o
- * jogador: com 2 jogadores, depois de um "Sair da partida" não dava
- * para começar outra. Por isso o host sempre manda a lista atualizada.
+ * Os jogadores voltam zerados, como em endMatch() — em especial, quem
+ * tinha saído da partida deixa de estar "aguardando no lobby" (senão o
+ * botão "Iniciar" não contaria esse jogador). Por isso o host sempre
+ * manda a lista atualizada.
  */
 function voltarAoLobby() {
     const state = Game.state;
@@ -349,9 +339,6 @@ function buildRanking() {
 
 /**
  * Reinicia todos os baralhos (usado ao voltar ao lobby / preparar nova partida).
- * ⚠️ Este wrapper existia no game-core.js original e foi involuntariamente
- * omitido na extração da Fase 3 — reencontrado e corrigido na Fase 5, ao
- * conferir as chamadas de game-ui.js (btnBackToLobby usa Game.core.resetAllBaralhos()).
  */
 function resetAllBaralhos() {
     Game.domain.deck.resetAllBaralhos(Game.state.baralhos);

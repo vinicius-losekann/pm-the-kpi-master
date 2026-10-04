@@ -4,7 +4,6 @@
 // Regras PURAS de validação de pedido de assessoria e cálculo
 // do bônus de KPI do assessor. Não acessa Game.state, network
 // ou DOM diretamente.
-// Fase 1.6 do roadmap.
 // ============================================
 
 /**
@@ -23,7 +22,7 @@ function validarPedidoAssessoria({ assessor, requester, assessorName, perguntado
     const requesterEmEncerramento = !!requester &&
         fases.findIndex(f => f.id === requester.phase) === fases.length - 1;
 
-    // Assessor que caiu (Fase D: continua na lista, desconectado) também
+    // Assessor que caiu (continua na lista, desconectado) também
     // é inválido — sem isso, a pergunta ia para quem não podia responder
     // e o Respondedor ficava com os botões travados até o prazo acabar.
     const invalido =

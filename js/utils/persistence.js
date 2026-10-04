@@ -3,7 +3,6 @@
 // ============================================
 // Salva e restaura o estado da partida no localStorage, permitindo
 // retomar a sessão após um F5 (dentro de uma janela de 5 minutos).
-// Fase 7.2 do roadmap — extraído de js/main.js (antes js/game-main.js).
 // Roadmap 3.1: o estado salvo tem versão e passa pela migração antes de
 // ser restaurado (ver STATE_VERSION e STATE_MIGRATIONS abaixo).
 // ============================================
@@ -62,12 +61,12 @@ function saveState() {
         timer: state.timer,
         gameStarted: state.gameStarted,
         usedRespondedorThisRound: state.usedRespondedorThisRound,
-        // Fase D3f: sem estes dois, um F5 do host com a rodada encerrada
+        // Sem estes dois, um F5 do host com a rodada encerrada
         // ou com a partida pausada perdia essa situação (ver
         // retomarPartidaAposRecarregar() em engine/sessionEngine.js).
         rodadaEncerrada: !!state.rodadaEncerrada,
         partidaPausada: state.partidaPausada || null,
-        // BUG-021: sem estes dois, um F5 na tela final recomeçava a partida.
+        // Sem estes dois, um F5 na tela final recomeçaria a partida.
         gameOver: !!state.gameOver,
         rankingFinal: state.rankingFinal || null,
         timestamp: new Date().toISOString()
@@ -151,12 +150,12 @@ function tryRestoreState() {
         Game.state.currentRound = saved.currentRound || null;
         Game.state.baralhos = saved.baralhos || {};
         Game.state.usedRespondedorThisRound = saved.usedRespondedorThisRound || [];
-        // Estado salvo antes da Fase D3f não tem os campos: sem rodada
-        // encerrada e sem pausa, como antes.
+        // Estado salvo por versões anteriores não tem os campos: sem rodada
+        // encerrada e sem pausa.
         Game.state.rodadaEncerrada = !!saved.rodadaEncerrada;
         Game.state.partidaPausada = saved.partidaPausada || null;
-        // Estado salvo antes do BUG-021 não tem os campos: partida não
-        // acabada, como antes.
+        // Nem estes: partida não
+        // acabada.
         Game.state.gameOver = !!saved.gameOver;
         Game.state.rankingFinal = saved.rankingFinal || null;
 

@@ -5,7 +5,7 @@
 //
 // Usado pela tela via Game.i18n.t('chave') (js/utils/i18n.js). Os
 // avisos de entrada recusada (join-rejected) e os textos de confirm()
-// ainda são fixos no código — ver NOTA-003 em _docs/architecture.md.
+// ainda são fixos no código.
 //
 // Organização: um namespace por componente/modal, espelhando os
 // arquivos de js/ui/components/ e js/ui/modals/.
@@ -13,7 +13,7 @@
 // NÃO inclui: mensagens de console.log/console.warn (não são texto
 // de UI, são para depuração) nem o conteúdo de data/questions.json
 // (perguntas/eventos são conteúdo do jogo, não strings de interface —
-// ver nota em data/ no roadmap).
+// e ficam em data/).
 // ============================================
 
 window.Game = window.Game || {};
@@ -61,12 +61,8 @@ window.Game.locales['pt-BR'] = {
         tempoRestante: '⏱️ {{seconds}}s',
     },
 
-    // Feedback do piloto (roadmap 9): reescrito de "mercado livre" (vendedor escolhe comprador)
-    // para "pedido de ajuda" (só quem está sem recurso pode pedir; fila
-    // automática, sem escolha manual) — ver engine/tradeEngine.js e
-    // _docs/architecture.md. Chaves antigas (semRecursos, nenhumComprador,
-    // seusRecursos, aguardandoAceite, confirmarOferta, ofertaRecebida)
-    // removidas — não fazem mais sentido no novo fluxo.
+    // Pedido de ajuda: só quem está sem recurso pode pedir; fila
+    // automática, sem escolha manual (ver engine/tradeEngine.js).
     trade: {
         pedidoRecebido: '<strong>{{requester}}</strong> está sem recursos e pediu ajuda — topa dar 1📦?',
         semKpiParaPedirAjuda: '⚠️ Você está sem recursos e sem KPI suficiente para pedir ajuda agora. Continue jogando como Perguntador ou Assessor para conseguir mais KPI — assim que tiver o suficiente, tenta pedir ajuda de novo.',

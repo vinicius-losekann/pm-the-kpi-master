@@ -3,12 +3,8 @@
 // ============================================
 // Regra PURA de cálculo do resultado de uma resposta:
 // acerto/erro, KPI ganho, progressão de fase e recursos.
-// Não acessa Game.state, network ou DOM diretamente.
-// Fase 1.1 do roadmap.
-//
-// Nota: no js/game-core.js original essa lógica estava
-// espalhada dentro de handleAnswer(). Aqui ela vira uma
-// função pura, testável isoladamente.
+// Não acessa Game.state, network ou DOM diretamente — função pura,
+// testável isoladamente.
 // ============================================
 
 /**
@@ -16,7 +12,7 @@
  *
  * @param {object} params
  * @param {string} params.alternativaEscolhida - alternativa marcada ('a'|'b'|'c'|'d'|null)
- * @param {string} params.correct - alternativa correta da pergunta (ex-"correta", ver _docs/architecture.md Fase 8)
+ * @param {string} params.correct - alternativa correta da pergunta
  * @param {number} params.kpiAtual - KPI atual do respondedor
  * @param {string} params.phaseId - fase atual do respondedor (CONFIG.FASES[i].id)
  * @param {number} params.activities - atividades concluídas na fase atual
@@ -24,7 +20,7 @@
  * @param {object} params.config - CONFIG (usa config.KPI.ACERTO_BASE, config.JOGO.ACTIVITIES_PER_PHASE)
  * @param {Array} params.fases - CONFIG.FASES
  * @returns {{acertou: boolean, kpiGanho: number, novoKpi: number, novaFase: string, novasActivities: number, gastaRecurso: boolean}}
- *   gastaRecurso (Fase C, ver _docs/architecture.md): só true quando ERROU e não
+ *   gastaRecurso: só true quando ERROU e não
  *   há reserva de contingência — acertar nunca gasta recurso; recurso virou
  *   punição por erro, não custo incondicional de participar.
  */

@@ -5,7 +5,6 @@
 // Perguntador/Respondedor, sorteio de pergunta e avanço de turno.
 // Usa as regras puras de js/domain/*.js — não contém regra de
 // negócio, só coordenação entre domain, state, network e ui.
-// Fase 3.2 do roadmap.
 // ============================================
 
 /**
@@ -13,10 +12,9 @@
  * escolhe um par Perguntador/Respondedor.
  *
  * Chamada em 3 situações: (1) início da partida (sessionEngine.startGame),
- * (2) clique manual do host no botão "Nova Rodada" (ver ISSUES.md BUG-005
- * — antes disso era automático ao final do ciclo, agora é sempre uma
- * ação explícita do host), (3) recovery paths (retomarPartidaPausada,
- * quando o evento da pausa se perdeu).
+ * (2) clique do host no botão "Nova Rodada" (a rodada nova nunca começa
+ * sozinha), (3) retomada de uma pausa cujo evento se perdeu
+ * (retomarPartidaPausada).
  */
 function startNewRound() {
     const state = Game.state;
@@ -73,12 +71,8 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
         Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
     }
 
-    // 🐛 Correção (ver ISSUES.md BUG-005): antes, a condição de exibir o
-    // modal era baseada em `depth > 0` — o que não tem relação nenhuma
-    // com "o evento já foi mostrado nesta rodada". Isso fazia o modal
-    // reaparecer a cada pergunta dentro do mesmo ciclo. Agora é um
-    // parâmetro explícito: só mostra quando de fato é o início de uma
-    // rodada nova.
+    // O modal do evento só aparece no início de uma rodada nova
+    // (parâmetro explícito) — não a cada pergunta dentro do mesmo ciclo.
     if (mostrarModal) {
         Game.network.broadcastAll({ type: 'show-evento', evento: evento, players: state.players });
         Game.ui.showEventoModal(evento);
@@ -86,7 +80,7 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
 
     const activePlayers = Game.getActivePlayers();
     if (activePlayers.length < CONFIG.JOGO.MIN_PLAYERS) {
-        // Fase D: distingue "faltam jogadores" de "falta conexão". Se,
+        // Distingue "faltam jogadores" de "falta conexão". Se,
         // contando os desconectados, ainda há jogadores suficientes, a
         // partida PAUSA em vez de encerrar — retoma sozinha quando
         // alguém reconectar (ver retomarPartidaPausada() e addPlayer()
@@ -109,12 +103,9 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
         return;
     }
 
-    // Fase C (economia de recursos, ver _docs/architecture.md): recurso não
-    // bloqueia mais quem pode ser Respondedor — decisão do usuário
-    // (opção 1): qualquer jogador ativo sempre tenta responder, mesmo com
-    // 0 recursos, já que só errar gasta recurso agora (domain/kpiRules.js).
-    // O filtro por `p.recursos > 0` e o "pular vez sem recurso" que
-    // existiam aqui foram removidos.
+    // Recurso não limita quem pode ser Respondedor: qualquer jogador
+    // ativo sempre tenta responder, mesmo com 0 recursos, já que só errar
+    // gasta recurso (domain/kpiRules.js).
 
     // Seleciona um Respondedor que ainda não tenha respondido nesta rodada
     const available = activePlayers.filter(p =>
@@ -137,11 +128,9 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
         return;
     }
 
-    // BUG-020: os nomes de domínio e área (as etiquetas da tela) ficam na
-    // própria pergunta da rodada — é ela que vai no estado salvo e no
-    // state-sync, e antes só a mensagem 'question' os levava: depois de
-    // um F5 do host, ou para quem voltava à partida, as etiquetas
-    // apareciam vazias.
+    // Os nomes de domínio e área (as etiquetas da tela) ficam na própria
+    // pergunta da rodada — é ela que vai no estado salvo e no state-sync,
+    // então o F5 do host e quem volta à partida também veem as etiquetas.
     const domainNome = state.questionsData.domains[pergunta.domain_key]?.name || pergunta.domain_key;
     const areaNome = Game.getFaseById(respondedor.phase).nome;
 
@@ -158,7 +147,7 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
     console.log('🎯 Nova dupla:', perguntador.name, 'pergunta para', respondedor.name);
     console.log('📋 Evento:', evento.titulo);
 
-    // Fase D3e: `respondidos` = quem já respondeu nesta rodada (vazio
+    // `respondidos` = quem já respondeu nesta rodada (vazio
     // numa rodada nova). Os guests guardam — quem assumir como host
     // continua o rodízio de onde parou.
     Game.network.broadcastAll({
@@ -169,7 +158,7 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
         respondidos: state.usedRespondedorThisRound.slice()
     });
 
-    // 🐛 Correção (ver ISSUES.md BUG-006): para os GUESTS, 'round-start'
+    // Ordem das telas: para os GUESTS, 'round-start'
     // chega pela rede ANTES de 'question' (mensagens em sequência no
     // mesmo canal). Só que para o HOST, sendToPlayer() ao enviar pra si
     // mesmo processa a mensagem NA HORA (sem passar pela rede) — então
@@ -229,15 +218,13 @@ function armarRespostaTimeout(respondedorName) {
 /**
  * Avança para o próximo par dentro da rodada vigente.
  *
- * 🐛 Correção (ver ISSUES.md BUG-005): antes, quando todos os jogadores
- * ativos já tinham respondido (ciclo completo), esta função chamava
- * startNewRound() automaticamente — o que também disparava o modal de
- * evento sozinho. Agora, ao completar o ciclo, o jogo apenas PARA e
- * aguarda: é o host quem precisa clicar em "Nova Rodada"
+ * Quando todos os jogadores ativos já responderam (ciclo completo), o
+ * jogo PARA e aguarda: é o host quem clica em "Nova Rodada"
  * (Game.core.startNewRound(), ligado em controlsComponent.js) para
- * sortear o próximo evento e mostrar o modal.
+ * sortear o próximo evento e mostrar o modal — a rodada nova nunca
+ * começa sozinha.
  *
- * Fase D2b: o fim do ciclo fica registrado em `state.rodadaEncerrada`
+ * O fim do ciclo fica registrado em `state.rodadaEncerrada`
  * (zerado quando a próxima dupla é formada). Sem isso, quem reconecta
  * nessa espera recebia a última pergunta — já respondida — como se a
  * rodada estivesse em andamento (ver addPlayer()/restoreState() em
@@ -255,7 +242,7 @@ function nextTurn() {
  * os guests ('round-ended') e mostra o aviso. A próxima rodada só começa
  * com o clique do host.
  *
- * Fase D3e: extraída de nextTurn() para também ser usada ao retomar uma
+ * Extraída de nextTurn() para também ser usada ao retomar uma
  * partida pausada (retomarPartidaPausada()).
  * @returns {boolean} true se encerrou a rodada
  */
@@ -278,9 +265,8 @@ function encerrarRodadaSeCicloCompleto() {
  * mostrar o modal de novo nem reaplicar os efeitos. Se o evento se
  * perdeu (ex: host deu F5 durante a pausa), começa uma rodada nova.
  *
- * Fase D3e: se todos os conectados já responderam nesta rodada, ela é
- * encerrada (aguarda o "Nova Rodada") — antes, o sorteio recomeçava o
- * rodízio e uma rodada nova começava sozinha.
+ * Se todos os conectados já responderam nesta rodada, ela é encerrada
+ * (aguarda o "Nova Rodada") em vez de recomeçar o rodízio sozinha.
  */
 function retomarPartidaPausada() {
     const state = Game.state;

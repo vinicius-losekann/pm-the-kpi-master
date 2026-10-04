@@ -3,7 +3,6 @@
 // ============================================
 // Regra PURA de construção do ranking final.
 // Não acessa Game.state, network ou DOM diretamente.
-// Fase 1.4 do roadmap.
 // ============================================
 
 /**

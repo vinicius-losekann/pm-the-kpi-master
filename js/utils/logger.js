@@ -8,7 +8,7 @@
 // este arquivo existe e funciona isoladamente (Game.logger.info(...)
 // já funciona se chamado), mas NENHUM arquivo do projeto foi religado
 // para usar Game.logger.* no lugar de console.log/warn/error direto.
-// Ver NOTA-004 em _docs/architecture.md para o escopo de religar isso depois.
+// Religar o código ao logger ainda não foi feito.
 // ============================================
 
 const LEVELS = { debug: 0, info: 1, warn: 2, error: 3, silent: 4 };

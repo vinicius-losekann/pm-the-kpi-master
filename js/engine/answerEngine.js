@@ -4,7 +4,6 @@
 // Orquestra o processamento da resposta do Respondedor: valida a
 // rodada, delega o CÁLCULO ao js/domain/kpiRules.js e
 // js/domain/advisoryRules.js, e coordena rede/UI/estado.
-// Fase 3.3 do roadmap.
 // ============================================
 
 /**
@@ -63,12 +62,11 @@ function handleAnswer(msg) {
 
     const temReserva = evento?.reserva_contingencia === true;
 
-    // Fase C (economia de recursos, ver _docs/architecture.md): não existe mais
-    // "pular vez por falta de recurso" — qualquer jogador ativo sempre
-    // tenta responder, mesmo com 0 recursos (decisão do usuário, opção 1).
-    // O gasto de recurso agora depende do resultado (só erro gasta,
-    // protegido pela reserva de contingência), por isso é decidido dentro
-    // de calcularResultadoResposta() e aplicado depois, não antes.
+    // Ninguém pula a vez por falta de recurso — qualquer jogador ativo
+    // sempre tenta responder, mesmo com 0 recursos. O gasto de recurso
+    // depende do resultado (só erro gasta, protegido pela reserva de
+    // contingência), por isso é decidido dentro de
+    // calcularResultadoResposta() e aplicado depois.
 
     // Cálculo puro delegado a domain/kpiRules.js
     const resultado = Game.domain.kpi.calcularResultadoResposta({
@@ -87,9 +85,8 @@ function handleAnswer(msg) {
     respondedor.phase = resultado.novaFase;
     respondedor.activities = resultado.novasActivities;
 
-    // Nunca fica negativo — se já estava em 0 e errou de novo, só não ganha
-    // recurso nenhum, sem penalidade extra (ver decisão registrada em
-    // _docs/architecture.md e _docs/roadmap.md).
+    // Nunca fica negativo — se já estava em 0 e errou de novo, só não perde
+    // recurso nenhum, sem penalidade extra.
     if (resultado.gastaRecurso) {
         respondedor.recursos = Math.max(0, respondedor.recursos - 1);
     }
@@ -97,7 +94,7 @@ function handleAnswer(msg) {
     const seguroMsg = temReserva ? ' (reserva de contingência)' : '';
     console.log('📊 ' + (acertou ? '✅ Acertou' : '❌ Errou') + ' | Recursos: ' + respondedor.recursos + seguroMsg + ' | KPI: ' + respondedor.kpi);
 
-    // Fase D3e: quem respondeu entra no rodízio ANTES do aviso aos
+    // Quem respondeu entra no rodízio ANTES do aviso aos
     // guests — o 'kpi-update' leva a lista (`respondidos`). Se o host
     // cair logo depois, quem assumir já sabe quem respondeu nesta rodada.
     state.usedRespondedorThisRound.push(respondedorName);
@@ -125,14 +122,6 @@ function handleAnswer(msg) {
             kpiGanho
         });
     }
-
-    // 🐛 Correção (ver ISSUES.md BUG-007): broadcastAll() não manda a
-    // mensagem de volta pro próprio host — updatePlayerKPI() só rodava
-    // localmente quando o HOST era quem tinha respondido. Quando um
-    // guest respondia, os dados internos do host ficavam corretos, mas
-    // o ranking exibido na tela do host nunca era redesenhado. A
-    // atualização de tela abaixo (perto do fim da função) cobre tanto
-    // o respondedor quanto o bônus de assessoria.
 
     // Bônus de assessoria (se a sugestão foi seguida e correta) — cálculo
     // puro delegado a domain/advisoryRules.js
@@ -167,7 +156,7 @@ function handleAnswer(msg) {
         }
     }
 
-    // Atualização de tela do host (ver ISSUES.md BUG-007): cobre tanto o
+    // Atualização de tela do host: cobre tanto o
     // respondedor quanto o bônus de assessoria acima, para os casos em
     // que nenhum dos dois é o próprio host (broadcastAll não se
     // auto-envia, então sem isso o ranking do host fica desatualizado).

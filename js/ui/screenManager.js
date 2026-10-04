@@ -3,7 +3,6 @@
 // ============================================
 // Navegação entre telas (lobby, jogo, fim de jogo), fechamento de
 // modais e status de conexão.
-// Fase 5.1 do roadmap.
 // ============================================
 
 const SCREENS = {
@@ -27,11 +26,8 @@ function showScreen(screen) {
 }
 
 function closeAllModals() {
-    // 🐛 Correção: 'modalVenda'/'modalVendaOferta' são os IDs antigos do
-    // mercado livre de recursos, substituídos por 'modalPedirAjuda'/
-    // 'modalAjudaOferta' no feedback do piloto (roadmap 9, ver _docs/architecture.md) — esta lista
-    // não tinha sido atualizada junto, então os modais novos nunca
-    // fechavam ao trocar de tela.
+    // Todos os modais do game.html: ao criar um modal novo, incluir aqui
+    // (senão ele continua aberto ao trocar de tela).
     ['modalResponderPergunta', 'modalResult', 'modalEvento', 'modalPedirAjuda', 'modalAjudaOferta',
      'modalAssessoriaSelect', 'modalAssessoriaQuestion'].forEach(id => {
         const el = document.getElementById(id);

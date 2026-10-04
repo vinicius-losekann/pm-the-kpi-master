@@ -1,13 +1,9 @@
 // ============================================
-// PM: The KPI Master - Domain: Negociação (Venda de Recursos)
+// PM: The KPI Master - Domain: Troca de recurso (pedido de ajuda)
 // ============================================
-// Regra PURA de validação de uma venda de recurso entre dois jogadores.
+// Regra PURA de validação da troca de 1 recurso por KPI entre dois
+// jogadores (usada pelo pedido de ajuda, engine/tradeEngine.js).
 // Não acessa Game.state, network ou DOM diretamente.
-// Fase 1.5 do roadmap.
-//
-// Nota: no js/game-core.js original essa mesma cadeia de validação
-// estava DUPLICADA em handleVendaOfertaRequest() e processVenda().
-// Extrair para cá elimina a duplicação.
 // ============================================
 
 /**

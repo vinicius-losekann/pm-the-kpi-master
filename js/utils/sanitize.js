@@ -4,14 +4,12 @@
 // Utilitário central para escapar strings vindas do usuário (nomes de
 // jogador) antes de inseri-las via innerHTML.
 //
-// 🔴 CORREÇÃO DE SEGURANÇA (ver ISSUES.md): nomes de jogador vêm
-// direto do input de texto em entry/roomEntry.js, validados só por
-// TAMANHO (3-20 caracteres) — sem restrição de caracteres. Como esses
-// nomes eram interpolados direto em innerHTML em vários componentes
-// (lobby, ranking, modais de assessoria/venda), um jogador poderia se
-// cadastrar com um nome contendo HTML/JS (ex: '<svg/onload=alert(1)>',
-// que cabe nos 20 caracteres) e executar código na tela de outros
-// jogadores conectados na mesma sala (XSS armazenado).
+// Segurança: nomes de jogador vêm direto do input de texto em
+// entry/roomEntry.js, validados só por TAMANHO (3-20 caracteres) — sem
+// restrição de caracteres. Inserido sem escapar num innerHTML, um nome
+// com HTML/JS (ex: '<svg/onload=alert(1)>', que cabe nos 20 caracteres)
+// executaria código na tela dos outros jogadores (XSS armazenado).
+// Com textContent não precisa escapar.
 // ============================================
 
 /**

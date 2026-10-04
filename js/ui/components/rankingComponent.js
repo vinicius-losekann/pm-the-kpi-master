@@ -3,11 +3,10 @@
 // ============================================
 // Lista de jogadores ativos (com recursos/fase), ranking parcial
 // durante o jogo e ranking final ao término da partida.
-// Fase 5.8 do roadmap.
 // ============================================
 
 function updatePlayersOnlineList() {
-    // Fase D: a lista mostra também quem caiu no meio da partida
+    // A lista mostra também quem caiu no meio da partida
     // (esmaecido, com 📴). getActivePlayers() exclui os desconectados —
     // por isso aqui a fonte é getMatchPlayers().
     const players = Game.selectors.getMatchPlayers(Game.state.players);

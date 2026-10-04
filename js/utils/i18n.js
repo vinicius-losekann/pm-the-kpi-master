@@ -5,11 +5,10 @@
 //
 // A tela (js/ui/*.js) usa Game.i18n.t('chave') para os textos; só
 // existe o dicionário pt-BR por enquanto. Faltam en-US e es-ES e o
-// seletor de idioma — ver NOTA-003 em _docs/architecture.md e o item
-// 8.4 do roadmap.
+// seletor de idioma.
 // ============================================
 
-const SUPPORTED_LOCALES = ['pt-BR']; // en-US e es-ES entram com os dicionários deles (roadmap 8.4)
+const SUPPORTED_LOCALES = ['pt-BR']; // en-US e es-ES entram com os dicionários deles
 const DEFAULT_LOCALE = 'pt-BR';
 
 let currentLocale = DEFAULT_LOCALE;

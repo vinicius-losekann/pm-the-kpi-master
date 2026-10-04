@@ -1,21 +1,15 @@
 // ============================================
-// PM: The KPI Master - Engine: Pedido de Ajuda (ex-Negociação)
+// PM: The KPI Master - Engine: Pedido de Ajuda
 // ============================================
-// Antes (Fase 3.4): mercado livre — qualquer jogador podia vender
-// recurso pra qualquer comprador, a qualquer momento. No piloto com
-// alunos isso virou uma distração paralela ao objetivo do jogo
-// (quiz de PMBOK), com gente ficando de olho no mercado sem
-// necessidade real.
-//
-// Agora: só quem está com 0 recursos pode pedir ajuda (rede de
-// segurança, não mercado). Ao pedir, o host monta uma fila automática
+// Só quem está com 0 recursos pode pedir ajuda (rede de segurança, não
+// mercado livre — um mercado distrai do objetivo do jogo, o quiz de
+// PMBOK). Ao pedir, o host monta uma fila automática
 // com os jogadores ativos que têm recurso — do que tem mais pro que
 // tem menos — e pergunta um de cada vez, avançando sozinho a cada
 // recusa/timeout, até alguém aceitar ou a fila acabar.
 //
-// A matemática da troca em si (doador +10 KPI/-1 recurso, quem pediu
-// -10 KPI/+1 recurso) não mudou — só quem inicia e quando a ação fica
-// disponível. Reaproveita domain/tradeRules.js sem alteração.
+// A troca em si: doador +10 KPI/-1 recurso, quem pediu -10 KPI/+1
+// recurso (validação em domain/tradeRules.js).
 // ============================================
 
 /**
@@ -165,9 +159,8 @@ function handleAjudaOfertaResponse(msg) {
 }
 
 /**
- * Host: executa a doação efetivamente (única fonte da verdade) —
- * mesma matemática da troca original, validação reaproveitada de
- * domain/tradeRules.js sem alteração.
+ * Host: executa a doação efetivamente (única fonte da verdade), com a
+ * validação de domain/tradeRules.js.
  */
 function processAjuda(doadorName, requesterName) {
     const state = Game.state;

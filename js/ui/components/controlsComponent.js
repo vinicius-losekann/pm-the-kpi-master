@@ -6,12 +6,8 @@
 // sai/encerra sessão e partida. Também libera/bloqueia o botão de
 // iniciar partida conforme o número de jogadores ativos.
 //
-// Reorganizado para resolver a sobreposição de responsabilidade com
-// ui/setup.js (ver NOTA-001 em _docs/architecture.md): antes, os listeners
-// desses mesmos botões estavam em setup.js, e este arquivo só tinha
-// checkStartCondition(). Agora setup.js cuida só de alternar
-// visibilidade host/guest e navegação de tela; os botões de AÇÃO do
-// jogo moram aqui.
+// ui/setup.js cuida só de alternar visibilidade host/guest e da
+// navegação de tela; os botões de AÇÃO do jogo moram aqui.
 // ============================================
 
 let controlsBound = false;
@@ -81,11 +77,8 @@ function bindControls() {
     });
 
     document.getElementById('btnNovaRodada').addEventListener('click', () => {
-        // 🐛 Correção (ver ISSUES.md BUG-005): antes chamava
-        // Game.core.nextTurn() — que só avança dentro do ciclo vigente
-        // e nunca sorteia/mostra um evento novo. O botão precisa
-        // iniciar uma rodada de verdade, então chama startNewRound()
-        // diretamente.
+        // Inicia uma rodada de verdade (sorteia e mostra um evento novo)
+        // — não é nextTurn(), que só avança dentro do ciclo vigente.
         Game.core.startNewRound();
     });
 
@@ -97,7 +90,7 @@ function bindControls() {
 
     // --- Abrir modais de ajuda/assessoria (a lógica de cada fluxo
     // continua em ui/modals/tradeModal.js e advisoryModal.js) ---
-    // Feedback do piloto (roadmap 9): botão só fica visível quando o jogador está com 0
+    // Botão só fica visível quando o jogador está com 0
     // recursos — ver Game.ui.renderProfileCard() em profileComponent.js.
     // Não abre mais uma modal de escolha (era "Vender Recurso", com
     // lista de compradores) — o pedido é automático, a fila é montada

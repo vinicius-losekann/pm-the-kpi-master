@@ -4,18 +4,15 @@
 // Responsabilidades:
 //   - Inicializar o jogo na ordem correta (DOM, perguntas, PeerJS)
 //   - Retomar partida após recarregar a página (F5) — a lógica fica em
-//     engine/sessionEngine.js (retomarPartidaAposRecarregar, Fase D3f)
+//     engine/sessionEngine.js (retomarPartidaAposRecarregar)
 //   - Ponto de entrada único (DOMContentLoaded)
 //
-// Fase 7: saveState()/tryRestoreState() foram extraídos para
-// js/utils/persistence.js. Fase 6/7.8: loadQuestions() agora busca
-// data/questions.pt-BR.json + data/events.json (antes um único
-// data/questions.json), remontando a mesma forma {domains, eventos}
-// para não quebrar domain/deckRules.js e domain/eventRules.js.
-// Fase 8 (nomenclatura PMBOK 8ª ed.): chaves do JSON de perguntas
-// migradas para inglês (domains/name/areas/questions/question/
-// alternatives/correct) — schema de dados fica independente do
-// idioma do conteúdo, preparando o terreno para questions.en-US.json.
+// Estado salvo: js/utils/persistence.js. loadQuestions() busca
+// data/questions.pt-BR.json + data/events.json e monta a forma
+// {domains, eventos} usada por domain/deckRules.js e
+// domain/eventRules.js. As chaves do JSON de perguntas são em inglês
+// (domains/name/areas/questions/question/alternatives/correct): o
+// formato fica independente do idioma do conteúdo.
 // ============================================
 
 // ============================================
@@ -133,16 +130,15 @@ async function init() {
     document.getElementById('lobbyRoomName').textContent = state.roomName;
     document.getElementById('myName').textContent = state.playerName;
     document.getElementById('myAvatar').textContent = state.playerName.charAt(0).toUpperCase();
-    // myActivityTotal e phasesList não são mais preenchidos aqui de forma
-    // estática (Fase B, roadmap 9.4) — Game.ui.renderProfileCard() agora
-    // desenha a lista de fases inteira, com status por fase, toda vez que
-    // o estado do jogador muda (via syncPlayerViews()).
+    // A lista de fases é desenhada por Game.ui.renderProfileCard(), com
+    // o status de cada fase, toda vez que o estado do jogador muda (via
+    // syncPlayerViews()).
 
     const restaurou = Game.persistence.tryRestoreState();
 
     await loadQuestions();
 
-    // Fase D3b: host recarregando uma sessão salva — antes de reabrir o
+    // Host recarregando uma sessão salva — antes de reabrir o
     // ID de host, confere se outro jogador já assumiu a sala enquanto ele
     // estava fora (o backup assume depois de CONFIG.JOGO.HOST_TIMEOUT).
     // Se sim, volta como jogador comum (isHost passa a false e a URL a
@@ -160,9 +156,9 @@ async function init() {
 
     Game.ui.setupUI();
 
-    // Fase D3f: a retomada do host (o que fazer conforme o momento da
+    // A retomada do host (o que fazer conforme o momento da
     // partida em que o F5 aconteceu) fica em engine/sessionEngine.js.
-    // BUG-021: F5 na tela final volta à tela final (host e guest).
+    // F5 na tela final volta à tela final (host e guest).
     if (restaurou && state.gameStarted && state.gameOver) {
         Game.core.mostrarFimDeJogo();
     } else if (restaurou && state.gameStarted) {

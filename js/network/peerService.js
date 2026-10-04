@@ -4,7 +4,6 @@
 // Camada PeerJS pura: inicialização, conexões, envio de mensagens.
 // Não interpreta o CONTEÚDO das mensagens (isso é messageHandler.js)
 // nem decide sobre migração de host (isso é hostMigration.js).
-// Fase 4.1 do roadmap.
 // ============================================
 
 // ============================================
@@ -28,7 +27,7 @@ async function initPeer() {
         const peer = new Peer(peerId, { ...CONFIG.PEER });
         cs.setPeer(peer);
 
-        // Fase D: fica true depois do 'open' — a partir daí o peer já está
+        // Fica true depois do 'open' — a partir daí o peer já está
         // em uso (conexões, migração de host) e erros não o destroem mais.
         let peerAberto = false;
 
@@ -51,7 +50,7 @@ async function initPeer() {
         peer.on('connection', (conn) => handleConnection(conn));
 
         peer.on('error', (err) => {
-            // Fase D: destruir o peer e rejeitar só faz sentido ANTES do
+            // Destruir o peer e rejeitar só faz sentido ANTES do
             // 'open' — é o que permite ao initPeerWithRetry() (main.js)
             // tentar de novo (ex: ID do host ainda ocupado após um F5).
             // Depois do 'open' a promessa já foi resolvida (o reject não
@@ -63,7 +62,7 @@ async function initPeer() {
             if (peerAberto) {
                 if (err && err.type === 'peer-unavailable') {
                     console.warn('⚠️ Peer procurado não está online:', err.message);
-                    // Fase D3c: a busca da sala (hostSearch.js) descarta
+                    // A busca da sala (hostSearch.js) descarta
                     // na hora a versão do host que não existe.
                     Game.network.avisarPeerIndisponivel(err);
                 } else {
@@ -80,13 +79,12 @@ async function initPeer() {
         });
 
         peer.on('disconnected', () => {
-            // Fase D3c: destroy() também dispara 'disconnected' (ex: quando
-            // este jogador assume como host e troca de peer, ou quando a
+            // destroy() também dispara 'disconnected' (ex: quando este
+            // jogador assume como host e troca de peer, ou quando a
             // página fecha). Só faz sentido reconectar ESTE peer, se ele
             // ainda for o peer em uso e continuar desconectado do servidor
-            // — antes, 3s depois de assumir como host, o jogo mandava
-            // reconectar o peer novo (já conectado) e o PeerJS lançava
-            // "cannot reconnect because it is not disconnected".
+            // — senão o PeerJS lança "cannot reconnect because it is not
+            // disconnected" ao tentar reconectar o peer novo.
             if (peer.destroyed || cs.getPeer() !== peer) return;
             Game.ui.updateConnectionStatus('disconnected', Game.i18n.t('connection.desconectado'));
             setTimeout(() => {
@@ -105,7 +103,7 @@ async function initPeer() {
 /**
  * Conecta-se ao host (usado por guests).
  *
- * Fase D3c: procura a sala a partir da versão de host conhecida (0 para
+ * Procura a sala a partir da versão de host conhecida (0 para
  * quem entra agora; a salva, para quem volta com a sessão restaurada)
  * e nas seguintes — depois de uma migração de host, a sala não está
  * mais no ID base (ver network/hostSearch.js). Achou: passa a usar
@@ -160,7 +158,7 @@ function handleConnection(conn) {
     });
 
     conn.on('close', () => {
-        // Fase D: se esta própria página está fechando/recarregando, o
+        // Se esta própria página está fechando/recarregando, o
         // 'close' é consequência da saída (ver encerrarConexoesAoSair()),
         // não de alguém ter caído — não mexe no estado do jogo. Sem isso,
         // um F5 do host marcaria todos os guests como desconectados e
@@ -188,7 +186,7 @@ function handleConnection(conn) {
  * Guest: apresenta-se ao host. Usado na primeira conexão (acima) e nas
  * reconexões de hostMigration.js — um lugar só para montar a mensagem.
  *
- * Fase D2: leva o token de identidade deste navegador para a sala
+ * Leva o token de identidade deste navegador para a sala
  * (ver utils/identity.js). O host guarda só o hash e o confere quando
  * alguém tenta voltar com o nome de um jogador desconectado.
  */
@@ -248,7 +246,7 @@ function cleanup() {
 }
 
 // ============================================
-// SAÍDA DA PÁGINA (Fase D)
+// SAÍDA DA PÁGINA
 // ============================================
 
 // Fica true a partir do momento em que a página começa a fechar ou
@@ -257,7 +255,7 @@ function cleanup() {
 let paginaEncerrando = false;
 
 /**
- * Fase D: ao fechar a aba, recarregar (F5) ou navegar para fora, encerra
+ * Ao fechar a aba, recarregar (F5) ou navegar para fora, encerra
  * as conexões explicitamente para que o OUTRO lado receba o 'close' na
  * hora — sem isso, o PeerJS só percebe a queda quando a conexão WebRTC
  * dá timeout (de 30s a mais de 1 min, às vezes nunca).

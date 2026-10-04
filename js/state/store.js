@@ -2,7 +2,6 @@
 // PM: The KPI Master - State: Store
 // ============================================
 // Define o objeto `gameState` (fonte da verdade / Game.state).
-// Fase 2.1 do roadmap. Substitui js/game-state.js.
 //
 // Atalhos: Game.getPlayerByName(), Game.getActivePlayers(),
 // Game.resetAllPlayers() etc. (no fim do arquivo) chamam
@@ -27,7 +26,7 @@ const gameState = {
     timerInterval: null,
     gameStarted: false,
     gameOver: false,
-    rankingFinal: null,          // ranking do fim da partida (BUG-021: F5 e volta na tela final)
+    rankingFinal: null,          // ranking do fim da partida (F5 e volta na tela final)
     questionsData: null,
     usedRespondedorThisRound: [],
     // Campos para timeouts (não persistidos)
@@ -41,7 +40,7 @@ const gameState = {
 window.Game = window.Game || {};
 window.Game.state = gameState;
 // Game.computeHostPeerId (ID do host em cada versão de migração) fica em
-// network/hostSearch.js desde a Fase D3c — a tela inicial também usa.
+// network/hostSearch.js — a tela inicial também usa.
 
 // --- Atalhos (ver nota no topo do arquivo) ---
 window.Game.getFaseById = (id) => Game.selectors.getFaseById(CONFIG.FASES, id);

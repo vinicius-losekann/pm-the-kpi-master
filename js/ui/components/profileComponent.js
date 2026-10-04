@@ -4,17 +4,11 @@
 // Renderiza o card de perfil do jogador local: avatar/nome, KPI,
 // recursos, e a lista de fases com status individual por fase
 // (completa / em andamento / não iniciada).
-// Fase 5.5 do roadmap. Consolidado com o antigo indicador de fase
-// única + barra de progresso na Fase B (roadmap 9.4).
 //
-// 🐛 BUG-003 / BUG-007 (ver ISSUES.md): a sequência "atualizar card de
-// perfil + lista de jogadores + ranking" estava duplicada manualmente
-// em 7 lugares diferentes do código, cada um com uma variação sutil
-// (alguns só atualizavam myKPI/myRecursos direto no DOM, sem passar
-// por renderProfileCard). Isso já causou dois bugs de tela
-// desatualizada por esquecimento de replicar a chamada em algum ponto
-// novo. Game.ui.syncPlayerViews() consolida essa sequência num único
-// ponto — os 7 lugares agora chamam ela em vez de duplicar a lógica.
+// Game.ui.syncPlayerViews() é o ponto único de "atualizar card de
+// perfil + lista de jogadores + ranking" — quem muda o estado de um
+// jogador chama ela, em vez de repetir a sequência (cópias espalhadas
+// acabam esquecidas e deixam a tela desatualizada).
 // ============================================
 
 /**
@@ -32,7 +26,7 @@ function renderProfileCard(player) {
     if (player.recursos !== undefined) {
         document.getElementById('myRecursos').textContent = player.recursos;
 
-        // Feedback do piloto (roadmap 9): botão "Pedir Ajuda" só aparece quando o jogador está
+        // Botão "Pedir Ajuda" só aparece quando o jogador está
         // com 0 recursos — rede de segurança, não mercado livre (ver
         // engine/tradeEngine.js e _docs/architecture.md). Atualizado sempre
         // que os recursos mudam, via syncPlayerViews().
@@ -52,11 +46,8 @@ function renderProfileCard(player) {
 /**
  * Desenha a lista de fases com o status de cada uma: completa (fase já
  * ultrapassada), em andamento (fase atual, mostra X de N atividades) ou
- * não iniciada. Substitui o antigo indicador de fase única + barra de
- * progresso (Fase B, roadmap 9.4) — consolidado aqui porque a
- * progressão é sempre linear: dá pra derivar o status de TODAS as
- * fases só com a fase atual + atividades, sem precisar de histórico
- * novo.
+ * não iniciada. Como a progressão é sempre linear, dá pra derivar o
+ * status de TODAS as fases só com a fase atual + atividades.
  */
 function renderPhasesList(player) {
     const currentIdx = Game.getFaseIndex(player.phase);
@@ -88,9 +79,7 @@ function renderPhasesList(player) {
 /**
  * Sincroniza TODAS as views afetadas por uma mudança no estado de um
  * jogador: card de perfil (se for o jogador local), lista de jogadores
- * online e ranking. Consolida a sequência que estava duplicada em 7
- * lugares diferentes do código (ver BUG-003 e BUG-007 em ISSUES.md) —
- * cada duplicação era um risco de ficar esquecida num ponto novo.
+ * online e ranking — o único lugar com essa sequência.
  * @param {object|null} player - jogador cujo card deve ser atualizado,
  *   se for o jogador local (Game.state.playerName). Passe null para
  *   apenas atualizar as listas compartilhadas (online/ranking), sem

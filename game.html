@@ -105,7 +105,7 @@
 
             <!-- Sidebar Esquerda -->
             <aside class="sidebar sidebar-left">
-                <!-- Card do Jogador + Fases (consolidado — Fase B, roadmap
+                <!-- Card do Jogador + Fases (consolidado:
                      9.4: reduz a quantidade de cards pra rolar no celular,
                      onde a sidebar aparece abaixo da pergunta). KPI e
                      recursos agora ficam no cabeçalho, e cada fase mostra
@@ -142,7 +142,7 @@
                 </button>
 
                 <!-- Ação destrutiva: separada visualmente e discreta de
-                     propósito (ver roadmap 9.1, Fase A) — Nova Rodada é clicado
+                     propósito — Nova Rodada é clicado
                      toda hora, Encerrar Partida é raro e zera o KPI de
                      todos, então não deve competir pela mesma posição
                      de dedo no mobile. -->
@@ -371,16 +371,16 @@
     <!-- 2. Configuração -->
     <script src="config/game-config.js"></script>
 
-    <!-- 2.6. i18n (textos da tela; ver NOTA-003 em _docs/architecture.md) -->
+    <!-- 2.6. i18n (textos da tela) -->
     <script src="js/utils/i18n.js"></script>
     <script src="js/locales/pt-BR.js"></script>
 
-    <!-- 2.7. Logger e Persistência (Fase 7 do roadmap) -->
+    <!-- 2.7. Logger, persistência e identidade -->
     <script src="js/utils/logger.js"></script>
     <script src="js/utils/persistence.js"></script>
     <script src="js/utils/identity.js"></script>
 
-    <!-- 2.8. Sanitização (correção de segurança — ver ISSUES.md SEC-001) -->
+    <!-- 2.8. Sanitização (nomes de jogador em innerHTML) -->
     <script src="js/utils/sanitize.js"></script>
 
     <!-- 3. Módulos do jogo -->
@@ -388,14 +388,14 @@
     <script src="js/state/mutations.js"></script>
     <script src="js/state/store.js"></script>
 
-    <!-- 3.6. Rede (Fase 4 do roadmap — substitui js/game-network.js) -->
+    <!-- 3.6. Rede -->
     <script src="js/network/connectionState.js"></script>
     <script src="js/network/hostSearch.js"></script>
     <script src="js/network/peerService.js"></script>
     <script src="js/network/messageHandler.js"></script>
     <script src="js/network/hostMigration.js"></script>
 
-    <!-- 3.5. Regras puras de domínio (Fase 1 do roadmap — precisam vir antes de engine/) -->
+    <!-- 3.5. Regras puras de domínio (precisam vir antes de engine/) -->
     <script src="js/domain/kpiRules.js"></script>
     <script src="js/domain/eventRules.js"></script>
     <script src="js/domain/deckRules.js"></script>
@@ -403,14 +403,14 @@
     <script src="js/domain/tradeRules.js"></script>
     <script src="js/domain/advisoryRules.js"></script>
 
-    <!-- 3.7. Orquestração (Fase 3 do roadmap — substitui js/game-core.js) -->
+    <!-- 3.7. Orquestração -->
     <script src="js/engine/sessionEngine.js"></script>
     <script src="js/engine/turnEngine.js"></script>
     <script src="js/engine/answerEngine.js"></script>
     <script src="js/engine/tradeEngine.js"></script>
     <script src="js/engine/advisoryEngine.js"></script>
 
-    <!-- 3.8. Interface de usuário (Fase 5 do roadmap — substitui js/game-ui.js) -->
+    <!-- 3.8. Interface de usuário -->
     <script src="js/ui/screenManager.js"></script>
     <script src="js/ui/components/lobbyComponent.js"></script>
     <script src="js/ui/components/questionComponent.js"></script>

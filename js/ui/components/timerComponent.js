@@ -3,7 +3,6 @@
 // ============================================
 // Exibição do cronômetro da partida (formatação MM:SS e estados
 // visuais de aviso/perigo/crítico).
-// Fase 5.7 do roadmap.
 // ============================================
 
 function updateTimerDisplay() {

@@ -1,7 +1,7 @@
 // ============================================
 // PM: The KPI Master - Identidade do jogador por sala
 // ============================================
-// Fase D2: cada navegador guarda um token aleatório por sala (chave
+// Cada navegador guarda um token aleatório por sala (chave
 // pelo ID base da sala, que não muda com a migração de host). O guest
 // envia o token no 'player-join'; o host guarda na lista de jogadores
 // apenas o HASH (SHA-256) do token, em `tokenHash`. Assim:

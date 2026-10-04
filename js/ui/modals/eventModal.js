@@ -2,7 +2,6 @@
 // PM: The KPI Master - UI Modal: Evento
 // ============================================
 // Modal exibido no início de cada rodada com o evento sorteado.
-// Fase 5.10 do roadmap.
 // ============================================
 
 function showEventoModal(evento) {
