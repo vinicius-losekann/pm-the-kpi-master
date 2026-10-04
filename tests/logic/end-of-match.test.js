@@ -187,7 +187,7 @@ test('T66 F5 do host no fim de jogo: volta ao ranking final e a partida não rec
 
     // main.js: com o fim de jogo restaurado, só chama a tela final (host e guest).
     const main = fs.readFileSync(path.join(RAIZ, 'js/main.js'), 'utf8');
-    check(/if \(restaurou && state\.gameStarted && state\.gameOver\) \{\s*Game\.core\.showGameOver\(\);/.test(main),
+    check(/if \(restored && state\.gameStarted && state\.gameOver\) \{\s*Game\.core\.showGameOver\(\);/.test(main),
         'init() deveria chamar Game.core.showGameOver() quando o estado restaurado é de fim de jogo');
 });
 

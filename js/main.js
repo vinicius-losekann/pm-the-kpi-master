@@ -57,11 +57,11 @@ async function loadQuestions() {
     }
 
     // Inicializa os baralhos, preservando progresso se já existir
-    const baralhosRestaurados = state.baralhos && Object.keys(state.baralhos).length > 0;
-    if (!baralhosRestaurados) {
+    const decksRestored = state.baralhos && Object.keys(state.baralhos).length > 0;
+    if (!decksRestored) {
         for (const [key, domain] of Object.entries(state.questionsData.domains || {})) {
             state.baralhos[key] = {
-                perguntas: domain.questions.map(p => ({ ...p, usada: false })),
+                perguntas: domain.questions.map(question => ({ ...question, usada: false })),
                 disponiveis: domain.questions.length,
                 total: domain.questions.length
             };
@@ -134,7 +134,7 @@ async function init() {
     // o status de cada fase, toda vez que o estado do jogador muda (via
     // syncPlayerViews()).
 
-    const restaurou = Game.persistence.tryRestoreState();
+    const restored = Game.persistence.tryRestoreState();
 
     await loadQuestions();
 
@@ -143,7 +143,7 @@ async function init() {
     // estava fora (o backup assume depois de CONFIG.JOGO.HOST_TIMEOUT).
     // Se sim, volta como jogador comum (isHost passa a false e a URL a
     // host=false) e o initPeerWithRetry() abaixo já conecta como guest.
-    if (restaurou && state.isHost) {
+    if (restored && state.isHost) {
         await Game.network.rejoinAsPlayerIfTakenOver();
     }
 
@@ -159,9 +159,9 @@ async function init() {
     // A retomada do host (o que fazer conforme o momento da
     // partida em que o F5 aconteceu) fica em engine/sessionEngine.js.
     // F5 na tela final volta à tela final (host e guest).
-    if (restaurou && state.gameStarted && state.gameOver) {
+    if (restored && state.gameStarted && state.gameOver) {
         Game.core.showGameOver();
-    } else if (restaurou && state.gameStarted) {
+    } else if (restored && state.gameStarted) {
         if (state.isHost) {
             Game.core.resumeMatchAfterReload();
         } else {

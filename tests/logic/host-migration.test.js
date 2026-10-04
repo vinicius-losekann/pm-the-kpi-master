@@ -409,7 +409,7 @@ test('T38 Host volta dentro do prazo (F5): guest reconecta ao mesmo host, sem mi
     // O host terminou de recarregar: a tentativa em andamento abre.
     conexoes[conexoes.length - 1].openNow();
     const join = amb.registro.paraHost.find(m => m.type === 'player-join');
-    check(join && join.token === amb.Game.identity.obterTokenDaSala('sala'),
+    check(join && join.token === amb.Game.identity.getRoomToken('sala'),
         'deveria reenviar o player-join com o token ao host que voltou');
 
     const tentativas = conexoes.length;
@@ -645,7 +645,7 @@ test('T43 Host antigo recarregando: se outro assumiu, volta como jogador comum; 
     // 5) main.js: a verificação roda só para host com sessão restaurada,
     // antes de abrir o ID de host.
     const main = fs.readFileSync(path.join(RAIZ, 'js/main.js'), 'utf8');
-    const chamada = main.search(/if \(restaurou && state\.isHost\) \{\s*await Game\.network\.rejoinAsPlayerIfTakenOver\(\);/);
+    const chamada = main.search(/if \(restored && state\.isHost\) \{\s*await Game\.network\.rejoinAsPlayerIfTakenOver\(\);/);
     check(chamada >= 0, 'init() deveria chamar rejoinAsPlayerIfTakenOver() para host com sessão restaurada');
     check(chamada < main.indexOf('await initPeerWithRetry()'), 'a verificação deveria vir antes de abrir o peer');
 });
@@ -757,7 +757,7 @@ test('T45 Guest entra/volta pelo ID base depois de migrações: acha a versão a
     check(amb.state.hostVersion === 1 && amb.state.hostPeerId === 'sala-h1', 'deveria passar a usar sala-h1, usa: ' + amb.state.hostPeerId);
     check(amb.Game.network.connectionState.getConnection('sala-h1') === conns['sala-h1'], 'a conexão com o host deveria ficar registrada');
     const joins = amb.registro.paraHost.filter(m => m.type === 'player-join');
-    check(joins.length === 1 && joins[0].token === amb.Game.identity.obterTokenDaSala('sala'), 'deveria mandar um player-join, com o token');
+    check(joins.length === 1 && joins[0].token === amb.Game.identity.getRoomToken('sala'), 'deveria mandar um player-join, com o token');
     check(['sala-h2', 'sala-h3', 'sala-h4', 'sala-h5'].every(id => conns[id].fechada), 'as outras tentativas deveriam ser fechadas');
 
     // A conexão achada passa pelo handleConnection() real: queda do host é percebida.

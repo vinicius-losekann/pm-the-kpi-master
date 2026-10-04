@@ -45,7 +45,7 @@ function setupUI() {
                 isHost: true,
                 waitingInLobby: false,
                 recursos: CONFIG.RECURSOS_INICIAIS,
-                tokenHash: Game.identity.meuTokenHash(state.baseRoomPeerId)
+                tokenHash: Game.identity.myTokenHash(state.baseRoomPeerId)
             });
         }
         Game.ui.updatePlayersList();

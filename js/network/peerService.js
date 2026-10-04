@@ -196,7 +196,7 @@ function sendPlayerJoin() {
         type: 'player-join',
         playerName: state.playerName,
         peerId: state.peerId,
-        token: Game.identity.obterTokenDaSala(state.baseRoomPeerId)
+        token: Game.identity.getRoomToken(state.baseRoomPeerId)
     });
 }
 

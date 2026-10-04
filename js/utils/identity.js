@@ -31,13 +31,13 @@ const TOKEN_KEY_PREFIX = 'pmKPI_token_';
 // Reserva em memória para quando o localStorage não está disponível
 // (ex: alguns modos privados). Vale só enquanto a página estiver
 // aberta — um F5 gera um token novo.
-const tokensEmMemoria = {};
+const inMemoryTokens = {};
 
 /**
  * Gera um token aleatório de 128 bits em hexadecimal (32 caracteres).
  * crypto.getRandomValues funciona também fora de HTTPS.
  */
-function gerarToken() {
+function generateToken() {
     const bytes = new Uint8Array(16);
     if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
         crypto.getRandomValues(bytes);
@@ -53,21 +53,21 @@ function gerarToken() {
  * sessão: quem sai e volta na mesma partida continua reconhecido.
  * @param {string} baseRoomPeerId - ID base da sala (Game.state.baseRoomPeerId)
  */
-function obterTokenDaSala(baseRoomPeerId) {
-    const chave = TOKEN_KEY_PREFIX + (baseRoomPeerId || '');
+function getRoomToken(baseRoomPeerId) {
+    const key = TOKEN_KEY_PREFIX + (baseRoomPeerId || '');
 
     try {
-        const salvo = localStorage.getItem(chave);
-        if (salvo) return salvo;
-        const novo = gerarToken();
-        localStorage.setItem(chave, novo);
-        return novo;
+        const saved = localStorage.getItem(key);
+        if (saved) return saved;
+        const created = generateToken();
+        localStorage.setItem(key, created);
+        return created;
     } catch (e) {
-        if (!tokensEmMemoria[chave]) {
+        if (!inMemoryTokens[key]) {
             console.warn('⚠️ localStorage indisponível — a identidade nesta sala vale só enquanto a página estiver aberta.');
-            tokensEmMemoria[chave] = gerarToken();
+            inMemoryTokens[key] = generateToken();
         }
-        return tokensEmMemoria[chave];
+        return inMemoryTokens[key];
     }
 }
 
@@ -89,15 +89,15 @@ const SHA256_K = [
 /**
  * Converte texto em bytes UTF-8 (sem depender de TextEncoder).
  */
-function paraUtf8(texto) {
+function toUtf8(text) {
     const bytes = [];
-    for (let i = 0; i < texto.length; i++) {
-        let cp = texto.charCodeAt(i);
+    for (let i = 0; i < text.length; i++) {
+        let cp = text.charCodeAt(i);
         // Par substituto (caracteres fora do plano básico, ex: emoji)
-        if (cp >= 0xd800 && cp <= 0xdbff && i + 1 < texto.length) {
-            const baixo = texto.charCodeAt(i + 1);
-            if (baixo >= 0xdc00 && baixo <= 0xdfff) {
-                cp = 0x10000 + ((cp - 0xd800) << 10) + (baixo - 0xdc00);
+        if (cp >= 0xd800 && cp <= 0xdbff && i + 1 < text.length) {
+            const low = text.charCodeAt(i + 1);
+            if (low >= 0xdc00 && low <= 0xdfff) {
+                cp = 0x10000 + ((cp - 0xd800) << 10) + (low - 0xdc00);
                 i++;
             }
         }
@@ -121,9 +121,9 @@ function rotr(x, n) {
 /**
  * SHA-256 de um texto (UTF-8), em hexadecimal minúsculo (64 caracteres).
  */
-function sha256Hex(texto) {
-    const bytes = paraUtf8(String(texto));
-    const tamanhoEmBits = bytes.length * 8;
+function sha256Hex(text) {
+    const bytes = toUtf8(String(text));
+    const bitLength = bytes.length * 8;
 
     // Preenchimento: 0x80, zeros e o tamanho original em 64 bits (big-endian),
     // completando um múltiplo de 64 bytes.
@@ -132,14 +132,14 @@ function sha256Hex(texto) {
     msg.set(bytes);
     msg[bytes.length] = 0x80;
     const dv = new DataView(msg.buffer);
-    dv.setUint32(total - 8, Math.floor(tamanhoEmBits / 0x100000000));
-    dv.setUint32(total - 4, tamanhoEmBits >>> 0);
+    dv.setUint32(total - 8, Math.floor(bitLength / 0x100000000));
+    dv.setUint32(total - 4, bitLength >>> 0);
 
     const h = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
     const w = new Uint32Array(64);
 
-    for (let bloco = 0; bloco < total; bloco += 64) {
-        for (let i = 0; i < 16; i++) w[i] = dv.getUint32(bloco + i * 4);
+    for (let block = 0; block < total; block += 64) {
+        for (let i = 0; i < 16; i++) w[i] = dv.getUint32(block + i * 4);
         for (let i = 16; i < 64; i++) {
             const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
             const s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
@@ -177,8 +177,8 @@ function hashToken(token) {
 /**
  * Atalho: hash do token deste navegador para a sala informada.
  */
-function meuTokenHash(baseRoomPeerId) {
-    return hashToken(obterTokenDaSala(baseRoomPeerId));
+function myTokenHash(baseRoomPeerId) {
+    return hashToken(getRoomToken(baseRoomPeerId));
 }
 
 // ============================================
@@ -186,8 +186,8 @@ function meuTokenHash(baseRoomPeerId) {
 // ============================================
 window.Game = window.Game || {};
 window.Game.identity = {
-    obterTokenDaSala,
+    getRoomToken,
     hashToken,
-    meuTokenHash,
+    myTokenHash,
     sha256Hex
 };

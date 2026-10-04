@@ -100,7 +100,7 @@ test('T22 SHA-256 próprio: vetores oficiais e mesmo resultado do Node', (usar) 
         const t = 'x'.repeat(n);
         check(sha(t) === nodeSha(t), 'diverge do Node com ' + n + ' caracteres');
     }
-    for (const t of ['Ação é João', 'ñ ç ü € 日本語', 'emoji 🎯🚀 no meio', amb.Game.identity.obterTokenDaSala('sala')]) {
+    for (const t of ['Ação é João', 'ñ ç ü € 日本語', 'emoji 🎯🚀 no meio', amb.Game.identity.getRoomToken('sala')]) {
         check(sha(t) === nodeSha(t), 'diverge do Node em "' + t + '"');
     }
 });
@@ -108,23 +108,23 @@ test('T22 SHA-256 próprio: vetores oficiais e mesmo resultado do Node', (usar) 
 test('T23 Token por sala: criado uma vez, reaproveitado, diferente entre salas', (usar) => {
     const amb = usar(createEnvironment());
     const id = amb.Game.identity;
-    const t1 = id.obterTokenDaSala('sala-x');
+    const t1 = id.getRoomToken('sala-x');
     check(/^[0-9a-f]{32}$/.test(t1), 'token deveria ter 32 caracteres hexadecimais, veio: ' + t1);
     check(amb.armazenamento['pmKPI_token_sala-x'] === t1, 'token deveria ficar no localStorage, na chave da sala');
-    check(id.obterTokenDaSala('sala-x') === t1, 'a mesma sala deveria devolver o mesmo token (F5, reconexão)');
-    check(id.obterTokenDaSala('sala-y') !== t1, 'outra sala deveria ter outro token');
-    check(id.meuTokenHash('sala-x') === id.hashToken(t1) && id.hashToken(t1) !== t1, 'meuTokenHash deveria ser o hash do token');
+    check(id.getRoomToken('sala-x') === t1, 'a mesma sala deveria devolver o mesmo token (F5, reconexão)');
+    check(id.getRoomToken('sala-y') !== t1, 'outra sala deveria ter outro token');
+    check(id.myTokenHash('sala-x') === id.hashToken(t1) && id.hashToken(t1) !== t1, 'myTokenHash deveria ser o hash do token');
 
     // Um ambiente novo (outro "navegador") gera outro token para a mesma sala.
     const outro = usar(createEnvironment());
-    check(outro.Game.identity.obterTokenDaSala('sala-x') !== t1, 'outro navegador deveria ter outro token');
+    check(outro.Game.identity.getRoomToken('sala-x') !== t1, 'outro navegador deveria ter outro token');
 
     // localStorage indisponível: continua funcionando enquanto a página estiver aberta.
     const semStorage = usar(createEnvironment());
     semStorage.localStorageFalso.getItem = () => { throw new Error('bloqueado'); };
     semStorage.localStorageFalso.setItem = () => { throw new Error('bloqueado'); };
-    const t3 = semStorage.Game.identity.obterTokenDaSala('sala-z');
-    check(/^[0-9a-f]{32}$/.test(t3) && semStorage.Game.identity.obterTokenDaSala('sala-z') === t3,
+    const t3 = semStorage.Game.identity.getRoomToken('sala-z');
+    check(/^[0-9a-f]{32}$/.test(t3) && semStorage.Game.identity.getRoomToken('sala-z') === t3,
         'sem localStorage, o token deveria ser estável durante a página');
 });
 
@@ -204,7 +204,7 @@ test('T28 Guest envia o token no player-join (1ª conexão e as duas reconexões
     amb.state.baseRoomPeerId = 'sala';
     amb.state.hostPeerId = 'sala';
     amb.state.hostVersion = 0;
-    const meuToken = amb.Game.identity.obterTokenDaSala('sala');
+    const meuToken = amb.Game.identity.getRoomToken('sala');
     const checkJoin = (onde) => {
         const join = amb.registro.paraHost.filter(m => m.type === 'player-join').pop();
         check(join, onde + ': deveria enviar player-join');
@@ -238,7 +238,7 @@ test('T28 Guest envia o token no player-join (1ª conexão e as duas reconexões
     conn.fire('open');
     checkJoin('reconexão ao novo host');
     check(amb.state.hostPeerId === 'sala-h1', 'pré-condição: guest deveria ter ido para a sala nova');
-    check(amb.Game.identity.obterTokenDaSala(amb.state.baseRoomPeerId) === meuToken, 'o token não muda com a migração (chave pelo ID base)');
+    check(amb.Game.identity.getRoomToken(amb.state.baseRoomPeerId) === meuToken, 'o token não muda com a migração (chave pelo ID base)');
 });
 
 test('T29 Host se insere na lista (setupUI) com o hash do próprio token', (usar) => {
@@ -253,7 +253,7 @@ test('T29 Host se insere na lista (setupUI) com o hash do próprio token', (usar
 
     amb.ctx.setupUI();
     const host = amb.player('Ana');
-    const meuToken = amb.Game.identity.obterTokenDaSala('sala');
+    const meuToken = amb.Game.identity.getRoomToken('sala');
     check(host && host.isHost, 'o host deveria estar na lista');
     check(host.tokenHash === amb.hash(meuToken), 'a entrada do host deveria ter o hash do token dele');
     check(!JSON.stringify(amb.state.players).includes(meuToken), 'o token cru do host não pode ficar na lista');
