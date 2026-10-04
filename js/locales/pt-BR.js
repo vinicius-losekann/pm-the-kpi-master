@@ -57,7 +57,7 @@ window.Game.locales['pt-BR'] = {
         recusado: '❌ {{assessor}} recusou o pedido de assessoria.',
         timeout: '⌛ {{assessor}} não respondeu a tempo.',
         invalido: '⚠️ Não foi possível chamar {{assessor}}. Escolha uma alternativa.',
-        faseEncerramento: '⚠️ Jogadores na fase de Encerramento não podem pedir assessoria.',
+        faseEncerramento: '⚠️ Jogadores na Área Foco Encerramento não podem pedir assessoria.',
         tempoRestante: '⏱️ {{seconds}}s',
     },
 

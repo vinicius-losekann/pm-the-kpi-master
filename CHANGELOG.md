@@ -68,6 +68,9 @@ automatizar — M9 (redes diferentes), M7 (queda de rede real) e M8
 - Quem caiu fica fora do pedido de ajuda e não pode ser chamado como
   assessor.
 - Mais espaço entre o lembrete do tabuleiro e o botão OK.
+- Na tela, "Fases" virou **"Áreas Foco"** (nomenclatura do PMBOK 8 para os
+  antigos grupos de processos), inclusive no aviso de assessoria da Área
+  Foco Encerramento.
 - **Banco de perguntas revisado pelo professor:** 5 perguntas retiradas,
   correções de texto nos enunciados e alternativas marcados (sem termos
   em inglês entre parênteses, "Segundo o PMBOK", "Áreas Foco") e

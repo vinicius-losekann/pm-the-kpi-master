@@ -17,7 +17,7 @@
    - Um jogador **pergunta** (vê a resposta)
    - Outro jogador **responde** (escolhe entre 4 alternativas)
    - O Respondedor pode, opcionalmente, **pedir Assessoria** a outro jogador antes de responder
-     (exceto se estiver na fase de Encerramento)
+     (exceto se estiver na Área Foco Encerramento)
 5. **Acertar** = +10 KPI + 1 atividade, sem gastar recurso
 6. **Errar** = 0 KPI + 0 atividade + **-1 recurso** (protegido pelo evento 🛡️ Reserva de Contingência)
 7. Sem recursos não impede de tentar — só não sobra reserva pra errar de novo sem custo
@@ -97,19 +97,19 @@ do PMBOK em praticamente todos os domínios de desempenho.
    pode seguir a sugestão ou escolher outra alternativa.
 7. O resultado é revelado normalmente, seguindo as regras já existentes de KPI e recursos.
 
-### Restrição: fase de Encerramento
+### Restrição: Área Foco Encerramento
 
-Um Respondedor que estiver na fase de **Encerramento** **não pode pedir Assessoria**. Como o
-jogo termina assim que o primeiro jogador completa essa fase, essa restrição evita que a
+Um Respondedor que estiver na Área Foco **Encerramento** **não pode pedir Assessoria**. Como o
+jogo termina assim que o primeiro jogador completa essa área, essa restrição evita que a
 mecânica de ajuda vire uma decisão sobre "ajudar o adversário a encerrar a partida para todo
 mundo". Fora dessa situação, a Assessoria funciona normalmente.
 
-Essa restrição afeta apenas o **pedido**: um jogador que já está na fase de Encerramento
-continua podendo ser **chamado como assessor** por colegas em fases anteriores.
+Essa restrição afeta apenas o **pedido**: um jogador que já está na Área Foco Encerramento
+continua podendo ser **chamado como assessor** por colegas em áreas anteriores.
 
 A validação dessa restrição é feita tanto no cliente (feedback imediato ao jogador) quanto no
 **host**, que é a fonte da verdade da partida — um pedido de assessoria vindo de um Respondedor
-na fase de Encerramento é sempre rejeitado pelo host, independentemente do estado local de quem
+na Área Foco Encerramento é sempre rejeitado pelo host, independentemente do estado local de quem
 enviou o pedido.
 
 ### Quem pode ser assessor
@@ -156,7 +156,7 @@ sugestão — ambos os casos têm o mesmo efeito.
 ```
 Respondedor recebe pergunta
         │
-        ├── Está na fase de Encerramento? → Sim → não pode pedir Assessoria
+        ├── Está na Área Foco Encerramento? → Sim → não pode pedir Assessoria
         │        (validado no cliente E no host)
         │
         ├── (opcional) Pede Assessoria → escolhe jogador ativo (≠ Perguntador)
