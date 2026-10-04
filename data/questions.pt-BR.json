@@ -12,47 +12,47 @@
       "questions": [
         {
           "id": "gov_1",
-          "question": "O que a 8ª edição do PMBOK Guide chama de 'Focus Areas' (Áreas de Foco) eram conhecidos, em edições anteriores, como?",
+          "question": "O que a 8ª edição do PMBOK Guide chama de 'Focus Areas' (Áreas Foco) eram conhecidos, em edições anteriores, como?",
           "alternatives": [
             "a) Áreas de Conhecimento",
-            "b) Grupos de Processos",
-            "c) Domínios de Desempenho",
+            "b) Domínios de Desempenho",
+            "c) Grupos de Processos",
             "d) Linhas de Base"
           ],
-          "correct": "b"
+          "correct": "c"
         },
         {
           "id": "gov_2",
           "question": "Quantos Domínios de Desempenho de Gerenciamento de Projetos a 8ª edição do PMBOK Guide apresenta?",
           "alternatives": [
-            "a) 5",
-            "b) 8",
-            "c) 7",
+            "a) 7",
+            "b) 5",
+            "c) 8",
             "d) 10"
           ],
-          "correct": "c"
+          "correct": "a"
         },
         {
           "id": "gov_3",
           "question": "Qual processo do domínio de Governança autoriza formalmente o início de um projeto ou fase?",
           "alternatives": [
             "a) Desenvolver o Termo de Abertura",
-            "b) Iniciar o Projeto ou Fase",
-            "c) Planejar o Gerenciamento do Escopo",
-            "d) Validar o Escopo"
+            "b) Planejar o Gerenciamento do Escopo",
+            "c) Validar o Escopo",
+            "d) Iniciar o Projeto ou Fase"
           ],
-          "correct": "b"
+          "correct": "d"
         },
         {
           "id": "gov_4",
           "question": "No domínio de Governança, qual processo consolida os planos de todos os outros domínios em um único Plano de Gerenciamento do Projeto?",
           "alternatives": [
-            "a) Integrar e Alinhar os Planos do Projeto",
-            "b) Planejar a Estratégia de Sourcing",
+            "a) Planejar a Estratégia de Sourcing",
+            "b) Integrar e Alinhar os Planos do Projeto",
             "c) Gerenciar a Execução do Projeto",
             "d) Encerrar o Projeto ou Fase"
           ],
-          "correct": "a"
+          "correct": "b"
         },
         {
           "id": "gov_5",
@@ -60,7 +60,7 @@
           "alternatives": [
             "a) Definir apenas o cronograma de contratações",
             "b) Decidir quais partes do trabalho serão feitas internamente (insourcing) ou externamente (outsourcing)",
-            "c) Substituir integralmente o processo de aquisições",
+            "c) Substituir integralmente o processo de gerenciar as aquisições",
             "d) Aplicar-se somente a fornecedores internacionais"
           ],
           "correct": "b"
@@ -70,108 +70,75 @@
           "question": "Qual é a diferença entre garantia da qualidade (quality assurance) e controle da qualidade (quality control) segundo a 8ª edição?",
           "alternatives": [
             "a) São sinônimos",
-            "b) Garantia foca em usar processos com eficácia; controle foca em criar entregas que atendam especificações",
-            "c) Garantia é feita pelo cliente; controle é feito pela equipe",
-            "d) Controle sempre antecede a garantia"
+            "b) Garantia é feita pelo cliente; controle é feito pela equipe",
+            "c) Controle sempre antecede a garantia",
+            "d) Garantia foca em usar processos com eficácia; controle foca em criar entregas que atendam especificações"
           ],
-          "correct": "b"
-        },
-        {
-          "id": "gov_7",
-          "question": "Sobre conhecimento explícito e conhecimento tácito no processo 'Gerenciar o Conhecimento do Projeto':",
-          "alternatives": [
-            "a) Conhecimento tácito é fácil de codificar em manuais",
-            "b) Conhecimento explícito é pessoal e difícil de transferir",
-            "c) Conhecimento tácito reside na mente das pessoas e é difícil de articular",
-            "d) Não há diferença prática entre os dois"
-          ],
-          "correct": "c"
+          "correct": "d"
         },
         {
           "id": "gov_8",
           "question": "O que é um indicador 'leading' (antecedente) em gerenciamento de desempenho de projetos?",
           "alternatives": [
             "a) Mede eventos que já ocorreram",
-            "b) Sinaliza tendências futuras, permitindo ação corretiva antes que o desvio ocorra",
-            "c) É sempre financeiro",
+            "b) É sempre financeiro",
+            "c) Sinaliza tendências futuras, permitindo ação corretiva antes que o desvio ocorra",
             "d) É calculado apenas no encerramento"
           ],
-          "correct": "b"
-        },
-        {
-          "id": "gov_9",
-          "question": "O que é o 'efeito Hawthorne', citado como uma armadilha de medição (measurement pitfall)?",
-          "alternatives": [
-            "a) A equipe trabalha melhor sob pressão extrema",
-            "b) O simples ato de medir algo influencia o comportamento das pessoas",
-            "c) Métricas financeiras são sempre enganosas",
-            "d) Indicadores atrasados não têm valor"
-          ],
-          "correct": "b"
+          "correct": "c"
         },
         {
           "id": "gov_10",
-          "question": "Qual é a função do Comitê de Controle de Mudanças (Change Control Board) no processo 'Avaliar e Implementar Mudanças'?",
+          "question": "Qual é a função do Comitê de Controle de Mudanças no processo 'Avaliar e Implementar Mudanças'?",
           "alternatives": [
-            "a) Aprovar apenas mudanças de escopo",
-            "b) Revisar, avaliar, aprovar, adiar ou rejeitar solicitações de mudança e documentar as decisões",
+            "a) Revisar, avaliar, aprovar, adiar ou rejeitar solicitações de mudança e documentar as decisões",
+            "b) Aprovar apenas mudanças de escopo",
             "c) Substituir o patrocinador do projeto",
             "d) Executar fisicamente as mudanças aprovadas"
           ],
-          "correct": "b"
+          "correct": "a"
         },
         {
           "id": "gov_11",
           "question": "No processo 'Encerrar o Projeto ou Fase' em abordagens adaptativas, o que é confirmado como parte do encerramento da iteração ou release?",
           "alternatives": [
-            "a) Que os itens priorizados do backlog foram concluídos e os critérios de aceitação foram atendidos",
-            "b) Apenas a assinatura do patrocinador",
-            "c) O encerramento não existe em projetos adaptativos",
-            "d) Um relatório financeiro final obrigatório"
+            "a) Apenas a assinatura do patrocinador",
+            "b) O encerramento não existe em projetos adaptativos",
+            "c) Um relatório financeiro final obrigatório",
+            "d) Que os itens priorizados do backlog foram concluídos e os critérios de aceitação foram atendidos"
           ],
-          "correct": "a"
+          "correct": "d"
         },
         {
           "id": "gov_12",
           "question": "O que diferencia um modelo de governança 'estruturado' de um modelo de 'autogovernança' (self-governance)?",
           "alternatives": [
-            "a) O modelo estruturado é usado somente em projetos ágeis",
-            "b) No estruturado, um patrocinador/PMO/comitê fornece supervisão; na autogovernança, a própria equipe garante a entrega de valor",
+            "a) No estruturado, um patrocinador/PMO/comitê fornece supervisão; na autogovernança, a própria equipe garante a entrega de valor",
+            "b) O modelo estruturado é usado somente em projetos ágeis",
             "c) Autogovernança elimina a necessidade de qualquer coordenação",
             "d) Não existe diferença prática"
           ],
-          "correct": "b"
+          "correct": "a"
         },
         {
           "id": "gov_13",
           "question": "Qual dos seis princípios de gerenciamento de projetos da 8ª edição está mais diretamente ligado a considerar todos os componentes do projeto e suas interdependências como parte de um sistema maior?",
           "alternatives": [
             "a) Foco no Valor",
-            "b) Adotar uma Visão Holística",
-            "c) Ser um Líder Responsável",
+            "b) Ser um Líder Responsável",
+            "c) Adotar uma Visão Holística",
             "d) Construir uma Cultura Empoderada"
           ],
-          "correct": "b"
+          "correct": "c"
         },
         {
           "id": "gov_14",
           "question": "O princípio 'Incorporar Qualidade aos Processos e Entregas' está associado a qual dimensão do mindset de gerenciamento de projetos, junto com 'Adotar uma Visão Holística'?",
           "alternatives": [
-            "a) Proativa",
-            "b) Baseada em valor",
+            "a) Baseada em valor",
+            "b) Proativa",
             "c) De propriedade (ownership)",
             "d) Reativa"
-          ],
-          "correct": "a"
-        },
-        {
-          "id": "gov_15",
-          "question": "O que caracteriza a 'escalada' (escalation) como um componente adicional de governança em ambientes preditivos?",
-          "alternatives": [
-            "a) É usada apenas para aprovar orçamentos",
-            "b) Permite que indivíduos com autoridade superior removam obstáculos ou resolvam conflitos, aumentando a chance de sucesso",
-            "c) É proibida em organizações hierárquicas",
-            "d) Substitui o controle de mudanças"
           ],
           "correct": "b"
         },
@@ -179,12 +146,12 @@
           "id": "gov_16",
           "question": "Qual é o propósito central da Governança segundo a 8ª edição do PMBOK Guide?",
           "alternatives": [
-            "a) Apenas documentar processos burocráticos",
-            "b) Proteger e aumentar a proposta de valor do projeto de forma integrada e holística ao longo de todo o ciclo de vida",
+            "a) Aumentar a proposta de valor do projeto de forma integrada e holística ao longo do ciclo de vida",
+            "b) Apenas documentar processos burocráticos",
             "c) Substituir o papel do patrocinador",
             "d) Focar exclusivamente no cronograma"
           ],
-          "correct": "b"
+          "correct": "a"
         }
       ]
     },
@@ -200,15 +167,15 @@
           "question": "O que é a Estrutura Analítica de Valor (Value Breakdown Structure - VBS), conceito do domínio de Escopo na 8ª edição?",
           "alternatives": [
             "a) Ela substitui totalmente a EAP",
-            "b) Ela conecta o escopo do projeto e seu valor pretendido ao escopo do produto, atribuindo estimativas de valor a cada entrega",
-            "c) É usada apenas em projetos preditivos",
+            "b) É usada apenas em projetos preditivos",
+            "c) Ela conecta o escopo do projeto e seu valor pretendido ao escopo do produto, atribuindo estimativas de valor a cada entrega",
             "d) Elimina a necessidade de requisitos"
           ],
-          "correct": "b"
+          "correct": "c"
         },
         {
           "id": "esc_2",
-          "question": "Segundo a 8ª edição, qual é a diferença entre escopo do projeto e escopo do produto?",
+          "question": "Segundo o PMBOK, qual é a diferença entre escopo do projeto e escopo do produto?",
           "alternatives": [
             "a) São sinônimos",
             "b) Escopo do produto descreve características e funções; escopo do projeto é o trabalho necessário para entregar o produto",
@@ -222,77 +189,77 @@
           "question": "O que compõe a linha de base do escopo (scope baseline) em um projeto predominantemente preditivo?",
           "alternatives": [
             "a) Somente o termo de abertura",
-            "b) A declaração de escopo aprovada, a EAP e o dicionário da EAP",
-            "c) Apenas o cronograma aprovado",
-            "d) O registro de riscos"
+            "b) Apenas o cronograma aprovado",
+            "c) O registro de riscos",
+            "d) A declaração de escopo aprovada, a EAP e o dicionário da EAP"
           ],
-          "correct": "b"
+          "correct": "d"
         },
         {
           "id": "esc_4",
           "question": "Em abordagens adaptativas, o que corresponde à linha de base de escopo?",
           "alternatives": [
-            "a) O backlog priorizado, definido no início de cada iteração",
-            "b) O termo de abertura assinado",
+            "a) O termo de abertura assinado",
+            "b) O backlog priorizado, definido no início de cada iteração",
             "c) Não existe equivalente em abordagens adaptativas",
             "d) O plano de gerenciamento de custos"
           ],
-          "correct": "a"
+          "correct": "b"
         },
         {
           "id": "esc_5",
           "question": "O processo 'Desenvolver a Estrutura do Escopo', em projetos ágeis, corresponde a qual atividade?",
           "alternatives": [
             "a) Sprint retrospective",
-            "b) Decomposição do backlog do produto em épicos e histórias de usuário",
-            "c) Reunião diária de coordenação",
+            "b) Reunião diária de coordenação",
+            "c) Decomposição do backlog do produto em épicos e histórias de usuário",
             "d) Auditoria de qualidade"
           ],
-          "correct": "b"
+          "correct": "c"
         },
         {
           "id": "esc_6",
           "question": "O que é a 'definição de pronto' (Definition of Done - DoD)?",
           "alternatives": [
-            "a) Uma lista de critérios que devem ser atendidos para que uma entrega seja considerada pronta para uso do cliente",
-            "b) O termo de abertura do projeto",
-            "c) Um tipo de contrato",
-            "d) A data final do cronograma"
+            "a) O termo de abertura do projeto",
+            "b) Um tipo de contrato",
+            "c) A data final do cronograma",
+            "d) Uma lista de critérios que devem ser atendidos para que uma entrega seja considerada pronta para uso do cliente"
           ],
-          "correct": "a"
+          "correct": "d"
         },
         {
           "id": "esc_7",
           "question": "O processo 'Validar o Escopo' tem como principal objetivo:",
           "alternatives": [
-            "a) Criar a EAP",
-            "b) Formalizar a aceitação das entregas concluídas do projeto",
+            "a) Formalizar a aceitação das entregas concluídas do projeto",
+            "b) Criar a EAP",
             "c) Definir o orçamento",
             "d) Selecionar fornecedores"
           ],
-          "correct": "b"
+          "correct": "a"
         },
         {
           "id": "esc_8",
           "question": "O que é 'gold plating' no contexto de gerenciamento de projetos?",
           "alternatives": [
-            "a) Adicionar funcionalidades extras não solicitadas, intencionalmente, sem aprovação",
-            "b) Usar materiais premium aprovados pelo cliente",
-            "c) Aumentar o orçamento aprovado",
-            "d) Reduzir escopo para cumprir prazos"
+            "a) Usar materiais premium aprovados pelo cliente",
+            "b) Aumentar o orçamento aprovado",
+            "c) Reduzir escopo para cumprir prazos",
+            "d) Adicionar funcionalidades extras não solicitadas, intencionalmente, sem aprovação"
           ],
-          "correct": "a"
+          "correct": "d"
         },
         {
           "id": "esc_9",
           "question": "O que é o 'product backlog' em projetos com abordagem adaptativa?",
           "alternatives": [
-            "a) Uma lista dinâmica e priorizada de itens de trabalho e funcionalidades",
-            "b) O relatório final do projeto",
+            "a) O relatório final do projeto",
+            "b) Uma lista dinâmica e priorizada de itens de trabalho e funcionalidades",
             "c) Um documento de aceite do cliente",
             "d) A lista de riscos do projeto"
           ],
-          "correct": "a"
+          "correct": "b"
         },
         {
           "id": "esc_10",
@@ -316,58 +283,58 @@
       "questions": [
         {
           "id": "cro_1",
-          "question": "Segundo a 8ª edição, o desenvolvimento do cronograma segue quatro passos principais. Quais são eles?",
+          "question": "Segundo o PMBOK, o desenvolvimento do cronograma segue quatro passos principais. Quais são eles?",
           "alternatives": [
-            "a) Definir atividades, determinar sequência, estimar esforço e duração, ajustar",
-            "b) Planejar, executar, monitorar, encerrar",
-            "c) Estimar custo, alocar recursos, aprovar, comunicar",
+            "a) Planejar, executar, monitorar, encerrar",
+            "b) Estimar custo, alocar recursos, aprovar, comunicar",
+            "c) Definir atividades, determinar sequência, estimar esforço e duração, ajustar",
             "d) Identificar riscos, mitigar, transferir, aceitar"
           ],
-          "correct": "a"
+          "correct": "c"
         },
         {
           "id": "cro_2",
           "question": "O que é o caminho crítico (critical path) em um cronograma de projeto?",
           "alternatives": [
             "a) A sequência de atividades mais barata",
-            "b) A sequência mais longa de atividades, que determina a menor duração possível do projeto",
-            "c) As atividades com menor prioridade",
+            "b) As atividades com menor prioridade",
+            "c) A sequência mais longa de atividades, que determina a menor duração possível do projeto",
             "d) O conjunto de marcos do projeto"
           ],
-          "correct": "b"
+          "correct": "c"
         },
         {
           "id": "cro_3",
           "question": "Qual é a diferença entre 'fast tracking' e 'crashing' como técnicas de compressão de cronograma?",
           "alternatives": [
-            "a) São sinônimos",
-            "b) Fast tracking executa atividades em paralelo; crashing adiciona recursos para reduzir a duração",
+            "a) Fast tracking executa atividades em paralelo; crashing adiciona recursos para reduzir a duração",
+            "b) São sinônimos",
             "c) Fast tracking reduz escopo; crashing aumenta o orçamento sem relação com prazo",
             "d) Ambas eliminam o caminho crítico"
           ],
-          "correct": "b"
+          "correct": "a"
         },
         {
           "id": "cro_4",
-          "question": "O que caracteriza a 'folga livre' (free float) de uma atividade do cronograma?",
+          "question": "O que caracteriza a 'folga' de uma atividade do cronograma?",
           "alternatives": [
-            "a) O tempo que uma atividade pode atrasar sem afetar a data de término do projeto",
-            "b) O tempo que uma atividade pode atrasar sem afetar o início mais cedo de sua sucessora",
-            "c) É sempre igual à folga total",
-            "d) Só existe em projetos ágeis"
+            "a) O tempo que uma atividade pode atrasar sem afetar o início mais cedo de sua sucessora",
+            "b) É sempre igual à folga total",
+            "c) Só existe em projetos ágeis",
+            "d) O tempo que uma atividade pode atrasar sem afetar a data de término do projeto"
           ],
-          "correct": "b"
+          "correct": "d"
         },
         {
           "id": "cro_5",
           "question": "Em ambientes adaptativos, o que costuma substituir a estimativa de duração tradicional em horas?",
           "alternatives": [
-            "a) Story points, que refletem esforço relativo em vez de tempo absoluto",
-            "b) O caminho crítico",
+            "a) O caminho crítico",
+            "b) Story points, que refletem esforço relativo em vez de tempo absoluto",
             "c) A reserva de contingência",
             "d) A EAP"
           ],
-          "correct": "a"
+          "correct": "b"
         },
         {
           "id": "cro_6",
@@ -384,34 +351,34 @@
           "id": "cro_7",
           "question": "Em abordagens adaptativas, como o processo 'Monitorar e Controlar o Cronograma' determina o status do trabalho?",
           "alternatives": [
-            "a) Comparando o trabalho entregue e aceito com o estimado para o ciclo decorrido (velocidade)",
-            "b) Calculando apenas o caminho crítico",
-            "c) Eliminando completamente a necessidade de replanejamento",
-            "d) Substituindo as retrospectivas"
+            "a) Calculando apenas o caminho crítico",
+            "b) Eliminando completamente a necessidade de replanejamento",
+            "c) Substituindo as retrospectivas",
+            "d) Comparando o trabalho entregue e aceito com o estimado para o ciclo decorrido (velocidade)"
           ],
-          "correct": "a"
+          "correct": "d"
         },
         {
           "id": "cro_8",
           "question": "O que é um marco (milestone) em um cronograma de projeto?",
           "alternatives": [
             "a) Uma atividade de longa duração",
-            "b) Um ponto ou evento significativo com duração zero",
-            "c) Uma tarefa obrigatoriamente cara",
+            "b) Uma tarefa obrigatoriamente cara",
+            "c) Um ponto ou evento significativo",
             "d) O nome dado ao caminho crítico"
           ],
-          "correct": "b"
+          "correct": "c"
         },
         {
           "id": "cro_9",
           "question": "Uma dependência 'mandatória' (hard logic) entre atividades é caracterizada por:",
           "alternatives": [
-            "a) Ser uma preferência da equipe que pode ser alterada livremente",
-            "b) Ser inerente à natureza do trabalho ou exigida contratual/legalmente",
+            "a) Ser inerente à natureza do trabalho ou exigida contratual/legalmente",
+            "b) Ser uma preferência da equipe que pode ser alterada livremente",
             "c) Ser aplicável somente a projetos adaptativos",
             "d) Nunca poder ser documentada"
           ],
-          "correct": "b"
+          "correct": "a"
         },
         {
           "id": "cro_10",
@@ -419,10 +386,10 @@
           "alternatives": [
             "a) Estimativa análoga",
             "b) Estimativa paramétrica",
-            "c) Estimativa multiponto (ex.: PERT)",
-            "d) Opinião especializada isolada"
+            "c) Opinião especializada isolada",
+            "d) Estimativa multiponto (ex.: PERT)"
           ],
-          "correct": "c"
+          "correct": "d"
         }
       ]
     },
@@ -437,45 +404,23 @@
           "id": "fin_1",
           "question": "Qual é a principal mudança de nome e enfoque da antiga área 'Custos' na 8ª edição do PMBOK Guide?",
           "alternatives": [
-            "a) Ela foi eliminada",
-            "b) Passou a se chamar 'Finanças' (Finance), com foco em maximização de valor além do controle de custos",
+            "a) Passou a se chamar 'Finanças'",
+            "b) Ela foi eliminada",
             "c) Foi renomeada apenas para 'Orçamento'",
             "d) Foi incorporada ao domínio de Riscos"
           ],
-          "correct": "b"
-        },
-        {
-          "id": "fin_2",
-          "question": "O que é CapEx (capital expenditures) no domínio de Finanças?",
-          "alternatives": [
-            "a) Despesas operacionais do dia a dia",
-            "b) Fundos investidos para adquirir, atualizar ou manter ativos físicos de longo prazo",
-            "c) O orçamento total do projeto",
-            "d) O valor pago a fornecedores externos apenas"
-          ],
-          "correct": "b"
-        },
-        {
-          "id": "fin_3",
-          "question": "O que é OpEx (operational expenditures)?",
-          "alternatives": [
-            "a) Investimentos em equipamentos de longo prazo",
-            "b) Fundos destinados aos custos contínuos das operações do dia a dia, como salários e aluguel",
-            "c) Reserva de contingência",
-            "d) O valor presente líquido do projeto"
-          ],
-          "correct": "b"
+          "correct": "a"
         },
         {
           "id": "fin_4",
           "question": "Qual é a diferença entre reserva de contingência e reserva gerencial no domínio de Finanças?",
           "alternatives": [
-            "a) Contingência cobre riscos conhecidos (identificados); gerencial cobre riscos desconhecidos (não identificados)",
-            "b) São a mesma coisa",
-            "c) Reserva gerencial é definida pelo gerente de projetos sem qualquer aprovação",
+            "a) São a mesma coisa",
+            "b) Reserva gerencial é definida pelo gerente de projetos sem qualquer aprovação",
+            "c) Contingência cobre riscos conhecidos (identificados); gerencial cobre riscos desconhecidos (não identificados)",
             "d) Contingência nunca faz parte da linha de base de custos"
           ],
-          "correct": "a"
+          "correct": "c"
         },
         {
           "id": "fin_5",
@@ -504,33 +449,33 @@
           "question": "No processo 'Monitorar e Controlar as Finanças', qual é um dos principais benefícios?",
           "alternatives": [
             "a) Eliminar a necessidade de orçamento",
-            "b) Manter a linha de base de custos e as projeções de receita/economia alinhadas ao longo do projeto",
-            "c) Substituir a análise de valor agregado",
+            "b) Substituir a análise de valor agregado",
+            "c) Manter a linha de base de custos e as projeções de receita/economia alinhadas ao longo do projeto",
             "d) Aprovar automaticamente todas as mudanças de escopo"
           ],
-          "correct": "b"
+          "correct": "c"
         },
         {
           "id": "fin_8",
           "question": "O que é o Índice de Desempenho de Custos (IDC/CPI)?",
           "alternatives": [
-            "a) Uma medida de eficiência de custo, calculada como Valor Agregado dividido por Custo Real",
-            "b) O total de dinheiro gasto no projeto",
+            "a) O total de dinheiro gasto no projeto",
+            "b) Uma medida de eficiência de custo, calculada como Valor Agregado dividido por Custo Real",
             "c) Uma métrica exclusiva de projetos ágeis",
             "d) A soma dos custos de mão de obra"
           ],
-          "correct": "a"
+          "correct": "b"
         },
         {
           "id": "fin_9",
           "question": "Qual estratégia de financiamento envolve arrecadar pequenas contribuições de um grande número de pessoas interessadas no projeto?",
           "alternatives": [
             "a) Empréstimo bancário tradicional",
-            "b) Crowdfunding",
-            "c) Orçamento interno fixo",
-            "d) Contrato de cliente"
+            "b) Orçamento interno fixo",
+            "c) Contrato de cliente",
+            "d) Crowdfunding"
           ],
-          "correct": "b"
+          "correct": "d"
         },
         {
           "id": "fin_10",
@@ -559,92 +504,92 @@
           "question": "Na 8ª edição do PMBOK Guide, o que aconteceu com o antigo domínio de 'Comunicações'?",
           "alternatives": [
             "a) Foi eliminado sem substituição",
-            "b) Foi absorvido pelo domínio de Partes Interessadas, que agora inclui os processos de comunicação",
-            "c) Foi transformado em um apêndice separado",
+            "b) Foi transformado em um apêndice separado",
+            "c) Foi absorvido pelo domínio de Partes Interessadas, que agora inclui os processos de comunicação",
             "d) Foi mantido como domínio independente"
           ],
-          "correct": "b"
+          "correct": "c"
         },
         {
           "id": "par_2",
           "question": "Quais processos de comunicação passaram a fazer parte do domínio de Partes Interessadas?",
           "alternatives": [
             "a) Apenas 'Planejar as Comunicações'",
-            "b) Planejar o Gerenciamento das Comunicações, Gerenciar as Comunicações e Monitorar as Comunicações",
-            "c) Nenhum processo de comunicação existe mais no guia",
-            "d) Apenas 'Monitorar as Comunicações'"
+            "b) Nenhum processo de comunicação existe mais no guia",
+            "c) Apenas 'Monitorar as Comunicações'",
+            "d) Planejar o Gerenciamento das Comunicações, Gerenciar as Comunicações e Monitorar as Comunicações"
           ],
-          "correct": "b"
+          "correct": "d"
         },
         {
           "id": "par_3",
           "question": "Qual é o papel do patrocinador (sponsor) segundo o domínio de Partes Interessadas?",
           "alternatives": [
-            "a) Executar as tarefas técnicas do projeto",
-            "b) Tomar decisões estratégicas, aprovar o termo de abertura e assegurar a realização de benefícios de longo prazo",
+            "a) Tomar decisões estratégicas, aprovar o termo de abertura e assegurar a realização de benefícios de longo prazo",
+            "b) Executar as tarefas técnicas do projeto",
             "c) Substituir o gerente de projetos sempre que necessário",
             "d) Nunca se envolver após a aprovação do termo de abertura"
           ],
-          "correct": "b"
+          "correct": "a"
         },
         {
           "id": "par_4",
           "question": "Como a inteligência artificial pode apoiar o domínio de Partes Interessadas segundo a 8ª edição?",
           "alternatives": [
             "a) Substituindo integralmente o julgamento humano nas decisões",
-            "b) Auxiliando na coleta, análise e visualização de dados para apoiar decisões baseadas em dados (data-driven decision-making)",
-            "c) A IA não é mencionada nesse domínio",
-            "d) Apenas para gerar contratos automaticamente"
+            "b) A IA não é mencionada nesse domínio",
+            "c) Apenas para gerar contratos automaticamente",
+            "d) Auxiliando na coleta, análise e visualização de dados para apoiar decisões baseadas em dados (data-driven decision-making)"
           ],
-          "correct": "b"
+          "correct": "d"
         },
         {
           "id": "par_5",
-          "question": "O que é a matriz de avaliação do engajamento das partes interessadas (stakeholder engagement assessment matrix)?",
+          "question": "O que é a matriz de avaliação do engajamento das partes interessadas?",
           "alternatives": [
-            "a) Uma ferramenta que compara o nível de engajamento atual e o nível desejado de cada parte interessada",
-            "b) Um tipo de contrato",
+            "a) Um tipo de contrato",
+            "b) Uma ferramenta que compara o nível de engajamento atual e o nível desejado de cada parte interessada",
             "c) Uma lista de riscos",
             "d) O cronograma de reuniões"
           ],
-          "correct": "a"
+          "correct": "b"
         },
         {
           "id": "par_6",
           "question": "Quais são os cinco níveis de engajamento de partes interessadas descritos no guia?",
           "alternatives": [
-            "a) Alto, médio, baixo, crítico, nulo",
-            "b) Desinformado, resistente, neutro, apoiador, líder",
+            "a) Desinformado, resistente, neutro, apoiador, líder",
+            "b) Alto, médio, baixo, crítico, nulo",
             "c) Iniciante, intermediário, avançado, especialista, mestre",
             "d) Interno, externo, misto, temporário, permanente"
           ],
-          "correct": "b"
+          "correct": "a"
         },
         {
           "id": "par_7",
           "question": "O processo 'Identificar Partes Interessadas' deve ser realizado:",
           "alternatives": [
             "a) Apenas uma vez, no início do projeto",
-            "b) Periodicamente ao longo do projeto, pois o ambiente evolui e novos stakeholders podem surgir",
-            "c) Somente no encerramento",
+            "b) Somente no encerramento",
+            "c) Periodicamente ao longo do projeto, pois o ambiente evolui e novos stakeholders podem surgir",
             "d) Apenas por decisão do patrocinador"
           ],
-          "correct": "b"
+          "correct": "c"
         },
         {
           "id": "par_8",
           "question": "Qual é a principal diferença entre comunicação 'push' e 'pull'?",
           "alternatives": [
             "a) Não há diferença prática",
-            "b) Push envia a informação diretamente aos destinatários; pull disponibiliza a informação para acesso sob demanda",
-            "c) Push é sempre verbal; pull é sempre escrita",
+            "b) Push é sempre verbal; pull é sempre escrita",
+            "c) Push envia a informação diretamente aos destinatários; pull disponibiliza a informação para acesso sob demanda",
             "d) Pull é usada apenas em crises"
           ],
-          "correct": "b"
+          "correct": "c"
         },
         {
           "id": "par_9",
-          "question": "Segundo o domínio de Partes Interessadas, por que habilidades de gestão de fornecedores (vendor/supplier management) são relevantes para o gerente de projetos?",
+          "question": "Segundo o domínio de Partes Interessadas, por que habilidades de gestão de fornecedores são relevantes para o gerente de projetos?",
           "alternatives": [
             "a) Porque fornecedores são partes interessadas importantes, especialmente em setores como construção",
             "b) Porque isso é irrelevante para o gerente de projetos",
@@ -657,12 +602,12 @@
           "id": "par_10",
           "question": "Qual é o benefício central de 'Gerenciar o Engajamento das Partes Interessadas'?",
           "alternatives": [
-            "a) Aumentar o apoio e reduzir a resistência dos stakeholders ao longo do projeto",
-            "b) Eliminar todas as partes interessadas resistentes do projeto",
-            "c) Reduzir o número de reuniões",
-            "d) Substituir o plano de comunicações"
+            "a) Eliminar todas as partes interessadas resistentes do projeto",
+            "b) Reduzir o número de reuniões",
+            "c) Substituir o plano de comunicações",
+            "d) Aumentar o apoio e reduzir a resistência dos stakeholders ao longo do projeto"
           ],
-          "correct": "a"
+          "correct": "d"
         }
       ]
     },
@@ -700,45 +645,45 @@
           "id": "rec_3",
           "question": "Segundo os estágios de Tuckman, qual é a ordem correta de desenvolvimento de uma equipe?",
           "alternatives": [
-            "a) Forming, Storming, Norming, Performing, Adjourning",
-            "b) Storming, Forming, Performing, Norming, Adjourning",
-            "c) Performing, Forming, Norming, Storming, Adjourning",
-            "d) Adjourning, Forming, Storming, Norming, Performing"
+            "a) Storming, Forming, Performing, Norming, Adjourning",
+            "b) Performing, Forming, Norming, Storming, Adjourning",
+            "c) Adjourning, Forming, Storming, Norming, Performing",
+            "d) Forming, Storming, Norming, Performing, Adjourning"
           ],
-          "correct": "a"
+          "correct": "d"
         },
         {
           "id": "rec_4",
-          "question": "Qual é a diferença entre atividades de 'gestão' (management) e 'liderança' (leadership) no processo 'Liderar a Equipe'?",
+          "question": "Qual é a diferença entre atividades de 'gestão' e 'liderança' no processo 'Liderar a Equipe'?",
           "alternatives": [
-            "a) Gestão foca nos meios de atingir objetivos (processos, planejamento); liderança foca nas pessoas (influenciar, motivar, ouvir)",
-            "b) São sinônimos",
-            "c) Liderança é exclusiva do patrocinador",
+            "a) São sinônimos",
+            "b) Liderança é exclusiva do patrocinador",
+            "c) Gestão foca nos meios de atingir objetivos (processos, planejamento); liderança foca nas pessoas (influenciar, motivar, ouvir)",
             "d) Gestão é exclusiva de projetos preditivos"
           ],
-          "correct": "a"
+          "correct": "c"
         },
         {
           "id": "rec_5",
           "question": "Quais características são comumente associadas a equipes de alto desempenho?",
           "alternatives": [
-            "a) Microgerenciamento constante e ausência de confiança",
-            "b) Comunicação aberta, entendimento compartilhado, confiança, colaboração, adaptabilidade e reconhecimento",
+            "a) Comunicação aberta, confiança, colaboração, adaptabilidade e reconhecimento",
+            "b) Microgerenciamento constante e ausência de confiança",
             "c) Trabalho isolado (silos) e falta de autonomia",
             "d) Rotatividade constante de membros"
           ],
-          "correct": "b"
+          "correct": "a"
         },
         {
           "id": "rec_6",
           "question": "O que é 'green human resource management', mencionado no domínio de Recursos?",
           "alternatives": [
             "a) Uma técnica de recrutamento exclusiva para startups",
-            "b) Práticas de gestão de pessoas focadas no uso sustentável de recursos e preservação ambiental",
-            "c) Um sinônimo de nivelamento de recursos",
-            "d) Uma ferramenta de estimativa de custos"
+            "b) Um sinônimo de nivelamento de recursos",
+            "c) Uma ferramenta de estimativa de custos",
+            "d) Práticas de gestão de pessoas focadas no uso sustentável de recursos e preservação ambiental"
           ],
-          "correct": "b"
+          "correct": "d"
         },
         {
           "id": "rec_7",
@@ -756,26 +701,26 @@
           "question": "Segundo o domínio de Recursos, o que caracteriza a 'colaboração' como fator de alto desempenho?",
           "alternatives": [
             "a) Trabalhar em silos, de forma competitiva",
-            "b) Trabalhar em equipe, gerando mais ideias diversas e melhores resultados do que o trabalho isolado",
-            "c) Depender exclusivamente de um único especialista",
+            "b) Depender exclusivamente de um único especialista",
+            "c) Trabalhar em equipe, gerando mais ideias diversas e melhores resultados do que o trabalho isolado",
             "d) Reduzir a comunicação entre membros"
           ],
-          "correct": "b"
+          "correct": "c"
         },
         {
           "id": "rec_9",
           "question": "O que é a estrutura analítica de recursos (resource breakdown structure)?",
           "alternatives": [
-            "a) Uma representação hierárquica de recursos por categoria e tipo, usada para planejar e controlar o trabalho",
-            "b) Um cronograma de férias",
+            "a) Um cronograma de férias",
+            "b) Uma representação hierárquica de recursos por categoria e tipo, usada para planejar e controlar o trabalho",
             "c) Uma lista de fornecedores aprovados",
             "d) O organograma da empresa"
           ],
-          "correct": "a"
+          "correct": "b"
         },
         {
           "id": "rec_10",
-          "question": "Qual é o principal benefício do processo 'Monitorar e Controlar o Recurso' (Monitor and Control Resourcing)?",
+          "question": "Qual é o principal benefício do processo 'Monitorar e Controlar o Recurso'?",
           "alternatives": [
             "a) Garantir que os recursos físicos/virtuais estejam disponíveis no momento e local certos e sejam liberados quando não forem mais necessários",
             "b) Substituir integralmente a equipe do projeto",
@@ -799,15 +744,15 @@
           "question": "Qual é a diferença entre um 'risco' e uma 'questão' (issue) segundo a 8ª edição?",
           "alternatives": [
             "a) São sinônimos",
-            "b) Risco é um evento incerto que ainda pode ou não ocorrer; questão (issue) já ocorreu ou está ocorrendo e requer atenção imediata",
-            "c) Questão é sempre positiva; risco é sempre negativo",
+            "b) Questão é sempre positiva; risco é sempre negativo",
+            "c) Risco é um evento incerto que ainda pode ou não ocorrer; questão (issue) já ocorreu ou está ocorrendo e requer atenção imediata",
             "d) Risco só existe em projetos adaptativos"
           ],
-          "correct": "b"
+          "correct": "c"
         },
         {
           "id": "ris_2",
-          "question": "O que é 'risco geral do projeto' (overall risk)?",
+          "question": "O que é 'risco geral do projeto'?",
           "alternatives": [
             "a) A soma aritmética simples de todos os riscos individuais",
             "b) O efeito da incerteza no projeto como um todo, incluindo tudo que é incerto ou desconhecido",
@@ -821,44 +766,44 @@
           "question": "Qual é a diferença entre apetite ao risco (risk appetite) e limite de risco (risk threshold)?",
           "alternatives": [
             "a) São a mesma coisa",
-            "b) Apetite é o grau de incerteza que a organização está disposta a aceitar; limite é a medida quantificável de variação aceitável em torno de um objetivo",
-            "c) Limite de risco só se aplica a riscos positivos",
-            "d) Apetite ao risco é definido apenas pelo gerente de projetos"
+            "b) Limite de risco só se aplica a riscos positivos",
+            "c) Apetite ao risco é definido apenas pelo gerente de projetos",
+            "d) Apetite é o grau de incerteza que a organização está disposta a aceitar; limite é a medida quantificável de variação aceitável em torno de um objetivo"
           ],
-          "correct": "b"
+          "correct": "d"
         },
         {
           "id": "ris_4",
           "question": "Como o guia classifica os riscos em quatro quadrantes com base em conhecimento e previsibilidade?",
           "alternatives": [
-            "a) Conhecido-conhecido (fato), conhecido-desconhecido (risco clássico), desconhecido-conhecido (fato oculto) e desconhecido-desconhecido (risco emergente)",
-            "b) Alto, médio, baixo e crítico",
+            "a) Alto, médio, baixo e crítico",
+            "b) Conhecido-conhecido (fato), conhecido-desconhecido (risco clássico), desconhecido-conhecido (fato oculto) e desconhecido-desconhecido (risco emergente)",
             "c) Interno, externo, misto e neutro",
             "d) Financeiro, técnico, comercial e ambiental apenas"
           ],
-          "correct": "a"
+          "correct": "b"
         },
         {
           "id": "ris_5",
           "question": "Quais são as cinco estratégias de resposta para ameaças (riscos negativos)?",
           "alternatives": [
             "a) Explorar, compartilhar, melhorar, aceitar, escalar",
-            "b) Escalar, evitar, transferir, mitigar, aceitar",
-            "c) Ignorar, aceitar, transferir, melhorar, compartilhar",
+            "b) Ignorar, aceitar, transferir, melhorar, compartilhar",
+            "c) Escalar, evitar, transferir, mitigar, aceitar",
             "d) Apenas mitigar e aceitar"
           ],
-          "correct": "b"
+          "correct": "c"
         },
         {
           "id": "ris_6",
           "question": "Quais são as cinco estratégias de resposta para oportunidades (riscos positivos)?",
           "alternatives": [
-            "a) Escalar, explorar, compartilhar, melhorar, aceitar",
-            "b) Evitar, mitigar, transferir, aceitar, escalar",
-            "c) Ignorar, aceitar, mitigar, compartilhar, transferir",
-            "d) Apenas aceitar e explorar"
+            "a) Evitar, mitigar, transferir, aceitar, escalar",
+            "b) Ignorar, aceitar, mitigar, compartilhar, transferir",
+            "c) Apenas aceitar e explorar",
+            "d) Escalar, explorar, compartilhar, melhorar, aceitar"
           ],
-          "correct": "a"
+          "correct": "d"
         },
         {
           "id": "ris_7",
@@ -876,22 +821,22 @@
           "question": "Qual é a diferença entre ambiguidade e incerteza no domínio de Riscos?",
           "alternatives": [
             "a) São sinônimos",
-            "b) Ambiguidade é a falta de clareza sobre como interpretar uma situação; incerteza é a falta de compreensão sobre probabilidades de resultados alternativos",
-            "c) Ambiguidade só ocorre em projetos ágeis",
-            "d) Incerteza é sempre negativa; ambiguidade é sempre positiva"
+            "b) Ambiguidade só ocorre em projetos ágeis",
+            "c) Incerteza é sempre negativa; ambiguidade é sempre positiva",
+            "d) Ambiguidade é a falta de clareza sobre como interpretar uma situação; incerteza é a falta de compreensão sobre probabilidades de resultados alternativos"
           ],
-          "correct": "b"
+          "correct": "d"
         },
         {
           "id": "ris_9",
           "question": "O que é um 'gatilho de risco' (risk trigger)?",
           "alternatives": [
-            "a) Um evento ou condição que indica que um risco está prestes a ocorrer ou já ocorreu",
-            "b) A causa raiz de todos os riscos do projeto",
+            "a) A causa raiz de todos os riscos do projeto",
+            "b) Um evento ou condição que indica que um risco está prestes a ocorrer ou já ocorreu",
             "c) Um tipo de reserva financeira",
             "d) Um processo de encerramento"
           ],
-          "correct": "a"
+          "correct": "b"
         },
         {
           "id": "ris_10",

@@ -45,7 +45,7 @@ automatizar — M9 (redes diferentes), M7 (queda de rede real) e M8
 - **Fim de jogo guardado:** um F5 na tela final volta ao mesmo ranking;
   quem cai no fim de jogo pode voltar à sala e vê o ranking.
 - **Testes automatizados** no GitHub Actions, a cada push: lógica do
-  jogo com rede simulada (`tests/logic`, 75 testes em 7 arquivos por
+  jogo com rede simulada (`tests/logic`, 78 testes em 8 arquivos por
   assunto) e o jogo real em várias janelas do Chromium
   (`tests/browser`, 17 cenários).
 - **Roteiros dos testes manuais P1** (M9, M7, M8) em
@@ -68,6 +68,13 @@ automatizar — M9 (redes diferentes), M7 (queda de rede real) e M8
 - Quem caiu fica fora do pedido de ajuda e não pode ser chamado como
   assessor.
 - Mais espaço entre o lembrete do tabuleiro e o botão OK.
+- **Banco de perguntas revisado pelo professor:** 5 perguntas retiradas,
+  correções de texto nos enunciados e alternativas marcados (sem termos
+  em inglês entre parênteses, "Segundo o PMBOK", "Áreas Foco") e
+  gabarito redistribuído entre a, b, c e d (antes quase tudo era "b").
+  São 71 perguntas, conferidas por teste (formato e equilíbrio do
+  gabarito). As perguntas marcadas para substituir ficam para o
+  professor.
 - Testes reorganizados por assunto (`tests/logic`, `tests/browser`),
   com nomes de arquivos e funções em inglês.
 - Limpeza: prazos (resposta, assessoria, pedido de ajuda) cancelados

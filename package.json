@@ -4,7 +4,7 @@
   "private": true,
   "description": "PM: The KPI Master. As dependências abaixo são só para os testes no navegador (tests/browser); o jogo publicado não usa nada daqui.",
   "scripts": {
-    "test": "node tests/logic/joining-and-identity.test.js && node tests/logic/drop-and-return.test.js && node tests/logic/host-migration.test.js && node tests/logic/host-reload.test.js && node tests/logic/saved-state.test.js && node tests/logic/end-of-match.test.js && node tests/logic/help-and-advisory.test.js",
+    "test": "node tests/logic/joining-and-identity.test.js && node tests/logic/drop-and-return.test.js && node tests/logic/host-migration.test.js && node tests/logic/host-reload.test.js && node tests/logic/saved-state.test.js && node tests/logic/end-of-match.test.js && node tests/logic/help-and-advisory.test.js && node tests/logic/questions.test.js",
     "test:browser": "playwright test --config tests/browser/playwright.config.js"
   },
   "devDependencies": {

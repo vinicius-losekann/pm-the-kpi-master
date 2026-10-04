@@ -36,7 +36,9 @@ pm-the-kpi-master/
 │   │   ├── host-migration.test.js
 │   │   ├── host-reload.test.js
 │   │   ├── saved-state.test.js
-│   │   └── end-of-match.test.js
+│   │   ├── end-of-match.test.js
+│   │   ├── help-and-advisory.test.js
+│   │   └── questions.test.js        # banco de perguntas: formato, gabarito equilibrado
 │   └── browser/                 # o jogo real no Chromium (Playwright)
 │       ├── playwright.config.js
 │       ├── servers.js           # site e servidor PeerJS locais

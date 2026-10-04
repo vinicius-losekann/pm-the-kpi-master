@@ -68,7 +68,7 @@ só automatizado (falta o manual).
 
 ---
 
-## 2. Casos cobertos por teste automatizado (75 testes)
+## 2. Casos cobertos por teste automatizado (78 testes)
 
 ### Entrada na sala e identidade
 | Caso | Testes | Manual |
