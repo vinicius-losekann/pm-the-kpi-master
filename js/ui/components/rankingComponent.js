@@ -11,7 +11,7 @@ function updatePlayersOnlineList() {
     // por isso aqui a fonte é getMatchPlayers().
     const players = Game.selectors.getMatchPlayers(Game.state.players);
     document.getElementById('playersOnlineList').innerHTML = players.map(p => {
-        const fase = Game.getFaseById(p.phase);
+        const fase = Game.getFocusAreaById(p.phase);
         const nomeSeguro = Game.sanitize.escapeHtml(p.name);
         const estiloOffline = p.disconnected ? ' style="opacity:0.5;"' : '';
         const iconeOffline = p.disconnected ? `<span title="${Game.i18n.t('ranking.desconectado')}">📴</span>` : '';

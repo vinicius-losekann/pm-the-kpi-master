@@ -174,7 +174,7 @@ function cancelarAssessoriaPendente(round) {
  */
 function completouUltimaFase(jogador) {
     if (!jogador) return false;
-    return Game.getFaseIndex(jogador.phase) === CONFIG.FASES.length - 1 &&
+    return Game.getFocusAreaIndex(jogador.phase) === CONFIG.FASES.length - 1 &&
         jogador.activities >= CONFIG.JOGO.ACTIVITIES_PER_PHASE;
 }
 

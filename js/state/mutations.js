@@ -56,17 +56,17 @@ function resetGameState(state, config) {
  * @returns {Array<string>} nomes dos jogadores removidos
  */
 function removeDisconnectedPlayers(state) {
-    const removidos = state.players.filter(p => p.disconnected && p.name !== state.playerName);
-    if (removidos.length === 0) return [];
+    const removed = state.players.filter(p => p.disconnected && p.name !== state.playerName);
+    if (removed.length === 0) return [];
 
-    state.players = state.players.filter(p => !removidos.includes(p));
+    state.players = state.players.filter(p => !removed.includes(p));
 
-    if (removidos.some(p => p.peerId === state.backupPeerId)) {
-        const proximoBackup = state.players.find(p => !p.isHost);
-        state.backupPeerId = proximoBackup ? proximoBackup.peerId : '';
+    if (removed.some(p => p.peerId === state.backupPeerId)) {
+        const nextBackup = state.players.find(p => !p.isHost);
+        state.backupPeerId = nextBackup ? nextBackup.peerId : '';
     }
 
-    return removidos.map(p => p.name);
+    return removed.map(p => p.name);
 }
 
 // ============================================

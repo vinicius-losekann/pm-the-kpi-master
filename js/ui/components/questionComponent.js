@@ -125,7 +125,7 @@ function displayQuestion(q) {
         }
 
         const me = Game.getPlayerByName(Game.state.playerName);
-        const emEncerramento = me && Game.getFaseIndex(me.phase) === CONFIG.FASES.length - 1;
+        const emEncerramento = me && Game.getFocusAreaIndex(me.phase) === CONFIG.FASES.length - 1;
         const semAssessorDisponivel = Game.getActivePlayers().length < 3;
         const assessoriaArea = document.getElementById('assessoriaArea');
         if (assessoriaArea) {

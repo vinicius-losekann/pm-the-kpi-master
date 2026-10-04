@@ -7,18 +7,18 @@
 // ============================================
 
 /**
- * Retorna a fase (objeto CONFIG.FASES[i]) correspondente ao id informado.
- * Se não encontrar, retorna a primeira fase como fallback.
+ * Retorna a área foco (objeto CONFIG.FASES[i]) correspondente ao id informado.
+ * Se não encontrar, retorna a primeira área foco como fallback.
  */
-function getFaseById(fases, id) {
-    return fases.find(f => f.id === id) || fases[0];
+function getFocusAreaById(focusAreas, id) {
+    return focusAreas.find(f => f.id === id) || focusAreas[0];
 }
 
 /**
- * Retorna o índice da fase correspondente ao id informado (-1 se não existir).
+ * Retorna o índice da área foco correspondente ao id informado (-1 se não existir).
  */
-function getFaseIndex(fases, id) {
-    return fases.findIndex(f => f.id === id);
+function getFocusAreaIndex(focusAreas, id) {
+    return focusAreas.findIndex(f => f.id === id);
 }
 
 /**
@@ -54,11 +54,11 @@ function getMatchPlayers(players) {
  * importa se são 2, 6 ou qualquer outra quantidade (não há número
  * fixo, é sempre relativo à lista de ativos no momento).
  * @param {Array} activePlayers - Game.getActivePlayers()
- * @param {Array<string>} usedRespondedorThisRound - Game.state.usedRespondedorThisRound
+ * @param {Array<string>} answeredThisRound - Game.state.usedRespondedorThisRound
  */
-function isCycleComplete(activePlayers, usedRespondedorThisRound) {
+function isCycleComplete(activePlayers, answeredThisRound) {
     return activePlayers.length > 0 &&
-        activePlayers.every(p => usedRespondedorThisRound.includes(p.name));
+        activePlayers.every(p => answeredThisRound.includes(p.name));
 }
 
 // ============================================
@@ -66,8 +66,8 @@ function isCycleComplete(activePlayers, usedRespondedorThisRound) {
 // ============================================
 window.Game = window.Game || {};
 window.Game.selectors = {
-    getFaseById,
-    getFaseIndex,
+    getFocusAreaById,
+    getFocusAreaIndex,
     getPlayerByName,
     getActivePlayers,
     getMatchPlayers,

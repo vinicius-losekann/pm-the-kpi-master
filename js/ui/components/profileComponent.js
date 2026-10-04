@@ -50,7 +50,7 @@ function renderProfileCard(player) {
  * status de TODAS as fases só com a fase atual + atividades.
  */
 function renderPhasesList(player) {
-    const currentIdx = Game.getFaseIndex(player.phase);
+    const currentIdx = Game.getFocusAreaIndex(player.phase);
     const total = CONFIG.JOGO.ACTIVITIES_PER_PHASE;
 
     const html = CONFIG.FASES.map((fase, idx) => {

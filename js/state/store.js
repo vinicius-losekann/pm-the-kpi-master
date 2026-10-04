@@ -43,8 +43,8 @@ window.Game.state = gameState;
 // network/hostSearch.js — a tela inicial também usa.
 
 // --- Atalhos (ver nota no topo do arquivo) ---
-window.Game.getFaseById = (id) => Game.selectors.getFaseById(CONFIG.FASES, id);
-window.Game.getFaseIndex = (id) => Game.selectors.getFaseIndex(CONFIG.FASES, id);
+window.Game.getFocusAreaById = (id) => Game.selectors.getFocusAreaById(CONFIG.FASES, id);
+window.Game.getFocusAreaIndex = (id) => Game.selectors.getFocusAreaIndex(CONFIG.FASES, id);
 window.Game.getPlayerByName = (name) => Game.selectors.getPlayerByName(Game.state.players, name);
 window.Game.getActivePlayers = () => Game.selectors.getActivePlayers(Game.state.players);
 window.Game.resetAllPlayers = () => Game.mutations.resetAllPlayers(Game.state.players, CONFIG);

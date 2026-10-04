@@ -22,7 +22,7 @@ function requestAssessoria(assessorName) {
         return false;
     }
     const me = Game.getPlayerByName(state.playerName);
-    if (me && Game.getFaseIndex(me.phase) === CONFIG.FASES.length - 1) {
+    if (me && Game.getFocusAreaIndex(me.phase) === CONFIG.FASES.length - 1) {
         alert(Game.i18n.t('advisory.faseEncerramento'));
         return false;
     }

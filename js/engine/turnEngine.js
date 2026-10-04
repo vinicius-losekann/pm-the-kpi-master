@@ -132,7 +132,7 @@ function pickNewPair(evento = null, depth = 0, mostrarModal = true) {
     // pergunta da rodada — é ela que vai no estado salvo e no state-sync,
     // então o F5 do host e quem volta à partida também veem as etiquetas.
     const domainNome = state.questionsData.domains[pergunta.domain_key]?.name || pergunta.domain_key;
-    const areaNome = Game.getFaseById(respondedor.phase).nome;
+    const areaNome = Game.getFocusAreaById(respondedor.phase).nome;
 
     state.partidaPausada = null;
     state.rodadaEncerrada = false;

@@ -481,7 +481,7 @@ test('T65 A pergunta da rodada leva domínio e área: o F5 do host e quem volta 
     amb.join('B', 'peer-b');
     amb.startMatch();
     const r = amb.state.currentRound;
-    const area = amb.Game.getFaseById(amb.player(r.respondedor).phase).nome;
+    const area = amb.Game.getFocusAreaById(amb.player(r.respondedor).phase).nome;
     check(r.pergunta.domain === 'Domínio de teste' && r.pergunta.area === area,
         'a pergunta guardada na rodada deveria ter domínio e área, veio: ' + JSON.stringify({ domain: r.pergunta.domain, area: r.pergunta.area }));
 

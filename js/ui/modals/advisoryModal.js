@@ -25,7 +25,7 @@ function showAssessoriaSelectModal() {
         <button class="btn btn-glass assessor-select-btn" data-assessor-name="${Game.sanitize.escapeHtml(p.name)}"
                 style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px;">
             <span>${Game.sanitize.escapeHtml(p.name)}</span>
-            <span style="font-size:0.8rem; color:#a0a0b8;">${Game.getFaseById(p.phase).emoji}</span>
+            <span style="font-size:0.8rem; color:#a0a0b8;">${Game.getFocusAreaById(p.phase).emoji}</span>
         </button>
     `).join('');
 

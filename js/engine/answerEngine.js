@@ -164,7 +164,7 @@ function handleAnswer(msg) {
         Game.ui.syncPlayerViews(null);
     }
 
-    const faseIdx = Game.getFaseIndex(respondedor.phase);
+    const faseIdx = Game.getFocusAreaIndex(respondedor.phase);
     if (faseIdx === CONFIG.FASES.length - 1 && respondedor.activities >= CONFIG.JOGO.ACTIVITIES_PER_PHASE) {
         setTimeout(() => Game.engine.session.endGame(Game.engine.session.buildRanking()), 3000);
     } else {
