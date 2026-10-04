@@ -34,7 +34,7 @@ test('T53 F5 do host com a rodada encerrada: continua encerrada, "Nova Rodada" l
     const novo = usar(reloadHost(amb));
     const tempo = novo.fakeTime();
     novo.clearLog();
-    novo.Game.core.retomarPartidaAposRecarregar();
+    novo.Game.core.resumeMatchAfterReload();
     check(novo.state.rodadaEncerrada === true, 'depois do F5, a rodada deveria continuar encerrada');
     const telas = roundScreens(novo);
     check(telas.includes('showRoundEndedMessage'), 'o host deveria ver "Rodada encerrada", viu: ' + telas.join(', '));
@@ -78,7 +78,7 @@ test('T54 F5 do host logo depois de uma resposta (antes da próxima dupla): a pa
 
     const novo = usar(reloadHost(amb));
     novo.clearLog();
-    novo.Game.core.retomarPartidaAposRecarregar();
+    novo.Game.core.resumeMatchAfterReload();
     const r2 = novo.state.currentRound;
     check(r2 && r2.respondeu === false && r2.respondedor !== r.respondedor,
         'deveria seguir para a próxima dupla, com outro Respondedor, veio: ' + JSON.stringify(r2 && { r: r2.respondedor, respondeu: r2.respondeu }));
@@ -103,7 +103,7 @@ test('T54 F5 do host logo depois de uma resposta (antes da próxima dupla): a pa
 
     const novo2 = usar(reloadHost(amb2));
     novo2.clearLog();
-    novo2.Game.core.retomarPartidaAposRecarregar();
+    novo2.Game.core.resumeMatchAfterReload();
     check(novo2.state.rodadaEncerrada === true, 'todos já responderam: a rodada deveria encerrar');
     check(novo2.broadcastsOfType('round-ended').length === 1 && novo2.broadcastsOfType('round-start').length === 0,
         'deveria avisar "rodada encerrada", sem começar outra dupla');
@@ -122,7 +122,7 @@ test('T54 F5 do host logo depois de uma resposta (antes da próxima dupla): a pa
 
     const novo3 = usar(reloadHost(amb3));
     novo3.clearLog();
-    novo3.Game.core.retomarPartidaAposRecarregar();
+    novo3.Game.core.resumeMatchAfterReload();
     check(novo3.state.currentRound && novo3.state.currentRound.respondedor !== r3.respondedor,
         'Respondedor já no rodízio: a pergunta conta como respondida e a partida segue');
     check(novo3.broadcastsOfType('round-start').length === 1 && !novo3.registro.ui.includes('displayQuestion'),
@@ -147,7 +147,7 @@ test('T55 F5 do host com a partida pausada: continua pausada com o mesmo evento 
     ev.drawEvent = (...a) => { sorteios++; return sortear(...a); };
     ev.applyEventEffects = (...a) => { efeitos++; return aplicar(...a); };
     novo.clearLog();
-    novo.Game.core.retomarPartidaAposRecarregar();
+    novo.Game.core.resumeMatchAfterReload();
     check(novo.state.partidaPausada && novo.state.partidaPausada.evento && novo.state.partidaPausada.evento.id === eventoPausado.id,
         'deveria continuar pausada com o MESMO evento, veio: ' + JSON.stringify(novo.state.partidaPausada));
     check(novo.state.currentRound === null, 'não deveria haver dupla durante a pausa');
@@ -177,7 +177,7 @@ test('T56 F5 do host com a pergunta aberta e sem rodada: como antes; relógio e 
     const tempo = novo.fakeTime();
     const relogio = novo.fakeClock();
     novo.clearLog();
-    novo.Game.core.retomarPartidaAposRecarregar();
+    novo.Game.core.resumeMatchAfterReload();
     const r2 = novo.state.currentRound;
     check(r2 && r2.perguntador === r.perguntador && r2.respondedor === r.respondedor && r2.pergunta.id === r.pergunta.id && !r2.respondeu,
         'a mesma pergunta deveria continuar em andamento');
@@ -203,7 +203,7 @@ test('T56 F5 do host com a pergunta aberta e sem rodada: como antes; relógio e 
     amb2.Game.saveState();
     const novo2 = usar(reloadHost(amb2));
     novo2.clearLog();
-    novo2.Game.core.retomarPartidaAposRecarregar();
+    novo2.Game.core.resumeMatchAfterReload();
     check(novo2.state.currentRound && !novo2.state.currentRound.respondeu, 'sem rodada, deveria começar uma dupla');
     check(novo2.broadcastsOfType('show-evento').length === 1, 'rodada nova, com o evento');
 
@@ -213,7 +213,7 @@ test('T56 F5 do host com a pergunta aberta e sem rodada: como antes; relógio e 
     amb3.join('A', 'peer-a');
     const novo3 = usar(reloadHost(amb3));
     novo3.clearLog();
-    novo3.Game.core.retomarPartidaAposRecarregar();
+    novo3.Game.core.resumeMatchAfterReload();
     check(novo3.registro.ui.length === 0 && novo3.registro.broadcasts.length === 0 && novo3.state.currentRound === null,
         'no lobby, a retomada não faz nada');
 
@@ -224,16 +224,16 @@ test('T56 F5 do host com a pergunta aberta e sem rodada: como antes; relógio e 
         else novo4.state.gameOver = true;
         const rodadaAntes = JSON.stringify(novo4.state.currentRound);
         novo4.clearLog();
-        novo4.Game.core.retomarPartidaAposRecarregar();
+        novo4.Game.core.resumeMatchAfterReload();
         check(novo4.registro.ui.length === 0 && novo4.registro.broadcasts.length === 0 && JSON.stringify(novo4.state.currentRound) === rodadaAntes,
             caso + ': a retomada não deveria fazer nada');
     }
 
     // main.js só chama a retomada (a lógica fica no sessionEngine.js, testável aqui).
     const main = fs.readFileSync(path.join(RAIZ, 'js/main.js'), 'utf8');
-    check(/if \(state\.isHost\) \{\s*Game\.core\.retomarPartidaAposRecarregar\(\);/.test(main),
-        'init() deveria chamar Game.core.retomarPartidaAposRecarregar() para o host');
-    check(!/armarRespostaTimeout|pickNewPair|setInterval/.test(main), 'main.js não deveria ter lógica própria de retomada');
+    check(/if \(state\.isHost\) \{\s*Game\.core\.resumeMatchAfterReload\(\);/.test(main),
+        'init() deveria chamar Game.core.resumeMatchAfterReload() para o host');
+    check(!/armAnswerTimeout|pickNewPair|setInterval/.test(main), 'main.js não deveria ter lógica própria de retomada');
 });
 
 test('T58 F5 do host logo depois da resposta que completa a última fase: a partida termina, como sem o F5', (usar) => {
@@ -265,7 +265,7 @@ test('T58 F5 do host logo depois da resposta que completa a última fase: a part
 
     const novo = usar(reloadHost(amb));
     novo.clearLog();
-    novo.Game.core.retomarPartidaAposRecarregar();
+    novo.Game.core.resumeMatchAfterReload();
     check(novo.state.gameOver === true, 'depois do F5, a partida deveria terminar');
     check(novo.broadcastsOfType('game-over').length === 1, 'deveria avisar os guests do fim de jogo');
     check(novo.broadcastsOfType('round-start').length === 0 && novo.broadcastsOfType('round-ended').length === 0,
@@ -285,7 +285,7 @@ function preparePendingAdvisory(amb, { perguntador, respondedor, assessor }) {
     amb.state.currentRound = { ...amb.state.currentRound, perguntador, respondedor, respondeu: false };
     amb.state.usedRespondedorThisRound = [];
     if (respondedor === 'Host') {
-        amb.Game.core.requestAssessoria(assessor);
+        amb.Game.core.requestAdvisory(assessor);
     } else {
         amb.Game.network.handleMessage({ type: 'assessoria-request', assessorName: assessor, requesterName: respondedor }, amb.player(respondedor).peerId);
     }
@@ -304,7 +304,7 @@ test('T59 F5 do host com assessoria pendente: o pedido é cancelado, quem respon
     const novo = usar(reloadHost(amb));
     const tempo = novo.fakeTime();
     novo.clearLog();
-    novo.Game.core.retomarPartidaAposRecarregar();
+    novo.Game.core.resumeMatchAfterReload();
     const r2 = novo.state.currentRound;
     check(r2 && r2.respondedor === 'A' && r2.pergunta.id === r.pergunta.id && !r2.respondeu,
         'a mesma pergunta deveria continuar em andamento');
@@ -333,7 +333,7 @@ test('T59 F5 do host com assessoria pendente: o pedido é cancelado, quem respon
     preparePendingAdvisory(amb2, { perguntador: 'Host', respondedor: 'A', assessor: 'B' });
     const novo2 = usar(reloadHost(amb2));
     const tempo2 = novo2.fakeTime();
-    novo2.Game.core.retomarPartidaAposRecarregar();
+    novo2.Game.core.resumeMatchAfterReload();
     novo2.join('A', 'peer-a2');
     novo2.join('B', 'peer-b2');
     novo2.clearLog();
@@ -360,7 +360,7 @@ test('T59 F5 do host com assessoria pendente: o pedido é cancelado, quem respon
             return uiReal[nome](...args);
         }
     });
-    novo3.Game.core.retomarPartidaAposRecarregar();
+    novo3.Game.core.resumeMatchAfterReload();
     check(assessoriaNaTela.length === 1 && !assessoriaNaTela[0],
         'o host deveria ver a pergunta sem o pedido pendente (botões liberados), viu: ' + JSON.stringify(assessoriaNaTela));
     tempo3.advance(novo3.CONFIG.JOGO.RESPOSTA_TIMEOUT);
@@ -376,7 +376,7 @@ test('T59 F5 do host com assessoria pendente: o pedido é cancelado, quem respon
     const novo4 = usar(reloadHost(amb4));
     const tempo4 = novo4.fakeTime();
     novo4.clearLog();
-    novo4.Game.core.retomarPartidaAposRecarregar();
+    novo4.Game.core.resumeMatchAfterReload();
     const kpiDeA = novo4.broadcastsOfType('kpi-update').find(m => m.playerName === 'A');
     check(kpiDeA && kpiDeA.acertou === true, 'a resposta guardada deveria ser processada depois do F5');
     check(!novo4.registro.ui.includes('displayQuestion'), 'a pergunta já respondida não pode ser reexibida');
@@ -397,7 +397,7 @@ test('T60 F5 do host com a assessoria já resolvida: a sugestão (ou a recusa) c
     const novo = usar(reloadHost(amb));
     novo.fakeTime();
     novo.clearLog();
-    novo.Game.core.retomarPartidaAposRecarregar();
+    novo.Game.core.resumeMatchAfterReload();
     const a = novo.state.currentRound.assessoria;
     check(a && a.status === 'accepted' && a.assessorName === 'B' && a.sugestao === r.pergunta.correct,
         'a sugestão deveria continuar na rodada, veio: ' + JSON.stringify(a));
@@ -416,7 +416,7 @@ test('T60 F5 do host com a assessoria já resolvida: a sugestão (ou a recusa) c
     check(amb2.state.currentRound.assessoria.status === 'declined', 'pré-condição: prazo do assessor esgotado');
     const novo2 = usar(reloadHost(amb2));
     novo2.fakeTime();
-    novo2.Game.core.retomarPartidaAposRecarregar();
+    novo2.Game.core.resumeMatchAfterReload();
     check(novo2.state.currentRound.assessoria && novo2.state.currentRound.assessoria.status === 'declined', 'a recusa deveria continuar valendo');
     novo2.join('A', 'peer-a2');
     novo2.clearLog();
@@ -443,7 +443,7 @@ function reloadWithOpenQuestion(usar, papeis) {
     const novo = usar(reloadHost(amb));
     const tempo = novo.fakeTime();
     const telas = recordScreens(novo);
-    novo.Game.core.retomarPartidaAposRecarregar();
+    novo.Game.core.resumeMatchAfterReload();
     return { novo, tempo, telas };
 }
 

@@ -82,7 +82,7 @@ test('T16 Voltar ao lobby após o fim de jogo (host): limpa desconectados e avis
     check(amb.state.gameOver && amb.player('A'), 'pré-condição: fim de jogo com A ainda na lista');
 
     amb.clearLog();
-    amb.Game.core.voltarAoLobby();
+    amb.Game.core.backToLobby();
     check(!amb.player('A'), 'A deveria ter saído da lista');
     check(amb.player('B'), 'B deveria continuar');
     check(!amb.state.gameStarted && !amb.state.gameOver && amb.state.currentRound === null, 'estado da partida deveria estar zerado');
@@ -106,7 +106,7 @@ test('T16b Voltar ao lobby (guest): limpa só a cópia local, sem mandar nada', 
         // que uma lista antiga o mostre como desconectado.
         { name: 'B', peerId: 'peer-b', isHost: false, disconnected: true }
     ];
-    amb.Game.core.voltarAoLobby();
+    amb.Game.core.backToLobby();
     check(!amb.player('A'), 'A deveria ter saído da lista local');
     check(amb.player('B'), 'B nunca deveria remover a si mesmo');
     check(amb.registro.broadcasts.length === 0, 'guest não deveria mandar nada');
@@ -125,7 +125,7 @@ test('T48 Guest sai da partida e ela acaba: no lobby, o host consegue iniciar ou
     if (!amb.state.gameOver) amb.Game.core.endGame(amb.Game.core.buildRanking());
 
     amb.clearLog();
-    amb.Game.core.voltarAoLobby();
+    amb.Game.core.backToLobby();
     const a = amb.player('A');
     check(a && a.waitingInLobby === false, 'A deveria deixar de estar "aguardando no lobby"');
     check(a.kpi === 0 && a.recursos === amb.CONFIG.RECURSOS_INICIAIS, 'jogadores voltam zerados, como ao encerrar a partida');
@@ -177,8 +177,8 @@ test('T66 F5 do host no fim de jogo: volta ao ranking final e a partida não rec
     check(novo.state.gameOver === true, 'o fim de jogo deveria ser restaurado do estado salvo');
     // O ranking mostrado é o do fim da partida, não um recalculado agora.
     novo.player(r.respondedor).kpi = 999;
-    novo.Game.core.retomarPartidaAposRecarregar();
-    novo.Game.core.mostrarFimDeJogo();
+    novo.Game.core.resumeMatchAfterReload();
+    novo.Game.core.showGameOver();
     check(showedFinalRanking(telas, ranking), 'o host deveria ver a tela final com o mesmo ranking, viu: ' + telas.map(t => t.nome).join(', '));
     check(novo.state.currentRound === null && novo.broadcastsOfType('round-start').length === 0 && novo.broadcastsOfType('show-evento').length === 0,
         'nenhuma dupla nova pode ser sorteada');
@@ -187,8 +187,8 @@ test('T66 F5 do host no fim de jogo: volta ao ranking final e a partida não rec
 
     // main.js: com o fim de jogo restaurado, só chama a tela final (host e guest).
     const main = fs.readFileSync(path.join(RAIZ, 'js/main.js'), 'utf8');
-    check(/if \(restaurou && state\.gameStarted && state\.gameOver\) \{\s*Game\.core\.mostrarFimDeJogo\(\);/.test(main),
-        'init() deveria chamar Game.core.mostrarFimDeJogo() quando o estado restaurado é de fim de jogo');
+    check(/if \(restaurou && state\.gameStarted && state\.gameOver\) \{\s*Game\.core\.showGameOver\(\);/.test(main),
+        'init() deveria chamar Game.core.showGameOver() quando o estado restaurado é de fim de jogo');
 });
 
 test('T67 Guest volta à sala no fim de jogo: não é recusado e vê o ranking final (BUG-021)', (usar) => {
@@ -267,7 +267,7 @@ test('T68 Estado salvo guarda o fim de jogo e o ranking; estado antigo restaura 
     check(f5Antigo.state.gameOver === false && !f5Antigo.state.rankingFinal, 'estado antigo: sem fim de jogo, como antes');
 
     // Voltar ao lobby limpa o fim de jogo e o ranking (também no estado salvo).
-    f5.Game.core.voltarAoLobby();
+    f5.Game.core.backToLobby();
     check(f5.state.gameOver === false && !f5.state.rankingFinal, 'voltar ao lobby deveria limpar o fim de jogo e o ranking');
     const depois = JSON.parse(f5.armazenamento['pmKPI_roomState']);
     check(depois.gameOver === false && !depois.rankingFinal, 'o estado salvo depois de voltar ao lobby não pode ter o ranking antigo');
@@ -288,7 +288,7 @@ function matchWithPendingDeadlines(usar) {
     // O sorteio da dupla é aleatório: fixa os papéis e rearma o prazo de resposta de A.
     amb.state.currentRound = { ...amb.state.currentRound, perguntador: 'Host', respondedor: 'A', respondeu: false };
     amb.state.usedRespondedorThisRound = [];
-    amb.Game.core.armarRespostaTimeout('A');
+    amb.Game.core.armAnswerTimeout('A');
     Object.assign(amb.player('B'), { recursos: 0, kpi: 20 });
     amb.Game.network.handleMessage({ type: 'ajuda-request', requesterName: 'B' }, 'peer-b');
     check(amb.state.ajudaFila && amb.state.ajudaTimeout, 'pré-condição: pedido de ajuda em andamento');

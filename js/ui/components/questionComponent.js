@@ -7,7 +7,7 @@
 //
 // 🆕 Contador do Respondedor: puramente visual/local — o timeout real
 // que decide quando pular a vez continua em
-// js/engine/turnEngine.js → armarRespostaTimeout() (autoridade do
+// js/engine/turnEngine.js → armAnswerTimeout() (autoridade do
 // host). Este contador só espelha a mesma duração
 // (CONFIG.JOGO.RESPOSTA_TIMEOUT) na tela de quem está respondendo,
 // igual já existia para o contador da assessoria em advisoryModal.js.
@@ -189,7 +189,7 @@ function showRoundEndedMessage() {
 /**
  * Aviso de partida pausada — não há jogadores conectados
  * suficientes para formar uma dupla. A partida retoma sozinha quando
- * alguém reconectar (host: turnEngine.retomarPartidaPausada()).
+ * alguém reconectar (host: turnEngine.resumePausedMatch()).
  */
 function showPartidaPausadaMessage() {
     stopRespostaCountdown();

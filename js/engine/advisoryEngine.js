@@ -8,9 +8,9 @@
 
 /**
  * Solicita assessoria a outro jogador (chamado pelo Respondedor).
- * Verifica se a rodada ainda está ativa e se o jogador não está na fase de Encerramento.
+ * Verifica se a rodada ainda está ativa e se o jogador não está na Área Foco Encerramento.
  */
-function requestAssessoria(assessorName) {
+function requestAdvisory(advisorName) {
     const state = Game.state;
 
     if (!state.currentRound || state.currentRound.assessoria) {
@@ -28,9 +28,9 @@ function requestAssessoria(assessorName) {
     }
 
     if (state.isHost) {
-        handleAssessoriaRequest({ assessorName, requesterName: state.playerName });
+        handleAdvisoryRequest({ assessorName: advisorName, requesterName: state.playerName });
     } else {
-        Game.network.sendToHost({ type: 'assessoria-request', assessorName, requesterName: state.playerName });
+        Game.network.sendToHost({ type: 'assessoria-request', assessorName: advisorName, requesterName: state.playerName });
     }
     return true;
 }
@@ -38,7 +38,7 @@ function requestAssessoria(assessorName) {
 /**
  * Host: processa o pedido de assessoria, valida e encaminha para o assessor.
  */
-function handleAssessoriaRequest(msg) {
+function handleAdvisoryRequest(msg) {
     const state = Game.state;
     if (!state.isHost || !state.currentRound || state.currentRound.assessoria) return;
     if (msg.requesterName !== state.currentRound.respondedor) return;
@@ -58,11 +58,11 @@ function handleAssessoriaRequest(msg) {
     }
 
     const requester = Game.getPlayerByName(msg.requesterName);
-    const assessor = Game.getPlayerByName(msg.assessorName);
+    const advisor = Game.getPlayerByName(msg.assessorName);
 
     // Validação pura delegada a domain/advisoryRules.js
-    const validacao = Game.domain.advisory.validateAdvisoryRequest({
-        advisor: assessor,
+    const validation = Game.domain.advisory.validateAdvisoryRequest({
+        advisor,
         requester,
         advisorName: msg.assessorName,
         askerName: state.currentRound.perguntador,
@@ -70,9 +70,9 @@ function handleAssessoriaRequest(msg) {
         focusAreas: CONFIG.FASES
     });
 
-    if (validacao.invalid) {
+    if (validation.invalid) {
         console.warn('⚠️ Pedido de assessoria rejeitado pelo host:', msg.assessorName,
-            validacao.reason === 'fase-encerramento' ? '(Respondedor na Área Foco Encerramento)' : '');
+            validation.reason === 'fase-encerramento' ? '(Respondedor na Área Foco Encerramento)' : '');
         if (requester) {
             Game.network.sendToPlayer(requester.peerId, {
                 type: 'assessoria-result',
@@ -80,7 +80,7 @@ function handleAssessoriaRequest(msg) {
                 sugestao: null,
                 recusado: true,
                 invalido: true,
-                motivo: validacao.reason
+                motivo: validation.reason
             });
         }
         return;
@@ -104,20 +104,20 @@ function handleAssessoriaRequest(msg) {
         requesterName: msg.requesterName
     });
 
-    const pergunta = state.currentRound.pergunta;
-    const domainNome = state.questionsData.domains[pergunta.domain_key]?.name || pergunta.domain_key;
+    const question = state.currentRound.pergunta;
+    const domainName = state.questionsData.domains[question.domain_key]?.name || question.domain_key;
 
-    Game.network.sendToPlayer(assessor.peerId, {
+    Game.network.sendToPlayer(advisor.peerId, {
         type: 'assessoria-question',
-        question: pergunta.question,
-        domain: domainNome,
-        alternatives: pergunta.alternatives,
-        id: pergunta.id
+        question: question.question,
+        domain: domainName,
+        alternatives: question.alternatives,
+        id: question.id
     });
 
     if (state.assessoriaTimeout) clearTimeout(state.assessoriaTimeout);
     state.assessoriaTimeout = setTimeout(() => {
-        handleAssessoriaAnswer({ alternativa: null, recusado: true, timeout: true });
+        handleAdvisoryAnswer({ alternativa: null, recusado: true, timeout: true });
     }, CONFIG.JOGO.ASSESSORIA_TIMEOUT);
 
     Game.saveState();
@@ -126,7 +126,7 @@ function handleAssessoriaRequest(msg) {
 /**
  * Host: processa a resposta (ou recusa/timeout) do assessor.
  */
-function handleAssessoriaAnswer(msg) {
+function handleAdvisoryAnswer(msg) {
     const state = Game.state;
     if (!state.isHost || !state.currentRound || !state.currentRound.assessoria) return;
     if (state.currentRound.assessoria.status !== 'pending') return;
@@ -152,7 +152,7 @@ function handleAssessoriaAnswer(msg) {
 
     // Rearma o timeout de resposta se a rodada ainda não foi respondida
     if (!state.currentRound.respondeu && !state.currentRound.pendingAnswer) {
-        Game.engine.turn.armarRespostaTimeout(state.currentRound.respondedor);
+        Game.engine.turn.armAnswerTimeout(state.currentRound.respondedor);
     }
 
     // Se o Respondedor já tinha enviado uma resposta, processa agora
@@ -171,9 +171,9 @@ function handleAssessoriaAnswer(msg) {
 window.Game = window.Game || {};
 window.Game.engine = window.Game.engine || {};
 window.Game.engine.advisory = {
-    requestAssessoria,
-    handleAssessoriaRequest,
-    handleAssessoriaAnswer
+    requestAdvisory,
+    handleAdvisoryRequest,
+    handleAdvisoryAnswer
 };
 
 // Game.core.* é o namespace usado por ui/ e network/ para chamar as

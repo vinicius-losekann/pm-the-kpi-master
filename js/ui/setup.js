@@ -77,9 +77,9 @@ function setupUI() {
         window.location.href = './';
     });
     document.getElementById('btnBackToLobby').addEventListener('click', () => {
-        // Lógica em sessionEngine.voltarAoLobby() (também tira
+        // Lógica em sessionEngine.backToLobby() (também tira
         // da lista quem caiu durante a partida e não voltou).
-        Game.core.voltarAoLobby();
+        Game.core.backToLobby();
     });
     document.getElementById('btnCloseResult').addEventListener('click', () => {
         document.getElementById('modalResult').style.display = 'none';

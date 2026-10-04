@@ -517,7 +517,7 @@ function roomToReload(amb) {
  * F5 do host: página nova (outro ambiente, mesmo localStorage) que lê a
  * URL como init() (main.js) e restaura o estado salvo pelo
  * persistence.js real. A retomada da partida fica para o teste chamar
- * (Game.core.retomarPartidaAposRecarregar()), depois de instalar os
+ * (Game.core.resumeMatchAfterReload()), depois de instalar os
  * dublês de que precisar.
  */
 function reloadHost(amb) {

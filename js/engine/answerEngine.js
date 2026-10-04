@@ -7,7 +7,7 @@
 // ============================================
 
 /**
- * Processa a resposta do Respondedor, atualiza KPI, recursos e fase.
+ * Processa a resposta do Respondedor, atualiza KPI, recursos e área foco.
  * Pode ser chamada pelo host (para sua própria resposta) ou por um guest
  * (que envia via rede, e o host executa esta função).
  */
@@ -19,9 +19,9 @@ function handleAnswer(msg) {
         return;
     }
 
-    const { respondedor: respondedorName } = state.currentRound;
+    const { respondedor: answererName } = state.currentRound;
 
-    if (msg.playerName !== respondedorName) {
+    if (msg.playerName !== answererName) {
         console.warn('⚠️ Resposta ignorada: jogador não é o respondedor da rodada.');
         return;
     }
@@ -38,9 +38,9 @@ function handleAnswer(msg) {
     }
 
     // Se há assessoria pendente, aguarda a resolução
-    const assessoriaPendente = state.currentRound.assessoria &&
+    const advisoryPending = state.currentRound.assessoria &&
         state.currentRound.assessoria.status === 'pending';
-    if (assessoriaPendente) {
+    if (advisoryPending) {
         console.log('⏳ Resposta recebida com assessoria pendente — aguardando resolução...');
         state.currentRound.pendingAnswer = msg;
         return;
@@ -48,11 +48,11 @@ function handleAnswer(msg) {
 
     state.currentRound.respondeu = true;
 
-    const { pergunta, evento } = state.currentRound;
-    const acertou = msg.alternativa === pergunta.correct;
-    const respondedor = Game.getPlayerByName(respondedorName);
+    const { pergunta: question, evento: event } = state.currentRound;
+    const isCorrect = msg.alternativa === question.correct;
+    const answerer = Game.getPlayerByName(answererName);
 
-    if (!respondedor) {
+    if (!answerer) {
         console.warn('⚠️ Respondedor não encontrado (provavelmente desconectou) — abortando rodada.');
         state.currentRound = null;
         if (state.isHost) setTimeout(() => Game.engine.turn.pickNewPair(), 500);
@@ -60,7 +60,7 @@ function handleAnswer(msg) {
         return;
     }
 
-    const temReserva = evento?.reserva_contingencia === true;
+    const hasReserve = event?.reserva_contingencia === true;
 
     // Ninguém pula a vez por falta de recurso — qualquer jogador ativo
     // sempre tenta responder, mesmo com 0 recursos. O gasto de recurso
@@ -69,88 +69,88 @@ function handleAnswer(msg) {
     // calculateAnswerResult() e aplicado depois.
 
     // Cálculo puro delegado a domain/kpiRules.js
-    const resultado = Game.domain.kpi.calculateAnswerResult({
+    const result = Game.domain.kpi.calculateAnswerResult({
         chosenAlternative: msg.alternativa,
-        correct: pergunta.correct,
-        currentKpi: respondedor.kpi,
-        focusAreaId: respondedor.phase,
-        activities: respondedor.activities,
-        hasReserve: temReserva,
+        correct: question.correct,
+        currentKpi: answerer.kpi,
+        focusAreaId: answerer.phase,
+        activities: answerer.activities,
+        hasReserve,
         config: CONFIG,
         focusAreas: CONFIG.FASES
     });
 
-    const kpiGanho = resultado.kpiGained;
-    respondedor.kpi = resultado.newKpi;
-    respondedor.phase = resultado.newFocusArea;
-    respondedor.activities = resultado.newActivities;
+    const kpiGained = result.kpiGained;
+    answerer.kpi = result.newKpi;
+    answerer.phase = result.newFocusArea;
+    answerer.activities = result.newActivities;
 
     // Nunca fica negativo — se já estava em 0 e errou de novo, só não perde
     // recurso nenhum, sem penalidade extra.
-    if (resultado.spendsResource) {
-        respondedor.recursos = Math.max(0, respondedor.recursos - 1);
+    if (result.spendsResource) {
+        answerer.recursos = Math.max(0, answerer.recursos - 1);
     }
 
-    const seguroMsg = temReserva ? ' (reserva de contingência)' : '';
-    console.log('📊 ' + (acertou ? '✅ Acertou' : '❌ Errou') + ' | Recursos: ' + respondedor.recursos + seguroMsg + ' | KPI: ' + respondedor.kpi);
+    const reserveNote = hasReserve ? ' (reserva de contingência)' : '';
+    console.log('📊 ' + (isCorrect ? '✅ Acertou' : '❌ Errou') + ' | Recursos: ' + answerer.recursos + reserveNote + ' | KPI: ' + answerer.kpi);
 
     // Quem respondeu entra no rodízio ANTES do aviso aos
     // guests — o 'kpi-update' leva a lista (`respondidos`). Se o host
     // cair logo depois, quem assumir já sabe quem respondeu nesta rodada.
-    state.usedRespondedorThisRound.push(respondedorName);
+    state.usedRespondedorThisRound.push(answererName);
 
     Game.network.broadcastAll({
         type: 'kpi-update',
-        playerName: respondedorName,
-        kpi: respondedor.kpi,
-        phase: respondedor.phase,
-        activities: respondedor.activities,
-        recursos: respondedor.recursos,
-        acertou,
-        kpiGanho,
+        playerName: answererName,
+        kpi: answerer.kpi,
+        phase: answerer.phase,
+        activities: answerer.activities,
+        recursos: answerer.recursos,
+        acertou: isCorrect,
+        kpiGanho: kpiGained,
         respondidos: state.usedRespondedorThisRound.slice()
     });
 
-    if (state.isHost && respondedorName === state.playerName) {
+    if (state.isHost && answererName === state.playerName) {
         updatePlayerKPI({
-            playerName: respondedorName,
-            kpi: respondedor.kpi,
-            phase: respondedor.phase,
-            activities: respondedor.activities,
-            recursos: respondedor.recursos,
-            acertou,
-            kpiGanho
+            playerName: answererName,
+            kpi: answerer.kpi,
+            phase: answerer.phase,
+            activities: answerer.activities,
+            recursos: answerer.recursos,
+            acertou: isCorrect,
+            kpiGanho: kpiGained
         });
     }
 
     // Bônus de assessoria (se a sugestão foi seguida e correta) — cálculo
     // puro delegado a domain/advisoryRules.js
-    const assessoria = state.currentRound.assessoria;
-    const bonusAssessor = Game.domain.advisory.calculateAdvisorBonus(assessoria, msg.alternativa, acertou, CONFIG);
-    if (bonusAssessor > 0) {
-        const assessor = Game.getPlayerByName(assessoria.assessorName);
-        if (assessor) {
-            assessor.kpi += bonusAssessor;
-            console.log('🧭 Assessoria: ' + assessor.name + ' +' + bonusAssessor + ' KPI');
+    const advisory = state.currentRound.assessoria;
+    const advisorBonus = Game.domain.advisory.calculateAdvisorBonus(advisory, msg.alternativa, isCorrect, CONFIG);
+    if (advisorBonus > 0) {
+        const advisor = Game.getPlayerByName(advisory.assessorName);
+        if (advisor) {
+            advisor.kpi += advisorBonus;
+            console.log('🧭 Assessoria: ' + advisor.name + ' +' + advisorBonus + ' KPI');
 
             Game.network.broadcastAll({
                 type: 'kpi-update',
-                playerName: assessor.name,
-                kpi: assessor.kpi,
-                phase: assessor.phase,
-                activities: assessor.activities,
-                recursos: assessor.recursos,
-                assessoriaBonus: bonusAssessor
+                playerName: advisor.name,
+                kpi: advisor.kpi,
+                phase: advisor.phase,
+                activities: advisor.activities,
+                recursos: advisor.recursos,
+                assessoriaBonus: advisorBonus
             });
 
-            if (state.isHost && assessor.name === state.playerName) {
+            if (state.isHost && advisor.name === state.playerName) {
                 updatePlayerKPI({
-                    playerName: assessor.name,
-                    kpi: assessor.kpi,
-                    phase: assessor.phase,
-                    activities: assessor.activities,
-                    recursos: assessor.recursos,
-                    assessoriaBonus: bonusAssessor
+                    playerName: advisor.name,
+                    kpi: advisor.kpi,
+                    phase: advisor.phase,
+                    activities: advisor.activities,
+                    recursos: advisor.recursos,
+                    assessoriaBonus: advisorBonus
                 });
             }
         }
@@ -164,8 +164,8 @@ function handleAnswer(msg) {
         Game.ui.syncPlayerViews(null);
     }
 
-    const faseIdx = Game.getFocusAreaIndex(respondedor.phase);
-    if (faseIdx === CONFIG.FASES.length - 1 && respondedor.activities >= CONFIG.JOGO.ACTIVITIES_PER_PHASE) {
+    const areaIndex = Game.getFocusAreaIndex(answerer.phase);
+    if (areaIndex === CONFIG.FASES.length - 1 && answerer.activities >= CONFIG.JOGO.ACTIVITIES_PER_PHASE) {
         setTimeout(() => Game.engine.session.endGame(Game.engine.session.buildRanking()), 3000);
     } else {
         setTimeout(() => Game.engine.turn.nextTurn(), 3000);
@@ -175,7 +175,7 @@ function handleAnswer(msg) {
 }
 
 /**
- * Atualiza a interface do jogador com seus novos valores de KPI, fase, etc.
+ * Atualiza a interface do jogador com seus novos valores de KPI, área foco etc.
  * (Orquestração/UI — não é uma mutação pura de estado, por isso fica no
  * engine em vez de state/mutations.js: mexe diretamente no DOM e chama Game.ui.)
  */

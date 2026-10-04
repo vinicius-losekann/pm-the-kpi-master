@@ -4,7 +4,7 @@
 // Responsabilidades:
 //   - Inicializar o jogo na ordem correta (DOM, perguntas, PeerJS)
 //   - Retomar partida após recarregar a página (F5) — a lógica fica em
-//     engine/sessionEngine.js (retomarPartidaAposRecarregar)
+//     engine/sessionEngine.js (resumeMatchAfterReload)
 //   - Ponto de entrada único (DOMContentLoaded)
 //
 // Estado salvo: js/utils/persistence.js. loadQuestions() busca
@@ -160,10 +160,10 @@ async function init() {
     // partida em que o F5 aconteceu) fica em engine/sessionEngine.js.
     // F5 na tela final volta à tela final (host e guest).
     if (restaurou && state.gameStarted && state.gameOver) {
-        Game.core.mostrarFimDeJogo();
+        Game.core.showGameOver();
     } else if (restaurou && state.gameStarted) {
         if (state.isHost) {
-            Game.core.retomarPartidaAposRecarregar();
+            Game.core.resumeMatchAfterReload();
         } else {
             Game.ui.showScreen('game');
             Game.ui.updateTimerDisplay();

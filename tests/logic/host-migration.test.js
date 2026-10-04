@@ -1026,7 +1026,7 @@ test('T61 Quem assume como host liga o relógio da partida (a mesma contagem do 
     // Com a contagem que o guest já tinha (ligada na entrada ou na
     // reconexão): continua uma só.
     const comRelogio = guestInMatch();
-    comRelogio.amb.Game.core.iniciarRelogio();
+    comRelogio.amb.Game.core.startClock();
     check(comRelogio.relogio.activeCount() === 1, 'pré-condição: relógio do guest ligado');
     comRelogio.amb.takeOverAsHost();
     check(comRelogio.relogio.activeCount() === 1, 'só pode haver uma contagem ligada depois de assumir, ligadas: ' + comRelogio.relogio.activeCount());
@@ -1048,10 +1048,10 @@ test('T61 Quem assume como host liga o relógio da partida (a mesma contagem do 
     check(relogio2.activeCount() === 0, 'no lobby não deveria ligar o relógio');
     check(lobby.broadcastsOfType('host-changed').length === 0, 'no lobby também não deveria mandar host-changed');
 
-    // Uma contagem só (sessionEngine.iniciarRelogio) e nada de host-changed no código.
+    // Uma contagem só (sessionEngine.startClock) e nada de host-changed no código.
     const migracao = fs.readFileSync(path.join(RAIZ, 'js/network/hostMigration.js'), 'utf8');
     const mensagens = fs.readFileSync(path.join(RAIZ, 'js/network/messageHandler.js'), 'utf8');
-    check(!/setInterval/.test(migracao), 'hostMigration.js não deveria ter contagem própria (usar Game.core.iniciarRelogio())');
+    check(!/setInterval/.test(migracao), 'hostMigration.js não deveria ter contagem própria (usar Game.core.startClock())');
     check(!/host-changed/.test(migracao) && !/host-changed/.test(mensagens), 'a mensagem host-changed não deveria existir mais');
     check(typeof amb.Game.network.reconnectToNewHost === 'undefined', 'reconnectToNewHost() só servia ao host-changed e deveria ter saído');
 });

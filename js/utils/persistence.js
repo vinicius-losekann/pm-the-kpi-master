@@ -63,7 +63,7 @@ function saveState() {
         usedRespondedorThisRound: state.usedRespondedorThisRound,
         // Sem estes dois, um F5 do host com a rodada encerrada
         // ou com a partida pausada perdia essa situação (ver
-        // retomarPartidaAposRecarregar() em engine/sessionEngine.js).
+        // resumeMatchAfterReload() em engine/sessionEngine.js).
         rodadaEncerrada: !!state.rodadaEncerrada,
         partidaPausada: state.partidaPausada || null,
         // Sem estes dois, um F5 na tela final recomeçaria a partida.

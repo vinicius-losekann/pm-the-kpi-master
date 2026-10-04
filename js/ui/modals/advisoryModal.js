@@ -43,7 +43,7 @@ function showAssessoriaSelectModal() {
 
 function escolherAssessor(assessorName) {
     document.getElementById('modalAssessoriaSelect').style.display = 'none';
-    const ok = Game.core.requestAssessoria(assessorName);
+    const ok = Game.core.requestAdvisory(assessorName);
     if (ok) {
         document.getElementById('btnPedirAssessoria').disabled = true;
         document.getElementById('assessoriaStatus').textContent = Game.i18n.t('advisory.aguardandoResposta', { assessor: assessorName });
@@ -110,7 +110,7 @@ function responderAssessoria(alternativa, recusado) {
     const msg = { type: 'assessoria-answer', alternativa, recusado: !!recusado };
 
     if (state.isHost) {
-        Game.core.handleAssessoriaAnswer(msg);
+        Game.core.handleAdvisoryAnswer(msg);
     } else {
         Game.network.sendToHost(msg);
     }

@@ -16,7 +16,7 @@ let ofertaAjudaAtual = null;
 function iniciarPedidoAjuda() {
     document.getElementById('ajudaTentandoCom').textContent = '...';
     document.getElementById('modalPedirAjuda').style.display = 'flex';
-    Game.core.pedirAjuda();
+    Game.core.requestHelp();
 }
 
 /**
@@ -63,7 +63,7 @@ function responderOfertaAjuda(aceito) {
     };
 
     if (Game.state.isHost) {
-        Game.core.handleAjudaOfertaResponse(msg);
+        Game.core.handleHelpOfferResponse(msg);
     } else {
         Game.network.sendToHost(msg);
     }

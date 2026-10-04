@@ -16,11 +16,11 @@
  * Chamado pelo jogador com 0 recursos para iniciar um pedido de ajuda.
  * Não escolhe a quem pedir — o host monta a fila automaticamente.
  */
-function pedirAjuda() {
+function requestHelp() {
     const state = Game.state;
 
     if (state.isHost) {
-        handleAjudaRequest({ requesterName: state.playerName });
+        handleHelpRequest({ requesterName: state.playerName });
     } else {
         Game.network.sendToHost({ type: 'ajuda-request', requesterName: state.playerName });
     }
@@ -30,7 +30,7 @@ function pedirAjuda() {
  * Host: valida o pedido, monta a fila (jogadores ativos com recurso,
  * do que tem mais pro que tem menos) e envia a primeira oferta.
  */
-function handleAjudaRequest(msg) {
+function handleHelpRequest(msg) {
     const state = Game.state;
     if (!state.isHost) return;
 
@@ -50,12 +50,12 @@ function handleAjudaRequest(msg) {
         return;
     }
 
-    const fila = Game.getActivePlayers()
+    const queue = Game.getActivePlayers()
         .filter(p => p.name !== requester.name && p.recursos >= 1)
         .sort((a, b) => b.recursos - a.recursos)
         .map(p => p.name);
 
-    if (fila.length === 0) {
+    if (queue.length === 0) {
         Game.network.sendToPlayer(requester.peerId, {
             type: 'ajuda-sem-candidatos',
             motivo: 'sem-doadores'
@@ -63,8 +63,8 @@ function handleAjudaRequest(msg) {
         return;
     }
 
-    state.ajudaFila = { requesterName: requester.name, candidatos: fila, indice: 0 };
-    enviarProximaOfertaAjuda();
+    state.ajudaFila = { requesterName: requester.name, candidatos: queue, indice: 0 };
+    sendNextHelpOffer();
 }
 
 /**
@@ -75,19 +75,19 @@ function handleAjudaRequest(msg) {
  * Perguntador, ser chamado como Assessor, ou pegar um evento de
  * Reserva de Contingência).
  */
-function enviarProximaOfertaAjuda() {
+function sendNextHelpOffer() {
     const state = Game.state;
-    const fila = state.ajudaFila;
-    if (!fila) return;
+    const queue = state.ajudaFila;
+    if (!queue) return;
 
     // Quem pediu saiu da partida ou caiu: o pedido é cancelado.
-    const requester = Game.getPlayerByName(fila.requesterName);
+    const requester = Game.getPlayerByName(queue.requesterName);
     if (!requester || requester.waitingInLobby || requester.disconnected) {
         state.ajudaFila = null;
         return;
     }
 
-    if (fila.indice >= fila.candidatos.length) {
+    if (queue.indice >= queue.candidatos.length) {
         Game.network.sendToPlayer(requester.peerId, {
             type: 'ajuda-sem-candidatos',
             motivo: 'todos-recusaram'
@@ -96,30 +96,30 @@ function enviarProximaOfertaAjuda() {
         return;
     }
 
-    const candidatoName = fila.candidatos[fila.indice];
-    const candidato = Game.getPlayerByName(candidatoName);
+    const candidateName = queue.candidatos[queue.indice];
+    const candidate = Game.getPlayerByName(candidateName);
 
     // Candidato saiu da partida, caiu ou tem 0 recursos agora (gastou
     // nesse meio tempo) — pula pro próximo sem perguntar. Sem olhar a
     // queda, quem pediu esperava o prazo inteiro por quem tinha caído.
-    if (!candidato || candidato.waitingInLobby || candidato.disconnected || candidato.recursos < 1) {
-        fila.indice++;
-        return enviarProximaOfertaAjuda();
+    if (!candidate || candidate.waitingInLobby || candidate.disconnected || candidate.recursos < 1) {
+        queue.indice++;
+        return sendNextHelpOffer();
     }
 
     Game.network.sendToPlayer(requester.peerId, {
         type: 'ajuda-tentando',
-        candidatoName
+        candidatoName: candidateName
     });
 
-    Game.network.sendToPlayer(candidato.peerId, {
+    Game.network.sendToPlayer(candidate.peerId, {
         type: 'ajuda-oferta',
         requesterName: requester.name
     });
 
     if (state.ajudaTimeout) clearTimeout(state.ajudaTimeout);
     state.ajudaTimeout = setTimeout(() => {
-        handleAjudaOfertaResponse({ candidatoName, aceito: false, timeout: true });
+        handleHelpOfferResponse({ candidatoName: candidateName, aceito: false, timeout: true });
     }, CONFIG.JOGO.ASSESSORIA_TIMEOUT);
 }
 
@@ -127,13 +127,13 @@ function enviarProximaOfertaAjuda() {
  * Host: processa a resposta (aceite/recusa/timeout) do candidato atual
  * da fila.
  */
-function handleAjudaOfertaResponse(msg) {
+function handleHelpOfferResponse(msg) {
     const state = Game.state;
     if (!state.isHost || !state.ajudaFila) return;
 
-    const fila = state.ajudaFila;
-    const candidatoAtual = fila.candidatos[fila.indice];
-    if (msg.candidatoName !== candidatoAtual) return; // resposta atrasada de candidato já pulado
+    const queue = state.ajudaFila;
+    const currentCandidate = queue.candidatos[queue.indice];
+    if (msg.candidatoName !== currentCandidate) return; // resposta atrasada de candidato já pulado
 
     if (state.ajudaTimeout) {
         clearTimeout(state.ajudaTimeout);
@@ -141,20 +141,20 @@ function handleAjudaOfertaResponse(msg) {
     }
 
     if (!msg.aceito) {
-        fila.indice++;
-        enviarProximaOfertaAjuda();
+        queue.indice++;
+        sendNextHelpOffer();
         return;
     }
 
     // Quem pediu caiu ou saiu da partida enquanto o candidato decidia:
     // o pedido é cancelado, sem transferir nada.
-    const requester = Game.getPlayerByName(fila.requesterName);
+    const requester = Game.getPlayerByName(queue.requesterName);
     if (!requester || requester.waitingInLobby || requester.disconnected) {
         state.ajudaFila = null;
         return;
     }
 
-    processAjuda(candidatoAtual, fila.requesterName);
+    processHelp(currentCandidate, queue.requesterName);
     state.ajudaFila = null;
 }
 
@@ -162,36 +162,36 @@ function handleAjudaOfertaResponse(msg) {
  * Host: executa a doação efetivamente (única fonte da verdade), com a
  * validação de domain/tradeRules.js.
  */
-function processAjuda(doadorName, requesterName) {
+function processHelp(donorName, requesterName) {
     const state = Game.state;
     if (!state.isHost) return;
 
-    const doador = Game.getPlayerByName(doadorName);
+    const donor = Game.getPlayerByName(donorName);
     const requester = Game.getPlayerByName(requesterName);
 
-    const erro = Game.domain.trade.validateResourceTransfer(doador, requester, CONFIG);
-    if (erro) {
-        console.warn('⚠️ Ajuda cancelada na validação final:', erro);
+    const error = Game.domain.trade.validateResourceTransfer(donor, requester, CONFIG);
+    if (error) {
+        console.warn('⚠️ Ajuda cancelada na validação final:', error);
         if (requester) {
             Game.network.sendToPlayer(requester.peerId, { type: 'ajuda-sem-candidatos', motivo: 'sem-doadores' });
         }
         return false;
     }
 
-    doador.recursos--;
-    doador.kpi += CONFIG.KPI.VALOR_VENDA_RECURSO;
+    donor.recursos--;
+    donor.kpi += CONFIG.KPI.VALOR_VENDA_RECURSO;
     requester.recursos++;
     requester.kpi -= CONFIG.KPI.VALOR_VENDA_RECURSO;
 
-    console.log('🆘 Ajuda: ' + doador.name + ' deu 1📦 para ' + requester.name + ' por ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI');
+    console.log('🆘 Ajuda: ' + donor.name + ' deu 1📦 para ' + requester.name + ' por ' + CONFIG.KPI.VALOR_VENDA_RECURSO + ' KPI');
 
     const confirmMsg = {
         type: 'ajuda-confirmada',
-        doador: doador.name,
+        doador: donor.name,
         requester: requester.name,
         valor: CONFIG.KPI.VALOR_VENDA_RECURSO,
-        doadorKPI: doador.kpi,
-        doadorRecursos: doador.recursos,
+        doadorKPI: donor.kpi,
+        doadorRecursos: donor.recursos,
         requesterKPI: requester.kpi,
         requesterRecursos: requester.recursos
     };
@@ -211,10 +211,10 @@ function processAjuda(doadorName, requesterName) {
 window.Game = window.Game || {};
 window.Game.engine = window.Game.engine || {};
 window.Game.engine.trade = {
-    pedirAjuda,
-    handleAjudaRequest,
-    handleAjudaOfertaResponse,
-    processAjuda
+    requestHelp,
+    handleHelpRequest,
+    handleHelpOfferResponse,
+    processHelp
 };
 
 // Game.core.* é o namespace usado por ui/ e network/ para chamar as

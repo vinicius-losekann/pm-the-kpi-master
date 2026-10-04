@@ -36,7 +36,7 @@ function resetGameState(state, config) {
     state.timerInterval = null;
     // Uma pausa por falta de conexão não sobrevive ao fim da
     // partida — senão a primeira reconexão da partida seguinte poderia
-    // "retomar" uma rodada antiga (ver turnEngine.retomarPartidaPausada()).
+    // "retomar" uma rodada antiga (ver turnEngine.resumePausedMatch()).
     state.partidaPausada = null;
     // Idem para o aviso de "rodada encerrada, aguardando o
     // host" (ver turnEngine.nextTurn()).

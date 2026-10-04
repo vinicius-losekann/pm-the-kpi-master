@@ -353,7 +353,7 @@ function becomeHost() {
             Game.ui.updatePlayersOnlineList();
             Game.ui.updateRankingList();
             Game.ui.updateTimerDisplay();
-            Game.core.iniciarRelogio();
+            Game.core.startClock();
 
             // Só dá para continuar a rodada em andamento se este
             // jogador tem o gabarito — ou seja, se era o Perguntador (só
@@ -416,7 +416,7 @@ function becomeHost() {
                 if (state.currentRound.pergunta) {
                     Game.ui.displayQuestion(state.currentRound.pergunta);
                 }
-                Game.core.armarRespostaTimeout(state.currentRound.respondedor);
+                Game.core.armAnswerTimeout(state.currentRound.respondedor);
             }
         } else {
             Game.ui.showLobbyNormal();

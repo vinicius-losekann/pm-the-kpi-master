@@ -168,7 +168,7 @@ function handleMessage(msg, fromPeerId) {
         // --- ASSESSORIA ---
         case 'assessoria-request':
             if (state.isHost && isSenderVerified(msg.requesterName, fromPeerId)) {
-                Game.core.handleAssessoriaRequest(msg);
+                Game.core.handleAdvisoryRequest(msg);
             }
             break;
 
@@ -184,7 +184,7 @@ function handleMessage(msg, fromPeerId) {
             if (state.isHost) {
                 const assessorName = state.currentRound?.assessoria?.assessorName;
                 if (assessorName && isSenderVerified(assessorName, fromPeerId)) {
-                    Game.core.handleAssessoriaAnswer(msg);
+                    Game.core.handleAdvisoryAnswer(msg);
                 } else {
                     console.warn('⚠️ Resposta de assessoria rejeitada: remetente não é o assessor designado da rodada.');
                 }
@@ -198,7 +198,7 @@ function handleMessage(msg, fromPeerId) {
         // --- PEDIDO DE AJUDA ---
         case 'ajuda-request':
             if (state.isHost && isSenderVerified(msg.requesterName, fromPeerId)) {
-                Game.core.handleAjudaRequest(msg);
+                Game.core.handleHelpRequest(msg);
             }
             break;
 
@@ -212,7 +212,7 @@ function handleMessage(msg, fromPeerId) {
 
         case 'ajuda-oferta-response':
             if (state.isHost && isSenderVerified(msg.candidatoName, fromPeerId)) {
-                Game.core.handleAjudaOfertaResponse(msg);
+                Game.core.handleHelpOfferResponse(msg);
             }
             break;
 
@@ -396,7 +396,7 @@ function addPlayer(msg, fromPeerId) {
     // quando o 'round-start' chegar.
     if (state.gameStarted && !state.gameOver && state.partidaPausada &&
         Game.getActivePlayers().length >= CONFIG.JOGO.MIN_PLAYERS) {
-        Game.core.retomarPartidaPausada();
+        Game.core.resumePausedMatch();
     }
 
     Game.saveState();
@@ -502,13 +502,13 @@ function restoreState(fullState) {
     state.rankingFinal = fullState.rankingFinal || null;
 
     if (state.gameStarted && state.gameOver) {
-        Game.core.mostrarFimDeJogo();
+        Game.core.showGameOver();
     } else if (state.gameStarted) {
         Game.ui.showScreen('game');
         Game.ui.updateTimerDisplay();
         Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
 
-        Game.core.iniciarRelogio();
+        Game.core.startClock();
 
         if (fullState.partidaPausada) {
             state.currentRound = null;

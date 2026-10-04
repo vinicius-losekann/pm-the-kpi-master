@@ -23,7 +23,7 @@ function startGame() {
 
     Game.resetAllPlayers();
 
-    iniciarRelogio();
+    startClock();
 
     Game.ui.showScreen('game');
     Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
@@ -47,7 +47,7 @@ function startGame() {
  * 'timer-update' — e por quem assume como host (becomeHost(), em
  * network/hostMigration.js).
  */
-function iniciarRelogio() {
+function startClock() {
     const state = Game.state;
 
     clearInterval(state.timerInterval);
@@ -78,17 +78,16 @@ function iniciarRelogio() {
  *   - sem rodada → começa uma;
  *   - pergunta já respondida (F5 nos ~3s antes da próxima dupla, quando
  *     o setTimeout de answerEngine.handleAnswer() se perde com a página)
- *     → encerra a partida, se essa resposta completou a última fase, ou
- *     segue com nextTurn() (próxima dupla ou fim da rodada). "Já
+ *     → encerra a partida, se essa resposta completou a última área foco,
+ *     ou segue com nextTurn() (próxima dupla ou fim da rodada). "Já
  *     respondida" = `respondeu` ou o Respondedor já no rodízio, o mesmo
  *     critério de becomeHost() (network/hostMigration.js);
  *   - pergunta em aberto → reexibe a mesma pergunta (ou, com o host fora
  *     da dupla, a tela de espectador) e rearma o prazo de resposta — a
  *     pergunta não pode ser trocada pelo F5. Um pedido de assessoria
- *     ainda sem resposta é cancelado antes (ver
- *     cancelarAssessoriaPendente()).
+ *     ainda sem resposta é cancelado antes (ver cancelPendingAdvisory()).
  */
-function retomarPartidaAposRecarregar() {
+function resumeMatchAfterReload() {
     const state = Game.state;
     if (!state.isHost || !state.gameStarted || state.gameOver) return;
 
@@ -97,12 +96,12 @@ function retomarPartidaAposRecarregar() {
     Game.ui.showScreen('game');
     Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
     Game.ui.updateTimerDisplay();
-    iniciarRelogio();
+    startClock();
 
     Game.network.broadcastAll({ type: 'player-list', players: state.players });
 
     const round = state.currentRound;
-    const perguntaJaRespondida = !!round &&
+    const questionAlreadyAnswered = !!round &&
         (!!round.respondeu || state.usedRespondedorThisRound.includes(round.respondedor));
 
     if (state.partidaPausada) {
@@ -116,20 +115,20 @@ function retomarPartidaAposRecarregar() {
         Game.ui.refreshNovaRodadaButton();
     } else if (!round) {
         Game.engine.turn.pickNewPair();
-    } else if (perguntaJaRespondida) {
-        if (completouUltimaFase(Game.getPlayerByName(round.respondedor))) {
-            console.log('🏁 A última resposta completou a última fase — encerrando a partida.');
+    } else if (questionAlreadyAnswered) {
+        if (completedLastFocusArea(Game.getPlayerByName(round.respondedor))) {
+            console.log('🏁 A última resposta completou a última área foco — encerrando a partida.');
             endGame(buildRanking());
         } else {
             console.log('➡️ A pergunta já tinha sido respondida — seguindo para a próxima dupla.');
             Game.engine.turn.nextTurn();
         }
     } else {
-        if (cancelarAssessoriaPendente(round)) return;
+        if (cancelPendingAdvisory(round)) return;
         // Fora da dupla, o host vê a tela de espectador, como veria sem
         // o F5 (pickNewPair() faz a mesma escolha).
-        const naDupla = state.playerName === round.perguntador || state.playerName === round.respondedor;
-        if (naDupla) {
+        const inPair = state.playerName === round.perguntador || state.playerName === round.respondedor;
+        if (inPair) {
             Game.ui.displayRoundStart();
             if (round.pergunta) {
                 Game.ui.displayQuestion(round.pergunta);
@@ -137,7 +136,7 @@ function retomarPartidaAposRecarregar() {
         } else {
             Game.ui.displaySpectatorView(round.perguntador, round.respondedor);
         }
-        Game.engine.turn.armarRespostaTimeout(round.respondedor);
+        Game.engine.turn.armAnswerTimeout(round.respondedor);
         Game.ui.refreshNovaRodadaButton();
     }
 }
@@ -145,7 +144,7 @@ function retomarPartidaAposRecarregar() {
 /**
  * No F5 do host, um pedido de assessoria ainda sem resposta é
  * cancelado. O prazo de 20s do assessor (setTimeout de
- * advisoryEngine.handleAssessoriaRequest()) se perde com a página, e o
+ * advisoryEngine.handleAdvisoryRequest()) se perde com a página, e o
  * assessor perde a pergunta (a reconexão fecha os modais) — sem cancelar,
  * a rodada ficaria presa esperando uma resposta que não vem. Quem
  * responde pode pedir de novo; é o mesmo resultado de uma troca de host.
@@ -155,27 +154,27 @@ function retomarPartidaAposRecarregar() {
  * @returns {boolean} true se processou a resposta guardada (a pergunta
  *   não deve ser reexibida)
  */
-function cancelarAssessoriaPendente(round) {
+function cancelPendingAdvisory(round) {
     if (!round.assessoria || round.assessoria.status !== 'pending') return false;
 
     console.log('🧭 Pedido de assessoria sem resposta cancelado pelo F5 do host — quem responde pode pedir de novo.');
     round.assessoria = null;
 
     if (!round.pendingAnswer) return false;
-    const pendente = round.pendingAnswer;
+    const pending = round.pendingAnswer;
     round.pendingAnswer = null;
-    Game.engine.answer.handleAnswer(pendente);
+    Game.engine.answer.handleAnswer(pending);
     return true;
 }
 
 /**
- * O jogador terminou a última fase? Mesma condição usada por
+ * O jogador terminou a última área foco? Mesma condição usada por
  * answerEngine.handleAnswer() para encerrar a partida depois da resposta.
  */
-function completouUltimaFase(jogador) {
-    if (!jogador) return false;
-    return Game.getFocusAreaIndex(jogador.phase) === CONFIG.FASES.length - 1 &&
-        jogador.activities >= CONFIG.JOGO.ACTIVITIES_PER_PHASE;
+function completedLastFocusArea(player) {
+    if (!player) return false;
+    return Game.getFocusAreaIndex(player.phase) === CONFIG.FASES.length - 1 &&
+        player.activities >= CONFIG.JOGO.ACTIVITIES_PER_PHASE;
 }
 
 /**
@@ -186,8 +185,8 @@ function endGame(ranking) {
     state.gameOver = true;
     clearInterval(state.timerInterval);
 
-    cancelarPrazosDaRodada();
-    cancelarPedidoDeAjuda();
+    cancelRoundTimeouts();
+    cancelHelpRequest();
     state.currentRound = null;
     // O ranking do fim da partida fica guardado (estado salvo e
     // state-sync) — um F5 ou quem volta à sala vê o mesmo ranking.
@@ -197,7 +196,7 @@ function endGame(ranking) {
         Game.network.broadcastAll({ type: 'game-over', ranking });
     }
 
-    mostrarFimDeJogo();
+    showGameOver();
     Game.saveState();
 }
 
@@ -206,7 +205,7 @@ function endGame(ranking) {
  * Respondedor e o do assessor. Usada no fim de jogo, ao encerrar a
  * partida e quando a dupla é trocada (abortRoundIfParticipant()).
  */
-function cancelarPrazosDaRodada() {
+function cancelRoundTimeouts() {
     const state = Game.state;
     if (state.assessoriaTimeout) {
         clearTimeout(state.assessoriaTimeout);
@@ -222,7 +221,7 @@ function cancelarPrazosDaRodada() {
  * Cancela o pedido de ajuda em andamento (prazo da oferta atual e a
  * fila). Usada no fim de jogo e ao encerrar a partida.
  */
-function cancelarPedidoDeAjuda() {
+function cancelHelpRequest() {
     const state = Game.state;
     if (state.ajudaTimeout) {
         clearTimeout(state.ajudaTimeout);
@@ -238,7 +237,7 @@ function cancelarPedidoDeAjuda() {
  * quem volta à sala depois do fim de jogo (restoreState(), em
  * network/messageHandler.js) — nos dois casos, a partida não recomeça.
  */
-function mostrarFimDeJogo() {
+function showGameOver() {
     const state = Game.state;
     Game.ui.showScreen('gameover');
     Game.ui.displayFinalRanking(state.rankingFinal || buildRanking());
@@ -251,18 +250,18 @@ function endMatch() {
     if (!Game.state.isHost) return;
     if (!confirm('🏁 Encerrar a partida? Todos voltarão ao lobby com KPI zerado.')) return;
 
-    cancelarPrazosDaRodada();
-    cancelarPedidoDeAjuda();
+    cancelRoundTimeouts();
+    cancelHelpRequest();
 
     // Quem caiu durante a partida e não voltou sai da lista
     // antes de ir para o lobby — o 'match-ended' já leva a lista limpa
     // para os guests (ver handleMatchEnded()).
-    const removidos = Game.mutations.removeDisconnectedPlayers(Game.state);
-    if (removidos.length) console.log('🧹 Removidos ao voltar ao lobby (desconectados): ' + removidos.join(', '));
+    const removed = Game.mutations.removeDisconnectedPlayers(Game.state);
+    if (removed.length) console.log('🧹 Removidos ao voltar ao lobby (desconectados): ' + removed.join(', '));
 
     Game.resetAllPlayers();
     Game.resetGameState();
-    resetAllBaralhos();
+    resetAllDecks();
 
     Game.network.broadcastAll({ type: 'match-ended', players: Game.state.players });
     Game.ui.showScreen('lobby');
@@ -280,7 +279,7 @@ function handleMatchEnded(msg) {
     Game.state.players = msg.players;
     Game.resetAllPlayers();
     Game.resetGameState();
-    resetAllBaralhos();
+    resetAllDecks();
     Game.ui.showScreen('lobby');
     Game.ui.showLobbyNormal();
     Game.ui.updatePlayersList();
@@ -303,15 +302,15 @@ function handleMatchEnded(msg) {
  * botão "Iniciar" não contaria esse jogador). Por isso o host sempre
  * manda a lista atualizada.
  */
-function voltarAoLobby() {
+function backToLobby() {
     const state = Game.state;
 
-    const removidos = Game.mutations.removeDisconnectedPlayers(state);
-    if (removidos.length) console.log('🧹 Removidos ao voltar ao lobby (desconectados): ' + removidos.join(', '));
+    const removed = Game.mutations.removeDisconnectedPlayers(state);
+    if (removed.length) console.log('🧹 Removidos ao voltar ao lobby (desconectados): ' + removed.join(', '));
 
     Game.resetAllPlayers();
     Game.resetGameState();
-    resetAllBaralhos();
+    resetAllDecks();
 
     if (state.isHost) {
         Game.network.broadcastAll({ type: 'player-list', players: state.players });
@@ -340,7 +339,7 @@ function buildRanking() {
 /**
  * Reinicia todos os baralhos (usado ao voltar ao lobby / preparar nova partida).
  */
-function resetAllBaralhos() {
+function resetAllDecks() {
     Game.domain.deck.resetAllDecks(Game.state.baralhos);
     console.log('🔄 Baralhos de perguntas resetados para a próxima partida.');
 }
@@ -413,7 +412,7 @@ function abortRoundIfParticipant(playerName) {
         (round.perguntador === playerName || round.respondedor === playerName)) {
         console.warn('⚠️ Participante da rodada atual ficou indisponível — abortando rodada e sorteando nova.');
         // O pedido de ajuda não é da rodada: continua com a dupla nova.
-        cancelarPrazosDaRodada();
+        cancelRoundTimeouts();
         state.currentRound = null;
         Game.engine.turn.pickNewPair();
     }
@@ -441,15 +440,15 @@ window.Game = window.Game || {};
 window.Game.engine = window.Game.engine || {};
 window.Game.engine.session = {
     startGame,
-    iniciarRelogio,
-    retomarPartidaAposRecarregar,
+    startClock,
+    resumeMatchAfterReload,
     endGame,
-    mostrarFimDeJogo,
+    showGameOver,
     endMatch,
     handleMatchEnded,
-    voltarAoLobby,
+    backToLobby,
     buildRanking,
-    resetAllBaralhos,
+    resetAllDecks,
     endSession,
     leaveMatch,
     handleLeaveMatchRequest,
