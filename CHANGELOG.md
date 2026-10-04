@@ -9,10 +9,15 @@ não é mais um arquivo de arquivo morto.
 
 ---
 
-## [Sem versão] - 2026-10-03 — Fase D: conexão, identidade e troca de host
+## [Sem versão] - 2026-10-03 — Fase D: conexão, identidade e troca de host (em fechamento)
 
 Detalhes de cada bug corrigido (sintoma, causa e testes) em
 `_docs/ISSUES.md`; mapa de casos cobertos e testes manuais pendentes em
+`_docs/testes-conexao.md`.
+
+**Pendente para fechar a fase:** os testes manuais P1 que não dão para
+automatizar — M9 (redes diferentes), M7 (queda de rede real) e M8
+(celular com tela bloqueada). Os roteiros estão na seção 7 de
 `_docs/testes-conexao.md`.
 
 ### Added
@@ -34,9 +39,17 @@ Detalhes de cada bug corrigido (sintoma, causa e testes) em
   A sala é encontrada em qualquer versão, inclusive pela tela inicial
   (`js/network/hostSearch.js`).
 - **Opções do PeerJS num lugar só** (`CONFIG.PEER`).
-- **Testes automatizados** no GitHub Actions: lógica
-  (`tests/faseD.test.js`, 61 testes) e ponta a ponta com o jogo real no
-  Chromium (`tests/e2e`, 10 cenários).
+- **Versão no estado salvo:** o estado guardado no navegador tem um
+  número de versão e passa por migração antes de ser restaurado
+  (`js/utils/persistence.js`) — pré-requisito da Fase E.
+- **Fim de jogo guardado:** um F5 na tela final volta ao mesmo ranking;
+  quem cai no fim de jogo pode voltar à sala e vê o ranking.
+- **Testes automatizados** no GitHub Actions, a cada push: lógica do
+  jogo com rede simulada (`tests/logic`, 75 testes em 7 arquivos por
+  assunto) e o jogo real em várias janelas do Chromium
+  (`tests/browser`, 17 cenários).
+- **Roteiros dos testes manuais P1** (M9, M7, M8) em
+  `_docs/testes-conexao.md`.
 
 ### Changed
 - Saída da página (fechar aba, F5) encerra as conexões na hora, para os
@@ -50,9 +63,37 @@ Detalhes de cada bug corrigido (sintoma, causa e testes) em
   `js/engine/sessionEngine.js` (`retomarPartidaAposRecarregar()`).
 - "Voltar ao lobby" zera os jogadores e tira da lista quem estava
   desconectado.
+- Quem assume como host usa a mesma contagem do relógio do início da
+  partida; saiu o aviso de troca de host que não chegava a ninguém.
+- Quem caiu fica fora do pedido de ajuda e não pode ser chamado como
+  assessor.
+- Mais espaço entre o lembrete do tabuleiro e o botão OK.
+- Testes reorganizados por assunto (`tests/logic`, `tests/browser`),
+  com nomes de arquivos e funções em inglês.
+- Limpeza: prazos (resposta, assessoria, pedido de ajuda) cancelados
+  num lugar só; removidos código sem uso e `js/dev/debugTools.js`
+  (tinha uma cópia própria das regras — um simulador de balanceamento
+  com as regras reais está no roadmap, 7.9); comentários do código
+  explicam só o funcionamento (fase, bug e roadmap ficam nos
+  documentos).
 
 ### Fixed
 - BUG-008 a BUG-018 (inclusive B1–B5 do checklist de conexão).
+- BUG-019: F5 do host com um pedido de assessoria sem resposta travava
+  a rodada.
+- BUG-020: depois do F5, o host fora da dupla via a área da pergunta;
+  etiquetas de domínio e área vazias.
+- BUG-021: F5 na tela de fim de jogo recomeçava a partida (host) ou
+  recusava o jogador (guest).
+- BUG-022: pedido de ajuda e assessoria esperavam 20s por quem tinha
+  caído.
+- BUG-023: nome com "&" aparecia como "&amp;" no aviso de ajuda.
+
+### Known issues
+- As respostas das perguntas não são secretas: o arquivo
+  `data/questions.pt-BR.json` é público no site e o baralho vai com o
+  gabarito a quem reconecta. Ocultar está no roadmap (4.4); por ora,
+  vale a regra da aula.
 
 ### Security
 - **SEC-003:** o nome do host não pode mais ser tomado por quem entra.

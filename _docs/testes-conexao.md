@@ -199,6 +199,7 @@ janelas visíveis lado a lado (aba em segundo plano fica mais lenta).
 - ⚠️ Abas do mesmo navegador compartilham o token e o estado salvo; trocar de navegador, usar aba anônima ou limpar os dados no meio da partida perde a identidade (só volta no lobby).
 - ⚠️ Janela de menos de 1s em que o host antigo, recarregando exatamente enquanto o backup assume, pode reabrir a sala antiga (dois hosts).
 - ⚠️ A procura da sala olha até 5 trocas de host seguidas (`-h5`).
+- ⚠️ As respostas não são secretas: `data/questions.pt-BR.json` é público no site e quem reconecta recebe o baralho com o gabarito (quem assume como host precisa dele). Ocultar é melhoria futura (roadmap 4.4); por ora, vale a regra da aula.
 - ⚠️ Depois de 5 tentativas sem achar o novo host, o guest desiste (precisa recarregar).
 - ⚠️ Diferença de ~1s entre o relógio do host e o dos guests que reconectam.
 - ⚠️ **Em investigação:** travamentos do Edge no Windows (uma vez travou o computador inteiro; outra, ~5s ao criar sala). Reproduzindo o mesmo cenário no Chromium (mesmo motor do Edge), a página não travou: nenhuma tarefa acima de 100 ms, e memória e elementos da página estáveis durante a partida. Falta medir no próprio Edge (Gerenciador de Tarefas do navegador, Shift+Esc) e comparar com o Chrome na mesma máquina.

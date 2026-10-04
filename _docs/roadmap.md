@@ -53,6 +53,7 @@
 | 4.1 | **Autenticação de jogadores** | ✅ Feito na **Fase D** (seção 9): token de identidade por sala em `localStorage`; o host guarda só o hash e exige o token na reconexão. Limitação aceita: trocar de navegador/aba anônima ou limpar os dados no meio da partida perde a identidade. |
 | 4.2 | **Validação de ações do host** | O host é a fonte da verdade, mas suas ações devem ser validadas (ex: não pode conceder KPI indevidamente). Atualmente já há alguma validação, mas pode ser reforçada. |
 | 4.3 | **Criptografia de ponta a ponta** | PeerJS suporta `secure: true` para conexões WebRTC criptografadas. Ativar para proteção de dados sensíveis. |
+| 4.4 | **Ocultar as perguntas e o gabarito** | Hoje as respostas não são secretas: `data/questions.pt-BR.json` é público no site (qualquer um abre no navegador) e quem reconecta recebe o baralho com o gabarito no `state-sync` (quem assume como host precisa dele). Ocultar exige tirar o gabarito do arquivo público (ex.: só o host carrega as respostas, de um lugar não publicado) e mandar a quem reconecta só o que foi usado do baralho. Por ora, vale a regra da aula (não abrir o F12 nem o arquivo de perguntas). |
 
 ---
 
