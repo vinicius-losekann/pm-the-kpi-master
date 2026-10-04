@@ -7,13 +7,13 @@
 // engine/tradeEngine.js.
 // ============================================
 
-let ofertaAjudaAtual = null;
+let currentHelpOffer = null;
 
 /**
  * Abre a modal de status e dispara o pedido de ajuda. Não pede pra
  * escolher ninguém — a fila é automática (ver tradeEngine.js).
  */
-function iniciarPedidoAjuda() {
+function startHelpRequest() {
     document.getElementById('ajudaTentandoCom').textContent = '...';
     document.getElementById('modalPedirAjuda').style.display = 'flex';
     Game.core.requestHelp();
@@ -24,7 +24,7 @@ function iniciarPedidoAjuda() {
  * a fila continua rodando em segundo plano (mesmo comportamento que o
  * antigo "Cancelar" da modal de venda já tinha).
  */
-function fecharPedirAjudaModal() {
+function closeHelpRequestModal() {
     document.getElementById('modalPedirAjuda').style.display = 'none';
 }
 
@@ -32,7 +32,7 @@ function fecharPedirAjudaModal() {
  * Atualiza a modal de status de quem pediu ajuda, mostrando pra quem
  * o pedido está sendo feito agora (a fila avança automaticamente).
  */
-function showAjudaTentando(msg) {
+function showHelpCandidate(msg) {
     // textContent já mostra o texto como texto (sem interpretar HTML) —
     // escapar aqui fazia "Ana & Bia" aparecer como "Ana &amp; Bia".
     const el = document.getElementById('ajudaTentandoCom');
@@ -42,8 +42,8 @@ function showAjudaTentando(msg) {
 /**
  * Exibe ao candidato o pedido de ajuda recebido.
  */
-function showAjudaOfertaModal(msg) {
-    ofertaAjudaAtual = msg;
+function showHelpOfferModal(msg) {
+    currentHelpOffer = msg;
     document.getElementById('ajudaOfertaTexto').innerHTML =
         Game.i18n.t('trade.pedidoRecebido', { requester: Game.sanitize.escapeHtml(msg.requesterName) });
     document.getElementById('modalAjudaOferta').style.display = 'flex';
@@ -52,14 +52,14 @@ function showAjudaOfertaModal(msg) {
 /**
  * Envia a resposta do candidato (aceite/recusa) ao host.
  */
-function responderOfertaAjuda(aceito) {
+function respondToHelpOffer(accepted) {
     document.getElementById('modalAjudaOferta').style.display = 'none';
-    if (!ofertaAjudaAtual) return;
+    if (!currentHelpOffer) return;
 
     const msg = {
         type: 'ajuda-oferta-response',
         candidatoName: Game.state.playerName,
-        aceito: !!aceito
+        aceito: !!accepted
     };
 
     if (Game.state.isHost) {
@@ -67,19 +67,19 @@ function responderOfertaAjuda(aceito) {
     } else {
         Game.network.sendToHost(msg);
     }
-    ofertaAjudaAtual = null;
+    currentHelpOffer = null;
 }
 
 /**
  * Jogador que pediu ajuda: mensagem de que ninguém pôde ajudar agora
  * (não é fim de jogo — ver motivo pra explicar o caminho de volta).
  */
-function showAjudaSemCandidatos(msg) {
+function showHelpNoCandidates(msg) {
     document.getElementById('modalPedirAjuda').style.display = 'none';
-    const chave = msg.motivo === 'kpi-insuficiente'
+    const key = msg.motivo === 'kpi-insuficiente'
         ? 'trade.semKpiParaPedirAjuda'
         : 'trade.ninguemPodeAjudar';
-    alert(Game.i18n.t(chave));
+    alert(Game.i18n.t(key));
 }
 
 // ============================================
@@ -88,10 +88,10 @@ function showAjudaSemCandidatos(msg) {
 window.Game = window.Game || {};
 window.Game.ui = window.Game.ui || {};
 Object.assign(window.Game.ui, {
-    iniciarPedidoAjuda,
-    fecharPedirAjudaModal,
-    showAjudaTentando,
-    showAjudaOfertaModal,
-    responderOfertaAjuda,
-    showAjudaSemCandidatos
+    startHelpRequest,
+    closeHelpRequestModal,
+    showHelpCandidate,
+    showHelpOfferModal,
+    respondToHelpOffer,
+    showHelpNoCandidates
 });

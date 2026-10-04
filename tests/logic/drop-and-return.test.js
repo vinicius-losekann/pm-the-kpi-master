@@ -75,7 +75,7 @@ test('T6  Pausa quando falta só conexão, retomada com o mesmo evento', (usar) 
     check(amb.state.partidaPausada, 'partida deveria estar pausada');
     check(amb.state.currentRound === null, 'não deveria haver rodada durante a pausa');
     check(amb.broadcastsOfType('partida-pausada').length === 1, 'deveria ter avisado os guests da pausa');
-    check(amb.registro.ui.includes('showPartidaPausadaMessage'), 'host deveria ver o aviso de pausa');
+    check(amb.registro.ui.includes('showMatchPausedMessage'), 'host deveria ver o aviso de pausa');
     const eventoPausado = amb.state.partidaPausada.evento;
 
     amb.clearLog();
@@ -246,7 +246,7 @@ test('T33 Reconexão com a partida ainda pausada: aviso de pausa, sem pergunta',
     const guest = usar(createEnvironment());
     guest.receiveSync('B', sync);
     const telas = roundScreens(guest);
-    check(telas.includes('showPartidaPausadaMessage'), 'B deveria ver o aviso de pausa, viu: ' + telas.join(', '));
+    check(telas.includes('showMatchPausedMessage'), 'B deveria ver o aviso de pausa, viu: ' + telas.join(', '));
     check(!telas.includes('displayQuestion') && guest.state.currentRound === null, 'B não pode ver pergunta durante a pausa');
 });
 

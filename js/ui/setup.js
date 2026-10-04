@@ -67,7 +67,7 @@ function setupUI() {
     // Recalcula o estado real do botão "Nova Rodada" (ciclo completo ou
     // não) — cobre tanto a inicialização normal quanto becomeHost()
     // (guest assumindo como host no meio de uma partida em andamento).
-    Game.ui.refreshNovaRodadaButton();
+    Game.ui.refreshNewRoundButton();
 
     if (commonListenersBound) return;
 
@@ -96,15 +96,15 @@ function setupUI() {
     });
 
     document.getElementById('btnFecharPedirAjuda').addEventListener('click', () => {
-        Game.ui.fecharPedirAjudaModal();
+        Game.ui.closeHelpRequestModal();
     });
 
     document.getElementById('btnAceitarAjudaOferta').addEventListener('click', () => {
-        Game.ui.responderOfertaAjuda(true);
+        Game.ui.respondToHelpOffer(true);
     });
 
     document.getElementById('btnRecusarAjudaOferta').addEventListener('click', () => {
-        Game.ui.responderOfertaAjuda(false);
+        Game.ui.respondToHelpOffer(false);
     });
 
     document.getElementById('btnFecharAssessoriaSelect').addEventListener('click', () => {
@@ -112,7 +112,7 @@ function setupUI() {
     });
 
     document.getElementById('btnRecusarAssessoria').addEventListener('click', () => {
-        Game.ui.responderAssessoria(null, true);
+        Game.ui.answerAdvisory(null, true);
     });
 
     commonListenersBound = true;

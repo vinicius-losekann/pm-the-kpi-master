@@ -23,7 +23,7 @@ function startNewRound() {
     // rodízio de quem já respondeu precisa estar zerado — independente
     // de quem chamou esta função.
     state.usedRespondedorThisRound = [];
-    Game.ui.refreshNovaRodadaButton();
+    Game.ui.refreshNewRoundButton();
 
     const event = Game.domain.event.drawEvent(state.questionsData?.eventos || []);
     if (!event) {
@@ -75,7 +75,7 @@ function pickNewPair(event = null, depth = 0, showModal = true) {
     // (parâmetro explícito) — não a cada pergunta dentro do mesmo ciclo.
     if (showModal) {
         Game.network.broadcastAll({ type: 'show-evento', evento: event, players: state.players });
-        Game.ui.showEventoModal(event);
+        Game.ui.showEventModal(event);
     }
 
     const activePlayers = Game.getActivePlayers();
@@ -92,8 +92,8 @@ function pickNewPair(event = null, depth = 0, showModal = true) {
             state.currentRound = null;
             state.partidaPausada = { evento: event };
             Game.network.broadcastAll({ type: 'partida-pausada' });
-            Game.ui.showPartidaPausadaMessage();
-            Game.ui.refreshNovaRodadaButton();
+            Game.ui.showMatchPausedMessage();
+            Game.ui.refreshNewRoundButton();
             Game.saveState();
             return;
         }
@@ -195,7 +195,7 @@ function pickNewPair(event = null, depth = 0, showModal = true) {
     // Timeout de segurança para o Respondedor
     armAnswerTimeout(answerer.name);
 
-    Game.ui.refreshNovaRodadaButton();
+    Game.ui.refreshNewRoundButton();
     Game.saveState();
 }
 
@@ -251,7 +251,7 @@ function endRoundIfCycleComplete() {
 
     console.log('✅ Todos os jogadores ativos já responderam nesta rodada. Aguardando o host clicar em "Nova Rodada".');
     state.rodadaEncerrada = true;
-    Game.ui.refreshNovaRodadaButton();
+    Game.ui.refreshNewRoundButton();
     Game.network.broadcastAll({ type: 'round-ended' });
     Game.ui.showRoundEndedMessage();
     Game.saveState();

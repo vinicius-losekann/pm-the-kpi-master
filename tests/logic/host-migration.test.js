@@ -189,7 +189,7 @@ test('T21 Migração com rodada que o novo host não conduz: descarta, pausa e r
     check(amb.state.currentRound === null, 'a rodada do host antigo deveria ter sido descartada');
     check(amb.state.partidaPausada && amb.state.partidaPausada.evento === eventoDaRodada,
         'a partida deveria pausar guardando o MESMO evento');
-    check(!amb.registro.ui.includes('showEventoModal'), 'não deveria reexibir o modal de evento');
+    check(!amb.registro.ui.includes('showEventModal'), 'não deveria reexibir o modal de evento');
 
     amb.clearLog();
     amb.join('B', 'peer-b2');

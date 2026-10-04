@@ -13,12 +13,12 @@
 // igual já existia para o contador da assessoria em advisoryModal.js.
 // ============================================
 
-let respostaCountdownInterval = null;
+let answerCountdownInterval = null;
 
 /**
  * Inicia (ou reinicia) o contador visível de tempo do Respondedor.
  */
-function startRespostaCountdown() {
+function startAnswerCountdown() {
     const timerEl = document.getElementById('respostaTimerText');
     if (!timerEl) return;
 
@@ -26,12 +26,12 @@ function startRespostaCountdown() {
     timerEl.style.display = 'block';
     timerEl.textContent = Game.i18n.t('question.tempoRestante', { seconds });
 
-    clearInterval(respostaCountdownInterval);
-    respostaCountdownInterval = setInterval(() => {
+    clearInterval(answerCountdownInterval);
+    answerCountdownInterval = setInterval(() => {
         seconds--;
         timerEl.textContent = Game.i18n.t('question.tempoRestante', { seconds: Math.max(seconds, 0) });
         if (seconds <= 0) {
-            clearInterval(respostaCountdownInterval);
+            clearInterval(answerCountdownInterval);
         }
     }, 1000);
 }
@@ -41,9 +41,9 @@ function startRespostaCountdown() {
  * responder, ou enquanto uma assessoria está pendente (o timeout real
  * também é pausado nesse período, ver turnEngine.js/advisoryEngine.js).
  */
-function stopRespostaCountdown() {
-    clearInterval(respostaCountdownInterval);
-    respostaCountdownInterval = null;
+function stopAnswerCountdown() {
+    clearInterval(answerCountdownInterval);
+    answerCountdownInterval = null;
     const timerEl = document.getElementById('respostaTimerText');
     if (timerEl) timerEl.style.display = 'none';
 }
@@ -66,8 +66,8 @@ function displayRoundStart() {
     // Reseta UI de assessoria
     document.getElementById('modalAssessoriaSelect').style.display = 'none';
     document.getElementById('modalAssessoriaQuestion').style.display = 'none';
-    const assessoriaArea = document.getElementById('assessoriaArea');
-    if (assessoriaArea) assessoriaArea.style.display = 'none';
+    const advisoryArea = document.getElementById('assessoriaArea');
+    if (advisoryArea) advisoryArea.style.display = 'none';
 
     // Reset defensivo da modal de resposta — displayQuestion() (chamada
     // logo em seguida, se este cliente for o Respondedor) é quem decide
@@ -77,17 +77,17 @@ function displayRoundStart() {
     // Reset defensivo do contador — displayQuestion() (chamada logo em
     // seguida, se este cliente for o Respondedor) é quem decide se ele
     // deve ligar de novo.
-    stopRespostaCountdown();
+    stopAnswerCountdown();
 }
 
 function displayQuestion(q) {
-    const isPerg = Game.state.playerName === Game.state.currentRound?.perguntador;
-    const isResp = Game.state.playerName === Game.state.currentRound?.respondedor;
+    const isAsker = Game.state.playerName === Game.state.currentRound?.perguntador;
+    const isAnswerer = Game.state.playerName === Game.state.currentRound?.respondedor;
     document.getElementById('questionText').textContent = q.question;
     document.getElementById('badgeDomain').textContent = q.domain;
     document.getElementById('badgeArea').textContent = q.area;
 
-    if (isResp && q.isRespondedor !== false) {
+    if (isAnswerer && q.isRespondedor !== false) {
         document.getElementById('allAlternativesArea').style.display = 'none';
         document.getElementById('roleNotice').style.display = 'none';
         document.getElementById('respModalQuestionText').textContent = q.question;
@@ -99,10 +99,10 @@ function displayQuestion(q) {
         const round = Game.state.currentRound;
         document.getElementById('respModalPerguntador').textContent = round?.perguntador || '---';
         document.getElementById('respModalRespondedor').textContent = round?.respondedor || '---';
-        const jaRespondeu = !!round?.respondeu;
-        const assessoriaPendente = round?.assessoria?.status === 'pending';
+        const alreadyAnswered = !!round?.respondeu;
+        const advisoryPending = round?.assessoria?.status === 'pending';
         document.querySelectorAll('.alternative-btn').forEach(b => {
-            b.disabled = jaRespondeu || assessoriaPendente;
+            b.disabled = alreadyAnswered || advisoryPending;
             b.className = 'alternative-btn';
         });
 
@@ -110,7 +110,7 @@ function displayQuestion(q) {
         // assessoria. Fica aberta mesmo com assessoria pendente (só os
         // botões ficam desabilitados); só fecha ao responder (ver
         // handleAlternativeClick) ou ao trocar de papel/rodada.
-        if (!jaRespondeu) {
+        if (!alreadyAnswered) {
             document.getElementById('modalResponderPergunta').style.display = 'flex';
         }
 
@@ -118,21 +118,21 @@ function displayQuestion(q) {
         // ainda pode responder (não respondeu e não há assessoria
         // pendente — mesmas condições em que o timeout real também
         // está ativo no host).
-        if (jaRespondeu || assessoriaPendente) {
-            stopRespostaCountdown();
+        if (alreadyAnswered || advisoryPending) {
+            stopAnswerCountdown();
         } else {
-            startRespostaCountdown();
+            startAnswerCountdown();
         }
 
         const me = Game.getPlayerByName(Game.state.playerName);
-        const emEncerramento = me && Game.getFocusAreaIndex(me.phase) === CONFIG.FASES.length - 1;
-        const semAssessorDisponivel = Game.getActivePlayers().length < 3;
-        const assessoriaArea = document.getElementById('assessoriaArea');
-        if (assessoriaArea) {
-            if (emEncerramento || semAssessorDisponivel || jaRespondeu) {
-                assessoriaArea.style.display = round?.assessoria ? 'block' : 'none';
+        const inClosingFocusArea = me && Game.getFocusAreaIndex(me.phase) === CONFIG.FASES.length - 1;
+        const noAdvisorAvailable = Game.getActivePlayers().length < 3;
+        const advisoryArea = document.getElementById('assessoriaArea');
+        if (advisoryArea) {
+            if (inClosingFocusArea || noAdvisorAvailable || alreadyAnswered) {
+                advisoryArea.style.display = round?.assessoria ? 'block' : 'none';
             } else {
-                assessoriaArea.style.display = 'block';
+                advisoryArea.style.display = 'block';
             }
 
             if (round?.assessoria) {
@@ -146,12 +146,12 @@ function displayQuestion(q) {
                 } else if (st.status === 'declined') {
                     statusEl.textContent = Game.i18n.t('advisory.recusado', { assessor: st.assessorName });
                 }
-            } else if (!jaRespondeu) {
+            } else if (!alreadyAnswered) {
                 document.getElementById('btnPedirAssessoria').disabled = false;
                 document.getElementById('assessoriaStatus').textContent = '';
             }
         }
-    } else if (isPerg || q.isPerguntador) {
+    } else if (isAsker || q.isPerguntador) {
         document.getElementById('modalResponderPergunta').style.display = 'none';
         document.getElementById('allAlternativesArea').style.display = 'block';
         document.getElementById('roleNotice').style.display = 'block';
@@ -163,9 +163,9 @@ function displayQuestion(q) {
             return `<div style="padding:12px 16px; background:${isCorrect ? 'rgba(0,255,136,0.12)' : 'rgba(255,255,255,0.03)'}; border:2px solid ${isCorrect ? 'rgba(0,255,136,0.4)' : 'rgba(255,255,255,0.08)'}; border-radius:10px; color:${isCorrect ? '#00ff88' : '#e0e0e0'}; font-size:0.9rem; ${isCorrect ? 'font-weight:600;' : ''}">${isCorrect ? '✅ ' : ''}${alt}</div>`;
         }).join('');
 
-        const assessoriaAreaPerg = document.getElementById('assessoriaArea');
-        if (assessoriaAreaPerg) assessoriaAreaPerg.style.display = 'none';
-        stopRespostaCountdown();
+        const askerAdvisoryArea = document.getElementById('assessoriaArea');
+        if (askerAdvisoryArea) askerAdvisoryArea.style.display = 'none';
+        stopAnswerCountdown();
     }
 }
 
@@ -177,7 +177,7 @@ function displayQuestion(q) {
  * comum, já que não há mais papéis distintos até a próxima rodada.
  */
 function showRoundEndedMessage() {
-    stopRespostaCountdown();
+    stopAnswerCountdown();
     document.getElementById('modalResponderPergunta').style.display = 'none';
     document.getElementById('questionArea').style.display = 'none';
     document.getElementById('spectatorArea').style.display = 'block';
@@ -191,22 +191,22 @@ function showRoundEndedMessage() {
  * suficientes para formar uma dupla. A partida retoma sozinha quando
  * alguém reconectar (host: turnEngine.resumePausedMatch()).
  */
-function showPartidaPausadaMessage() {
-    stopRespostaCountdown();
+function showMatchPausedMessage() {
+    stopAnswerCountdown();
     document.getElementById('modalResponderPergunta').style.display = 'none';
     document.getElementById('questionArea').style.display = 'none';
     document.getElementById('spectatorArea').style.display = 'block';
     document.getElementById('spectatorMessage').textContent = Game.i18n.t('question.partidaPausada');
 }
 
-function displaySpectatorView(perguntador, respondedor) {
+function displaySpectatorView(asker, answerer) {
     document.getElementById('questionArea').style.display = 'none';
     document.getElementById('spectatorArea').style.display = 'block';
-    document.getElementById('spectatorMessage').textContent = Game.i18n.t('spectator.aguardandoPergunta', { perguntador, respondedor });
+    document.getElementById('spectatorMessage').textContent = Game.i18n.t('spectator.aguardandoPergunta', { perguntador: asker, respondedor: answerer });
     document.getElementById('modalResponderPergunta').style.display = 'none';
-    const assessoriaArea = document.getElementById('assessoriaArea');
-    if (assessoriaArea) assessoriaArea.style.display = 'none';
-    stopRespostaCountdown();
+    const advisoryArea = document.getElementById('assessoriaArea');
+    if (advisoryArea) advisoryArea.style.display = 'none';
+    stopAnswerCountdown();
 }
 
 function handleAlternativeClick(alt, btn) {
@@ -215,7 +215,7 @@ function handleAlternativeClick(alt, btn) {
     if (state.playerName !== state.currentRound.respondedor) return;
     document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = true);
     btn.classList.add('selected');
-    stopRespostaCountdown();
+    stopAnswerCountdown();
     document.getElementById('modalResponderPergunta').style.display = 'none';
     if (state.isHost) {
         Game.core.handleAnswer({ alternativa: alt, playerName: state.playerName });
@@ -235,8 +235,8 @@ Object.assign(window.Game.ui, {
     displayQuestion,
     displaySpectatorView,
     handleAlternativeClick,
-    startRespostaCountdown,
-    stopRespostaCountdown,
+    startAnswerCountdown,
+    stopAnswerCountdown,
     showRoundEndedMessage,
-    showPartidaPausadaMessage
+    showMatchPausedMessage
 });

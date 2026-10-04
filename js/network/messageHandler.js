@@ -125,7 +125,7 @@ function handleMessage(msg, fromPeerId) {
         // 'round-start' quando alguém reconectar.
         case 'partida-pausada':
             state.currentRound = null;
-            Game.ui.showPartidaPausadaMessage();
+            Game.ui.showMatchPausedMessage();
             break;
 
         case 'question':
@@ -161,7 +161,7 @@ function handleMessage(msg, fromPeerId) {
             if (msg.players) {
                 state.players = msg.players;
             }
-            Game.ui.showEventoModal(msg.evento);
+            Game.ui.showEventModal(msg.evento);
             Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
             break;
 
@@ -173,11 +173,11 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'assessoria-started':
-            Game.ui.showAssessoriaStarted(msg);
+            Game.ui.showAdvisoryStarted(msg);
             break;
 
         case 'assessoria-question':
-            Game.ui.showAssessoriaQuestionModal(msg);
+            Game.ui.showAdvisoryQuestionModal(msg);
             break;
 
         case 'assessoria-answer':
@@ -192,7 +192,7 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'assessoria-result':
-            Game.ui.showAssessoriaResult(msg);
+            Game.ui.showAdvisoryResult(msg);
             break;
 
         // --- PEDIDO DE AJUDA ---
@@ -203,11 +203,11 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'ajuda-tentando':
-            Game.ui.showAjudaTentando(msg);
+            Game.ui.showHelpCandidate(msg);
             break;
 
         case 'ajuda-oferta':
-            Game.ui.showAjudaOfertaModal(msg);
+            Game.ui.showHelpOfferModal(msg);
             break;
 
         case 'ajuda-oferta-response':
@@ -217,7 +217,7 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'ajuda-sem-candidatos':
-            Game.ui.showAjudaSemCandidatos(msg);
+            Game.ui.showHelpNoCandidates(msg);
             break;
 
         case 'ajuda-confirmada':
@@ -233,7 +233,7 @@ function handleMessage(msg, fromPeerId) {
             }
             Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
             if (state.playerName === msg.requester) {
-                Game.ui.fecharPedirAjudaModal();
+                Game.ui.closeHelpRequestModal();
             }
             console.log('🆘 Ajuda confirmada:', msg.doador, '→', msg.requester);
             break;
@@ -512,7 +512,7 @@ function restoreState(fullState) {
 
         if (fullState.partidaPausada) {
             state.currentRound = null;
-            Game.ui.showPartidaPausadaMessage();
+            Game.ui.showMatchPausedMessage();
         } else if (state.rodadaEncerrada) {
             Game.ui.showRoundEndedMessage();
         } else if (state.currentRound && state.currentRound.respondeu) {

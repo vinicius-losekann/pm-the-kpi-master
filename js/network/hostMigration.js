@@ -400,7 +400,7 @@ function becomeHost() {
                 state.currentRound = null;
                 state.rodadaEncerrada = true;
                 Game.ui.showRoundEndedMessage();
-                Game.ui.refreshNovaRodadaButton();
+                Game.ui.refreshNewRoundButton();
             } else if (!round) {
                 Game.core.pickNewPair();
             } else if (!canContinueRound) {

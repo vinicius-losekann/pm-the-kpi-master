@@ -107,12 +107,12 @@ function resumeMatchAfterReload() {
     if (state.partidaPausada) {
         console.log('⏸️ A partida estava pausada — continua pausada até alguém reconectar.');
         state.currentRound = null;
-        Game.ui.showPartidaPausadaMessage();
-        Game.ui.refreshNovaRodadaButton();
+        Game.ui.showMatchPausedMessage();
+        Game.ui.refreshNewRoundButton();
     } else if (state.rodadaEncerrada) {
         console.log('✅ A rodada já tinha terminado — aguardando o host clicar em "Nova Rodada".');
         Game.ui.showRoundEndedMessage();
-        Game.ui.refreshNovaRodadaButton();
+        Game.ui.refreshNewRoundButton();
     } else if (!round) {
         Game.engine.turn.pickNewPair();
     } else if (questionAlreadyAnswered) {
@@ -137,7 +137,7 @@ function resumeMatchAfterReload() {
             Game.ui.displaySpectatorView(round.perguntador, round.respondedor);
         }
         Game.engine.turn.armAnswerTimeout(round.respondedor);
-        Game.ui.refreshNovaRodadaButton();
+        Game.ui.refreshNewRoundButton();
     }
 }
 

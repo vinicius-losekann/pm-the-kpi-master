@@ -66,7 +66,7 @@ Mensagem que chega sem um campo novo (de uma versão anterior do jogo) mantém o
 **Isto está deliberadamente inconsistente hoje** — é o assunto da Fase E do roadmap (tradução completa pra inglês, ainda não feita):
 
 - **Chaves de schema de dados** (`data/questions.*.json` e os campos que viajam com uma pergunta pela rede): já estão em inglês desde a Fase 8 (`domains`, `name`, `areas`, `questions`, `question`, `alternatives`, `correct`, `domain_key`). Motivo: precisam ser estáveis entre arquivos de idiomas diferentes (`questions.en-US.json` reusa as mesmas chaves, só traduz os valores).
-- **Identificadores internos do código** (nomes de função, variável, parâmetro): em tradução para inglês na Fase E, camada por camada (E1: domain → state → engine → network → ui → main; E2: campos do estado e mensagens de rede; E3: chaves de configuração, de eventos e de idioma; E4: IDs e classes do HTML/CSS). Já em inglês: `js/domain/` e os testes. **Código novo usa inglês e o glossário abaixo.**
+- **Identificadores internos do código** (nomes de função, variável, parâmetro): em tradução para inglês na Fase E, camada por camada (E1: domain → state → engine → network → ui → main; E2: campos do estado e mensagens de rede; E3: chaves de configuração, de eventos e de idioma; E4: IDs e classes do HTML/CSS). Já em inglês: `js/domain/`, `state/`, `engine/`, `network/`, `entry/`, `ui/` e os testes (falta `utils/` e `main.js`). **Código novo usa inglês e o glossário abaixo.**
 - **Glossário** (português → inglês), para todo o código usar os mesmos nomes:
 
   | Português | Inglês |

@@ -196,7 +196,7 @@ function updatePlayerKPI(msg) {
         if (msg.acertou !== undefined) {
             Game.ui.showResultModal(msg.acertou, msg.kpiGanho, msg.recursos);
         } else if (msg.assessoriaBonus) {
-            Game.ui.showAssessoriaBonusModal(msg.assessoriaBonus);
+            Game.ui.showAdvisoryBonusModal(msg.assessoriaBonus);
         }
     }
 }

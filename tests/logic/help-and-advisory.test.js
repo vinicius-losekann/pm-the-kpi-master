@@ -119,12 +119,12 @@ test('T71 Aviso "pedindo ajuda para…" mostra o nome como foi digitado (sem "&a
     vm.runInContext(fs.readFileSync(path.join(RAIZ, 'js/ui/modals/tradeModal.js'), 'utf8'), ctx, { filename: 'tradeModal.js' });
     const ui = vm.runInContext('Game.ui', ctx);
 
-    ui.showAjudaTentando({ candidatoName: 'Ana & Bia <3' });
+    ui.showHelpCandidate({ candidatoName: 'Ana & Bia <3' });
     check(elementos['ajudaTentandoCom'].textContent === 'Ana & Bia <3',
         'o nome deveria aparecer como foi digitado, apareceu: ' + elementos['ajudaTentandoCom'].textContent);
 
     // Controle: onde o nome entra como HTML, ele continua protegido.
-    ui.showAjudaOfertaModal({ requesterName: 'Ana & Bia <3' });
+    ui.showHelpOfferModal({ requesterName: 'Ana & Bia <3' });
     check(elementos['ajudaOfertaTexto'].innerHTML === 'trade.pedidoRecebido:Ana &amp; Bia &lt;3',
         'no pedido recebido (HTML), o nome deveria continuar protegido, veio: ' + elementos['ajudaOfertaTexto'].innerHTML);
 });

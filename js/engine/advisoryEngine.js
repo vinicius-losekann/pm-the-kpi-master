@@ -148,7 +148,7 @@ function handleAdvisoryAnswer(msg) {
     };
 
     Game.network.broadcastAll(resultMsg);
-    Game.ui.showAssessoriaResult(resultMsg);
+    Game.ui.showAdvisoryResult(resultMsg);
 
     // Rearma o timeout de resposta se a rodada ainda não foi respondida
     if (!state.currentRound.respondeu && !state.currentRound.pendingAnswer) {

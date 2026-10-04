@@ -5,23 +5,23 @@
 // exibição do resultado (sugestão, recusa ou timeout).
 // ============================================
 
-let assessoriaCountdownInterval = null;
+let advisoryCountdownInterval = null;
 
-function showAssessoriaSelectModal() {
+function showAdvisorySelectModal() {
     const state = Game.state;
     const round = state.currentRound;
     if (!round) return;
 
-    const candidatos = Game.getActivePlayers().filter(p =>
+    const candidates = Game.getActivePlayers().filter(p =>
         p.name !== round.perguntador && p.name !== state.playerName
     );
 
-    if (candidatos.length === 0) {
+    if (candidates.length === 0) {
         alert(Game.i18n.t('advisory.nenhumJogadorDisponivel'));
         return;
     }
 
-    document.getElementById('assessoriaJogadoresList').innerHTML = candidatos.map(p => `
+    document.getElementById('assessoriaJogadoresList').innerHTML = candidates.map(p => `
         <button class="btn btn-glass assessor-select-btn" data-assessor-name="${Game.sanitize.escapeHtml(p.name)}"
                 style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px;">
             <span>${Game.sanitize.escapeHtml(p.name)}</span>
@@ -30,28 +30,28 @@ function showAssessoriaSelectModal() {
     `).join('');
 
     // 🔴 Correção de segurança: nome do jogador vinha interpolado direto
-    // em onclick="Game.ui.escolherAssessor('${p.name}')". Escapar HTML
+    // em onclick="Game.ui.chooseAdvisor('${p.name}')". Escapar HTML
     // (&#39; etc.) NÃO protege esse caso — o navegador decodifica as
     // entidades antes de rodar o JS do onclick, reintroduzindo a aspas.
     // Por isso trocamos para data-attribute + addEventListener.
     document.querySelectorAll('#assessoriaJogadoresList .assessor-select-btn').forEach(btn => {
-        btn.addEventListener('click', () => escolherAssessor(btn.dataset.assessorName));
+        btn.addEventListener('click', () => chooseAdvisor(btn.dataset.assessorName));
     });
 
     document.getElementById('modalAssessoriaSelect').style.display = 'flex';
 }
 
-function escolherAssessor(assessorName) {
+function chooseAdvisor(advisorName) {
     document.getElementById('modalAssessoriaSelect').style.display = 'none';
-    const ok = Game.core.requestAdvisory(assessorName);
+    const ok = Game.core.requestAdvisory(advisorName);
     if (ok) {
         document.getElementById('btnPedirAssessoria').disabled = true;
-        document.getElementById('assessoriaStatus').textContent = Game.i18n.t('advisory.aguardandoResposta', { assessor: assessorName });
+        document.getElementById('assessoriaStatus').textContent = Game.i18n.t('advisory.aguardandoResposta', { assessor: advisorName });
         document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = true);
 
         if (Game.state.currentRound) {
             Game.state.currentRound.assessoria = {
-                assessorName,
+                assessorName: advisorName,
                 status: 'pending',
                 sugestao: null
             };
@@ -59,7 +59,7 @@ function escolherAssessor(assessorName) {
     }
 }
 
-function showAssessoriaStarted(msg) {
+function showAdvisoryStarted(msg) {
     const state = Game.state;
     if (state.playerName === state.currentRound?.respondedor) {
         document.getElementById('btnPedirAssessoria').disabled = true;
@@ -75,26 +75,26 @@ function showAssessoriaStarted(msg) {
     }
 }
 
-function showAssessoriaQuestionModal(msg) {
+function showAdvisoryQuestionModal(msg) {
     const round = Game.state.currentRound;
     document.getElementById('assessoriaModalPerguntador').textContent = round?.perguntador || '---';
     document.getElementById('assessoriaModalRespondedor').textContent = round?.respondedor || '---';
     document.getElementById('assessoriaQuestionText').textContent = msg.question;
     document.getElementById('assessoriaAlternativesList').innerHTML = msg.alternatives.map(alt => {
-        const letra = alt.charAt(0).toLowerCase();
-        return `<button class="btn btn-glass" onclick="Game.ui.responderAssessoria('${letra}', false)"
+        const letter = alt.charAt(0).toLowerCase();
+        return `<button class="btn btn-glass" onclick="Game.ui.answerAdvisory('${letter}', false)"
                     style="text-align:left; padding:10px 14px;">${alt}</button>`;
     }).join('');
 
     let seconds = Math.floor(CONFIG.JOGO.ASSESSORIA_TIMEOUT / 1000);
     document.getElementById('assessoriaTimerText').textContent = Game.i18n.t('advisory.tempoRestante', { seconds });
 
-    clearInterval(assessoriaCountdownInterval);
-    assessoriaCountdownInterval = setInterval(() => {
+    clearInterval(advisoryCountdownInterval);
+    advisoryCountdownInterval = setInterval(() => {
         seconds--;
         document.getElementById('assessoriaTimerText').textContent = Game.i18n.t('advisory.tempoRestante', { seconds: Math.max(seconds, 0) });
         if (seconds <= 0) {
-            clearInterval(assessoriaCountdownInterval);
+            clearInterval(advisoryCountdownInterval);
             document.getElementById('modalAssessoriaQuestion').style.display = 'none';
         }
     }, 1000);
@@ -102,12 +102,12 @@ function showAssessoriaQuestionModal(msg) {
     document.getElementById('modalAssessoriaQuestion').style.display = 'flex';
 }
 
-function responderAssessoria(alternativa, recusado) {
-    clearInterval(assessoriaCountdownInterval);
+function answerAdvisory(alternative, declined) {
+    clearInterval(advisoryCountdownInterval);
     document.getElementById('modalAssessoriaQuestion').style.display = 'none';
 
     const state = Game.state;
-    const msg = { type: 'assessoria-answer', alternativa, recusado: !!recusado };
+    const msg = { type: 'assessoria-answer', alternativa: alternative, recusado: !!declined };
 
     if (state.isHost) {
         Game.core.handleAdvisoryAnswer(msg);
@@ -116,7 +116,7 @@ function responderAssessoria(alternativa, recusado) {
     }
 }
 
-function showAssessoriaResult(msg) {
+function showAdvisoryResult(msg) {
     const state = Game.state;
     if (state.playerName !== state.currentRound?.respondedor) return;
 
@@ -147,8 +147,8 @@ function showAssessoriaResult(msg) {
     }
 
     if (msg.invalido && msg.motivo !== 'fase-encerramento') {
-        const btnPedir = document.getElementById('btnPedirAssessoria');
-        if (btnPedir && !state.currentRound.respondeu) btnPedir.disabled = false;
+        const requestButton = document.getElementById('btnPedirAssessoria');
+        if (requestButton && !state.currentRound.respondeu) requestButton.disabled = false;
 
         if (state.currentRound) {
             state.currentRound.assessoria = null;
@@ -162,10 +162,10 @@ function showAssessoriaResult(msg) {
 window.Game = window.Game || {};
 window.Game.ui = window.Game.ui || {};
 Object.assign(window.Game.ui, {
-    showAssessoriaSelectModal,
-    escolherAssessor,
-    showAssessoriaStarted,
-    showAssessoriaQuestionModal,
-    responderAssessoria,
-    showAssessoriaResult
+    showAdvisorySelectModal,
+    chooseAdvisor,
+    showAdvisoryStarted,
+    showAdvisoryQuestionModal,
+    answerAdvisory,
+    showAdvisoryResult
 });

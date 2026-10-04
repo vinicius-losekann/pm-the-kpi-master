@@ -84,7 +84,7 @@ test('T54 F5 do host logo depois de uma resposta (antes da próxima dupla): a pa
         'deveria seguir para a próxima dupla, com outro Respondedor, veio: ' + JSON.stringify(r2 && { r: r2.respondedor, respondeu: r2.respondeu }));
     check(r2.evento && r2.evento.id === r.evento.id, 'a rodada continua com o mesmo evento');
     check(novo.broadcastsOfType('round-start').length === 1, 'deveria avisar a nova dupla');
-    check(novo.broadcastsOfType('show-evento').length === 0 && !novo.registro.ui.includes('showEventoModal'), 'não deveria reexibir o evento');
+    check(novo.broadcastsOfType('show-evento').length === 0 && !novo.registro.ui.includes('showEventModal'), 'não deveria reexibir o evento');
     check(JSON.stringify(novo.state.usedRespondedorThisRound) === JSON.stringify([r.respondedor]), 'quem respondeu continua no rodízio');
     check(!novo.state.rodadaEncerrada, 'a rodada ainda não acabou');
     check(novo.player(r.respondedor).kpi === kpiDeQuemRespondeu, 'a resposta não pode ser contada de novo');
@@ -152,8 +152,8 @@ test('T55 F5 do host com a partida pausada: continua pausada com o mesmo evento 
         'deveria continuar pausada com o MESMO evento, veio: ' + JSON.stringify(novo.state.partidaPausada));
     check(novo.state.currentRound === null, 'não deveria haver dupla durante a pausa');
     check(sorteios === 0 && efeitos === 0, 'não pode sortear outro evento nem reaplicar efeitos (sorteios: ' + sorteios + ', efeitos: ' + efeitos + ')');
-    check(novo.broadcastsOfType('show-evento').length === 0 && !novo.registro.ui.includes('showEventoModal'), 'não deveria mostrar evento');
-    check(novo.registro.ui.includes('showPartidaPausadaMessage'), 'o host deveria ver o aviso de pausa');
+    check(novo.broadcastsOfType('show-evento').length === 0 && !novo.registro.ui.includes('showEventModal'), 'não deveria mostrar evento');
+    check(novo.registro.ui.includes('showMatchPausedMessage'), 'o host deveria ver o aviso de pausa');
 
     // A volta: retoma com o mesmo evento, sem modal.
     novo.join('A', 'peer-a2');

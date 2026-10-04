@@ -497,7 +497,7 @@ function syncTo(amb, peerId) {
 /** Telas de pergunta/rodada que o guest montou. */
 function roundScreens(amb) {
     return amb.registro.ui.filter(n => ['displayQuestion', 'displayRoundStart', 'displaySpectatorView',
-        'showRoundEndedMessage', 'showPartidaPausadaMessage'].includes(n));
+        'showRoundEndedMessage', 'showMatchPausedMessage'].includes(n));
 }
 
 const unavailable = (id) => ({ type: 'peer-unavailable', message: 'Could not connect to peer ' + id });

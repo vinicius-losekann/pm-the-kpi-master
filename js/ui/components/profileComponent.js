@@ -30,16 +30,16 @@ function renderProfileCard(player) {
         // com 0 recursos — rede de segurança, não mercado livre (ver
         // engine/tradeEngine.js e _docs/architecture.md). Atualizado sempre
         // que os recursos mudam, via syncPlayerViews().
-        const btnPedirAjuda = document.getElementById('btnPedirAjuda');
-        if (btnPedirAjuda) {
-            btnPedirAjuda.style.display = player.recursos <= 0 ? 'block' : 'none';
+        const helpButton = document.getElementById('btnPedirAjuda');
+        if (helpButton) {
+            helpButton.style.display = player.recursos <= 0 ? 'block' : 'none';
         }
     }
 
     // fase/atividades também são opcionais nalguns payloads, mesmo
     // padrão do bloco de recursos acima.
     if (player.phase !== undefined && player.activities !== undefined) {
-        renderPhasesList(player);
+        renderFocusAreasList(player);
     }
 }
 
@@ -49,11 +49,11 @@ function renderProfileCard(player) {
  * não iniciada. Como a progressão é sempre linear, dá pra derivar o
  * status de TODAS as fases só com a fase atual + atividades.
  */
-function renderPhasesList(player) {
+function renderFocusAreasList(player) {
     const currentIdx = Game.getFocusAreaIndex(player.phase);
     const total = CONFIG.JOGO.ACTIVITIES_PER_PHASE;
 
-    const html = CONFIG.FASES.map((fase, idx) => {
+    const html = CONFIG.FASES.map((focusArea, idx) => {
         let statusClass = '';
         let statusText;
 
@@ -67,8 +67,8 @@ function renderPhasesList(player) {
             statusText = '0 de ' + total;
         }
 
-        return '<div class="phase-item ' + statusClass + '" data-phase="' + fase.id + '">' +
-            '<span>' + fase.emoji + ' ' + fase.nome + '</span>' +
+        return '<div class="phase-item ' + statusClass + '" data-phase="' + focusArea.id + '">' +
+            '<span>' + focusArea.emoji + ' ' + focusArea.nome + '</span>' +
             '<span class="phase-status">' + statusText + '</span>' +
             '</div>';
     }).join('');

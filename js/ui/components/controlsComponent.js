@@ -38,17 +38,17 @@ function checkStartCondition() {
  * Não depende de quantidade fixa de jogadores — funciona com 2, 6 ou
  * qualquer número dentro do limite configurado.
  */
-function refreshNovaRodadaButton() {
+function refreshNewRoundButton() {
     const state = Game.state;
     if (!state.isHost) return;
     const btn = document.getElementById('btnNovaRodada');
     if (!btn) return;
 
-    const completo = Game.selectors.isCycleComplete(
+    const isComplete = Game.selectors.isCycleComplete(
         Game.getActivePlayers(),
         state.usedRespondedorThisRound
     );
-    btn.disabled = !completo;
+    btn.disabled = !isComplete;
 }
 
 /**
@@ -96,11 +96,11 @@ function bindControls() {
     // lista de compradores) — o pedido é automático, a fila é montada
     // pelo host.
     document.getElementById('btnPedirAjuda').addEventListener('click', () => {
-        Game.ui.iniciarPedidoAjuda();
+        Game.ui.startHelpRequest();
     });
 
     document.getElementById('btnPedirAssessoria').addEventListener('click', () => {
-        Game.ui.showAssessoriaSelectModal();
+        Game.ui.showAdvisorySelectModal();
     });
 
     controlsBound = true;
@@ -114,5 +114,5 @@ window.Game.ui = window.Game.ui || {};
 Object.assign(window.Game.ui, {
     checkStartCondition,
     bindControls,
-    refreshNovaRodadaButton
+    refreshNewRoundButton
 });
