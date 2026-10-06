@@ -108,6 +108,10 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
             csv: simulator.toCsv(a)
         };
     });
+    const tieRun = await attempt(async () => {
+        const run = await simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 20, seed: 5, players: 6 });
+        return { run, report: simulator.buildReport({ a: run, b: null, commit: 'abc1234' }) };
+    });
     const configTextAfter = fs.readFileSync(path.join(ROOT, 'config/game-config.js'), 'utf8');
 
     test('T93 Simulador: a partida simulada termina, com o config, as perguntas e os eventos reais', () => {
@@ -318,6 +322,44 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
             const field = Object.keys(inputs)[0];
             check(message.includes(field), 'a mensagem deveria citar o campo ' + field + ', veio: ' + message);
         }
+    });
+
+    test('T102 Simulador: o ranking das partidas usa o desempate real, o relatório mede os empates que sobram e não mostra "-0"', () => {
+        valueOf({ value: simulator, error: simulator ? null : new Error('não foi possível carregar tests/simulation/simulator.js: ' + loadError) });
+        const n = simulator.formatNumber;
+        check(typeof n === 'function', 'o simulador deveria exportar formatNumber (números do relatório)');
+        check(n(-0.004, 2) === '0' && n(-0.02, 2) === '-0,02' && n(12, 1) === '12' && n(3.25, 2) === '3,25' && n(-3.97, 2) === '-3,97',
+            'formatNumber: -0,004 → "0" (sem "-0"), -0,02 → "-0,02", 12 → "12", 3,25 → "3,25", veio: ' +
+            [n(-0.004, 2), n(-0.02, 2), n(12, 1), n(3.25, 2), n(-3.97, 2)].join(' | '));
+
+        const { run, report } = valueOf(tieRun);
+        const last = run.config.FOCUS_AREAS.length - 1;
+        let tiesInFinalKpi = 0;
+        const problems = [];
+        run.matches.forEach((m, i) => {
+            for (let j = 1; j < m.players.length; j++) {
+                const [a, b] = [m.players[j - 1], m.players[j]];
+                const key = (p) => [p.finalKpi, p.focusAreaIndex, p.activities, p.kpi];
+                const [ka, kb] = [key(a), key(b)];
+                const cmp = ka.map((x, k) => x - kb[k]).find(d => d !== 0) || 0;
+                if (cmp < 0) problems.push('partida ' + i + ': ' + b.name + ' deveria estar à frente de ' + a.name);
+                if ((cmp === 0) !== (a.position === b.position)) problems.push('partida ' + i + ': posição dividida errada entre ' + a.name + ' e ' + b.name);
+                if (a.finalKpi === b.finalKpi) tiesInFinalKpi++;
+                if (a.focusAreaIndex < 0 || a.focusAreaIndex > last) problems.push('partida ' + i + ': área foco desconhecida');
+            }
+        });
+        check(tiesInFinalKpi > 0, 'pré-condição: com 6 jogadores em 20 partidas deveria haver empate no KPI Final');
+        check(problems.length === 0, problems.slice(0, 6).join('; '));
+
+        const tiedAtTop = run.matches.filter(m => m.players[0].finalKpi === m.players[1].finalKpi).length;
+        const shared = run.matches.filter(m => m.players[0].position === m.players[1].position).length;
+        const rowOf = (label) => report.split('\n').find(l => l.startsWith('| ' + label + ' |')) || '';
+        const pct = (part) => n(100 * part / run.matches.length, 1) + '%';
+        const tieRow = rowOf('Empate no KPI Final do 1º lugar');
+        const sharedRow = rowOf('Empate que o desempate não resolveu (medalha dividida)');
+        check(tieRow.includes(pct(tiedAtTop)), 'o relatório deveria mostrar o empate no KPI Final do 1º lugar (' + pct(tiedAtTop) + '), veio: ' + tieRow);
+        check(sharedRow.includes(pct(shared)), 'o relatório deveria mostrar o empate que sobra depois do desempate (' + pct(shared) + '), veio: ' + sharedRow);
+        check(!/(^|[^\d,])-0(?![\d,])/.test(report), 'o relatório não deveria mostrar "-0"');
     });
 
     finish('Simulador de partidas');

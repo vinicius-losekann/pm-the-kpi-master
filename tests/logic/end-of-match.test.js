@@ -331,4 +331,102 @@ test('T72 Fim de jogo, encerrar a partida e troca de dupla cancelam os prazos pe
     check(swap.time.pending() === 2, 'deveriam sobrar só o prazo de resposta da nova dupla e o do pedido de ajuda, sobraram: ' + swap.time.pending());
 });
 
+/**
+ * buildRanking() real com o CONFIG real (5 áreas foco, FINAL_RESOURCE_VALUE
+ * do jogo). Devolve { rank(players), C }; rank devolve uma cópia simples.
+ */
+function realRanking() {
+    const ctx = vm.createContext({});
+    vm.runInContext('var window = this;' + fs.readFileSync(path.join(ROOT, 'config/game-config.js'), 'utf8'), ctx);
+    vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/domain/rankingRules.js'), 'utf8'), ctx);
+    const C = vm.runInContext('CONFIG', ctx);
+    return { C, rank: (players) => JSON.parse(JSON.stringify(ctx.Game.domain.ranking.buildRanking(players, C))) };
+}
+
+test('T100 Desempate do ranking: mesmo KPI Final → quem avançou mais na trilha, depois quem tem mais KPI; empate total divide a posição', () => {
+    const { C, rank } = realRanking();
+    const v = C.KPI.FINAL_RESOURCE_VALUE;
+    const area = (id) => C.FOCUS_AREAS.findIndex(f => f.id === id);
+    check(area('executing') === 2 && area('monitoringControlling') === 3 && area('closing') === 4, 'pré-condição: ordem das áreas foco do config real');
+    const player = (name, kpi, resources, focusArea, activities) => ({ name, kpi, resources, focusArea, activities, isHost: name === 'Host', waitingInLobby: false });
+    const names = (r) => r.map(p => p.name).join(',');
+    const positions = (r) => r.map(p => p.position).join(',');
+
+    // 1) Mesmo KPI Final: a área foco mais adiantada vence, pela ORDEM das
+    // áreas no config (não pela ordem alfabética dos IDs, nem pela lista).
+    let r = rank([player('Host', 50, 2, 'executing', 1), player('A', 50, 2, 'monitoringControlling', 0), player('C', 50, 2, 'closing', 0)]);
+    check(names(r) === 'C,A,Host' && positions(r) === '1,2,3',
+        'mesmo KPI Final: Encerramento, Monitoramento, Execução (posições 1, 2, 3), veio: ' + names(r) + ' / ' + positions(r));
+
+    // 2) Mesma área foco: mais atividades concluídas vence.
+    r = rank([player('Y', 30, 4, 'planning', 0), player('X', 30, 4, 'planning', 1)]);
+    check(names(r) === 'X,Y' && positions(r) === '1,2', 'mesma área foco: mais atividades vence, veio: ' + names(r) + ' / ' + positions(r));
+
+    // 3) Mesmo KPI Final e mesmo progresso: mais KPI de jogo (menos recursos) vence.
+    r = rank([player('P', 40, 4, 'planning', 1), player('Q', 40 + v * 2, 2, 'planning', 1)]);
+    check(r[0].finalKpi === r[1].finalKpi, 'pré-condição: mesmo KPI Final');
+    check(names(r) === 'Q,P' && positions(r) === '1,2', 'mesmo KPI Final e progresso: mais KPI vence, veio: ' + names(r) + ' / ' + positions(r));
+
+    // 4) O KPI Final continua decidindo primeiro: progresso não passa à frente.
+    r = rank([player('S', 60, 0, 'closing', 1), player('R', 70, 0, 'initiating', 0)]);
+    check(names(r) === 'R,S' && positions(r) === '1,2', 'KPI Final maior vence mesmo com menos progresso, veio: ' + names(r));
+
+    // 5) Empate em tudo: mesma posição, e a seguinte pula (1, 1, 3).
+    r = rank([player('Host', 40, 2, 'planning', 1), player('U', 40, 2, 'planning', 1), player('V', 30, 2, 'planning', 1)]);
+    check(positions(r) === '1,1,3' && r[2].name === 'V', 'empate total deveria dividir a posição (1, 1, 3), veio: ' + names(r) + ' / ' + positions(r));
+    r = rank([player('T', 40, 2, 'planning', 1), player('U', 40, 2, 'planning', 1), player('W', 90, 0, 'closing', 0), player('Z', 10, 0, 'initiating', 0)]);
+    check(names(r).startsWith('W,') && positions(r) === '1,2,2,4', 'empate no 2º lugar: posições 1, 2, 2, 4, veio: ' + names(r) + ' / ' + positions(r));
+
+    // 6) Sem empate: como antes (KPI Final, posições 1..n) e os campos do ranking.
+    r = rank([player('B', 10, 1, 'initiating', 0), player('A', 30, 0, 'planning', 0), player('C', 20, 3, 'initiating', 1)]);
+    check(names(r) === 'C,A,B' && positions(r) === '1,2,3', 'sem empate, a ordem é a do KPI Final, veio: ' + names(r));
+    check(r[0].finalKpi === 20 + 3 * v && r[0].kpi === 20 && r[0].resources === 3 && r[0].focusArea === 'initiating' &&
+        r[0].activities === 1 && r[0].isHost === false && r[0].waitingInLobby === false,
+        'o ranking deveria manter os campos de cada jogador, veio: ' + JSON.stringify(r[0]));
+});
+
+test('T101 Telas do ranking com empate: medalha pela posição (empate divide a medalha) e aviso do critério de desempate na tela final', (use) => {
+    const env = use(createEnvironment());
+    const elements = {};
+    env.ctx.document = {
+        getElementById: (id) => elements[id] || (elements[id] = { id, textContent: '', innerHTML: '', style: {} }),
+        querySelectorAll: () => []
+    };
+    for (const file of ['js/utils/sanitize.js', 'js/domain/rankingRules.js', 'js/ui/components/rankingComponent.js']) {
+        vm.runInContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), env.ctx, { filename: file });
+    }
+    const first = env.CONFIG.FOCUS_AREAS[0].id;
+    const count = (text, piece) => text.split(piece).length - 1;
+    env.state.players = [
+        { name: 'Host', kpi: 20, resources: 0, focusArea: first, activities: 0, waitingInLobby: false },
+        { name: 'A', kpi: 20, resources: 0, focusArea: first, activities: 0, waitingInLobby: false },
+        { name: 'B', kpi: 10, resources: 0, focusArea: first, activities: 0, waitingInLobby: false }
+    ];
+    const tied = env.Game.core.buildRanking();
+    check(tied.map(p => p.position).join() === '1,1,3', 'pré-condição: empate total no 1º lugar, veio: ' + JSON.stringify(tied));
+
+    // Tela final: duas medalhas de ouro, B com a de bronze (3º), e o aviso.
+    env.ctx.displayFinalRanking(tied);
+    const final = elements.finalRanking.innerHTML;
+    check(count(final, '🥇') === 2 && count(final, '🥈') === 0 && count(final, '🥉') === 1,
+        'empate no 1º: 🥇 🥇 🥉, veio: ' + final);
+    check(count(final, 'top-1') === 2 && count(final, 'top-3') === 1 && count(final, 'top-2') === 0,
+        'as cores do pódio deveriam seguir a posição (top-1, top-1, top-3), veio: ' + final);
+    const note = elements.tiebreakNote;
+    check(note && note.textContent === 'ranking.tiebreakNote' && note.style.display === 'block',
+        'com empate no KPI Final, a tela final deveria mostrar o critério de desempate (tiebreakNote), veio: ' + JSON.stringify(note));
+
+    // Ranking parcial (ao lado do jogo): mesma regra de medalha.
+    env.ctx.updateRankingList();
+    const side = elements.rankingList.innerHTML;
+    check(count(side, '🥇') === 2 && count(side, '🥉') === 1 && count(side, '🥈') === 0, 'ranking parcial com empate: 🥇 🥇 🥉, veio: ' + side);
+
+    // Sem empate no KPI Final: medalhas na ordem e o aviso escondido.
+    env.state.players[1].kpi = 15;
+    env.ctx.displayFinalRanking(env.Game.core.buildRanking());
+    const plain = elements.finalRanking.innerHTML;
+    check(count(plain, '🥇') === 1 && count(plain, '🥈') === 1 && count(plain, '🥉') === 1, 'sem empate: 🥇 🥈 🥉, veio: ' + plain);
+    check(elements.tiebreakNote.style.display === 'none', 'sem empate no KPI Final, o aviso do desempate deveria ficar escondido');
+});
+
 finish('Fim de partida e lobby');
