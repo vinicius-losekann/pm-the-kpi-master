@@ -1,7 +1,7 @@
 // ============================================
 // PM: The KPI Master - Testes no navegador: quedas, voltas e nova partida
 // ============================================
-// Checklist: _docs/testes-conexao.md (M1, M5, M6, M10, M14, M15, M20 e
+// Checklist: _docs/connection-tests.md (M1, M5, M6, M10, M14, M15, M20 e
 // a volta do host antigo pela tela inicial).
 // ============================================
 

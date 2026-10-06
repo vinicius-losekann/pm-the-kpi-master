@@ -199,43 +199,16 @@ Respondedor recebe pergunta
 
 ---
 
-## 📁 Estrutura do Projeto
+## 📁 Documentação do Projeto
 
-```
-📁 pm-the-kpi-master/
-├── 📄 index.html
-├── 📄 game.html
-├── 📁 css/
-│   └── style.css
-├── 📁 config/
-│   └── game-config.js
-├── 📁 data/
-│   ├── questions.pt-BR.json
-│   └── events.json
-├── 📁 _docs/                 # arquitetura, convenções, roadmap, issues, checklist de conexão
-├── 📁 tests/
-│   ├── logic/               # lógica do jogo com rede simulada (Node, sem dependências)
-│   ├── browser/             # o jogo real no Chromium (Playwright)
-│   └── simulation/          # simulador de partidas para balanceamento
-├── 📁 assets/board/          # imagem do tabuleiro físico
-├── 📁 .github/workflows/
-│   ├── testes.yml           # roda os testes a cada push
-│   └── simulacao.yml        # simulador de partidas ("Run workflow")
-├── 📄 package.json           # dependências só dos testes no navegador
-└── 📁 js/
-    ├── main.js              # inicialização da tela de jogo
-    ├── entry/               # tela inicial: criar/entrar em sala
-    ├── domain/              # regras puras do jogo (KPI, eventos, baralho, ajuda, assessoria, ranking)
-    ├── state/               # estado único da partida
-    ├── engine/              # orquestração: sessão, rodada, resposta, ajuda, assessoria
-    ├── network/             # conexão P2P, mensagens e troca de host
-    ├── ui/                  # telas (components/) e janelas (modals/)
-    ├── locales/             # textos da tela (pt-BR)
-    └── utils/               # estado salvo, identidade, i18n, escape de texto, log
-```
-
-> A árvore completa, arquivo por arquivo, e as decisões de arquitetura estão em
-> `_docs/architecture.md`; o histórico de mudanças, em `CHANGELOG.md`.
+| Para saber | Veja |
+|---|---|
+| Como o código está organizado (árvore arquivo por arquivo) e como cada mecanismo funciona | `_docs/architecture.md` |
+| Como escrever código, testes e commits (nomes, glossário, mensagens de rede) | `_docs/conventions.md` |
+| O que está planejado | `_docs/roadmap.md` |
+| Bugs em aberto e corrigidos | `_docs/issues.md` |
+| Testes de conexão: o que está coberto e os roteiros manuais | `_docs/connection-tests.md` e `_docs/manual-test-scripts.md` |
+| O que mudou em cada fase | `CHANGELOG.md` |
 
 ---
 

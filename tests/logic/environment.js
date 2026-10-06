@@ -20,7 +20,7 @@
 // lado, e em quanto tempo, e a parte visual.
 //
 // Os números dos testes (T1, T2...) são os citados em
-// _docs/testes-conexao.md e _docs/ISSUES.md — não mudam.
+// _docs/connection-tests.md e _docs/issues.md — não mudam.
 // ============================================
 
 const fs = require('fs');

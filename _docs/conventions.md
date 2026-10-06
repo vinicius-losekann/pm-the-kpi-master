@@ -1,10 +1,10 @@
 # Convenções — PM: The KPI Master
 
-> Este documento descreve **como** o código é escrito neste projeto —
-> padrões de nomenclatura, arquitetura e decisões de stack. Para o
-> estado atual de cada arquivo, veja `architecture.md`. Para o
-> histórico de por que certas decisões foram tomadas, veja
-> `../CHANGELOG.md`.
+> **Contém:** como o código e os testes são escritos — stack, camadas,
+> padrão de rede e tabela de mensagens, testes, nomenclatura e glossário,
+> código limpo, commits. **Não contém:** como cada mecanismo funciona por
+> dentro e a árvore de arquivos (→ `architecture.md`) nem o histórico das
+> decisões (→ `../CHANGELOG.md`).
 
 ## Stack técnica
 
@@ -12,7 +12,7 @@
 - **Namespace global único**: `window.Game`, subdividido em `Game.domain`, `Game.state` (com `Game.selectors` e `Game.mutations`), `Game.engine`, `Game.core` (a API entre camadas, ver `architecture.md`), `Game.network`, `Game.ui` e os utilitários (`Game.i18n`, `Game.persistence`, `Game.identity`, `Game.sanitize`, `Game.logger`). Todo arquivo exporta pra dentro desse namespace no final (bloco `// EXPORTAÇÃO`).
 - **PeerJS** para conexão P2P (WebRTC) — sem servidor próprio, usa o broker público gratuito do PeerJS só para sinalização inicial; depois disso a comunicação é direta entre os navegadores. Todo `new Peer(...)` recebe uma cópia de `CONFIG.PEER` (`config/game-config.js`) — é o único lugar para apontar outro servidor de sinalização.
 - **CSS puro**, sem pré-processador, tema único "dark + glassmorphism" definido via custom properties em `:root` (`css/style.css`).
-- **Testes automatizados no GitHub Actions** (desde a Fase D) — ver "Testes" abaixo. O que depende de rede real, celular ou outros navegadores continua manual (`testes-conexao.md`).
+- **Testes automatizados no GitHub Actions** (desde a Fase D) — ver "Testes" abaixo. O que depende de rede real, celular ou outros navegadores continua manual (`connection-tests.md`).
 
 ## Padrão de arquitetura: camadas
 
@@ -73,15 +73,19 @@ Mensagem que chega sem um campo novo (de uma versão anterior do jogo) mantém o
 
 ## Testes
 
-- `tests/logic/*.test.js`: lógica do jogo, um arquivo por assunto (entrada e identidade, queda e volta, troca de host, F5 do host, estado salvo, fim de partida, pedido de ajuda e assessoria, banco de perguntas, configuração e textos da tela). Carrega os arquivos reais em contextos isolados do Node, com rede, tela e `localStorage` simulados; o ambiente simulado e os ajudantes ficam em `tests/logic/environment.js`. Sem dependências: `node tests/logic/<arquivo>`. Teste novo entra no arquivo do assunto dele, com o próximo número da sequência (T1, T2...).
-- `tests/browser/*.spec.js`: o jogo no navegador, com Playwright — o jogo real em janelas separadas do Chromium, com o site e um servidor PeerJS locais. As dependências do `package.json` são só destes testes; o jogo não usa nenhuma.
-- Os dois rodam no GitHub Actions a cada push e pull request (`.github/workflows/testes.yml`); o resumo aparece na página da execução.
-- Toda mudança de lógica vem com teste. A frente vai em dois commits: primeiro só os testes (os novos devem falhar no Actions), depois o código (tudo passa). Isso confirma que os testes novos de fato pegam o problema.
+Como os testes funcionam (ambiente simulado, Playwright, Actions) está em `architecture.md`, seção "Testes automatizados". Aqui, as regras para escrever:
+
+- Teste de lógica entra em `tests/logic/<assunto>.test.js` (entrada e identidade, queda e volta, troca de host, F5 do host, estado salvo, fim de partida, pedido de ajuda e assessoria, banco de perguntas, configuração e textos da tela, simulador), com o próximo número da sequência (T1, T2...); cenário no navegador entra em `tests/browser/*.spec.js`, com o próximo número E. Os números não mudam nem são reaproveitados.
+- Nomes de arquivos, funções e variáveis dos testes em inglês; comentários e títulos em português, com o número (T…, E…, BUG-…) no título.
+- Toda mudança de lógica vem com teste. A frente vai em dois commits: primeiro só os testes (os novos devem falhar no Actions), depois o código (tudo passa). Isso confirma que os testes novos de fato pegam o problema. Antes do segundo commit, o código novo é revisado à procura de mudanças que os testes não pegariam (teste de mutação), e os testes são reforçados se aparecer alguma.
 - Código novo de lógica fica onde o teste alcança (`engine/`, `network/`, `state/`, `utils/`); `main.js` só orquestra a inicialização.
 
 ## Nomenclatura
 
-Os identificadores do código estão em inglês desde a Fase E do roadmap (concluída em 05/10/2026); os comentários continuam em português:
+A regra geral: **nome é em inglês; texto é em português.** Nome é tudo que o código, o Git ou o Actions usam para achar alguma coisa (arquivo, pasta, função, campo, chave, ID, job, artefato, variável de ambiente); texto é o que uma pessoa lê (comentário, tela, log, documento, título de teste, `name:`/`description:` dos workflows, descrição do commit). Os identificadores do código estão em inglês desde a Fase E do roadmap (concluída em 05/10/2026); os nomes em português que sobraram fora do `js/` estão na NOTA-009 (`issues.md`).
+
+- **Nomes de arquivos e pastas** (documentos, workflows, pastas e arquivos gerados): em inglês, kebab-case minúsculo (`connection-tests.md`, `manual-test-scripts.md`). Exceções: os nomes padrão que as ferramentas reconhecem em maiúsculas (`README.md`, `CHANGELOG.md`, `LICENSE`) e os códigos de idioma (`pt-BR`). Arquivos `.js`: ver abaixo.
+- **Workflows do GitHub Actions:** nome do arquivo, IDs dos jobs, IDs dos campos do formulário, variáveis de ambiente e nomes de artefato em inglês; o `name:` e as `description:` (o que aparece na tela do Actions) em português.
 
 - **Chaves de schema de dados** (`data/questions.*.json` e os campos que viajam com uma pergunta pela rede): já estão em inglês desde a Fase 8 (`domains`, `name`, `focusAreas`, `questions`, `question`, `alternatives`, `correct`, `domain_key`); os IDs das áreas foco (valores de `focusAreas`, de `CONFIG.FOCUS_AREAS` e do `focusArea` do jogador), desde a E3d (`initiating`, `planning`, `executing`, `monitoringControlling`, `closing`). Motivo: precisam ser estáveis entre arquivos de idiomas diferentes (`questions.en-US.json` reusa as mesmas chaves, só traduz os valores).
 - **Identificadores do código** (funções, variáveis, parâmetros, campos do estado e das mensagens, chaves do CONFIG e dos textos da tela, campos dos eventos, IDs e classes do HTML/CSS): em inglês, inclusive nos testes. **Código novo usa inglês e o glossário abaixo.**
@@ -102,7 +106,7 @@ Os identificadores do código estão em inglês desde a Fase E do roadmap (concl
   | relógio / prazo | clock / timeout |
   | troca de host / host antigo / backup | host migration / old host / backup |
   | token de identidade / estado salvo | identity token / saved state |
-- **Comentários**: sempre em português. Explicam o que o código faz e por quê — sem fase, número de bug ou item do roadmap e sem a história do "antes era assim": isso fica no `roadmap.md`, no `ISSUES.md`, no `CHANGELOG.md` e no histórico do Git. Os títulos dos testes continuam com os números (T…, E…, BUG-…), que ligam o teste ao registro.
+- **Comentários**: sempre em português. Explicam o que o código faz e por quê — sem fase, número de bug ou item do roadmap e sem a história do "antes era assim": isso fica no `roadmap.md`, no `issues.md`, no `CHANGELOG.md` e no histórico do Git. Os títulos dos testes continuam com os números (T…, E…, BUG-…), que ligam o teste ao registro.
 - **Tipos de mensagem de rede** (`msg.type`) e seus campos: em inglês, kebab-case para o tipo, com os sufixos do padrão acima (`match-paused`, `show-event`, `round-start`, `advisory-request`, `help-offer-response`); os valores de motivo (`reason`) também em inglês, kebab-case (`already-answered`, `no-donors`). Mudar o nome de um tipo ou campo exige aumentar `PROTOCOL_VERSION` (acima).
 - **IDs de elemento HTML e classes CSS**: em inglês, com o glossário acima; camelCase pra IDs (`btnRequestHelp`, `modalHelpOffer`), kebab-case pra classes e atributos `data-*` (`.focus-area-item`, `.stat-chip`, `data-advisor-name`). O T91 confere que todo ID, seletor e `dataset` pedido pelo jogo e pelos testes no navegador existe no HTML e no CSS; o T92, que toda classe com regra no CSS é usada pelo HTML ou pelo `js/` e todo `#id` do CSS existe no HTML (classe montada por concatenação entra na lista `BUILT_CLASSES` do teste).
 - **Nomes de arquivo `.js`**: camelCase (`profileComponent.js`, `tradeEngine.js`, `deckRules.js`). Exceção antiga: `config/game-config.js`.
@@ -143,4 +147,4 @@ Regras práticas deste projeto, além do formato dos nomes:
 
 ## Convenção de commit
 
-Conventional Commits, em português: `tipo(escopo opcional): descrição curta` — por exemplo `fix(rede): ...`, `feat(jogo): ...`, `refactor: ...` (muda a estrutura sem mudar o comportamento), `style: ...` (CSS e aparência), `test: ...`, `docs: ...`, `chore: ...` — com corpo explicando o quê e o porquê quando a mudança não é óbvia.
+Conventional Commits: `tipo(escopo opcional): descrição curta`, com o tipo em inglês (o padrão) e o escopo e a descrição em português. Escopos em uso: `jogo` (regras e telas), `rede` (conexão, troca de host, F5), `testes`, `simulador`, `perguntas` (banco de perguntas), `docs`, `repo` (Git, GitHub, Actions). Por exemplo `fix(rede): ...`, `feat(jogo): ...`, `refactor: ...` (muda a estrutura sem mudar o comportamento), `style: ...` (CSS e aparência), `test: ...`, `docs: ...`, `chore: ...` — com corpo explicando o quê e o porquê quando a mudança não é óbvia.

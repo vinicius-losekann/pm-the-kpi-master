@@ -1,8 +1,11 @@
 # 🐛 Issues Conhecidas
 
-Bugs em aberto e corrigidos, com sintoma, causa e correção. Os da
-migração inicial (Fases 0–7: BUG-001 a BUG-007, REGRESSÃO-001/002,
-SEC-001/002, ESCLARECIMENTO-001) estão resumidos em `../CHANGELOG.md`.
+> **Contém:** `BUG-`, `SEC-` e `REGRESSÃO-` (em investigação e
+> corrigidos), com sintoma, causa e correção, e `NOTA-` (limpezas que não
+> são bug, pendentes e concluídas). **Não contém:** melhorias que não são
+> defeito (→ `roadmap.md`). Os da migração inicial (Fases 0–7: BUG-001 a
+> BUG-007, REGRESSÃO-001/002, SEC-001/002, ESCLARECIMENTO-001) estão
+> resumidos em `../CHANGELOG.md`.
 
 Os nomes de função e de campo citados nos registros anteriores a
 05/10/2026 (ex.: `validarPedidoAssessoria()`, `rankingFinal`) são os de
@@ -50,29 +53,36 @@ mercado de recursos antigo, que deu lugar ao pedido de ajuda. Trocar por
 "acertos, ajudas e assessorias". Achado em 06/10/2026, na frente do
 desempate do ranking.
 
-**NOTA-006 — regras do `css/style.css` que nenhuma tela usa. ✅ Fechada
-(05/10/2026).** Encontradas no levantamento da Fase E/E4: `.btn-success`,
-`.btn-selected`, `.entry-form`, `.room-id-hint`, `.correct-answer`,
-`.correct-label`, `.correct-value`, `.final-rank-focus-area`,
-`.role-answerer`, `.sr-only`, `#btnPlayAgain` e `#btnExit` (esses dois IDs
-nem existiam no HTML). Conferidas uma a uma no `game.html`, no `index.html`,
-no `js/` e nos testes, inclusive as classes montadas por concatenação
-(`feedback-*`, `top-1`…`top-3`, que estão em uso), e apagadas. Para quem
-joga, nada muda: eram regras sem efeito. O T92 confere que toda classe com
-regra no CSS é usada pelo HTML ou pelo `js/` e que todo `#id` do CSS existe
-no HTML, para não voltarem a se acumular.
+**NOTA-009 — nomes em português que sobraram no código.** A regra é nome
+em inglês e texto em português (`conventions.md`, "Nomenclatura"), mas
+sobraram nomes em português fora do `js/`, e uma troca automática da
+Fase E alcançou um texto. Achado em 06/10/2026, na reorganização dos
+documentos. Para quem joga, nada muda; é frente própria, porque mexe no
+Actions:
+- **Workflows:** os arquivos `testes.yml` e `simulacao.yml`; os IDs dos
+  jobs (`testes`, `ponta-a-ponta`, `simulacao`); os artefatos
+  (`resultado-testes`, `relatorio-ponta-a-ponta`, `simulacao`); os IDs dos
+  campos do formulário da simulação (`partidas`, `jogadores`,
+  `semente`...) e as variáveis de ambiente (`PARTIDAS`...`CENARIO_B`).
+- **Simulador:** a pasta gerada `simulacao/` (também no `.gitignore`) e
+  os arquivos `relatorio.md`, `partidas.csv` e `partidas-cenario-b.csv`
+  (`tests/simulation/run.js`), e a lista de campos lida do ambiente.
+- **Títulos de teste:** E1 e E4 (`tests/browser/connection.spec.js`)
+  dizem "no meio da question" em vez de "no meio da pergunta".
+- Os textos que aparecem na tela do Actions (`name:` e `description:`)
+  continuam em português.
 
 ---
 
-## Fase D (conexão, identidade e troca de host) — corrigidos
+## Corrigidos
 
-Encontrados nos testes da Fase D (automatizados e com navegadores reais).
-Cada correção veio com teste automatizado — os números (T…, E…) são os
-de `tests/logic` e `tests/browser`; o mapa completo está em
-`testes-conexao.md`.
+Da Fase 8 em diante. Cada correção a partir da Fase D veio com teste
+automatizado — os números (T…, E…) são os de `tests/logic` e
+`tests/browser`; o mapa dos casos de conexão está em `connection-tests.md`.
 
 | ID | Sintoma | Causa | Correção |
 |---|---|---|---|
+| REGRESSÃO-003 | Quem entrasse no meio de uma rodada receberia o gabarito no `state-sync` (detectado antes de chegar a quem joga) | Na troca do schema das perguntas para o inglês (Fase 8: `correta` → `correct`), a blindagem do gabarito em `addPlayer()` (`network/messageHandler.js`) continuou apagando o campo antigo: `{...spread, correta: undefined}` cria um campo novo e deixa o `correct` com a resposta | `correta: undefined` → `correct: undefined` no mesmo ponto (Fase 8) |
 | SEC-003 | Alguém entrando com o nome do host tomava o lugar dele na lista | `addPlayer()` tratava o nome do host como reconexão (o host não tem conexão consigo mesmo) | D1a: nome do host sempre "em uso" (`name-taken`) — T3b |
 | SEC-004 | Quem soubesse o nome de um jogador desconectado entrava no lugar dele e herdava KPI, recursos e fase | Reconexão conferia só o nome | D2: token de identidade por sala; o host guarda só o hash e exige o mesmo token (`identity-mismatch`) — T22–T29 |
 | BUG-008 | Troca de host falhava: o guest que tentava achar a sala nova perdia a própria conexão | Qualquer erro do PeerJS (inclusive o esperado `peer-unavailable`) destruía o peer local | D1b: depois de aberto, erro não destrói mais o peer; tentativa sem peer conta como falha — T19, T20 |
@@ -92,29 +102,11 @@ de `tests/logic` e `tests/browser`; o mapa completo está em
 | BUG-022 | Pedido de ajuda e assessoria com quem caiu: quem pediu esperava 20s por cada jogador caído na fila, e a fila seguia (podendo transferir recurso) mesmo depois de quem pediu cair; o assessor caído recebia a pergunta e quem respondia ficava 20s com os botões travados | `tradeEngine` e `validarPedidoAssessoria()` olhavam só `waitingInLobby`, não `disconnected` | Quem caiu é pulado na fila; se quem pediu cai, o pedido é cancelado sem transferir nada; assessor caído é recusado na hora — T69, T70 |
 | BUG-023 | O aviso "pedindo ajuda para…" mostrava nomes com `&` ou `<` como "Ana &amp; Bia" | `showHelpCandidate()` escapava o nome para HTML e o mostrava com `textContent` (escape duplo) | Nome mostrado direto com `textContent` — T71 |
 
----
+## Limpezas concluídas
 
-## REGRESSÃO-003: campo de gabarito ainda blindado pelo nome antigo após rename do schema
-
-- **Status:** ✅ Corrigido na Fase 8, antes de qualquer impacto ao usuário
-- **Detectado em:** Fase 8 (rename de nomenclatura PMBOK 8ª ed.), ao caçar
-  cada ocorrência do campo antigo `correta` pelo código inteiro após a
-  migração de `data/questions.pt-BR.json` para chaves em inglês
-  (`correta` → `correct`, entre outras — ver `architecture.md`)
-- **Local:** `js/network/messageHandler.js` → `addPlayer()`, montagem de
-  `currentRoundForSync`
-- **O que aconteceu:** ao sincronizar o estado da partida para um jogador
-  entrando durante uma rodada já em andamento, o código blinda a resposta
-  correta antes de enviar (pra quem não é o Perguntador não receber o
-  gabarito). Essa blindagem apagava explicitamente o campo `correta:
-  undefined` — só que o rename do schema já tinha trocado esse campo para
-  `correct` em todo o resto do código. Como o `{...spread, correta:
-  undefined}` cria um campo `correta` NOVO (que não existe mais no
-  objeto) em vez de apagar o `correct` existente, o campo `correct` com o
-  gabarito real continuaria presente no objeto enviado — a resposta certa
-  vazaria para qualquer jogador entrando no meio de uma rodada.
-- **Correção aplicada:** `correta: undefined` → `correct: undefined` no
-  mesmo ponto.
+| ID | O que era | O que foi feito |
+|---|---|---|
+| NOTA-006 | Regras do `css/style.css` que nenhuma tela usava (`.btn-success`, `.btn-selected`, `.entry-form`, `.room-id-hint`, `.correct-answer`, `.correct-label`, `.correct-value`, `.final-rank-focus-area`, `.role-answerer`, `.sr-only`, `#btnPlayAgain`, `#btnExit`), achadas na Fase E/E4 | Conferidas uma a uma no HTML, no `js/` e nos testes (inclusive as classes montadas por concatenação, `feedback-*` e `top-1`…, que estão em uso) e apagadas em 05/10/2026; para quem joga, nada mudou. O T92 impede que voltem a se acumular |
 
 ---
 
@@ -127,6 +119,12 @@ de `tests/logic` e `tests/browser`; o mapa completo está em
   e como reproduzir.
 - A correção vem com teste que reproduz o bug: primeiro um commit só com o
   teste (que falha), depois a correção (tudo passa).
-- Ao corrigir, mova o bug para a tabela de corrigidos, com a causa, a
+- Ao corrigir, mova o bug para a tabela "Corrigidos", com a causa, a
   correção e os números dos testes (T…, E…). Limpeza que não é bug vai em
-  "Limpeza pendente" como NOTA-xxx.
+  "Limpeza pendente" como NOTA-xxx e, feita, vira uma linha em "Limpezas
+  concluídas".
+- **Numeração:** BUG-xxx (bug), SEC-xxx (segurança), REGRESSÃO-xxx (algo
+  que funcionava e quebrou numa mudança), NOTA-xxx (limpeza ou decisão que
+  não é bug). Cada série continua do maior número já usado (próximos:
+  BUG-025, SEC-005, REGRESSÃO-004, NOTA-010). NOTA-003 a NOTA-005 são
+  decisões de arquitetura e ficam em `architecture.md`.

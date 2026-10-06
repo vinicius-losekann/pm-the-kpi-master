@@ -1,11 +1,45 @@
 # Changelog
 
-Todas as mudanças notáveis deste projeto são documentadas aqui.
+> **Contém:** as mudanças notáveis do projeto, em blocos por fase (o mais
+> novo primeiro; o do topo fica aberto até a fase fechar), com as seções
+> do [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/):
+> `Added`, `Changed`, `Removed`, `Fixed`, `Security`, `Known issues`.
+> **Não contém:** passo a passo técnico (→ `_docs/architecture.md`) nem a
+> descrição completa dos bugs corrigidos a partir da Fase D (→
+> `_docs/issues.md`); os da migração inicial (Fases 0–7) estão resumidos
+> aqui. Blocos fechados não se reescrevem: os nomes citados neles são os
+> da época.
 
-O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
-Os bugs corrigidos a partir da Fase D estão descritos em `_docs/ISSUES.md`
-(sintoma, causa e correção); os da migração inicial (Fases 0–7), resumidos
-aqui.
+---
+
+## [Sem versão] — Em andamento (depois da Fase E)
+
+### Added
+- **Desempate do ranking:** com o mesmo KPI Final, fica à frente quem
+  avançou mais nas áreas foco, depois quem tem mais atividades e, por
+  fim, quem tem mais KPI acumulado; empate em tudo divide a posição e a
+  medalha (🥇 🥇 🥉). A tela final avisa o critério quando há empate no
+  KPI Final. Antes, valia a ordem da lista (o host primeiro). Testes
+  T100–T102.
+- **Simulador de partidas para balanceamento:** workflow "Simulação de
+  partidas" (botão "Run workflow"), com robôs no lugar dos jogadores e as
+  regras reais do jogo (`tests/simulation/`). Mostra duração, recursos,
+  economia, eventos e justiça, e compara com uma troca do config
+  ("cenário B"). Não muda o jogo publicado. Testes T93–T99.
+- São 105 testes de lógica em 10 arquivos e 17 cenários no navegador.
+
+### Changed
+- **Documentação reorganizada:** cada documento abre com o que contém e
+  o que não contém; os nomes dos arquivos passaram para o inglês
+  (`_docs/connection-tests.md`, `_docs/issues.md`); os roteiros dos
+  testes manuais saíram do checklist para `_docs/manual-test-scripts.md`;
+  o README aponta para `_docs/architecture.md` em vez de repetir a
+  árvore de arquivos; o roadmap ganhou a seção "Itens retirados" e as
+  ideias 8.6 a 8.8.
+
+### Known issues
+- Dois pedidos de ajuda ao mesmo tempo: o segundo apaga o primeiro
+  (BUG-024, em `_docs/issues.md`).
 
 ---
 
@@ -53,7 +87,7 @@ Os nomes citados nas entradas anteriores deste arquivo (ex.: `CONFIG.JOGO`,
 
 ### Removed
 - Regras do `css/style.css` que nenhuma tela usava, encontradas na E4
-  (NOTA-006 em `_docs/ISSUES.md`). Não tinham efeito para quem joga. O
+  (NOTA-006 em `_docs/issues.md`). Não tinham efeito para quem joga. O
   T92 (95 testes de lógica a partir daqui) confere que o CSS não volta a
   ter regra sem uso.
 
@@ -62,13 +96,13 @@ Os nomes citados nas entradas anteriores deste arquivo (ex.: `CONFIG.JOGO`,
 ## [Sem versão] - 2026-10-03 — Fase D: conexão, identidade e troca de host (em fechamento)
 
 Detalhes de cada bug corrigido (sintoma, causa e testes) em
-`_docs/ISSUES.md`; mapa de casos cobertos e testes manuais pendentes em
-`_docs/testes-conexao.md`.
+`_docs/issues.md`; mapa de casos cobertos e testes manuais pendentes em
+`_docs/connection-tests.md`.
 
 **Pendente para fechar a fase:** os testes manuais P1 que não dão para
 automatizar — M9 (redes diferentes), M7 (queda de rede real) e M8
-(celular com tela bloqueada). Os roteiros estão na seção 7 de
-`_docs/testes-conexao.md`.
+(celular com tela bloqueada). Os roteiros estão em
+`_docs/manual-test-scripts.md`.
 
 ### Added
 - **Sala travada durante a partida:** nome novo é recusado; só volta
@@ -98,8 +132,8 @@ automatizar — M9 (redes diferentes), M7 (queda de rede real) e M8
   jogo com rede simulada (`tests/logic`, 78 testes em 8 arquivos por
   assunto) e o jogo real em várias janelas do Chromium
   (`tests/browser`, 17 cenários).
-- **Roteiros dos testes manuais P1** (M9, M7, M8) em
-  `_docs/testes-conexao.md`.
+- **Roteiros dos testes manuais P1** (M9, M7, M8), hoje em
+  `_docs/manual-test-scripts.md`.
 
 ### Changed
 - Saída da página (fechar aba, F5) encerra as conexões na hora, para os
@@ -199,7 +233,7 @@ automatizar — M9 (redes diferentes), M7 (queda de rede real) e M8
   `profileComponent.js`, `messageHandler.js`, `debugTools.js`,
   `locales/pt-BR.js`, `game.html`, `sessionEngine.js`.
 - Documentação técnica reunida em `_docs/` (`architecture.md`,
-  `conventions.md`, `roadmap.md`, `ISSUES.md`); `README.md` e
+  `conventions.md`, `roadmap.md`, `issues.md`); `README.md` e
   `CHANGELOG.md` continuam na raiz.
 - **Feedback do piloto com alunos, Fases A-C:**
   - **Fase A:** botões reordenados (Nova Rodada primeiro, Encerrar
@@ -238,7 +272,7 @@ automatizar — M9 (redes diferentes), M7 (queda de rede real) e M8
 - Corrigido um ponto em `messageHandler.js` que ainda blindava o gabarito
   pelo nome de campo antigo (`correta`) após o rename acima — sem a
   correção, a resposta certa vazaria para jogadores entrando no meio de
-  uma rodada em andamento. Ver `REGRESSÃO-003` em `_docs/ISSUES.md`.
+  uma rodada em andamento. Ver `REGRESSÃO-003` em `_docs/issues.md`.
 
 ---
 

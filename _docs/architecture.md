@@ -1,6 +1,13 @@
 # 🗺️ Arquitetura — PM: The KPI Master
 
-> Última revisão: 05/10/2026
+> **Contém:** como o sistema funciona hoje — tipo de arquitetura, árvore
+> arquivo por arquivo, notas de arquitetura (NOTA-003 a NOTA-005) e
+> decisões técnicas, schema dos dados, estado salvo e migrações, conexão
+> e troca de host, testes automatizados, simulador. **Não contém:** regras
+> de escrita de código (→ `conventions.md`), bugs (→ `issues.md`) nem
+> planos (→ `roadmap.md`).
+>
+> Última revisão: 06/10/2026
 
 ## Tipo de arquitetura
 
@@ -46,8 +53,9 @@ pm-the-kpi-master/
 │   ├── architecture.md          # este arquivo
 │   ├── conventions.md           # padrões de código, arquitetura, stack
 │   ├── roadmap.md               # melhorias planejadas
-│   ├── testes-conexao.md        # checklist de conexão: coberto, pendente, limitações
-│   └── ISSUES.md                # bugs em aberto e corrigidos
+│   ├── connection-tests.md      # checklist de conexão: coberto, pendente, limitações
+│   ├── manual-test-scripts.md   # passo a passo dos testes manuais P1 (M9, M7, M8)
+│   └── issues.md                # bugs em aberto e corrigidos, limpezas (NOTA)
 │
 ├── config/
 │   └── game-config.js           # CONFIG (constantes ajustáveis, inclusive CONFIG.PEER)
@@ -157,7 +165,7 @@ pm-the-kpi-master/
 
 ### NOTA-003 — i18n: UI em pt-BR, faltam os outros idiomas
 
-As strings de usuário em `ui/*.js`, `engine/answerEngine.js`, `engine/advisoryEngine.js`, `network/peerService.js`, `network/hostMigration.js` e `main.js` chamam `Game.i18n.t('namespace.chave')`. O dicionário `pt-BR.js` tem 51 chaves (contagem de 03/10/2026), com nomes e marcadores em inglês (`lobby.waitingForHost`, `{{advisor}}`); o T88 confere que toda chave pedida existe, que toda chave é usada e que cada chamada passa os marcadores do texto. Os motivos de recusa de entrada na sala (`join-rejected`) ainda são texto fixo em `network/messageHandler.js`.
+As strings de usuário em `ui/*.js`, `engine/answerEngine.js`, `engine/advisoryEngine.js`, `network/peerService.js`, `network/hostMigration.js` e `main.js` chamam `Game.i18n.t('namespace.chave')`. As chaves do dicionário `pt-BR.js` têm nomes e marcadores em inglês (`lobby.waitingForHost`, `{{advisor}}`); o T88 confere que toda chave pedida existe, que toda chave é usada e que cada chamada passa os marcadores do texto. Os motivos de recusa de entrada na sala (`join-rejected`) ainda são texto fixo em `network/messageHandler.js`.
 
 O que falta:
 1. Criar `en-US.js` e `es-ES.js` com as mesmas chaves de `pt-BR.js` (antes, conferir se sobrou texto fixo, como os motivos de recusa acima)
@@ -271,7 +279,7 @@ Passos existentes:
 
 ## Conexão, identidade e troca de host (Fase D)
 
-Resumo dos mecanismos; detalhes nos comentários de cada arquivo e no checklist `testes-conexao.md`.
+Resumo dos mecanismos; detalhes nos comentários de cada arquivo e no checklist `connection-tests.md`.
 
 - **Jogador desconectado:** durante a partida, quem cai continua na lista com `disconnected: true` (KPI, recursos e vaga preservados), fora do sorteio, do rodízio, dos efeitos de evento, da fila do pedido de ajuda e da escolha de assessor (BUG-022). No lobby e no fim de jogo, quem cai sai da lista. `getActivePlayers()` exclui desconectados; `getMatchPlayers()` inclui.
 - **Sala travada:** com a partida em andamento, nome novo é recusado (`join-rejected` com `room-locked`); só volta quem já estava na partida.
@@ -288,14 +296,15 @@ Resumo dos mecanismos; detalhes nos comentários de cada arquivo e no checklist 
 
 ## Testes automatizados
 
-- `tests/logic/` carrega os arquivos reais do jogo em contextos isolados do Node (`vm`), com rede, tela e PeerJS simulados, e verifica os mecanismos acima caso a caso. Um arquivo por assunto (`*.test.js`); o ambiente simulado e os ajudantes ficam em `environment.js`. Não tem dependências: `node tests/logic/<arquivo>`. Nomes de arquivos, funções e variáveis dos testes em inglês; comentários e títulos em português; os números T1, T2... não mudam.
-- `.github/workflows/testes.yml` roda todos os `tests/logic/*.test.js` a cada push e pull request; o resultado fica na aba Actions do repositório (uma tabela por arquivo).
-- Toda mudança de lógica vem com teste; os testes novos são conferidos contra o código antigo (devem falhar) e com teste de mutação.
+As regras para escrever teste (onde entra, numeração, os dois commits) estão em `conventions.md`, seção "Testes".
+
+- `tests/logic/` carrega os arquivos reais do jogo em contextos isolados do Node (`vm`), com rede, tela e PeerJS simulados, e verifica os mecanismos acima caso a caso. Um arquivo por assunto (`*.test.js`); o ambiente simulado e os ajudantes ficam em `environment.js`. Não tem dependências: `node tests/logic/<arquivo>`. Atenção: a tela simulada (`Game.ui`) aceita qualquer nome de função, então uma chamada com nome errado passa nesses testes e só falha no navegador — conferir com uma busca no código. As chaves de texto são conferidas pelo T88 e os IDs e seletores do HTML, pelo T91.
+- `.github/workflows/testes.yml` roda todos os `tests/logic/*.test.js` e os de `tests/browser` a cada push e pull request; o resultado fica na aba Actions do repositório (uma tabela por arquivo, sem total geral).
 - `tests/browser` roda o jogo de verdade em janelas separadas do Chromium (Playwright), com o site e um servidor PeerJS locais — sem depender da internet. Os arquivos do jogo não mudam: o teste redireciona o PeerJS (unpkg) para o pacote local, de mesma versão, e acrescenta ao `config/game-config.js` servido uma linha que aponta `CONFIG.PEER` para o servidor local. As dependências (`package.json`) são só dos testes. No Actions, é o job "ponta-a-ponta", separado do de lógica.
-- O que depende de rede real, dispositivo ou outros navegadores continua no checklist manual (`testes-conexao.md`).
+- O que depende de rede real, dispositivo ou outros navegadores continua no checklist manual (`connection-tests.md`), com o passo a passo em `manual-test-scripts.md`.
 
 ## Simulador de partidas (balanceamento)
 
 - `tests/simulation/simulator.js` roda partidas inteiras sem rede e sem tela, para medir duração, recursos, economia, eventos e justiça antes de mexer no `config/game-config.js`. Carrega num contexto `vm` os arquivos reais (`config/`, `state/`, `domain/`, `engine/` e o `main.js`, cujo `loadQuestions()` monta os baralhos a partir de `data/`) — nenhuma regra é copiada.
 - Robôs fazem o papel dos jogadores: o host real recebe resposta, pedido e resposta de assessoria, pedido de ajuda e resposta à oferta pelas mesmas funções de `Game.core.*` que a rede chamaria. O tempo é falso (prazos e relógio da partida andam sem esperar) e o sorteio usa semente (mesma semente, mesmas partidas). Trocas do config ("cenário B") valem só dentro da simulação.
-- Roda no Actions pelo workflow `simulacao.yml` (botão "Run workflow", formulário com as chances dos robôs e o cenário B); relatório no resumo da execução e planilhas `.csv` no artefato "simulacao". Testes: T93–T99.
+- Roda no Actions pelo workflow `simulacao.yml` (botão "Run workflow", formulário com as chances dos robôs e o cenário B); relatório no resumo da execução e planilhas `.csv` no artefato "simulacao". O ranking das partidas simuladas usa o desempate real, e o relatório mede os empates que sobram. Testes: T93–T99 e T102.

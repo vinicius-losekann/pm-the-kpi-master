@@ -1,7 +1,7 @@
 // ============================================
 // PM: The KPI Master - Testes no navegador: troca de host
 // ============================================
-// Checklist: _docs/testes-conexao.md (M3, M4, M11, M12, M19).
+// Checklist: _docs/connection-tests.md (M3, M4, M11, M12, M19).
 // ============================================
 
 const { test, expect, roomCode, roomId, startMatch, answerUntilRoundEnds, waitForNewHost } = require('./players');

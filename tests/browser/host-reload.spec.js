@@ -1,8 +1,8 @@
 // ============================================
 // PM: The KPI Master - Testes no navegador: F5 do host em cada momento
 // ============================================
-// Checklist: _docs/testes-conexao.md (M2 e os bugs B3, B4 e B5) e
-// _docs/ISSUES.md (BUG-019, assessoria pendente). O F5 no meio da
+// Checklist: _docs/connection-tests.md (M2 e os bugs B3, B4 e B5) e
+// _docs/issues.md (BUG-019, assessoria pendente). O F5 no meio da
 // pergunta está em connection.spec.js (E1). Também a reabertura da sala
 // depois que todos saíram (M13, M16): até 5 minutos o estado salvo
 // restaura a partida; depois disso, lobby novo.
