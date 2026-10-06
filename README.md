@@ -23,7 +23,7 @@
 7. Sem recursos não impede de tentar — só não sobra reserva pra errar de novo sem custo
 8. **Pedir Ajuda**: quem está com 0 recursos pode pedir; fila automática de quem tem mais recurso, por 10 KPI
 9. O jogo termina quando o primeiro jogador completa o **Encerramento**
-10. Vence quem tiver o **maior KPI Final**
+10. Vence quem tiver o **maior KPI Final**. Empate: fica à frente quem avançou mais nas áreas foco e, se ainda empatar, quem tem mais KPI acumulado; empate em tudo divide a posição (🥇 🥇 🥉)
 
 ---
 

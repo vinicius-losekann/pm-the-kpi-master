@@ -421,6 +421,17 @@ test('T101 Telas do ranking com empate: medalha pela posição (empate divide a 
     const side = elements.rankingList.innerHTML;
     check(count(side, '🥇') === 2 && count(side, '🥉') === 1 && count(side, '🥈') === 0, 'ranking parcial com empate: 🥇 🥇 🥉, veio: ' + side);
 
+    // Empate no KPI Final resolvido pelo progresso: medalhas na ordem, e o
+    // aviso aparece (explica por que A ficou à frente do Host).
+    const second = env.CONFIG.FOCUS_AREAS[1].id;
+    env.state.players[1].focusArea = second;
+    env.ctx.displayFinalRanking(env.Game.core.buildRanking());
+    const resolved = elements.finalRanking.innerHTML;
+    check(count(resolved, '🥇') === 1 && count(resolved, '🥈') === 1 && count(resolved, '🥉') === 1 &&
+        resolved.indexOf('>A<') < resolved.indexOf('>Host<'),
+        'empate no KPI Final resolvido pela área foco: A (🥇) à frente do Host (🥈), veio: ' + resolved);
+    check(elements.tiebreakNote.style.display === 'block', 'empate no KPI Final resolvido pelo desempate também deveria mostrar o aviso');
+
     // Sem empate no KPI Final: medalhas na ordem e o aviso escondido.
     env.state.players[1].kpi = 15;
     env.ctx.displayFinalRanking(env.Game.core.buildRanking());

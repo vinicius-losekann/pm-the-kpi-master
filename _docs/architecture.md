@@ -103,7 +103,7 @@ pm-the-kpi-master/
     │   ├── deckRules.js         # drawQuestion(...), resetDeck(...)
     │   ├── tradeRules.js        # validateResourceTransfer(...)
     │   ├── advisoryRules.js     # validateAdvisoryRequest(...), calculateAdvisorBonus(...)
-    │   └── rankingRules.js      # buildRanking(...)
+    │   └── rankingRules.js      # buildRanking(...): KPI Final; desempate por área foco, atividades e KPI; empate total divide a posição
     │
     ├── state/
     │   ├── store.js             # fonte única da verdade (Game.state)

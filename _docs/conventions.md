@@ -53,7 +53,7 @@ Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` o
 | `answer` | Respondedor → host | `alternative`, `playerName` |
 | `kpi-update` | host → todos | o jogador: `kpi`, `focusArea`, `activities`, `resources`; da resposta: `isCorrect`, `kpiGained`, `answeredThisRound`; do bônus de assessoria: `advisorBonus` |
 | `player-list`, `match-ended` | host → todos | `players` (cada jogador com `kpi`, `resources`, `focusArea`, `activities`...) |
-| `game-over` | host → todos | `ranking`: cada jogador com `position`, `finalKpi` (KPI + recursos × `FINAL_RESOURCE_VALUE`), `kpi`, `resources`, `focusArea` |
+| `game-over` | host → todos | `ranking`: cada jogador com `position` (empatados em tudo têm a mesma: 1, 1, 3), `finalKpi` (KPI + recursos × `FINAL_RESOURCE_VALUE`), `kpi`, `resources`, `focusArea` |
 | `show-event` | host → todos | `event` (início de rodada nova) e `players` (os efeitos do evento mudam os recursos) |
 | `round-ended` | host → todos | rodada encerrada, aguardando o "Nova Rodada" |
 | `match-paused` | host → todos | faltam jogadores conectados; retoma sozinha quando alguém volta |

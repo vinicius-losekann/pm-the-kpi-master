@@ -43,6 +43,13 @@ recebeu "fica sem poder responder"; desde a Fase C, quem está com 0
 recursos continua respondendo normalmente (só errar gasta recurso).
 Corrigir o texto junto com o BUG-024.
 
+**NOTA-008 — texto desatualizado no detalhe do ranking final.**
+`ranking.rankingDetail` (`js/locales/pt-BR.js`) diz "KPI acumulado
+(acertos, vendas, compras e assessorias)"; vendas e compras são do
+mercado de recursos antigo, que deu lugar ao pedido de ajuda. Trocar por
+"acertos, ajudas e assessorias". Achado em 06/10/2026, na frente do
+desempate do ranking.
+
 **NOTA-006 — regras do `css/style.css` que nenhuma tela usa. ✅ Fechada
 (05/10/2026).** Encontradas no levantamento da Fase E/E4: `.btn-success`,
 `.btn-selected`, `.entry-form`, `.room-id-hint`, `.correct-answer`,

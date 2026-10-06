@@ -562,7 +562,12 @@ function optionsFromInputs(inputs = {}) {
 // RELATÓRIO
 // ============================================
 
-const number = (n, decimals = 1) => (Number.isFinite(n) ? n.toFixed(decimals).replace('.', ',').replace(/,0+$/, '') : '—');
+/** Número com vírgula decimal, sem zeros sobrando; "-0" (negativo que arredonda para zero) vira "0". */
+function number(n, decimals = 1) {
+    if (!Number.isFinite(n)) return '—';
+    const text = n.toFixed(decimals).replace('.', ',').replace(/,0+$/, '');
+    return text === '-0' ? '0' : text;
+}
 const percentText = (part, total) => (total > 0 ? number(100 * part / total) + '%' : '—');
 const mean = (list) => (list.length ? list.reduce((t, v) => t + v, 0) / list.length : NaN);
 const total = (list, fn) => list.reduce((t, item) => t + fn(item), 0);
@@ -718,7 +723,8 @@ function buildReport({ a, b = null, commit = '' }) {
     });
     compare([
         ['Diferença do 1º para o 2º (KPI Final)', run => spreadText(run.matches.map(m => m.players[0].finalKpi - m.players[1].finalKpi))],
-        ['Empate no 1º lugar', run => percentText(run.matches.filter(m => m.players[0].finalKpi === m.players[1].finalKpi).length, run.matches.length)]
+        ['Empate no KPI Final do 1º lugar', run => percentText(run.matches.filter(m => m.players[0].finalKpi === m.players[1].finalKpi).length, run.matches.length)],
+        ['Empate que o desempate não resolveu (medalha dividida)', run => percentText(run.matches.filter(m => m.players[0].position === m.players[1].position).length, run.matches.length)]
     ]);
 
     return lines.join('\n') + '\n';
@@ -747,5 +753,6 @@ module.exports = {
     simulateMany,
     optionsFromInputs,
     buildReport,
-    toCsv
+    toCsv,
+    formatNumber: number
 };
