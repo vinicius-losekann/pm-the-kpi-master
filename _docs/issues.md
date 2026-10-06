@@ -16,35 +16,11 @@ glossário de `conventions.md` dá o nome atual.
 
 ## Em investigação
 
-**BUG-024 — dois pedidos de ajuda ao mesmo tempo: o segundo apaga o
-primeiro e pode receber a doação feita para o primeiro.** Achado em
-06/10/2026, na frente do simulador de partidas (roadmap 7.9); a corrigir
-numa frente própria.
-- **Sintoma:** A e C estão com 0 recursos. A pede ajuda e o jogo oferece a
-  B. Antes de B responder (prazo de 20s), C também pede ajuda. O pedido de
-  A some sem aviso (A fica vendo "pedindo ajuda para B…"). Se B aceitar a
-  oferta que recebeu para A, o recurso vai para C, e C paga os 10 KPI.
-- **Local:** `handleHelpRequest()` em `js/engine/tradeEngine.js`: monta a
-  fila nova em `state.helpQueue` sem olhar se já existe uma em andamento.
-  `handleHelpOfferResponse()` confere só o nome de quem responde, não para
-  quem era a oferta.
-- **Como reproduzir:** três ou mais navegadores, dois jogadores com 0
-  recursos e KPI ≥ 10 pedindo ajuda com menos de 20s de diferença, e o
-  jogador com mais recursos aceitando a primeira oferta.
-- **Proposta:** recusar (ou pôr numa fila de espera) o pedido feito
-  enquanto outro está em andamento, avisando quem pediu; a resposta à
-  oferta passa a levar para quem era a oferta. O simulador de partidas
-  evita essa situação (um pedido por vez) para não medir em cima dela.
+Nenhum bug em investigação.
 
 ---
 
 ## Limpeza pendente (não é bug)
-
-**NOTA-007 — comentário desatualizado em `js/engine/tradeEngine.js`.**
-O comentário de `sendNextHelpOffer()` diz que quem pediu ajuda e não
-recebeu "fica sem poder responder"; desde a Fase C, quem está com 0
-recursos continua respondendo normalmente (só errar gasta recurso).
-Corrigir o texto junto com o BUG-024.
 
 **NOTA-008 — texto desatualizado no detalhe do ranking final.**
 `ranking.rankingDetail` (`js/locales/pt-BR.js`) diz "KPI acumulado
@@ -101,12 +77,14 @@ automatizado — os números (T…, E…) são os de `tests/logic` e
 | BUG-021 | F5 na tela de fim de jogo: o host voltava à tela de jogo e, se a partida tinha acabado por alguém completar a última fase, uma dupla nova era sorteada e ela recomeçava; o guest era recusado ("a partida desta sala já começou") e voltava à tela inicial | O fim de jogo não era gravado no estado salvo nem ia no `state-sync`; a sala continuava travada para nomes novos depois do fim (e quem cai no fim de jogo sai da lista) | Estado salvo e `state-sync` levam `gameOver` e o ranking final (`rankingFinal`); `showGameOver()` no F5 e na volta; depois do fim de jogo a sala não fica travada — T66, T67, T68 |
 | BUG-022 | Pedido de ajuda e assessoria com quem caiu: quem pediu esperava 20s por cada jogador caído na fila, e a fila seguia (podendo transferir recurso) mesmo depois de quem pediu cair; o assessor caído recebia a pergunta e quem respondia ficava 20s com os botões travados | `tradeEngine` e `validarPedidoAssessoria()` olhavam só `waitingInLobby`, não `disconnected` | Quem caiu é pulado na fila; se quem pediu cai, o pedido é cancelado sem transferir nada; assessor caído é recusado na hora — T69, T70 |
 | BUG-023 | O aviso "pedindo ajuda para…" mostrava nomes com `&` ou `<` como "Ana &amp; Bia" | `showHelpCandidate()` escapava o nome para HTML e o mostrava com `textContent` (escape duplo) | Nome mostrado direto com `textContent` — T71 |
+| BUG-024 | Dois pedidos de ajuda ao mesmo tempo: o segundo apagava o primeiro sem aviso, e a doação aceita para o primeiro ia para o segundo (que pagava os 10 KPI) | `handleHelpRequest()` (`engine/tradeEngine.js`) montava uma fila nova sem olhar a que estava em andamento; `handleHelpOfferResponse()` conferia só quem respondia, não para quem era a oferta | Um pedido por vez: quem pede durante o de outro é recusado na hora com aviso (`request-in-progress`, texto `trade.helpBusy`); quem pede de novo durante o próprio vê com quem o pedido está, sem a fila recomeçar; a resposta à oferta leva `requesterName` e só vale para o pedido em andamento (protocolo 7) — T103–T106 |
 
 ## Limpezas concluídas
 
 | ID | O que era | O que foi feito |
 |---|---|---|
 | NOTA-006 | Regras do `css/style.css` que nenhuma tela usava (`.btn-success`, `.btn-selected`, `.entry-form`, `.room-id-hint`, `.correct-answer`, `.correct-label`, `.correct-value`, `.final-rank-focus-area`, `.role-answerer`, `.sr-only`, `#btnPlayAgain`, `#btnExit`), achadas na Fase E/E4 | Conferidas uma a uma no HTML, no `js/` e nos testes (inclusive as classes montadas por concatenação, `feedback-*` e `top-1`…, que estão em uso) e apagadas em 05/10/2026; para quem joga, nada mudou. O T92 impede que voltem a se acumular |
+| NOTA-007 | O comentário de `sendNextHelpOffer()` (`engine/tradeEngine.js`) dizia que quem pediu ajuda e não recebeu "fica sem poder responder"; desde a Fase C, quem está com 0 recursos continua respondendo normalmente | Texto corrigido em 06/10/2026, junto com o BUG-024 |
 
 ---
 

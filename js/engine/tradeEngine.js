@@ -6,7 +6,9 @@
 // PMBOK). Ao pedir, o host monta uma fila automática
 // com os jogadores ativos que têm recurso — do que tem mais pro que
 // tem menos — e pergunta um de cada vez, avançando sozinho a cada
-// recusa/timeout, até alguém aceitar ou a fila acabar.
+// recusa/timeout, até alguém aceitar ou a fila acabar. Um pedido por
+// vez: quem pede enquanto outro está em andamento é recusado na hora,
+// com aviso, e tenta de novo depois (BUG-024).
 //
 // A troca em si: doador +10 KPI/-1 recurso, quem pediu -10 KPI/+1
 // recurso (validação em domain/tradeRules.js).
@@ -28,7 +30,9 @@ function requestHelp() {
 
 /**
  * Host: valida o pedido, monta a fila (jogadores ativos com recurso,
- * do que tem mais pro que tem menos) e envia a primeira oferta.
+ * do que tem mais pro que tem menos) e envia a primeira oferta. Com um
+ * pedido já em andamento, não monta outra fila: quem pediu de novo vê
+ * com quem o próprio pedido está; outro jogador é recusado com aviso.
  */
 function handleHelpRequest(msg) {
     const state = Game.state;
@@ -47,6 +51,22 @@ function handleHelpRequest(msg) {
             type: 'help-no-candidates',
             reason: 'insufficient-kpi'
         });
+        return;
+    }
+
+    const current = state.helpQueue;
+    if (current) {
+        if (current.requesterName === requester.name) {
+            Game.network.sendToPlayer(requester.peerId, {
+                type: 'help-trying',
+                candidateName: current.candidates[current.index]
+            });
+        } else {
+            Game.network.sendToPlayer(requester.peerId, {
+                type: 'help-no-candidates',
+                reason: 'request-in-progress'
+            });
+        }
         return;
     }
 
@@ -70,10 +90,9 @@ function handleHelpRequest(msg) {
 /**
  * Host: envia (ou reenvia, após recusa/timeout) a oferta de ajuda para
  * o candidato atual da fila. Se a fila acabou, avisa quem pediu que
- * ninguém pôde ajudar por ora — não é fim de jogo, só fica sem poder
- * responder até conseguir KPI/recurso por outro caminho (ser
- * Perguntador, ser chamado como Assessor, ou pegar um evento de
- * Reserva de Contingência).
+ * ninguém pôde ajudar por ora — não é fim de jogo: quem está com 0
+ * recursos continua respondendo normalmente (só errar gasta recurso) e
+ * pode pedir de novo depois.
  */
 function sendNextHelpOffer() {
     const state = Game.state;
@@ -119,13 +138,14 @@ function sendNextHelpOffer() {
 
     if (state.helpTimeout) clearTimeout(state.helpTimeout);
     state.helpTimeout = setTimeout(() => {
-        handleHelpOfferResponse({ candidateName: candidateName, accepted: false, timeout: true });
+        handleHelpOfferResponse({ candidateName: candidateName, requesterName: requester.name, accepted: false, timeout: true });
     }, CONFIG.GAME.HELP_OFFER_TIMEOUT);
 }
 
 /**
  * Host: processa a resposta (aceite/recusa/timeout) do candidato atual
- * da fila.
+ * da fila. A resposta diz para quem era a oferta (requesterName): só
+ * vale se for a do pedido em andamento.
  */
 function handleHelpOfferResponse(msg) {
     const state = Game.state;
@@ -134,6 +154,7 @@ function handleHelpOfferResponse(msg) {
     const queue = state.helpQueue;
     const currentCandidate = queue.candidates[queue.index];
     if (msg.candidateName !== currentCandidate) return; // resposta atrasada de candidato já pulado
+    if (msg.requesterName !== queue.requesterName) return; // resposta a uma oferta de outro pedido
 
     if (state.helpTimeout) {
         clearTimeout(state.helpTimeout);

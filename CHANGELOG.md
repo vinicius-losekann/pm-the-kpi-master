@@ -26,7 +26,7 @@
   regras reais do jogo (`tests/simulation/`). Mostra duração, recursos,
   economia, eventos e justiça, e compara com uma troca do config
   ("cenário B"). Não muda o jogo publicado. Testes T93–T99.
-- São 105 testes de lógica em 10 arquivos e 17 cenários no navegador.
+- São 109 testes de lógica em 10 arquivos e 17 cenários no navegador.
 
 ### Changed
 - **Documentação reorganizada:** cada documento abre com o que contém e
@@ -37,9 +37,14 @@
   árvore de arquivos; o roadmap ganhou a seção "Itens retirados" e as
   ideias 8.6 a 8.8.
 
-### Known issues
-- Dois pedidos de ajuda ao mesmo tempo: o segundo apaga o primeiro
-  (BUG-024, em `_docs/issues.md`).
+### Fixed
+- **Dois pedidos de ajuda ao mesmo tempo (BUG-024):** o segundo apagava o
+  primeiro, e a doação aceita para o primeiro ia para o segundo. Agora é
+  um pedido por vez: quem pede enquanto outro jogador está pedindo vê um
+  aviso e tenta de novo depois, e a doação sempre vai para quem a oferta
+  foi feita. A versão das mensagens entre os jogadores (protocolo) passou
+  da 6 para a 7: quem estiver com a página antiga aberta é recusado ao
+  entrar na sala e vê o aviso para recarregar. Testes T103–T106.
 
 ---
 

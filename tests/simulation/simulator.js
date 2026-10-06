@@ -365,7 +365,8 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
             advisorRobot(player);
         } else if (msg.type === 'help-offer') {
             clock.setTimeout(() => {
-                Game.core.handleHelpOfferResponse({ type: 'help-offer-response', candidateName: player.name, accepted: botRandom() < o.helpAcceptChance });
+                Game.core.handleHelpOfferResponse({ type: 'help-offer-response', candidateName: player.name, requesterName: msg.requesterName,
+                    accepted: botRandom() < o.helpAcceptChance });
             }, between(o.helpOfferSeconds) * 1000);
         } else if (msg.type === 'help-no-candidates') {
             if (msg.reason === 'no-donors') result.help.noDonors++;

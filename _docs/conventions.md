@@ -63,11 +63,11 @@ Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` o
 | `advisory-result` | host → todos (ou só a quem pediu, se o pedido é inválido) | `advisorName`, `suggestion`, `declined`, `timeout`; pedido inválido: `invalid` e `reason` (`closing-focus-area`, `already-answered` ou nenhum) |
 | `help-request` | quem pediu → host | `requesterName`. A fila fica só no host: `helpQueue` (`requesterName`, `candidates`, `index`) |
 | `help-trying` / `help-offer` | host → quem pediu / host → candidato | `candidateName` / `requesterName` |
-| `help-offer-response` | candidato → host | `candidateName`, `accepted` |
-| `help-no-candidates` | host → quem pediu | `reason`: `insufficient-kpi`, `no-donors`, `all-declined` |
+| `help-offer-response` | candidato → host | `candidateName`, `requesterName` (para quem era a oferta; o host só aceita a resposta do pedido em andamento), `accepted` |
+| `help-no-candidates` | host → quem pediu | `reason`: `insufficient-kpi`, `no-donors`, `all-declined`, `request-in-progress` (outro jogador já está pedindo ajuda; um pedido por vez) |
 | `help-confirmed` | host → todos | `donor`, `requester`, `amount`, `donorKpi`, `donorResources`, `requesterKpi`, `requesterResources` |
 
-Mensagem que chega sem um campo novo (de uma versão anterior do jogo) mantém o comportamento antigo.
+Mensagem que chega sem um campo novo (de uma versão anterior do jogo) mantém o comportamento antigo, salvo quando o campo veio com uma versão nova do protocolo: aí o host exige o campo (ex.: `requesterName` do `help-offer-response`, desde a versão 7).
 
 **Versão do protocolo:** ao mudar o nome ou o formato de um campo de mensagem, aumentar `PROTOCOL_VERSION` (`network/peerService.js`). O host recusa quem entra com outra versão (`version-mismatch`), em vez de a partida travar quando, logo depois de um deploy, uns jogadores rodam o código novo e outros o antigo. Se o mesmo campo também é salvo no `localStorage`, aumentar junto o `STATE_VERSION`, com o passo de migração (`utils/persistence.js`).
 

@@ -67,6 +67,7 @@ window.Game.locales['pt-BR'] = {
         helpOffer: '<strong>{{requester}}</strong> está sem recursos e pediu ajuda — topa dar 1📦?',
         insufficientKpi: '⚠️ Você está sem recursos e sem KPI suficiente para pedir ajuda agora. Continue jogando como Perguntador ou Assessor para conseguir mais KPI — assim que tiver o suficiente, tenta pedir ajuda de novo.',
         noHelp: '⚠️ Ninguém pôde te ajudar agora. Você ainda ganha KPI sendo Perguntador ou Assessor — tenta pedir ajuda de novo daqui a pouco.',
+        helpBusy: '⚠️ Outro jogador está pedindo ajuda agora. Tenta de novo daqui a pouco.',
     },
 
     result: {

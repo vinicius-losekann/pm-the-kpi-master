@@ -50,7 +50,8 @@ function showHelpOfferModal(msg) {
 }
 
 /**
- * Envia a resposta do candidato (aceite/recusa) ao host.
+ * Envia a resposta do candidato (aceite/recusa) ao host, dizendo para
+ * quem era a oferta — o host só aceita a resposta do pedido em andamento.
  */
 function respondToHelpOffer(accepted) {
     document.getElementById('modalHelpOffer').style.display = 'none';
@@ -59,6 +60,7 @@ function respondToHelpOffer(accepted) {
     const msg = {
         type: 'help-offer-response',
         candidateName: Game.state.playerName,
+        requesterName: currentHelpOffer.requesterName,
         accepted: !!accepted
     };
 
@@ -72,13 +74,14 @@ function respondToHelpOffer(accepted) {
 
 /**
  * Jogador que pediu ajuda: mensagem de que ninguém pôde ajudar agora
- * (não é fim de jogo — ver motivo pra explicar o caminho de volta).
+ * (não é fim de jogo — ver motivo pra explicar o caminho de volta) ou
+ * de que outro jogador já está pedindo ajuda.
  */
 function showHelpNoCandidates(msg) {
     document.getElementById('modalHelpRequest').style.display = 'none';
-    const key = msg.reason === 'insufficient-kpi'
-        ? 'trade.insufficientKpi'
-        : 'trade.noHelp';
+    let key = 'trade.noHelp';
+    if (msg.reason === 'insufficient-kpi') key = 'trade.insufficientKpi';
+    if (msg.reason === 'request-in-progress') key = 'trade.helpBusy';
     alert(Game.i18n.t(key));
 }
 
