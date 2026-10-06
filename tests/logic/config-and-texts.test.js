@@ -7,7 +7,8 @@
 // (js/locales/pt-BR.js): toda chave pedida existe, toda chave do
 // dicionário é usada e cada chamada passa os marcadores que o texto usa.
 // E os nomes do HTML e do CSS (IDs, classes e atributos data-*): o jogo e
-// os testes no navegador só pedem o que existe no HTML e no CSS.
+// os testes no navegador só pedem o que existe no HTML e no CSS, e o CSS
+// não tem regra que nenhuma tela usa.
 // Ambiente simulado e ajudantes: environment.js. Rodar a partir da raiz:
 //     node tests/logic/config-and-texts.test.js
 // ============================================
@@ -319,9 +320,7 @@ const STYLED_CLASS_RENAMES = {
     'phase-completed': 'focus-area-completed',
     'phase-current': 'focus-area-current',
     'mini-phase': 'mini-focus-area',
-    'final-rank-phase': 'final-rank-focus-area',
     'role-perguntador': 'role-asker',
-    'role-respondedor': 'role-answerer',
     'badge-area': 'badge-domain',
     'badge-group': 'badge-focus-area'
 };
@@ -330,8 +329,11 @@ const UNSTYLED_CLASS_RENAMES = {
     'assessoria-area': 'advisory-area',
     'assessor-select-btn': 'advisor-select-btn'
 };
-// Classes com regra no CSS que nenhuma tela usa hoje (só precisam existir no CSS).
-const UNUSED_STYLED_CLASSES = ['final-rank-focus-area', 'role-answerer'];
+// ...e as que nenhuma tela usava (regras apagadas do CSS; o nome antigo não pode voltar).
+const REMOVED_CLASS_RENAMES = {
+    'final-rank-phase': 'final-rank-focus-area',
+    'role-respondedor': 'role-answerer'
+};
 const DATA_ATTRIBUTE_RENAMES = { 'data-assessor-name': 'data-advisor-name', 'data-phase': 'data-focus-area' };
 const DATASET_RENAMES = { assessorName: 'advisorName' };
 
@@ -340,15 +342,34 @@ function readRepoFile(file) {
     return fs.readFileSync(path.join(ROOT, file), 'utf8');
 }
 
+/** Texto pronto para entrar numa RegExp como está ("a.b" → "a\.b"). */
+function escapeRegExp(text) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /** IDs (id="...") de um HTML. */
 function htmlIds(html) {
     return new Set([...html.matchAll(/\bid="([\w-]+)"/g)].map(m => m[1]));
 }
 
-/** Classes que têm regra no CSS (os ".nome" dos seletores, fora dos comentários). */
+/** Seletores do CSS (o texto antes de cada "{", fora dos comentários). */
+function cssSelectors(css) {
+    return css.replace(/\/\*[\s\S]*?\*\//g, '').split('{').map(part => part.split('}').pop());
+}
+
+/** Classes que têm regra no CSS (os ".nome" dos seletores). */
 function cssClasses(css) {
-    const selectors = css.replace(/\/\*[\s\S]*?\*\//g, '').split('{').map(part => part.split('}').pop());
-    return new Set(selectors.flatMap(s => [...s.matchAll(/\.([A-Za-z][\w-]*)/g)].map(m => m[1])));
+    return new Set(cssSelectors(css).flatMap(s => [...s.matchAll(/\.([A-Za-z][\w-]*)/g)].map(m => m[1])));
+}
+
+/** IDs que têm regra no CSS (os "#nome" dos seletores). */
+function cssIds(css) {
+    return new Set(cssSelectors(css).flatMap(s => [...s.matchAll(/#([A-Za-z][\w-]*)/g)].map(m => m[1])));
+}
+
+/** Texto sem comentários (de bloco, de HTML e linhas //): nome citado só em comentário não conta como uso. */
+function withoutComments(text) {
+    return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '').replace(/^\s*\/\/.*$/gm, '');
 }
 
 /** Classes de um texto: os nomes dentro de class="..." (sem os pedaços montados com ${...}). */
@@ -378,11 +399,10 @@ test('T91 HTML e CSS em inglês: IDs, classes e atributos data-* com os nomes no
     // 1) Nenhum nome antigo no HTML, no CSS e no js/, só nas formas de
     // nome (id="x", #x, 'x', .x, class="... x", data-x, dataset.x).
     const scanned = { 'game.html': gameHtml, 'index.html': indexHtml, 'css/style.css': css, ...jsSources };
-    const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const patterns = [
         ...Object.keys(ELEMENT_ID_RENAMES).map(id => [id, new RegExp('(?:\\bid=["\']|#|[\'"`])' + id + '(?![\\w-])')]),
-        ...Object.keys({ ...STYLED_CLASS_RENAMES, ...UNSTYLED_CLASS_RENAMES, ...DATA_ATTRIBUTE_RENAMES })
-            .map(name => [name, new RegExp('(?<![\\w-])' + escape(name) + '(?![\\w-])')]),
+        ...Object.keys({ ...STYLED_CLASS_RENAMES, ...UNSTYLED_CLASS_RENAMES, ...REMOVED_CLASS_RENAMES, ...DATA_ATTRIBUTE_RENAMES })
+            .map(name => [name, new RegExp('(?<![\\w-])' + escapeRegExp(name) + '(?![\\w-])')]),
         ...Object.keys(DATASET_RENAMES).map(name => ['dataset.' + name, new RegExp('\\.dataset\\.' + name + '\\b')])
     ];
     const oldFound = [];
@@ -403,8 +423,7 @@ test('T91 HTML e CSS em inglês: IDs, classes e atributos data-* com os nomes no
     check(missingStyles.length === 0, 'faltam no style.css as classes novas: ' + missingStyles.join(', '));
     const allSources = gameHtml + '\n' + Object.values(jsSources).join('\n');
     const notUsed = [...Object.values(STYLED_CLASS_RENAMES), ...Object.values(UNSTYLED_CLASS_RENAMES)]
-        .filter(c => !UNUSED_STYLED_CLASSES.includes(c))
-        .filter(c => !new RegExp('(?<![\\w-])' + escape(c) + '(?![\\w-])').test(allSources));
+        .filter(c => !new RegExp('(?<![\\w-])' + escapeRegExp(c) + '(?![\\w-])').test(allSources));
     check(notUsed.length === 0, 'classes novas que o game.html e o js/ não usam: ' + notUsed.join(', '));
 
     // 3) Tudo o que o jogo pede existe: getElementById, os #id e .classe
@@ -490,6 +509,35 @@ test('T91 HTML e CSS em inglês: IDs, classes e atributos data-* com os nomes no
     check(list.includes('advisor-select-btn" data-advisor-name="' + third + '"') &&
         elements.modalAdvisorySelect && elements.modalAdvisorySelect.style.display === 'flex',
         'a escolha do assessor deveria abrir modalAdvisorySelect com o botão de ' + third + ' (advisor-select-btn, data-advisor-name), veio: ' + list);
+});
+
+// Classes que o jogo monta juntando pedaços (não aparecem inteiras no
+// código): o pedaço que as monta no js/ → as classes com regra no CSS.
+const BUILT_CLASSES = {
+    'feedback-${': ['feedback-info', 'feedback-warning', 'feedback-error', 'feedback-success'],
+    "'top-' +": ['top-1', 'top-2', 'top-3']
+};
+
+test('T92 CSS sem regra sobrando: toda classe com regra no style.css é usada pelo HTML ou pelo js/, e todo #id dele existe no HTML', () => {
+    const css = readRepoFile('css/style.css');
+    const html = withoutComments(readRepoFile('game.html') + '\n' + readRepoFile('index.html'));
+    const js = jsFilesIn('js').map(f => withoutComments(readRepoFile(f))).join('\n');
+
+    // 1) As classes montadas por pedaços: o pedaço continua no js/.
+    for (const [piece, classes] of Object.entries(BUILT_CLASSES)) {
+        check(js.includes(piece), 'o js/ deveria montar as classes ' + classes.join(', ') + ' com ' + piece);
+    }
+    const built = Object.values(BUILT_CLASSES).flat();
+
+    // 2) Toda outra classe com regra no CSS aparece no HTML ou no js/ (fora de comentário).
+    const unused = [...cssClasses(css)].filter(c => !built.includes(c))
+        .filter(c => !new RegExp('(?<![\\w-])' + escapeRegExp(c) + '(?![\\w-])').test(html + '\n' + js));
+    check(unused.length === 0, 'classes com regra no style.css que nenhuma tela usa: ' + unused.join(', '));
+
+    // 3) Todo #id com regra no CSS existe no game.html ou no index.html.
+    const ids = htmlIds(html);
+    const missingIds = [...cssIds(css)].filter(id => !ids.has(id));
+    check(missingIds.length === 0, 'IDs com regra no style.css que não existem no game.html nem no index.html: ' + missingIds.join(', '));
 });
 
 finish('Configuração e textos da tela');
