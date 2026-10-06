@@ -1,0 +1,551 @@
+// ============================================
+// PM: The KPI Master - Network: Host Migration
+// ============================================
+// Lida com a perda de conexão com o host: primeiro tenta reconectar
+// ao MESMO host (pode ter sido só um F5 dele — sem isso, o backup
+// assumiria a cada F5 do host), e só se isso falhar assume que houve
+// migração de host de verdade (versão incrementada).
+//
+// CONFIG.GAME.HOST_TIMEOUT é o prazo TOTAL que os guests esperam o host
+// voltar (tentativas curtas e repetidas ao mesmo host, contadas a
+// partir da queda). Esgotado o prazo, o backup assume. O host antigo
+// continua na partida como jogador comum desconectado e, se recarregar
+// a página depois disso, volta como jogador comum (ver
+// rejoinAsPlayerIfTakenOver()).
+//
+// A procura da sala em várias versões do host (usada por quem entra,
+// por quem volta e pela verificação do host antigo) fica em
+// network/hostSearch.js.
+// ============================================
+
+// Ritmo das tentativas de reconexão ao mesmo host dentro do
+// prazo (CONFIG.GAME.HOST_TIMEOUT). Cada tentativa espera no máximo
+// HOST_ATTEMPT_MS pela conexão; entre uma e outra há HOST_RETRY_INTERVAL_MS.
+// Uma tentativa nova só começa se ainda couber MIN_ATTEMPT_MS dentro
+// do prazo — assim o backup assume sem passar do prazo.
+const HOST_ATTEMPT_MS = 2500;
+const HOST_RETRY_INTERVAL_MS = 1000;
+const MIN_ATTEMPT_MS = 1000;
+
+// Quanto tempo o host antigo, ao recarregar a página, espera para
+// descobrir se alguém já assumiu a sala (ver
+// rejoinAsPlayerIfTakenOver()). Sem resposta nesse prazo, segue
+// como host. Cobre abrir a sonda e a busca nas versões seguintes
+// (hostSearch.js).
+const HOST_PROBE_MS = 7000;
+
+// Momento (Date.now()) em que acaba a espera pelo host atual; 0 quando
+// não há espera em andamento. Impede que duas quedas seguidas abram
+// duas cadeias de tentativas ao mesmo tempo.
+let hostReturnDeadline = 0;
+
+/**
+ * Lida com a desconexão do host. Tenta reconectar ao mesmo host
+ * (versão atual) até o prazo de CONFIG.GAME.HOST_TIMEOUT; só depois
+ * presume migração de host.
+ */
+function handleHostDisconnect() {
+    if (Game.state.isHost) return;
+    if (hostReturnDeadline) {
+        console.log('⏳ Queda do host já está sendo tratada — aguardando a espera em andamento.');
+        return;
+    }
+
+    console.warn('⚠️ Host desconectado! Tentando reconectar por até ' + (CONFIG.GAME.HOST_TIMEOUT / 1000) + 's...');
+    Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.hostDisconnected'));
+
+    hostReturnDeadline = Date.now() + CONFIG.GAME.HOST_TIMEOUT;
+    attemptReconnectToSameHost(1);
+}
+
+/**
+ * Pede ao PeerJS uma conexão com `peerId`, ou devolve null se
+ * não for possível. Quando o peer local não existe mais ou perdeu o
+ * servidor de sinalização, o PeerJS não lança exceção: devolve
+ * undefined — e o `.on(...)` logo em seguida quebraria a cadeia inteira
+ * de tentativas. Com null, a tentativa só conta como falhada.
+ */
+function connectIfPossible(peerId) {
+    const peer = Game.network.connectionState.getPeer();
+    if (!peer || peer.destroyed) return null;
+    try {
+        return peer.connect(peerId, { reliable: true }) || null;
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * Marca na URL da página se este jogador é o host
+ * (`host=true`/`host=false`), sem recarregar. Um F5 lê o papel da URL
+ * (ver init() em main.js): sem isto, quem assumiu como host voltaria
+ * de um F5 achando que é guest, e o host antigo que virou jogador comum
+ * voltaria achando que é host. Os outros parâmetros não mudam — o
+ * `peerId` da URL continua sendo o ID base da sala.
+ */
+function saveRoleInUrl(iAmHost) {
+    try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('host', iAmHost ? 'true' : 'false');
+        window.history.replaceState(window.history.state, '', url.toString());
+    } catch (e) {
+        console.warn('⚠️ Não foi possível atualizar a URL com o papel do jogador:', e && e.message);
+    }
+}
+
+// ============================================
+// RECONEXÃO AO MESMO HOST
+// ============================================
+
+/**
+ * Tenta reconectar ao host na versão ATUAL (mesmo ID de sempre).
+ * Cobre o caso mais comum: o host só deu F5, sem migração nenhuma.
+ *
+ * Repete tentativas curtas até o prazo aberto em
+ * handleHostDisconnect() (CONFIG.GAME.HOST_TIMEOUT a partir da queda).
+ * Chamada direta, sem prazo em andamento, abre um prazo novo.
+ */
+function attemptReconnectToSameHost(attempt = 1) {
+    const state = Game.state;
+    if (state.isHost) return;
+    if (!hostReturnDeadline) hostReturnDeadline = Date.now() + CONFIG.GAME.HOST_TIMEOUT;
+
+    const maxAttempts = maxAttemptsToSameHost();
+    const currentHostId = Game.computeHostPeerId(state.baseRoomPeerId, state.hostVersion);
+    const timeoutMs = Math.min(HOST_ATTEMPT_MS, Math.max(MIN_ATTEMPT_MS, hostReturnDeadline - Date.now()));
+
+    console.log(`🔁 Tentativa ${attempt}: reconectando ao host atual (${currentHostId})...`);
+    Game.ui.updateConnectionStatus('disconnected', Game.i18n.t('connection.reconnectingToHost', { attempt: Math.min(attempt, maxAttempts), max: maxAttempts }));
+
+    let settled = false;
+    const cs = Game.network.connectionState;
+    const conn = connectIfPossible(currentHostId);
+    if (!conn) {
+        console.warn('⚠️ Sem peer utilizável para reconectar — tentativa contada como falha.');
+        retryReconnectSameHostOrMigrate(attempt);
+        return;
+    }
+
+    conn.on('open', () => {
+        if (settled) return;
+        settled = true;
+        hostReturnDeadline = 0;
+
+        cs.setConnection(currentHostId, conn);
+        console.log('✅ Reconectado ao mesmo host (sem migração):', currentHostId);
+        Game.ui.updateConnectionStatus('connected', Game.i18n.t('connection.reconnected'));
+
+        Game.network.handleConnection(conn);
+        Game.network.sendPlayerJoin();
+        Game.saveState();
+    });
+
+    conn.on('error', () => {
+        if (settled) return;
+        settled = true;
+        retryReconnectSameHostOrMigrate(attempt);
+    });
+
+    setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        try { conn.close(); } catch (e) { /* ignora */ }
+        retryReconnectSameHostOrMigrate(attempt);
+    }, timeoutMs);
+}
+
+/**
+ * Quantas tentativas cabem no prazo (só para o texto de
+ * status "Reconectando ao host (x/y)").
+ */
+function maxAttemptsToSameHost() {
+    return Math.max(1, Math.ceil(CONFIG.GAME.HOST_TIMEOUT / (HOST_ATTEMPT_MS + HOST_RETRY_INTERVAL_MS)));
+}
+
+function retryReconnectSameHostOrMigrate(attempt) {
+    if (Game.state.isHost) {
+        hostReturnDeadline = 0;
+        return;
+    }
+
+    const remaining = hostReturnDeadline - Date.now();
+    if (remaining >= HOST_RETRY_INTERVAL_MS + MIN_ATTEMPT_MS) {
+        setTimeout(() => attemptReconnectToSameHost(attempt + 1), HOST_RETRY_INTERVAL_MS);
+        return;
+    }
+
+    hostReturnDeadline = 0;
+    console.warn('⚠️ O host não voltou dentro do prazo. Presumindo migração de host...');
+    decideHostTakeoverOrReconnectNewVersion();
+}
+
+/**
+ * Só chamada depois que attemptReconnectToSameHost() esgotou as tentativas.
+ * Decide se este jogador é o backup (assume como host) ou tenta localizar
+ * um novo host em uma versão de ID incrementada.
+ */
+function decideHostTakeoverOrReconnectNewVersion() {
+    if (Game.state.isHost) return;
+
+    // Jogadores desconectados continuam na lista durante a
+    // partida, mas não podem ser escolhidos como backup — se o backup
+    // fosse um deles, ninguém assumiria a sala. Como todos os guests
+    // filtram a mesma lista, todos chegam ao mesmo backup.
+    const sorted = [...Game.state.players].filter(p => !p.disconnected).sort((a, b) => {
+        if (a.isHost) return -1;
+        if (b.isHost) return 1;
+        return 0;
+    });
+
+    const me = sorted.find(p => p.name === Game.state.playerName);
+    const myIndex = sorted.indexOf(me);
+    const iAmBackup = myIndex === 1 || (myIndex === 0 && !sorted[0]?.isHost);
+
+    if (iAmBackup) {
+        console.log('👑 Assumindo como novo host!');
+        becomeHost();
+    } else {
+        attemptReconnectToNewHost();
+    }
+}
+
+// ============================================
+// MIGRAÇÃO DE HOST DE VERDADE (versão incrementada)
+// ============================================
+
+/**
+ * Tenta se conectar a uma nova versão do host (calculada deterministicamente).
+ * Só é chamada depois que a reconexão ao host atual falhou de verdade.
+ */
+function attemptReconnectToNewHost(attempt = 1) {
+    const state = Game.state;
+    if (state.isHost) return;
+
+    const MAX_ATTEMPTS = 5;
+    const nextVersion = state.hostVersion + 1;
+    const candidateId = Game.computeHostPeerId(state.baseRoomPeerId, nextVersion);
+
+    console.log(`🔁 Tentativa ${attempt}/${MAX_ATTEMPTS}: procurando novo host em ${candidateId}...`);
+    Game.ui.updateConnectionStatus('disconnected', Game.i18n.t('connection.searchingForNewHost', { attempt, max: MAX_ATTEMPTS }));
+
+    let settled = false;
+    const cs = Game.network.connectionState;
+    const conn = connectIfPossible(candidateId);
+    if (!conn) {
+        console.warn('⚠️ Sem peer utilizável para procurar o novo host — tentativa contada como falha.');
+        retryOrGiveUp(attempt, MAX_ATTEMPTS);
+        return;
+    }
+
+    conn.on('open', () => {
+        if (settled) return;
+        settled = true;
+
+        state.hostVersion = nextVersion;
+        state.hostPeerId = candidateId;
+        cs.setConnection(candidateId, conn);
+
+        console.log('✅ Reconectado ao novo host:', candidateId);
+        Game.ui.updateConnectionStatus('connected', Game.i18n.t('connection.reconnected'));
+
+        Game.network.handleConnection(conn);
+        Game.network.sendPlayerJoin();
+        Game.saveState();
+    });
+
+    conn.on('error', () => {
+        if (settled) return;
+        settled = true;
+        retryOrGiveUp(attempt, MAX_ATTEMPTS);
+    });
+
+    setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        try { conn.close(); } catch (e) { /* ignora */ }
+        retryOrGiveUp(attempt, MAX_ATTEMPTS);
+    }, 4000);
+}
+
+function retryOrGiveUp(attempt, maxAttempts) {
+    if (Game.state.isHost) return;
+
+    if (attempt >= maxAttempts) {
+        console.error('❌ Não foi possível localizar um novo host.');
+        Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.couldNotReconnect'));
+        return;
+    }
+
+    setTimeout(() => attemptReconnectToNewHost(attempt + 1), 2000);
+}
+
+/**
+ * Torna-se o novo host (executado pelo backup).
+ */
+function becomeHost() {
+    const state = Game.state;
+    const cs = Game.network.connectionState;
+
+    const newVersion = state.hostVersion + 1;
+    const newHostId = Game.computeHostPeerId(state.baseRoomPeerId, newVersion);
+
+    state.isHost = true;
+    state.hostPeerId = newHostId;
+    state.hostVersion = newVersion;
+
+    const oldPeer = cs.getPeer();
+    if (oldPeer && !oldPeer.destroyed) oldPeer.destroy();
+    cs.resetConnections();
+
+    const newPeer = new Peer(newHostId, { ...CONFIG.PEER });
+    cs.setPeer(newPeer);
+
+    newPeer.on('open', (id) => {
+        state.peerId = id;
+
+        // Quem estava ativo na partida antes da troca (pela
+        // lista que o host antigo mandava), sem contar o host antigo —
+        // usado abaixo para saber se a rodada já tinha acabado. Precisa
+        // ser lido antes de todos serem marcados como desconectados.
+        const oldHost = state.players.find(p => p.isHost && p.name !== state.playerName);
+        const activeBefore = Game.getActivePlayers().filter(p => !oldHost || p.name !== oldHost.name);
+
+        // O host antigo NÃO sai da lista — passa a ser um
+        // jogador comum (isHost: false), com KPI, recursos, fase e o
+        // tokenHash dele preservados. Com a partida em andamento ele fica
+        // desconectado como os outros (abaixo) e, se voltar, entra pelo
+        // player-join com o token, como qualquer jogador que caiu.
+        state.players.forEach(p => {
+            if (p.name !== state.playerName) p.isHost = false;
+        });
+
+        const me = Game.getPlayerByName(state.playerName);
+        if (me) { me.isHost = true; me.peerId = id; }
+
+        // Neste momento ninguém está conectado ao novo host —
+        // cada guest ainda precisa achar a sala nova e reenviar o
+        // player-join (ver attemptReconnectToNewHost()). Com a partida
+        // em andamento (ou no fim de jogo), todos ficam marcados como
+        // desconectados até voltarem: fora do sorteio e do rodízio, e
+        // com a vaga reservada. Se não sobrar ninguém conectado para
+        // formar dupla, pickNewPair() pausa e addPlayer() retoma quando
+        // eles reconectarem. No lobby, quem cai sai da lista — aqui
+        // também: quem voltar entra de novo como jogador novo.
+        if (state.gameStarted) {
+            state.players.forEach(p => {
+                if (p.name !== state.playerName) p.disconnected = true;
+            });
+        } else {
+            state.players = state.players.filter(p => p.name === state.playerName);
+        }
+
+        const nextBackup = state.players.find(p => p.name !== state.playerName);
+        state.backupPeerId = nextBackup ? nextBackup.peerId : '';
+
+        // Não há aviso de troca para mandar: as conexões acabaram de ser
+        // zeradas e ninguém conseguiu se conectar ao peer novo ainda. Cada
+        // guest acha a sala nova sozinho (attemptReconnectToNewHost()).
+
+        Game.ui.setupUI();
+
+        if (state.gameStarted && !state.gameOver) {
+            Game.ui.showScreen('game');
+            Game.ui.updatePlayersOnlineList();
+            Game.ui.updateRankingList();
+            Game.ui.updateTimerDisplay();
+            Game.core.startClock();
+
+            // Só dá para continuar a rodada em andamento se este
+            // jogador tem o gabarito — ou seja, se era o Perguntador (só
+            // ele recebe a pergunta com `correct`; o Respondedor recebe
+            // sem, e os espectadores nem recebem). Sem o gabarito, a
+            // resposta (ou o timeout) quebraria em handleAnswer() e a
+            // rodada ficaria travada para sempre — por exemplo quando o
+            // Perguntador era o próprio host que saiu. Nesses casos a
+            // pergunta é descartada e uma dupla nova é sorteada com o
+            // MESMO evento, sem reexibir o modal. Como os outros acabaram
+            // de ser marcados como desconectados, normalmente a partida
+            // pausa aqui e retoma quando eles reconectarem (o 'round-start'
+            // da retomada também fecha a pergunta velha na tela deles).
+            //
+            // Este jogador sabe quem já respondeu nesta rodada
+            // (`answeredThisRound`, recebido do host antigo — ver
+            // storeAnsweredThisRound() em messageHandler.js), então:
+            //   - rodada já encerrada (ou pergunta respondida e todos os
+            //     que estavam ativos já responderam) → continua encerrada,
+            //     aguardando o "Nova Rodada"; nada começa sozinho quando
+            //     os outros voltarem;
+            //   - pergunta descartada → quem ia responder não entrou no
+            //     rodízio e não perde a vez; a retomada sorteia só entre
+            //     quem ainda não respondeu.
+            //
+            // A cópia da rodada nos guests não marca `answered` quando a
+            // resposta chega; o sinal de "pergunta já respondida" é o
+            // Respondedor dela já estar no rodízio (ninguém responde duas
+            // vezes na mesma rodada). Sem isso, um novo host que era o
+            // Perguntador reabriria uma pergunta já respondida.
+            const round = state.currentRound;
+            const questionAlreadyAnswered = !!round &&
+                (!!round.answered || state.answeredThisRound.includes(round.answerer));
+            const canContinueRound = !!round && !questionAlreadyAnswered &&
+                round.asker === state.playerName &&
+                !!round.question && round.question.correct !== undefined;
+            const everyoneAnswered = activeBefore.length > 0 &&
+                activeBefore.every(p => state.answeredThisRound.includes(p.name));
+            const roundAlreadyEnded = !!state.roundEnded ||
+                (questionAlreadyAnswered && everyoneAnswered);
+
+            if (roundAlreadyEnded) {
+                console.log('✅ A rodada já tinha terminado — aguardando o host clicar em "Nova Rodada".');
+                state.currentRound = null;
+                state.roundEnded = true;
+                Game.ui.showRoundEndedMessage();
+                Game.ui.refreshNewRoundButton();
+            } else if (!round) {
+                Game.core.pickNewPair();
+            } else if (!canContinueRound) {
+                console.warn('⚠️ Novo host não tem como conduzir a rodada em andamento — sorteando nova dupla com o mesmo evento.');
+                state.currentRound = null;
+                if (round.event) {
+                    Game.core.pickNewPair(round.event, 0, false);
+                } else {
+                    Game.core.pickNewPair(); // sem evento guardado: rodada nova, com modal
+                }
+            } else {
+                Game.ui.displayRoundStart();
+                if (state.currentRound.question) {
+                    Game.ui.displayQuestion(state.currentRound.question);
+                }
+                Game.core.armAnswerTimeout(state.currentRound.answerer);
+            }
+        } else {
+            Game.ui.showLobbyNormal();
+            Game.ui.updatePlayersList();
+            Game.ui.checkStartCondition();
+        }
+
+        document.getElementById('roomPeerId').textContent = id;
+        document.getElementById('hostRoomIdSection').style.display = 'block';
+        saveRoleInUrl(true);
+        alert('👑 Você agora é o host!');
+        Game.saveState();
+    });
+
+    newPeer.on('connection', (conn) => Game.network.handleConnection(conn));
+
+    newPeer.on('error', (err) => {
+        console.error('❌ Erro ao assumir como host:', err);
+        Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.hostTakeoverFailed'));
+    });
+}
+
+// ============================================
+// HOST ANTIGO RECARREGANDO A PÁGINA
+// ============================================
+
+/**
+ * Chamada por init() (main.js) quando o HOST recarrega a
+ * página e restaura uma sessão salva, ANTES de abrir o ID de host.
+ * Procura as versões seguintes do host (a sala que o backup abre ao
+ * assumir e as de migrações posteriores) com um
+ * peer temporário. Se alguma responder, a migração já aconteceu: este
+ * jogador volta como jogador comum — isHost = false, versão encontrada
+ * do host, URL com host=false — e entra na sala nova pelo player-join
+ * com o token, como qualquer jogador que caiu. Sem isto, ele reabriria
+ * o ID antigo e haveria dois hosts ao mesmo tempo.
+ *
+ * @returns {Promise<boolean>} true se virou jogador comum
+ */
+function rejoinAsPlayerIfTakenOver() {
+    return new Promise((resolve) => {
+        const state = Game.state;
+        if (!state.isHost) { resolve(false); return; }
+
+        const nextVersion = state.hostVersion + 1;
+        console.log('🔎 Verificando se outro jogador assumiu a sala (versões a partir de ' + nextVersion + ')...');
+
+        let resolved = false;
+        let probe = null;
+        let search = null;
+        const finish = (found) => {
+            if (resolved) return;
+            resolved = true;
+            if (search) search.cancel();
+            if (probe && !probe.destroyed) {
+                try { probe.destroy(); } catch (e) { /* ignora */ }
+            }
+            if (found) {
+                becomeRegularPlayer(found.version, found.id);
+            } else {
+                console.log('👑 Ninguém assumiu a sala — seguindo como host.');
+            }
+            resolve(!!found);
+        };
+
+        try {
+            probe = new Peer(undefined, { ...CONFIG.PEER });
+        } catch (e) {
+            finish(null);
+            return;
+        }
+
+        probe.on('open', () => {
+            if (resolved) return;
+            search = Game.network.findHost(probe, state.baseRoomPeerId, {
+                startVersion: nextVersion,
+                onFound: (conn, version, id) => {
+                    try { conn.close(); } catch (e) { /* ignora */ }
+                    finish({ version, id });
+                },
+                onGiveUp: () => finish(null)
+            });
+        });
+
+        // 'peer-unavailable' = ninguém com aquele ID: a busca descarta a
+        // versão e segue com as outras. Qualquer outro erro deixa como
+        // antes (segue como host).
+        probe.on('error', (err) => {
+            if (err && err.type === 'peer-unavailable') {
+                Game.network.reportPeerUnavailable(err);
+                return;
+            }
+            finish(null);
+        });
+
+        setTimeout(() => finish(null), HOST_PROBE_MS);
+    });
+}
+
+/**
+ * O host antigo passa a ser jogador comum da sala que o
+ * backup abriu. A própria entrada na lista (restaurada do estado salvo)
+ * deixa de ser host; a lista certa chega no state-sync do novo host.
+ */
+function becomeRegularPlayer(nextVersion, nextId) {
+    const state = Game.state;
+    console.warn('🔄 Outro jogador assumiu a sala enquanto você estava fora — voltando como jogador comum.');
+
+    state.isHost = false;
+    state.hostVersion = nextVersion;
+    state.hostPeerId = nextId;
+
+    const me = Game.getPlayerByName(state.playerName);
+    if (me) me.isHost = false;
+
+    saveRoleInUrl(false);
+    Game.saveState();
+}
+
+// ============================================
+// EXPORTAÇÃO
+// ============================================
+window.Game = window.Game || {};
+window.Game.network = window.Game.network || {};
+Object.assign(window.Game.network, {
+    handleHostDisconnect,
+    attemptReconnectToSameHost,
+    attemptReconnectToNewHost,
+    becomeHost,
+    saveRoleInUrl,
+    rejoinAsPlayerIfTakenOver
+});

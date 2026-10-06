@@ -1,0 +1,321 @@
+# 🎯 PM: The KPI Master — v1.0
+
+> **Quiz multiplayer P2P sobre os Domínios de Desempenho do PMBOK (8ª Edição)**
+>
+---
+
+## 🎮 Como Jogar
+
+### Fluxo do Jogo
+
+1. **Host** cria uma sala e compartilha o código
+2. **Jogadores** (2-6) entram na sala
+3. Host inicia a partida (90 minutos)
+4. A cada rodada:
+   - Um **evento** é sorteado (afeta recursos)
+   - Um **modal** mostra o evento para todos
+   - Um jogador **pergunta** (vê a resposta)
+   - Outro jogador **responde** (escolhe entre 4 alternativas)
+   - O Respondedor pode, opcionalmente, **pedir Assessoria** a outro jogador antes de responder
+     (exceto se estiver na Área Foco Encerramento)
+5. **Acertar** = +10 KPI + 1 atividade, sem gastar recurso
+6. **Errar** = 0 KPI + 0 atividade + **-1 recurso** (protegido pelo evento 🛡️ Reserva de Contingência)
+7. Sem recursos não impede de tentar — só não sobra reserva pra errar de novo sem custo
+8. **Pedir Ajuda**: quem está com 0 recursos pode pedir; fila automática de quem tem mais recurso, por 10 KPI
+9. O jogo termina quando o primeiro jogador completa o **Encerramento**
+10. Vence quem tiver o **maior KPI Final**
+
+---
+
+## ⭐ Sistema de KPI
+
+| Situação | KPI | Atividade | Recurso |
+|---|---|---|---|
+| ✅ Acertou | +10 | +1 | 0 (nunca gasta) |
+| ❌ Errou | 0 | 0 | -1📦 |
+| 🛡️ Errou com Reserva de Contingência | 0 | 0 | 0 (protegido) |
+| 🆘 Recebeu ajuda (doador) | +10 | - | -1📦 |
+| 🆘 Pediu ajuda (recebeu) | -10 | - | +1📦 |
+| 🧭 Assessorou e acertou | +5 | - | - |
+
+### KPI Final
+```
+KPI Total = KPI de acertos + KPI de ajudas dadas - KPI de ajudas recebidas + KPI de assessorias + (Recursos restantes × 5)
+```
+
+---
+
+## 🃏 Eventos
+
+| # | Evento | Efeito |
+|---|---|---|
+| e1 | 🟢 **Apoio da Alta Gestão** | +1 recurso para todos |
+| e2 | 🔴 **Corte de Orçamento** | -1 recurso de todos |
+| e3 | 🎁 **Patrocinador Generoso** | +1 recursos para quem tem menos |
+| e4 | 🛡️ **Reserva de Contingência** | Errar nesta rodada não gasta recurso |
+| e5 | 🔄 **Reestruturação** | Mais rico dá 1 para mais pobre |
+| e6 | ⚪ **Operação Normal** | Nenhum efeito nos recursos (evento neutro, ~50% de chance por rodada) |
+
+---
+
+## 🆘 Pedido de Ajuda
+
+> Rede de segurança pra quem está sem recurso — não é um mercado livre.
+
+- O botão "Pedir Ajuda" só aparece pra quem está com **0 recursos**
+- Ao pedir, o jogo monta uma **fila automática**: jogadores ativos com recurso, do que tem mais pro que tem menos
+- Pergunta um de cada vez — se recusar (ou não responder em 20s), passa pro próximo da fila sozinho
+- Quem pediu precisa ter pelo menos **10 KPI** pra pedir
+- Doador: -1📦, +10 KPI. Quem recebeu: +1📦, -10 KPI
+- Se ninguém puder ajudar, o jogo avisa e sugere continuar ganhando KPI como Perguntador ou Assessor até ter os 10 KPI pra tentar de novo
+
+---
+
+## 🧭 Sistema de Assessoria
+
+> Qualquer jogador pode ser chamado para ajudar quem está respondendo — e ganha KPI se acertar.
+
+### Objetivo
+
+Permitir que jogadores fora da dupla ativa da rodada participem de forma significativa, sem
+duplicar perguntas simultâneas nem exigir reestruturar o fluxo de rodada. Reflete, na mecânica
+do jogo, o uso de **Expert Judgment** (juízo especializado), uma das técnicas mais recorrentes
+do PMBOK em praticamente todos os domínios de desempenho.
+
+### Como funciona
+
+1. Ao ser escolhido como **Respondedor**, antes de selecionar uma alternativa, o jogador pode
+   clicar em **📞 Pedir Assessoria**.
+2. Ele escolhe **um jogador ativo** (exceto o Perguntador da rodada) para chamar como assessor.
+3. O assessor recebe a mesma pergunta e as 4 alternativas — **sem saber qual é a correta**. Ele
+   raciocina do zero, como se estivesse respondendo.
+4. O assessor pode **aceitar** e enviar sua sugestão, ou **recusar** o pedido a qualquer momento
+   dentro da janela de tempo.
+5. O assessor tem **20 segundos** para enviar sua sugestão ou recusar. Se o tempo esgotar sem
+   resposta, o pedido é tratado como recusado automaticamente.
+6. O Respondedor vê a sugestão recebida (quando houver), mas a decisão final é sempre dele:
+   pode seguir a sugestão ou escolher outra alternativa.
+7. O resultado é revelado normalmente, seguindo as regras já existentes de KPI e recursos.
+
+### Restrição: Área Foco Encerramento
+
+Um Respondedor que estiver na Área Foco **Encerramento** **não pode pedir Assessoria**. Como o
+jogo termina assim que o primeiro jogador completa essa área, essa restrição evita que a
+mecânica de ajuda vire uma decisão sobre "ajudar o adversário a encerrar a partida para todo
+mundo". Fora dessa situação, a Assessoria funciona normalmente.
+
+Essa restrição afeta apenas o **pedido**: um jogador que já está na Área Foco Encerramento
+continua podendo ser **chamado como assessor** por colegas em áreas anteriores.
+
+A validação dessa restrição é feita tanto no cliente (feedback imediato ao jogador) quanto no
+**host**, que é a fonte da verdade da partida — um pedido de assessoria vindo de um Respondedor
+na Área Foco Encerramento é sempre rejeitado pelo host, independentemente do estado local de quem
+enviou o pedido.
+
+### Quem pode ser assessor
+
+| Papel | Pode ser assessor? |
+|---|---|
+| Perguntador da rodada | ❌ Não (já sabe a resposta correta) |
+| Respondedor da rodada | — (é quem está pedindo ajuda) |
+| Qualquer outro jogador ativo | ✅ Sim |
+| Jogador aguardando no lobby (`waitingInLobby`) | ❌ Não |
+
+### Recusa de Assessoria
+
+O jogador convidado a assessorar não é obrigado a ajudar. Ele pode recusar o pedido
+explicitamente (botão **❌ Recusar**) ou simplesmente deixar o tempo esgotar sem enviar
+sugestão — ambos os casos têm o mesmo efeito.
+
+- A recusa **consome o pedido de Assessoria da rodada**. O Respondedor não pode chamar outro
+  jogador na mesma rodada; ele responde sozinho a partir daí.
+- Recusar não gera penalidade nem bônus para o Assessor.
+- Não há limite de quantas vezes um jogador pode recusar ao longo da partida.
+
+### Regras de recompensa
+
+| Situação | Respondedor | Assessor |
+|---|---|---|
+| Pediu assessoria, assessor aceitou, seguiu a sugestão, **acertou** | +10 KPI, 0📦 (nunca gasta ao acertar) | **+5 KPI** |
+| Pediu assessoria, assessor aceitou, seguiu a sugestão, **errou** | 0 KPI, -1📦 (regra padrão de erro) | +0 KPI |
+| Pediu assessoria, mas **ignorou** a sugestão recebida | Resultado normal, sem alteração | +0 KPI (sugestão não validada) |
+| Assessor **recusou** ou não respondeu a tempo | Resultado normal, sem custo extra | — |
+
+**Notas importantes:**
+- Pedir assessoria **não consome recurso adicional**. O custo de responder continua sendo o
+  já existente (0📦 se acertar, -1📦 se errar, exceto com 🛡️ Reserva de Contingência).
+- O assessor só ganha KPI se sua sugestão **coincidir com a alternativa final escolhida pelo
+  Respondedor** e essa alternativa estiver correta.
+- Limite de **1 pedido de assessoria por Respondedor por rodada** — não é possível consultar
+  mais de um jogador na mesma pergunta, mesmo em caso de recusa.
+- Um mesmo jogador pode ser chamado como assessor em rodadas diferentes sem limite de
+  quantas vezes na partida.
+
+### Fluxo resumido
+
+```
+Respondedor recebe pergunta
+        │
+        ├── Está na Área Foco Encerramento? → Sim → não pode pedir Assessoria
+        │        (validado no cliente E no host)
+        │
+        ├── (opcional) Pede Assessoria → escolhe jogador ativo (≠ Perguntador)
+        │         │
+        │         └── Assessor recebe pergunta + alternativas (sem gabarito)
+        │                   │
+        │                   ├── Aceita → envia sugestão em até 20s
+        │                   └── Recusa (ou expira) → pedido encerrado, sem sugestão
+        │
+        ├── Respondedor decide: segue sugestão (se houver) ou escolhe outra alternativa
+        │
+        └── Resultado revelado → aplica regras de KPI/recursos (Respondedor)
+                              → aplica bônus de assessoria, se aplicável (Assessor)
+```
+
+---
+
+## 👥 Papéis na Rodada
+
+| Papel | O que vê | O que faz |
+|---|---|---|
+| 🗣️ **Perguntador** | Pergunta + resposta correta destacada | Somente leitura |
+| 🎯 **Respondedor** | Pergunta + 4 alternativas | Escolhe a resposta; pode pedir Assessoria (exceto no Encerramento) |
+| 🧭 **Assessor** | Pergunta + 4 alternativas (sem gabarito) | Aceita e sugere, ou recusa, se chamado |
+| ⏳ **Espectador** | Quem está jogando | Aguarda sua vez |
+
+---
+
+## 🏗️ Tecnologias
+
+| Tecnologia | Uso |
+|---|---|
+| **PeerJS (WebRTC)** | Comunicação P2P |
+| **Vanilla JavaScript** | Sem frameworks |
+| **CSS3** | Glassmorphism, animações |
+| **GitHub Pages** | Hospedagem gratuita |
+
+---
+
+## 📁 Estrutura do Projeto
+
+```
+📁 pm-the-kpi-master/
+├── 📄 index.html
+├── 📄 game.html
+├── 📁 css/
+│   └── style.css
+├── 📁 config/
+│   └── game-config.js
+├── 📁 data/
+│   ├── questions.pt-BR.json
+│   └── events.json
+├── 📁 _docs/                 # arquitetura, convenções, roadmap, issues, checklist de conexão
+├── 📁 tests/
+│   ├── logic/               # lógica do jogo com rede simulada (Node, sem dependências)
+│   └── browser/             # o jogo real no Chromium (Playwright)
+├── 📁 .github/workflows/
+│   └── testes.yml           # roda os testes a cada push
+├── 📄 package.json           # dependências só dos testes no navegador
+└── 📁 js/
+    ├── main.js
+    ├── entry/
+    │   └── roomEntry.js
+    ├── domain/
+    │   ├── kpiRules.js
+    │   ├── eventRules.js
+    │   ├── deckRules.js
+    │   ├── tradeRules.js
+    │   ├── advisoryRules.js
+    │   └── rankingRules.js
+    ├── state/
+    │   ├── store.js
+    │   ├── selectors.js
+    │   └── mutations.js
+    ├── engine/
+    │   ├── sessionEngine.js
+    │   ├── turnEngine.js
+    │   ├── answerEngine.js
+    │   ├── tradeEngine.js
+    │   └── advisoryEngine.js
+    ├── network/
+    │   ├── connectionState.js
+    │   ├── hostSearch.js
+    │   ├── peerService.js
+    │   ├── messageHandler.js
+    │   └── hostMigration.js
+    ├── ui/
+    │   ├── screenManager.js
+    │   ├── setup.js
+    │   ├── components/
+    │   │   ├── lobbyComponent.js
+    │   │   ├── questionComponent.js
+    │   │   ├── profileComponent.js
+    │   │   ├── controlsComponent.js
+    │   │   ├── timerComponent.js
+    │   │   └── rankingComponent.js
+    │   └── modals/
+    │       ├── resultModal.js
+    │       ├── eventModal.js
+    │       ├── tradeModal.js
+    │       └── advisoryModal.js
+    ├── locales/
+    │   └── pt-BR.js
+    └── utils/
+        ├── logger.js
+        ├── persistence.js
+        ├── identity.js
+        ├── sanitize.js
+        └── i18n.js
+```
+
+> Para as decisões de arquitetura e o que ainda está pendente em cada módulo, veja
+> `_docs/architecture.md`; para o histórico de mudanças, `CHANGELOG.md`.
+
+---
+
+## 🚀 Como Executar
+
+### Produção
+`https://vinicius-losekann.github.io/pm-the-kpi-master/`
+
+### Desenvolvimento
+```bash
+python3 -m http.server 8000
+# http://localhost:8000
+```
+
+### Testes
+Rodam automaticamente no GitHub Actions a cada push (aba "Actions" do
+repositório). Localmente, com Node.js:
+```bash
+node tests/logic/host-reload.test.js                             # lógica (um arquivo por assunto)
+npm test                                                         # lógica (todos os arquivos)
+npm ci && npx playwright install chromium                        # no navegador (1ª vez)
+npx playwright test --config tests/browser/playwright.config.js
+```
+
+---
+
+## 🎯 Funcionalidades
+
+| Funcionalidade | Status |
+|---|---|
+| 🔗 Conexão P2P | ✅ |
+| 👥 2-6 jogadores | ✅ |
+| 📚 71 perguntas (7 Domínios de Desempenho: Governança, Escopo, Cronograma, Finanças, Partes Interessadas, Recursos, Riscos) | ✅ |
+| ⭐ KPI fixo (10 por acerto) | ✅ |
+| 📋 6 eventos | ✅ |
+| 🪟 Modal de evento | ✅ |
+| 📦 Sistema de recursos | ✅ |
+| 🆘 Pedido de Ajuda (recursos) | ✅ |
+| 🧭 Sistema de Assessoria (com recusa) | ✅ |
+| ⏱️ Timer 90min | ✅ |
+| 🏆 Ranking com KPI Final | ✅ |
+| 🚪 Sair/Encerrar | ✅ |
+| 👑 Troca de host (outro jogador assume se o host sair) | ✅ |
+| 🔌 Reconexão no meio da partida (com identidade por navegador) | ✅ |
+| 🧪 Testes automatizados (lógica e ponta a ponta) | ✅ |
+
+---
+
+**🎯 Domine o PMBOK, gerencie seus recursos e conte com sua equipe!**

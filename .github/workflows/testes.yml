@@ -1,0 +1,93 @@
+# ============================================
+# PM: The KPI Master - Testes automatizados
+# ============================================
+# Dois conjuntos, a cada push e pull request:
+#   - "testes": tests/logic/*.test.js — lógica do jogo, com rede e tela
+#     simuladas (rápido, sem dependências); uma tabela por arquivo.
+#   - "ponta-a-ponta": tests/browser — o jogo de verdade em várias
+#     janelas do Chromium, com servidor PeerJS e site locais (alguns
+#     minutos).
+# Resultado: aba "Actions" do repositório — tabelas de resumo na página
+# da execução; log dos testes (artefato "resultado-testes") e relatório
+# do navegador com o console de cada jogador nos cenários que falharem
+# (artefato "relatorio-ponta-a-ponta").
+# Também pode ser disparado manualmente pelo botão "Run workflow".
+# ============================================
+
+name: Testes
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v7
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+
+      - name: Rodar os testes
+        shell: bash
+        run: |
+          set -o pipefail
+          falhou=0
+          {
+            echo "Execução: $(date -u '+%Y-%m-%d %H:%M:%S') UTC"
+            echo "Commit:   ${GITHUB_SHA}"
+            echo "Branch:   ${GITHUB_REF_NAME}"
+          } > resultado-testes.txt
+          for arquivo in tests/logic/*.test.js; do
+            echo "" | tee -a resultado-testes.txt
+            echo "===== ${arquivo} =====" | tee -a resultado-testes.txt
+            node "$arquivo" 2>&1 | tee -a resultado-testes.txt || falhou=1
+          done
+          exit $falhou
+
+      - name: Guardar o log dos testes
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: resultado-testes
+          path: resultado-testes.txt
+          retention-days: 30
+
+  ponta-a-ponta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v7
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências dos testes
+        run: npm ci
+
+      - name: Instalar o Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Rodar os testes no navegador
+        run: npx playwright test --config tests/browser/playwright.config.js
+
+      - name: Guardar o relatório
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: relatorio-ponta-a-ponta
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14

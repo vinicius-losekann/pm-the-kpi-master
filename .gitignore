@@ -1,0 +1,17 @@
+# ============================================
+# PM: The KPI Master - .gitignore
+# ============================================
+
+# --- Sistema ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Editor ---
+.vscode/
+.idea/
+
+# --- Testes de ponta a ponta (gerados ao rodar) ---
+node_modules/
+playwright-report/
+test-results/

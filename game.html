@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PM: The KPI Master – Jogo</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@500;600;700;800&display=swap"
+        rel="stylesheet"
+    />
+
+    <!-- Favicon (emoji como ícone) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>" />
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="page-game">
+
+    <!-- ============================================ -->
+    <!-- LOBBY                                        -->
+    <!-- ============================================ -->
+    <div id="screenLobby" class="screen active">
+        <div class="game-container">
+
+            <header class="game-header">
+                <h1 class="header-title"><span class="title-pm">PM</span>: The KPI Master</h1>
+                <div class="header-room">
+                    <span class="room-icon">🏠</span>
+                    <span id="lobbyRoomName" class="room-name">Sala</span>
+                </div>
+            </header>
+
+            <div class="lobby-card glass-card">
+
+                <div class="lobby-status">
+                    <div class="status-indicator" id="connectionStatus">
+                        <span class="status-dot status-connecting"></span>
+                        <span id="statusText">Conectando...</span>
+                    </div>
+                    <div class="player-count">
+                        <span id="playerCount">0</span>/6 <span class="player-label">jogadores</span>
+                    </div>
+                </div>
+
+                <div class="room-id-section" id="hostRoomIdSection" style="display:none;">
+                    <label class="room-id-label">ID da Sala:</label>
+                    <div class="room-id-box">
+                        <code id="roomPeerId">---</code>
+                        <button id="btnCopyId" class="btn btn-sm btn-glass">📋 Copiar</button>
+                    </div>
+                </div>
+
+                <div class="players-section">
+                    <h3 class="section-title"><span>👥</span> Jogadores na Sala</h3>
+                    <div id="playersList" class="players-list">
+                        <div class="player-empty">
+                            <span class="empty-icon">🎯</span>
+                            <p>Aguardando jogadores...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Host controls -->
+                <div id="hostControls" class="host-controls" style="display:none;">
+                    <button id="btnStartGame" class="btn btn-primary btn-lg btn-block" disabled>
+                        <span>⚡</span> Iniciar Partida
+                    </button>
+                    <p class="host-hint" id="startHint">Mínimo de 2 jogadores</p>
+                </div>
+
+                <!-- Player waiting -->
+                <div id="playerWaiting" class="player-waiting" style="display:none;">
+                    <div class="waiting-animation">
+                        <span class="waiting-dot"></span>
+                        <span class="waiting-dot"></span>
+                        <span class="waiting-dot"></span>
+                    </div>
+                    <p>Aguardando o host iniciar a partida...</p>
+                </div>
+
+                <!-- Ações do Lobby -->
+                <div class="lobby-actions" style="margin-top:16px; display:flex; gap:10px; justify-content:center;">
+                    <button id="btnEndSession" class="btn btn-glass btn-sm"
+                            style="display:none; color:#ff4757; border-color:rgba(255,71,87,0.3);">⛔ Encerrar Sessão</button>
+                    <button id="btnLeaveSession" class="btn btn-glass btn-sm">🚪 Sair da Sessão</button>
+                </div>
+            </div>
+
+            <footer class="game-footer">
+                <p>🔗 Conexão P2P via PeerJS | ⏱️ Sessão de 90 min | 📦 Recursos</p>
+            </footer>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- JOGO                                        -->
+    <!-- ============================================ -->
+    <div id="screenGame" class="screen">
+        <div class="game-container game-layout">
+
+            <!-- Sidebar Esquerda -->
+            <aside class="sidebar sidebar-left">
+                <!-- Card do Jogador + Fases (consolidado:
+                     9.4: reduz a quantidade de cards pra rolar no celular,
+                     onde a sidebar aparece abaixo da pergunta). KPI e
+                     recursos agora ficam no cabeçalho, e cada fase mostra
+                     seu próprio status (completo / X de N / não iniciado)
+                     — tudo desenhado por Game.ui.renderProfileCard(). -->
+                <div class="focus-areas-card glass-card">
+                    <div class="player-summary">
+                        <div class="player-avatar-header" id="myAvatar">?</div>
+                        <h3 class="player-name" id="myName">Jogador</h3>
+                    </div>
+                    <div class="stats-row">
+                        <div class="stat-chip">
+                            <span class="stat-icon">⭐</span>
+                            <span class="stat-value" id="myKPI">0</span>
+                            <span class="stat-label">KPI</span>
+                        </div>
+                        <div class="stat-chip">
+                            <span class="stat-icon">📦</span>
+                            <span class="stat-value" id="myResources">20</span>
+                            <span class="stat-label">Recursos</span>
+                        </div>
+                    </div>
+                    <h4>📊 Áreas Foco</h4>
+                    <div class="focus-areas-list" id="focusAreasList"></div>
+                </div>
+
+                <!-- Botões de Ação -->
+                <button id="btnNewRound" class="btn btn-glass btn-sm btn-block"
+                        style="display:none; color:#00d9ff; border-color:rgba(0,217,255,0.3);">🔄 Nova Rodada</button>
+                <button id="btnLeaveMatch" class="btn btn-glass btn-sm btn-block" style="margin-top:4px;">🚶 Sair da Partida</button>
+                <button id="btnRequestHelp" class="btn btn-glass btn-sm btn-block"
+                        style="display:none; margin-top:4px; color:#ffd700; border-color:rgba(255,215,0,0.3);">
+                    🆘 Pedir Ajuda
+                </button>
+
+                <!-- Ação destrutiva: separada visualmente e discreta de
+                     propósito — Nova Rodada é clicado
+                     toda hora, Encerrar Partida é raro e zera o KPI de
+                     todos, então não deve competir pela mesma posição
+                     de dedo no mobile. -->
+                <div style="margin-top:16px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.08);">
+                    <button id="btnEndMatch" class="btn btn-glass btn-sm btn-block"
+                            style="display:none; font-size:0.8rem; opacity:0.75; color:#ffa502; border-color:rgba(255,165,2,0.25);">🏁 Encerrar Partida</button>
+                </div>
+            </aside>
+
+            <!-- Área Principal -->
+            <main class="main-area">
+
+                <!-- Barra Superior (Timer + Evento) -->
+                <div class="top-bar">
+                    <div class="timer-card glass-card" id="timerCard">
+                        <span class="timer-icon">⏱️</span>
+                        <span class="timer-value" id="timerDisplay">90:00</span>
+                    </div>
+                    <div class="event-card glass-card" id="eventCard" style="display:none;">
+                        <span class="event-icon">📋</span>
+                        <div class="event-info">
+                            <strong id="eventTitle">Evento</strong>
+                            <span id="eventDesc">Descrição</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Área da Pergunta -->
+                <div class="question-area glass-card" id="questionArea" style="display:none;">
+
+                    <!-- Informações da Rodada -->
+                    <div class="round-info" id="roundInfo">
+                        <span class="round-label">Rodada:</span>
+                        <span class="round-detail">🗣️ <strong id="askerName">---</strong> pergunta para</span>
+                        <span class="round-detail">🎯 <strong id="answererName">---</strong></span>
+                    </div>
+
+                    <!-- Badges (Domínio e Área) -->
+                    <div class="question-badges">
+                        <span class="badge badge-domain" id="badgeDomain">Domínio</span>
+                        <span class="badge badge-focus-area" id="badgeArea">Área</span>
+                    </div>
+
+                    <h3 class="question-text" id="questionText">Pergunta aqui...</h3>
+
+                    <!-- Alternativas (Perguntador – somente leitura) -->
+                    <div class="all-alternatives" id="allAlternativesArea" style="display:none;">
+                        <h4 style="margin-bottom:12px; color:#a0a0b8;">📋 Alternativas:</h4>
+                        <div id="allAlternativesList" style="display:flex; flex-direction:column; gap:8px;"></div>
+                    </div>
+
+                    <!-- Notificação de Papel -->
+                    <div class="role-notice" id="roleNotice" style="display:none;"></div>
+                </div>
+
+                <!-- Área de Espectador (quando não participa da rodada) -->
+                <div class="spectator-area glass-card" id="spectatorArea">
+                    <div class="spectator-content">
+                        <span class="spectator-icon">⏳</span>
+                        <p id="spectatorMessage">Aguardando início da rodada...</p>
+                    </div>
+                </div>
+
+            </main>
+
+            <!-- Sidebar Direita (Ranking e Jogadores) -->
+            <aside class="sidebar sidebar-right">
+                <div class="ranking-card glass-card">
+                    <h4>🏆 Ranking</h4>
+                    <div id="rankingList" class="ranking-list"></div>
+                </div>
+                <div class="players-online glass-card">
+                    <h4>👥 Jogadores</h4>
+                    <div id="playersOnlineList"></div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- FIM DE JOGO                                 -->
+    <!-- ============================================ -->
+    <div id="screenGameOver" class="screen">
+        <div class="game-container">
+            <div class="gameover-card glass-card text-center">
+                <h2 class="gameover-title">🏆 Fim de Partida!</h2>
+                <p id="finalKpiFormula" style="color:#a0a0b8; margin-bottom:16px;"></p>
+                <div id="finalRanking" class="final-ranking"></div>
+                <button id="btnBackToLobby" class="btn btn-primary btn-lg">🔙 Voltar ao Lobby</button>
+                <button id="btnExitGameOver" class="btn btn-secondary" style="margin-left:8px;">🚪 Sair</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- MODAIS                                       -->
+    <!-- ============================================ -->
+
+    <!-- Modal de Resposta (exibida para o Respondedor) — mesma estrutura
+         visual da modal de assessoria (ícone + título + timer + pergunta
+         + alternativas), para que a experiência de responder seja
+         consistente entre o Respondedor e o Assessor. -->
+    <div id="modalAnswerQuestion" class="modal" style="display:none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-card glass-card" style="max-width:520px; text-align:center;">
+            <span style="font-size:2rem;">🎯</span>
+            <h2 style="color:#00d9ff; margin:8px 0;">Sua vez de responder!</h2>
+            <p id="answerTimerText" style="display:none; color:#a0a0b8; margin-bottom:8px; font-size:0.9rem;">⏱️ 30s</p>
+            <p id="answerModalRoundInfo" style="color:#a0a0b8; font-size:0.85rem; margin-bottom:8px;">
+                🗣️ <strong id="answerModalAsker">---</strong> pergunta para <strong id="answerModalAnswerer">---</strong>
+            </p>
+            <p id="answerModalQuestionText" style="color:#e0e0e0; margin-bottom:16px; font-size:1.05rem;">Pergunta aqui...</p>
+            <div class="alternatives-grid" id="alternativesGrid" style="margin-bottom:12px;">
+                <button class="alternative-btn" data-alt="a"><span class="alt-letter">A</span><span class="alt-text" id="altA">---</span></button>
+                <button class="alternative-btn" data-alt="b"><span class="alt-letter">B</span><span class="alt-text" id="altB">---</span></button>
+                <button class="alternative-btn" data-alt="c"><span class="alt-letter">C</span><span class="alt-text" id="altC">---</span></button>
+                <button class="alternative-btn" data-alt="d"><span class="alt-letter">D</span><span class="alt-text" id="altD">---</span></button>
+            </div>
+            <div class="advisory-area" id="advisoryArea" style="display:none; margin-top:8px;">
+                <button id="btnRequestAdvisory" class="btn btn-glass btn-sm">📞 Pedir Assessoria</button>
+                <div id="advisoryStatus" style="margin-top:8px; font-size:0.85rem; color:#a0a0b8;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Evento -->
+    <div id="modalEvent" class="modal" style="display:none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-card glass-card"
+             style="text-align:center; border-color: #ffd700; box-shadow: 0 0 40px rgba(255,215,0,0.4); max-width: 420px;">
+            <span style="font-size:3rem; display:block; margin-bottom:8px;">📋</span>
+            <h2 id="eventModalTitle" style="color:#ffd700; margin:8px 0; font-size:1.3rem;">Evento</h2>
+            <p id="eventModalDesc" style="color:#e0e0e0; font-size:1rem; margin-bottom:20px; line-height:1.5;">
+                Descrição do evento
+            </p>
+            <button id="btnCloseEvent" class="btn btn-primary btn-lg" style="min-width:140px;">✕ Fechar</button>
+        </div>
+    </div>
+
+    <!-- Modal de Pedido de Ajuda (visão de quem está sem recursos) -->
+    <div id="modalHelpRequest" class="modal" style="display:none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-card glass-card" style="max-width:420px; text-align:center;">
+            <span style="font-size:2rem;">🆘</span>
+            <h2 style="color:#ffd700; margin:8px 0;">Pedindo Ajuda</h2>
+            <p style="color:#a0a0b8; margin-bottom:8px;">
+                Perguntando: <strong id="helpTryingWith" style="color:#e0e0e0;">...</strong>
+            </p>
+            <p style="color:#a0a0b8; font-size:0.85rem; margin-bottom:16px;">
+                Custa <strong style="color:#ffd700;" id="helpKpiCost">10 KPI</strong> — em troca de 1📦
+            </p>
+            <button id="btnCloseHelpRequest" class="btn btn-glass">✕ Fechar</button>
+        </div>
+    </div>
+
+    <!-- Modal de Oferta de Ajuda (visão de quem foi perguntado) -->
+    <div id="modalHelpOffer" class="modal" style="display:none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-card glass-card" style="max-width:420px; text-align:center;">
+            <span style="font-size:2rem;">🆘</span>
+            <h2 style="color:#ffd700; margin:8px 0;">Pedido de Ajuda</h2>
+            <p style="color:#e0e0e0; margin-bottom:16px;" id="helpOfferText">
+                Jogador pediu ajuda
+            </p>
+            <div style="display:flex; gap:10px; justify-content:center;">
+                <button id="btnAcceptHelpOffer" class="btn btn-primary">✅ Aceitar</button>
+                <button id="btnDeclineHelpOffer" class="btn btn-glass">❌ Recusar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Resultado (acerto/erro) -->
+    <div id="modalResult" class="modal" style="display:none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-card glass-card">
+            <h2 id="resultTitle" class="result-title">✅ Acertou!</h2>
+            <p id="resultMessage" class="result-message">+10 KPI</p>
+            <p id="resultBoardReminder" style="display:none; color:#00ff88; font-size:0.9rem; margin-top:8px; margin-bottom:24px;">
+                🎲 Não esqueça de avançar sua peça no tabuleiro!
+            </p>
+            <button id="btnCloseResult" class="btn btn-primary">OK</button>
+        </div>
+    </div>
+
+    <!-- Modal de Seleção de Assessor -->
+    <div id="modalAdvisorySelect" class="modal" style="display:none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-card glass-card" style="max-width:420px; text-align:center;">
+            <span style="font-size:2rem;">📞</span>
+            <h2 style="color:#00d9ff; margin:8px 0;">Pedir Assessoria</h2>
+            <p style="color:#a0a0b8; margin-bottom:12px;">Escolha um jogador para consultar:</p>
+            <div id="advisoryPlayersList" style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+                <!-- Lista preenchida dinamicamente -->
+            </div>
+            <button id="btnCloseAdvisorySelect" class="btn btn-glass">✕ Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Modal de Pergunta para o Assessor -->
+    <div id="modalAdvisoryQuestion" class="modal" style="display:none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-card glass-card" style="max-width:480px; text-align:center;">
+            <span style="font-size:2rem;">🧭</span>
+            <h2 style="color:#6c63ff; margin:8px 0;">Pedido de Assessoria</h2>
+            <p style="color:#a0a0b8; margin-bottom:8px;" id="advisoryTimerText">⏱️ 20s</p>
+            <p id="advisoryModalRoundInfo" style="color:#a0a0b8; font-size:0.85rem; margin-bottom:8px;">
+                🗣️ <strong id="advisoryModalAsker">---</strong> pergunta para <strong id="advisoryModalAnswerer">---</strong>
+            </p>
+            <p style="color:#e0e0e0; margin-bottom:16px;" id="advisoryQuestionText">Pergunta...</p>
+            <div id="advisoryAlternativesList"
+                 style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+                <!-- Lista de alternativas preenchida dinamicamente -->
+            </div>
+            <button id="btnDeclineAdvisory" class="btn btn-glass"
+                    style="color:#ff4757; border-color:rgba(255,71,87,0.3);">❌ Recusar</button>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- SCRIPTS (ordem importa!)                    -->
+    <!-- ============================================ -->
+
+    <!-- 1. Dependências externas -->
+    <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
+
+    <!-- 2. Configuração -->
+    <script src="config/game-config.js"></script>
+
+    <!-- 2.6. i18n (textos da tela) -->
+    <script src="js/utils/i18n.js"></script>
+    <script src="js/locales/pt-BR.js"></script>
+
+    <!-- 2.7. Logger, persistência e identidade -->
+    <script src="js/utils/logger.js"></script>
+    <script src="js/utils/persistence.js"></script>
+    <script src="js/utils/identity.js"></script>
+
+    <!-- 2.8. Sanitização (nomes de jogador em innerHTML) -->
+    <script src="js/utils/sanitize.js"></script>
+
+    <!-- 3. Módulos do jogo -->
+    <script src="js/state/selectors.js"></script>
+    <script src="js/state/mutations.js"></script>
+    <script src="js/state/store.js"></script>
+
+    <!-- 3.6. Rede -->
+    <script src="js/network/connectionState.js"></script>
+    <script src="js/network/hostSearch.js"></script>
+    <script src="js/network/peerService.js"></script>
+    <script src="js/network/messageHandler.js"></script>
+    <script src="js/network/hostMigration.js"></script>
+
+    <!-- 3.5. Regras puras de domínio (precisam vir antes de engine/) -->
+    <script src="js/domain/kpiRules.js"></script>
+    <script src="js/domain/eventRules.js"></script>
+    <script src="js/domain/deckRules.js"></script>
+    <script src="js/domain/rankingRules.js"></script>
+    <script src="js/domain/tradeRules.js"></script>
+    <script src="js/domain/advisoryRules.js"></script>
+
+    <!-- 3.7. Orquestração -->
+    <script src="js/engine/sessionEngine.js"></script>
+    <script src="js/engine/turnEngine.js"></script>
+    <script src="js/engine/answerEngine.js"></script>
+    <script src="js/engine/tradeEngine.js"></script>
+    <script src="js/engine/advisoryEngine.js"></script>
+
+    <!-- 3.8. Interface de usuário -->
+    <script src="js/ui/screenManager.js"></script>
+    <script src="js/ui/components/lobbyComponent.js"></script>
+    <script src="js/ui/components/questionComponent.js"></script>
+    <script src="js/ui/components/profileComponent.js"></script>
+    <script src="js/ui/components/controlsComponent.js"></script>
+    <script src="js/ui/components/timerComponent.js"></script>
+    <script src="js/ui/components/rankingComponent.js"></script>
+    <script src="js/ui/modals/resultModal.js"></script>
+    <script src="js/ui/modals/eventModal.js"></script>
+    <script src="js/ui/modals/tradeModal.js"></script>
+    <script src="js/ui/modals/advisoryModal.js"></script>
+    <script src="js/ui/setup.js"></script>
+
+    <!-- 4. Orquestrador (sempre por último) -->
+    <script src="js/main.js"></script>
+
+</body>
+</html>

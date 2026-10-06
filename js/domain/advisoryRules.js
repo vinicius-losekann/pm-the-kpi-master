@@ -1,0 +1,69 @@
+// ============================================
+// PM: The KPI Master - Domain: Assessoria
+// ============================================
+// Regras PURAS de validação de pedido de assessoria e cálculo
+// do bônus de KPI do assessor. Não acessa Game.state, network
+// ou DOM diretamente.
+// ============================================
+
+/**
+ * Valida se um pedido de assessoria pode ser aceito.
+ *
+ * @param {object} params
+ * @param {object} params.advisor - jogador escolhido como assessor (ou undefined/null)
+ * @param {object} params.requester - jogador que pediu a assessoria (o Respondedor)
+ * @param {string} params.advisorName - nome do assessor solicitado
+ * @param {string} params.askerName - nome do Perguntador da rodada atual
+ * @param {string} params.answererName - nome do Respondedor da rodada atual
+ * @param {Array} params.focusAreas - CONFIG.FOCUS_AREAS
+ * @returns {{invalid: boolean, reason: (string|undefined)}}
+ */
+function validateAdvisoryRequest({ advisor, requester, advisorName, askerName, answererName, focusAreas }) {
+    const requesterInClosing = !!requester &&
+        focusAreas.findIndex(f => f.id === requester.focusArea) === focusAreas.length - 1;
+
+    // Assessor que caiu (continua na lista, desconectado) também
+    // é inválido — sem isso, a pergunta ia para quem não podia responder
+    // e o Respondedor ficava com os botões travados até o prazo acabar.
+    const invalid =
+        !advisor ||
+        advisor.waitingInLobby ||
+        advisor.disconnected ||
+        requesterInClosing ||
+        advisorName === askerName ||
+        advisorName === answererName;
+
+    return {
+        invalid,
+        reason: requesterInClosing ? 'closing-focus-area' : undefined
+    };
+}
+
+/**
+ * Calcula o bônus de KPI do assessor, caso a sugestão dele tenha sido
+ * seguida pelo Respondedor e a resposta esteja correta.
+ *
+ * @param {object} advisory - state.currentRound.advisory
+ * @param {string} chosenAlternative - alternativa marcada pelo Respondedor
+ * @param {boolean} isCorrect - se o Respondedor acertou a pergunta
+ * @param {object} config - CONFIG (usa config.KPI.ADVISOR_BONUS)
+ * @returns {number} bônus de KPI (0 se não elegível)
+ */
+function calculateAdvisorBonus(advisory, chosenAlternative, isCorrect, config) {
+    const eligible = !!advisory &&
+        advisory.status === 'accepted' &&
+        advisory.suggestion === chosenAlternative &&
+        isCorrect;
+
+    return eligible ? config.KPI.ADVISOR_BONUS : 0;
+}
+
+// ============================================
+// EXPORTAÇÃO
+// ============================================
+window.Game = window.Game || {};
+window.Game.domain = window.Game.domain || {};
+window.Game.domain.advisory = {
+    validateAdvisoryRequest,
+    calculateAdvisorBonus
+};

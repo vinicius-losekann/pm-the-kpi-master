@@ -1,0 +1,40 @@
+{
+  "events": [
+    {
+      "id": "e1",
+      "title": "Apoio da Alta Gestão",
+      "description": "Mais verba aprovada! Todos ganham +1 recurso.",
+      "resourcesForAll": 1
+    },
+    {
+      "id": "e2",
+      "title": "Corte de Orçamento",
+      "description": "Verba reduzida! Todos perdem 1 recurso.",
+      "resourcesForAll": -1
+    },
+    {
+      "id": "e3",
+      "title": "Patrocinador Generoso",
+      "description": "Patrocinador injetou capital! Quem tem menos recursos ganha +1.",
+      "resourcesForFewest": 1
+    },
+    {
+      "id": "e4",
+      "title": "Reserva de Contingência",
+      "description": "Reserva de contingência ativada! O Respondedor não gasta recurso nesta rodada, acertando ou errando.",
+      "contingencyReserve": true
+    },
+    {
+      "id": "e5",
+      "title": "Reestruturação",
+      "description": "Equipe reorganizada! Quem tem mais dá 1 recurso para quem tem menos.",
+      "resourceSwap": true
+    },
+    {
+      "id": "e6",
+      "title": "Operação Normal",
+      "description": "Nenhum evento especial nesta rodada. O trabalho segue conforme planejado.",
+      "neutral": true
+    }
+  ]
+}
