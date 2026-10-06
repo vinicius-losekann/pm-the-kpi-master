@@ -15,3 +15,6 @@ desktop.ini
 node_modules/
 playwright-report/
 test-results/
+
+# --- Simulador de partidas (gerado ao rodar) ---
+simulacao/

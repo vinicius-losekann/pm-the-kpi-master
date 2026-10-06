@@ -86,10 +86,13 @@ números dos itens não mudam.
 | 7.3 | **Linter (ESLint) e formatter (Prettier)** | Manter estilo consistente e evitar erros comuns. |
 | 7.6 | **Extrair helper compartilhado de renderização de alternativas** | `questionComponent.js` (Respondedor) e `advisoryModal.js` (Assessor) duplicam a lógica de montar a lista de alternativas + timer — visualmente quase idênticas, mas disparam ações diferentes no clique (`handleAnswer` vs `answerAdvisory`). Não fundir os dois modais (são interações conceitualmente diferentes), só extrair a parte genuinamente igual (montagem da lista + texto do timer) para uma função compartilhada tipo `Game.ui.renderAlternativesList(container, alternativas, onEscolher)`. Baixo risco, ganho pequeno — não é bug, é redução de duplicação. |
 | 7.8 | **Node 24 nos testes** | O workflow roda os testes com `node-version: 20`, fora de suporte desde 04/2026 (as ações do workflow já usam Node 24). Trocar pode mudar o resultado dos testes (`vm`, `crypto`, Playwright), por isso fica como frente própria, com o Actions conferido antes e depois. |
-| 7.9 | **Simulador de partidas para balanceamento** | Rodar muitas partidas simuladas (sem rede nem tela) para medir quantas rodadas uma partida leva, como os recursos variam e se a economia (Fase C) e os eventos estão justos. Precisa usar as regras de verdade (`domain/` e os engines, como os testes de `tests/logic`), não uma cópia que possa divergir do jogo. Saída: um relatório (tabela ou gráfico) para decidir ajustes de `config/game-config.js`. |
 
 > O item 7.5 (separar helpers, ex.: `buildRanking`) saiu em 05/10/2026:
 > já está feito — o ranking fica em `js/domain/rankingRules.js`.
+> O item 7.9 (simulador de partidas para balanceamento) saiu em
+> 06/10/2026: feito — `tests/simulation/`, workflow "Simulação de
+> partidas" (ver `architecture.md`). Os ajustes do config que o relatório
+> sugerir são decididos com o titular, cada um como frente própria.
 
 ---
 

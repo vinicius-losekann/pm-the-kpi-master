@@ -39,7 +39,8 @@ pm-the-kpi-master/
 │
 ├── .github/
 │   └── workflows/
-│       └── testes.yml           # roda tests/logic e tests/browser a cada push/PR (GitHub Actions)
+│       ├── testes.yml           # roda tests/logic e tests/browser a cada push/PR (GitHub Actions)
+│       └── simulacao.yml        # simulador de partidas, só pelo botão "Run workflow"
 │
 ├── _docs/
 │   ├── architecture.md          # este arquivo
@@ -65,7 +66,11 @@ pm-the-kpi-master/
 │   │   ├── end-of-match.test.js
 │   │   ├── help-and-advisory.test.js
 │   │   ├── questions.test.js        # banco de perguntas: formato, gabarito equilibrado
-│   │   └── config-and-texts.test.js # chaves do CONFIG, textos da tela e nomes do HTML/CSS (só o que existe é pedido; CSS sem regra sem uso)
+│   │   ├── config-and-texts.test.js # chaves do CONFIG, textos da tela e nomes do HTML/CSS (só o que existe é pedido; CSS sem regra sem uso)
+│   │   └── simulation.test.js   # simulador de partidas: regras reais, contas, semente, relatório
+│   ├── simulation/              # simulador de partidas para balanceamento (Node, sem dependências)
+│   │   ├── simulator.js         # partidas com robôs, regras reais, relatório e CSV
+│   │   └── run.js               # lê o formulário do workflow e grava o relatório
 │   └── browser/                 # o jogo real no Chromium (Playwright)
 │       ├── playwright.config.js
 │       ├── servers.js           # site e servidor PeerJS locais
@@ -288,3 +293,9 @@ Resumo dos mecanismos; detalhes nos comentários de cada arquivo e no checklist 
 - Toda mudança de lógica vem com teste; os testes novos são conferidos contra o código antigo (devem falhar) e com teste de mutação.
 - `tests/browser` roda o jogo de verdade em janelas separadas do Chromium (Playwright), com o site e um servidor PeerJS locais — sem depender da internet. Os arquivos do jogo não mudam: o teste redireciona o PeerJS (unpkg) para o pacote local, de mesma versão, e acrescenta ao `config/game-config.js` servido uma linha que aponta `CONFIG.PEER` para o servidor local. As dependências (`package.json`) são só dos testes. No Actions, é o job "ponta-a-ponta", separado do de lógica.
 - O que depende de rede real, dispositivo ou outros navegadores continua no checklist manual (`testes-conexao.md`).
+
+## Simulador de partidas (balanceamento)
+
+- `tests/simulation/simulator.js` roda partidas inteiras sem rede e sem tela, para medir duração, recursos, economia, eventos e justiça antes de mexer no `config/game-config.js`. Carrega num contexto `vm` os arquivos reais (`config/`, `state/`, `domain/`, `engine/` e o `main.js`, cujo `loadQuestions()` monta os baralhos a partir de `data/`) — nenhuma regra é copiada.
+- Robôs fazem o papel dos jogadores: o host real recebe resposta, pedido e resposta de assessoria, pedido de ajuda e resposta à oferta pelas mesmas funções de `Game.core.*` que a rede chamaria. O tempo é falso (prazos e relógio da partida andam sem esperar) e o sorteio usa semente (mesma semente, mesmas partidas). Trocas do config ("cenário B") valem só dentro da simulação.
+- Roda no Actions pelo workflow `simulacao.yml` (botão "Run workflow", formulário com as chances dos robôs e o cenário B); relatório no resumo da execução e planilhas `.csv` no artefato "simulacao". Testes: T93–T99.

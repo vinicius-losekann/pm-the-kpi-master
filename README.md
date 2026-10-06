@@ -215,10 +215,12 @@ Respondedor recebe pergunta
 ├── 📁 _docs/                 # arquitetura, convenções, roadmap, issues, checklist de conexão
 ├── 📁 tests/
 │   ├── logic/               # lógica do jogo com rede simulada (Node, sem dependências)
-│   └── browser/             # o jogo real no Chromium (Playwright)
+│   ├── browser/             # o jogo real no Chromium (Playwright)
+│   └── simulation/          # simulador de partidas para balanceamento
 ├── 📁 assets/board/          # imagem do tabuleiro físico
 ├── 📁 .github/workflows/
-│   └── testes.yml           # roda os testes a cada push
+│   ├── testes.yml           # roda os testes a cada push
+│   └── simulacao.yml        # simulador de partidas ("Run workflow")
 ├── 📄 package.json           # dependências só dos testes no navegador
 └── 📁 js/
     ├── main.js              # inicialização da tela de jogo
@@ -258,6 +260,14 @@ npm test                                                         # lógica (todo
 npm ci && npx playwright install chromium                        # no navegador (1ª vez)
 npx playwright test --config tests/browser/playwright.config.js
 ```
+
+### Simulador de partidas (balanceamento)
+Aba "Actions" → "Simulação de partidas" → "Run workflow": roda muitas
+partidas com as regras reais e robôs no lugar dos jogadores, e mostra um
+relatório (duração, recursos, economia, eventos, justiça) no resumo da
+execução. O campo "cenário B" compara uma troca do config (ex.:
+`KPI.FINAL_RESOURCE_VALUE=3`) com o config atual, sem mudar o jogo.
+Localmente, com Node.js: `node tests/simulation/run.js`.
 
 ---
 

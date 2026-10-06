@@ -1,0 +1,83 @@
+# ============================================
+# PM: The KPI Master - Simulação de partidas (balanceamento)
+# ============================================
+# Roda muitas partidas simuladas com as regras e os dados reais do jogo
+# (tests/simulation/), com robôs no lugar dos jogadores, e mostra um
+# relatório para decidir ajustes do config/game-config.js. Não muda
+# nada do jogo publicado.
+#
+# Só roda quando alguém pede: aba "Actions" → "Simulação de partidas" →
+# "Run workflow" (os campos abaixo aparecem num formulário; vazio = o
+# padrão). Resultado: relatório no resumo da execução; relatório e
+# planilhas (.csv, uma linha por jogador por partida) no artefato
+# "simulacao".
+# ============================================
+
+name: Simulação de partidas
+
+on:
+  workflow_dispatch:
+    inputs:
+      partidas:
+        description: 'Partidas por cenário'
+        default: '200'
+      jogadores:
+        description: 'Jogadores por partida (2 a 6)'
+        default: '4'
+      semente:
+        description: 'Semente do sorteio (a mesma semente repete as mesmas partidas)'
+        default: '1'
+      acertos:
+        description: 'Chance de acerto de cada perfil, em %, separadas por vírgula (cada jogador sorteia um perfil)'
+        default: '40,60,80'
+      tempo_resposta:
+        description: 'Segundos para responder, mínimo-máximo'
+        default: '20-50'
+      assessoria:
+        description: '% das perguntas em que o Respondedor pede assessoria'
+        default: '30'
+      pedir_ajuda:
+        description: '% das vezes em que quem chega a 0 recursos pede ajuda'
+        default: '50'
+      aceitar_ajuda:
+        description: '% das vezes em que um jogador da fila aceita doar'
+        default: '50'
+      cenario_b:
+        description: 'Cenário B: trocas do config para comparar (ex.: KPI.FINAL_RESOURCE_VALUE=3; STARTING_RESOURCES=5). Vazio = sem cenário B'
+        default: ''
+
+jobs:
+  simulacao:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v7
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+
+      - name: Simular as partidas
+        env:
+          PARTIDAS: ${{ inputs.partidas }}
+          JOGADORES: ${{ inputs.jogadores }}
+          SEMENTE: ${{ inputs.semente }}
+          ACERTOS: ${{ inputs.acertos }}
+          TEMPO_RESPOSTA: ${{ inputs.tempo_resposta }}
+          ASSESSORIA: ${{ inputs.assessoria }}
+          PEDIR_AJUDA: ${{ inputs.pedir_ajuda }}
+          ACEITAR_AJUDA: ${{ inputs.aceitar_ajuda }}
+          CENARIO_B: ${{ inputs.cenario_b }}
+        run: node tests/simulation/run.js
+
+      - name: Guardar o relatório e as planilhas
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: simulacao
+          path: simulacao/
+          if-no-files-found: ignore
+          retention-days: 30

@@ -13,13 +13,35 @@ glossário de `conventions.md` dá o nome atual.
 
 ## Em investigação
 
-Nenhum no momento.
+**BUG-024 — dois pedidos de ajuda ao mesmo tempo: o segundo apaga o
+primeiro e pode receber a doação feita para o primeiro.** Achado em
+06/10/2026, na frente do simulador de partidas (roadmap 7.9); a corrigir
+numa frente própria.
+- **Sintoma:** A e C estão com 0 recursos. A pede ajuda e o jogo oferece a
+  B. Antes de B responder (prazo de 20s), C também pede ajuda. O pedido de
+  A some sem aviso (A fica vendo "pedindo ajuda para B…"). Se B aceitar a
+  oferta que recebeu para A, o recurso vai para C, e C paga os 10 KPI.
+- **Local:** `handleHelpRequest()` em `js/engine/tradeEngine.js`: monta a
+  fila nova em `state.helpQueue` sem olhar se já existe uma em andamento.
+  `handleHelpOfferResponse()` confere só o nome de quem responde, não para
+  quem era a oferta.
+- **Como reproduzir:** três ou mais navegadores, dois jogadores com 0
+  recursos e KPI ≥ 10 pedindo ajuda com menos de 20s de diferença, e o
+  jogador com mais recursos aceitando a primeira oferta.
+- **Proposta:** recusar (ou pôr numa fila de espera) o pedido feito
+  enquanto outro está em andamento, avisando quem pediu; a resposta à
+  oferta passa a levar para quem era a oferta. O simulador de partidas
+  evita essa situação (um pedido por vez) para não medir em cima dela.
 
 ---
 
 ## Limpeza pendente (não é bug)
 
-Nenhuma no momento.
+**NOTA-007 — comentário desatualizado em `js/engine/tradeEngine.js`.**
+O comentário de `sendNextHelpOffer()` diz que quem pediu ajuda e não
+recebeu "fica sem poder responder"; desde a Fase C, quem está com 0
+recursos continua respondendo normalmente (só errar gasta recurso).
+Corrigir o texto junto com o BUG-024.
 
 **NOTA-006 — regras do `css/style.css` que nenhuma tela usa. ✅ Fechada
 (05/10/2026).** Encontradas no levantamento da Fase E/E4: `.btn-success`,

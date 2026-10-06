@@ -173,6 +173,21 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
             if (sum(m.players, p => p.helpsReceived) !== m.help.accepted ||
                 sum(m.players, p => p.helpsGiven) !== m.help.accepted) problems.push('partida ' + i + ': ajudas não batem');
         });
+        // Efeito medido de cada evento (o que o relatório mostra): "+N para
+        // todos" soma N por jogador; a troca entre quem tem mais e quem tem
+        // menos não muda a soma; o corte nunca aumenta.
+        const { events } = realDataIds();
+        matches.forEach((m, i) => {
+            for (const e of events) {
+                const measured = m.events[e.id];
+                if (!measured) continue;
+                if (e.resourcesForAll > 0 && measured.resourcesDelta !== measured.count * m.players.length * e.resourcesForAll) {
+                    problems.push('partida ' + i + ' ' + e.id + ': soma medida ' + measured.resourcesDelta + ' em ' + measured.count + ' vez(es)');
+                }
+                if (e.resourceSwap && measured.resourcesDelta !== 0) problems.push('partida ' + i + ' ' + e.id + ': a troca mudou a soma');
+                if (e.resourcesForAll < 0 && measured.resourcesDelta > 0) problems.push('partida ' + i + ' ' + e.id + ': o corte aumentou a soma');
+            }
+        });
         check(problems.length === 0, problems.slice(0, 8).join('; '));
         // Com 1 recurso no início, alguém chega a 0 — o mínimo é medido.
         check(matchesOf(runs[1]).some(m => m.players.some(p => p.minResources === 0 && p.timesAtZero > 0)),
