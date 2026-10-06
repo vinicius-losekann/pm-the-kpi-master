@@ -40,7 +40,7 @@ pm-the-kpi-master/
 │   │   ├── end-of-match.test.js
 │   │   ├── help-and-advisory.test.js
 │   │   ├── questions.test.js        # banco de perguntas: formato, gabarito equilibrado
-│   │   └── config-and-texts.test.js # chaves do CONFIG, textos da tela e nomes do HTML/CSS (só o que existe é pedido)
+│   │   └── config-and-texts.test.js # chaves do CONFIG, textos da tela e nomes do HTML/CSS (só o que existe é pedido; CSS sem regra sem uso)
 │   └── browser/                 # o jogo real no Chromium (Playwright)
 │       ├── playwright.config.js
 │       ├── servers.js           # site e servidor PeerJS locais

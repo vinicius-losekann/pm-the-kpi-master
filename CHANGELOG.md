@@ -51,10 +51,11 @@ Os nomes citados nas entradas anteriores deste arquivo (ex.: `CONFIG.JOGO`,
 | E3d | Áreas foco: `focusAreas` no JSON das perguntas e IDs `initiating`, `planning`, `executing`, `monitoringControlling`, `closing` (o nome na tela não muda) | 6 | 6 |
 | E4 | IDs do `game.html`, classes do `style.css` e atributos `data-*` | — | — |
 
-### Known issues
-- Regras do `css/style.css` que nenhuma tela usa, encontradas na E4
-  (NOTA-006 em `_docs/ISSUES.md`). Não têm efeito para quem joga; a
-  remoção fica para uma frente própria.
+### Removed
+- Regras do `css/style.css` que nenhuma tela usava, encontradas na E4
+  (NOTA-006 em `_docs/ISSUES.md`). Não tinham efeito para quem joga. O
+  T92 (95 testes de lógica a partir daqui) confere que o CSS não volta a
+  ter regra sem uso.
 
 ---
 

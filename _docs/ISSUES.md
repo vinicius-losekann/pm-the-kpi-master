@@ -14,16 +14,19 @@ Nenhum no momento.
 
 ## Limpeza pendente (não é bug)
 
-**NOTA-006 — regras do `css/style.css` que nenhuma tela usa.** Encontradas
-no levantamento da Fase E/E4 (05/10/2026): `.btn-success`, `.btn-selected`,
-`.entry-form`, `.room-id-hint`, `.correct-answer`, `.correct-label`,
-`.correct-value`, `.final-rank-focus-area`, `.role-answerer`, `.sr-only`,
-`#btnPlayAgain` e `#btnExit` (esses dois IDs nem existem no HTML). Para
-quem joga, nada muda: são regras sem efeito. Proposta: apagar numa frente
-própria, conferindo antes com busca no `game.html`, no `index.html` e no
-`js/` (classe montada por concatenação não aparece numa busca direta). As
-duas em português na época (`final-rank-phase`, `role-respondedor`) foram
-traduzidas na E4 e estão no T91 como classes que só precisam existir no CSS.
+Nenhuma no momento.
+
+**NOTA-006 — regras do `css/style.css` que nenhuma tela usa. ✅ Fechada
+(05/10/2026).** Encontradas no levantamento da Fase E/E4: `.btn-success`,
+`.btn-selected`, `.entry-form`, `.room-id-hint`, `.correct-answer`,
+`.correct-label`, `.correct-value`, `.final-rank-focus-area`,
+`.role-answerer`, `.sr-only`, `#btnPlayAgain` e `#btnExit` (esses dois IDs
+nem existiam no HTML). Conferidas uma a uma no `game.html`, no `index.html`,
+no `js/` e nos testes, inclusive as classes montadas por concatenação
+(`feedback-*`, `top-1`…`top-3`, que estão em uso), e apagadas. Para quem
+joga, nada muda: eram regras sem efeito. O T92 confere que toda classe com
+regra no CSS é usada pelo HTML ou pelo `js/` e que todo `#id` do CSS existe
+no HTML, para não voltarem a se acumular.
 
 ---
 
