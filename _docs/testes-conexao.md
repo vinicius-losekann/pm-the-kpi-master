@@ -104,7 +104,7 @@ só automatizado (falta o manual).
 | F5 do host com a pergunta aberta: a mesma pergunta continua; relógio e prazo de resposta religados | 🤖 T56 · 🌐 E1 | — (coberto por E1) |
 | F5 do host fora da dupla com a pergunta aberta: o host vê a tela de espectador; etiquetas de domínio e área aparecem depois do F5 e para quem volta (BUG-020) | 🤖 T64, T65 | — |
 | F5 do host com a rodada encerrada: continua encerrada para todos, nada começa sozinho | 🤖 T53, T57 · 🌐 E9 | — (coberto por E9) |
-| F5 do host logo depois de uma resposta: segue para a próxima dupla ou encerra a rodada; se a resposta completou a última fase, a partida termina | 🤖 T54, T58 · 🌐 E10 | — (coberto por E10) |
+| F5 do host logo depois de uma resposta: segue para a próxima dupla ou encerra a rodada; se a resposta completou a última área foco, a partida termina | 🤖 T54, T58 · 🌐 E10 | — (coberto por E10) |
 | F5 do host com a partida pausada: continua pausada com o mesmo evento e retoma quando alguém volta | 🤖 T55, T57 · 🌐 E11 | — (coberto por E11) |
 | F5 do host com um pedido de assessoria sem resposta: o pedido é cancelado, quem responde pode pedir de novo e a rodada segue; assessoria já respondida continua valendo | 🤖 T59, T60 · 🌐 E12 | — (coberto por E12) |
 | F5 do host logo depois de o jogo ser atualizado (estado salvo pela versão anterior): o estado é migrado e a partida continua de onde estava (pergunta aberta, pausa, rodada encerrada); recursos, área foco e ranking final dos jogadores e a assessoria da rodada (pendente é cancelada; sugestão ou recusa continuam) chegam iguais | 🤖 T78, T79, T81, T82, T84, T85 | — |

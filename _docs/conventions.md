@@ -9,12 +9,14 @@
 ## Stack técnica
 
 - **Vanilla JavaScript**, sem framework (React, Vue, etc.) e sem bundler/build step. Todo arquivo `.js` é carregado via `<script>` simples em `game.html`/`index.html`, na ordem em que aparece — a ordem importa (um arquivo que usa `Game.domain.kpi` precisa ser carregado depois de `domain/kpiRules.js`).
-- **Namespace global único**: `window.Game`, subdividido em `Game.domain`, `Game.state`, `Game.engine`, `Game.network`, `Game.ui`. Todo arquivo exporta pra dentro desse namespace no final (bloco `// EXPORTAÇÃO`).
+- **Namespace global único**: `window.Game`, subdividido em `Game.domain`, `Game.state` (com `Game.selectors` e `Game.mutations`), `Game.engine`, `Game.core` (a API entre camadas, ver `architecture.md`), `Game.network`, `Game.ui` e os utilitários (`Game.i18n`, `Game.persistence`, `Game.identity`, `Game.sanitize`, `Game.logger`). Todo arquivo exporta pra dentro desse namespace no final (bloco `// EXPORTAÇÃO`).
 - **PeerJS** para conexão P2P (WebRTC) — sem servidor próprio, usa o broker público gratuito do PeerJS só para sinalização inicial; depois disso a comunicação é direta entre os navegadores. Todo `new Peer(...)` recebe uma cópia de `CONFIG.PEER` (`config/game-config.js`) — é o único lugar para apontar outro servidor de sinalização.
 - **CSS puro**, sem pré-processador, tema único "dark + glassmorphism" definido via custom properties em `:root` (`css/style.css`).
 - **Testes automatizados no GitHub Actions** (desde a Fase D) — ver "Testes" abaixo. O que depende de rede real, celular ou outros navegadores continua manual (`testes-conexao.md`).
 
 ## Padrão de arquitetura: camadas
+
+O tipo de arquitetura (aplicação estática, rede P2P com host autoritativo, regras puras + orquestração, estado centralizado) está resumido no início de `architecture.md`. As camadas e o que cada uma pode fazer:
 
 ```
 domain/   → regras puras (sem DOM, sem rede, sem Game.state). Recebem
@@ -103,8 +105,42 @@ Os identificadores do código estão em inglês desde a Fase E do roadmap (concl
 - **Comentários**: sempre em português. Explicam o que o código faz e por quê — sem fase, número de bug ou item do roadmap e sem a história do "antes era assim": isso fica no `roadmap.md`, no `ISSUES.md`, no `CHANGELOG.md` e no histórico do Git. Os títulos dos testes continuam com os números (T…, E…, BUG-…), que ligam o teste ao registro.
 - **Tipos de mensagem de rede** (`msg.type`) e seus campos: em inglês, kebab-case para o tipo, com os sufixos do padrão acima (`match-paused`, `show-event`, `round-start`, `advisory-request`, `help-offer-response`); os valores de motivo (`reason`) também em inglês, kebab-case (`already-answered`, `no-donors`). Mudar o nome de um tipo ou campo exige aumentar `PROTOCOL_VERSION` (acima).
 - **IDs de elemento HTML e classes CSS**: em inglês, com o glossário acima; camelCase pra IDs (`btnRequestHelp`, `modalHelpOffer`), kebab-case pra classes e atributos `data-*` (`.focus-area-item`, `.stat-chip`, `data-advisor-name`). O T91 confere que todo ID, seletor e `dataset` pedido pelo jogo e pelos testes no navegador existe no HTML e no CSS; o T92, que toda classe com regra no CSS é usada pelo HTML ou pelo `js/` e todo `#id` do CSS existe no HTML (classe montada por concatenação entra na lista `BUILT_CLASSES` do teste).
-- **Nomes de arquivo `.js`**: camelCase (`profileComponent.js`, `tradeEngine.js`, `deckRules.js`).
+- **Nomes de arquivo `.js`**: camelCase (`profileComponent.js`, `tradeEngine.js`, `deckRules.js`). Exceção antiga: `config/game-config.js`.
+
+### Formato dos nomes
+
+| O quê | Formato | Exemplos |
+|---|---|---|
+| Funções, variáveis, parâmetros, campos de objeto | camelCase | `drawQuestion`, `currentRound`, `answeredThisRound` |
+| Constantes de módulo e chaves do CONFIG | MAIÚSCULAS_COM_SUBLINHADO | `STATE_VERSION`, `PROTOCOL_VERSION`, `CONFIG.GAME.ANSWER_TIMEOUT` |
+| Booleanos | prefixo `is`/`has`/`can` | `isHost`, `isCorrect`, `hasReserve`, `canContinueRound` |
+| Tipos de mensagem, classes CSS, atributos `data-*` | kebab-case | `help-offer-response`, `.focus-area-item`, `data-advisor-name` |
+| IDs de elemento HTML | camelCase | `btnRequestHelp`, `modalHelpOffer` |
+
+- **Função começa com verbo**, e o verbo indica o que ela faz:
+  - `calculate`/`validate`/`draw`/`build`: regra pura, que devolve um resultado (`domain/`);
+  - `start`/`end`/`handle`/`resume`: ação da partida ou resposta a uma mensagem (`engine/`, `network/`);
+  - `send`/`broadcast`/`connect`: rede;
+  - `show` (abre uma tela ou janela), `render` (monta o HTML de uma parte), `update` (atualiza uma parte já na tela): `ui/`. Código novo usa `show`, não `display`, que aparece em funções antigas.
+  - `get`: leitura sem efeito (`getActivePlayers`).
+- **Unidade no nome** de constante nova de tempo ou tamanho (`SEARCH_TIMEOUT_MS`, `RESTORE_WINDOW_MS`). As chaves antigas do CONFIG não têm a unidade no nome (o comentário de cada uma diz qual é; `SESSION_DURATION` está em segundos, os prazos em ms); renomear seria uma frente própria, com migração.
+- **Nome descreve o significado**, não o tipo nem a implementação (`answeredThisRound`, não `list2`); sem abreviações além das consagradas (`id`, `kpi`, `msg`, `conn`).
+
+## Código limpo
+
+Regras práticas deste projeto, além do formato dos nomes:
+
+- **Regra do jogo fica em `domain/`**, como função pura (recebe dados, devolve resultado). A tela e a rede não decidem regra: só mostram e transportam.
+- **Função pequena, com uma tarefa.** Se precisa de um comentário para separar "partes", provavelmente são funções diferentes.
+- **Retorno antecipado** (`if (!x) return;`) em vez de `if` aninhado.
+- **Sem número solto no código:** valor de jogo (pontos, prazos, limites) vai no `CONFIG`; o código lê de lá.
+- **Texto da tela só pelo i18n** (`Game.i18n.t('secao.chave')`); o T88 confere que a chave existe e é usada.
+- **Texto vindo de outro jogador** (nome, por exemplo): escapar com `Game.sanitize.escapeHtml()` ao montar HTML; ao usar `textContent`, não escapar (escape duplo mostra `&amp;` — BUG-023).
+- **Sem código morto:** função, chave de texto ou regra de CSS sem uso é apagada, não comentada "para depois" (o T88 e o T92 barram texto e CSS sem uso). O histórico fica no Git.
+- **Duplicação:** extrair quando é a mesma regra; manter separado quando só parece igual (ex.: roadmap 7.6 — extrair só a montagem da lista de alternativas, não fundir os dois modais).
+- **Comentário explica o porquê**, não repete o que o código diz (ver "Comentários" acima).
+- **Mudança de comportamento vem com teste**, no fluxo de dois commits (seção "Testes").
 
 ## Convenção de commit
 
-Conventional Commits, em português: `tipo(escopo opcional): descrição curta` — por exemplo `fix(rede): ...`, `feat(jogo): ...`, `test: ...`, `docs: ...`, `chore: ...` — com corpo explicando o quê e o porquê quando a mudança não é óbvia.
+Conventional Commits, em português: `tipo(escopo opcional): descrição curta` — por exemplo `fix(rede): ...`, `feat(jogo): ...`, `refactor: ...` (muda a estrutura sem mudar o comportamento), `style: ...` (CSS e aparência), `test: ...`, `docs: ...`, `chore: ...` — com corpo explicando o quê e o porquê quando a mudança não é óbvia.

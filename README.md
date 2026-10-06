@@ -34,14 +34,15 @@
 | ✅ Acertou | +10 | +1 | 0 (nunca gasta) |
 | ❌ Errou | 0 | 0 | -1📦 |
 | 🛡️ Errou com Reserva de Contingência | 0 | 0 | 0 (protegido) |
-| 🆘 Recebeu ajuda (doador) | +10 | - | -1📦 |
+| 🆘 Deu ajuda (doador) | +10 | - | -1📦 |
 | 🆘 Pediu ajuda (recebeu) | -10 | - | +1📦 |
 | 🧭 Assessorou e acertou | +5 | - | - |
 
 ### KPI Final
 ```
-KPI Total = KPI de acertos + KPI de ajudas dadas - KPI de ajudas recebidas + KPI de assessorias + (Recursos restantes × 5)
+KPI Final = KPI acumulado na partida + (Recursos restantes × 5)
 ```
+O KPI acumulado já inclui acertos, ajudas dadas e recebidas e bônus de assessoria.
 
 ---
 
@@ -51,7 +52,7 @@ KPI Total = KPI de acertos + KPI de ajudas dadas - KPI de ajudas recebidas + KPI
 |---|---|---|
 | e1 | 🟢 **Apoio da Alta Gestão** | +1 recurso para todos |
 | e2 | 🔴 **Corte de Orçamento** | -1 recurso de todos |
-| e3 | 🎁 **Patrocinador Generoso** | +1 recursos para quem tem menos |
+| e3 | 🎁 **Patrocinador Generoso** | +1 recurso para quem tem menos |
 | e4 | 🛡️ **Reserva de Contingência** | Errar nesta rodada não gasta recurso |
 | e5 | 🔄 **Reestruturação** | Mais rico dá 1 para mais pobre |
 | e6 | ⚪ **Operação Normal** | Nenhum efeito nos recursos (evento neutro, ~50% de chance por rodada) |
@@ -65,6 +66,7 @@ KPI Total = KPI de acertos + KPI de ajudas dadas - KPI de ajudas recebidas + KPI
 - O botão "Pedir Ajuda" só aparece pra quem está com **0 recursos**
 - Ao pedir, o jogo monta uma **fila automática**: jogadores ativos com recurso, do que tem mais pro que tem menos
 - Pergunta um de cada vez — se recusar (ou não responder em 20s), passa pro próximo da fila sozinho
+- Quem caiu (desconectado) é pulado na fila; se quem pediu cai, o pedido é cancelado sem transferir nada
 - Quem pediu precisa ter pelo menos **10 KPI** pra pedir
 - Doador: -1📦, +10 KPI. Quem recebeu: +1📦, -10 KPI
 - Se ninguém puder ajudar, o jogo avisa e sugere continuar ganhando KPI como Perguntador ou Assessor até ter os 10 KPI pra tentar de novo
@@ -120,6 +122,7 @@ enviou o pedido.
 | Respondedor da rodada | — (é quem está pedindo ajuda) |
 | Qualquer outro jogador ativo | ✅ Sim |
 | Jogador aguardando no lobby (`waitingInLobby`) | ❌ Não |
+| Jogador desconectado (caiu e ainda não voltou) | ❌ Não (o pedido é recusado na hora) |
 
 ### Recusa de Assessoria
 
@@ -213,63 +216,24 @@ Respondedor recebe pergunta
 ├── 📁 tests/
 │   ├── logic/               # lógica do jogo com rede simulada (Node, sem dependências)
 │   └── browser/             # o jogo real no Chromium (Playwright)
+├── 📁 assets/board/          # imagem do tabuleiro físico
 ├── 📁 .github/workflows/
 │   └── testes.yml           # roda os testes a cada push
 ├── 📄 package.json           # dependências só dos testes no navegador
 └── 📁 js/
-    ├── main.js
-    ├── entry/
-    │   └── roomEntry.js
-    ├── domain/
-    │   ├── kpiRules.js
-    │   ├── eventRules.js
-    │   ├── deckRules.js
-    │   ├── tradeRules.js
-    │   ├── advisoryRules.js
-    │   └── rankingRules.js
-    ├── state/
-    │   ├── store.js
-    │   ├── selectors.js
-    │   └── mutations.js
-    ├── engine/
-    │   ├── sessionEngine.js
-    │   ├── turnEngine.js
-    │   ├── answerEngine.js
-    │   ├── tradeEngine.js
-    │   └── advisoryEngine.js
-    ├── network/
-    │   ├── connectionState.js
-    │   ├── hostSearch.js
-    │   ├── peerService.js
-    │   ├── messageHandler.js
-    │   └── hostMigration.js
-    ├── ui/
-    │   ├── screenManager.js
-    │   ├── setup.js
-    │   ├── components/
-    │   │   ├── lobbyComponent.js
-    │   │   ├── questionComponent.js
-    │   │   ├── profileComponent.js
-    │   │   ├── controlsComponent.js
-    │   │   ├── timerComponent.js
-    │   │   └── rankingComponent.js
-    │   └── modals/
-    │       ├── resultModal.js
-    │       ├── eventModal.js
-    │       ├── tradeModal.js
-    │       └── advisoryModal.js
-    ├── locales/
-    │   └── pt-BR.js
-    └── utils/
-        ├── logger.js
-        ├── persistence.js
-        ├── identity.js
-        ├── sanitize.js
-        └── i18n.js
+    ├── main.js              # inicialização da tela de jogo
+    ├── entry/               # tela inicial: criar/entrar em sala
+    ├── domain/              # regras puras do jogo (KPI, eventos, baralho, ajuda, assessoria, ranking)
+    ├── state/               # estado único da partida
+    ├── engine/              # orquestração: sessão, rodada, resposta, ajuda, assessoria
+    ├── network/             # conexão P2P, mensagens e troca de host
+    ├── ui/                  # telas (components/) e janelas (modals/)
+    ├── locales/             # textos da tela (pt-BR)
+    └── utils/               # estado salvo, identidade, i18n, escape de texto, log
 ```
 
-> Para as decisões de arquitetura e o que ainda está pendente em cada módulo, veja
-> `_docs/architecture.md`; para o histórico de mudanças, `CHANGELOG.md`.
+> A árvore completa, arquivo por arquivo, e as decisões de arquitetura estão em
+> `_docs/architecture.md`; o histórico de mudanças, em `CHANGELOG.md`.
 
 ---
 
@@ -280,9 +244,10 @@ Respondedor recebe pergunta
 
 ### Desenvolvimento
 ```bash
-python3 -m http.server 8000
+python3 -m http.server 8000   # no Windows: py -m http.server 8000
 # http://localhost:8000
 ```
+Abrir o `index.html` direto (`file://`) não funciona: o jogo carrega as perguntas por `fetch`.
 
 ### Testes
 Rodam automaticamente no GitHub Actions a cada push (aba "Actions" do

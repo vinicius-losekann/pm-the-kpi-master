@@ -4,6 +4,11 @@ Bugs em aberto e corrigidos, com sintoma, causa e correção. Os da
 migração inicial (Fases 0–7: BUG-001 a BUG-007, REGRESSÃO-001/002,
 SEC-001/002, ESCLARECIMENTO-001) estão resumidos em `../CHANGELOG.md`.
 
+Os nomes de função e de campo citados nos registros anteriores a
+05/10/2026 (ex.: `validarPedidoAssessoria()`, `rankingFinal`) são os de
+antes da tradução dos identificadores para o inglês (Fase E); o
+glossário de `conventions.md` dá o nome atual.
+
 ---
 
 ## Em investigação
@@ -86,9 +91,13 @@ de `tests/logic` e `tests/browser`; o mapa completo está em
 
 ## Como usar este arquivo
 
-- Ao encontrar um bug durante os testes de qualquer fase, adicione uma entrada
-  aqui **antes de decidir se corrige na hora ou depois**.
-- Sempre registre: status, local no código, sintoma, causa raiz (se souber) e
-  fase prevista de correção.
-- Ao corrigir, mude o status para `✅ Corrigido` e anote a fase/data em que
-  foi resolvido.
+- Ao encontrar um bug, registre-o em "Em investigação" **antes de decidir se
+  corrige na hora ou depois** — achado no meio de outra frente, registra e
+  propõe, sem corrigir junto.
+- Registre: sintoma (o que quem joga vê), local no código, causa (se souber)
+  e como reproduzir.
+- A correção vem com teste que reproduz o bug: primeiro um commit só com o
+  teste (que falha), depois a correção (tudo passa).
+- Ao corrigir, mova o bug para a tabela de corrigidos, com a causa, a
+  correção e os números dos testes (T…, E…). Limpeza que não é bug vai em
+  "Limpeza pendente" como NOTA-xxx.

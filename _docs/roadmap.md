@@ -42,11 +42,15 @@ números dos itens não mudam.
 > falsificação de identidade em mensagens de rede (`SEC-001` e `SEC-002`,
 > em `../CHANGELOG.md`); nome do host tomado e reconexão no lugar de outro
 > jogador (`SEC-003` e `SEC-004`, em `ISSUES.md`).
+>
+> O item 4.3 (criptografia de ponta a ponta) saiu em 05/10/2026: a
+> conexão WebRTC entre os navegadores já é sempre criptografada (DTLS), e
+> a opção `secure` do PeerJS trata só da conexão com o servidor de
+> sinalização, que no servidor público já é HTTPS.
 
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
 | 4.2 | **Validação de ações do host** | O host é a fonte da verdade, mas suas ações devem ser validadas (ex: não pode conceder KPI indevidamente). Atualmente já há alguma validação, mas pode ser reforçada. |
-| 4.3 | **Criptografia de ponta a ponta** | PeerJS suporta `secure: true` para conexões WebRTC criptografadas. Ativar para proteção de dados sensíveis. |
 | 4.4 | **Ocultar as perguntas e o gabarito** | Hoje as respostas não são secretas: `data/questions.pt-BR.json` é público no site (qualquer um abre no navegador) e quem reconecta recebe o baralho com o gabarito no `state-sync` (quem assume como host precisa dele). Ocultar exige tirar o gabarito do arquivo público (ex.: só o host carrega as respostas, de um lugar não publicado) e mandar a quem reconecta só o que foi usado do baralho. Por ora, vale a regra da aula (não abrir o F12 nem o arquivo de perguntas). |
 
 ---
@@ -66,9 +70,11 @@ números dos itens não mudam.
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
 | 6.1 | **Debounce em atualizações de UI** | Muitas atualizações de ranking/lista de jogadores ocorrem com alta frequência; usar `requestAnimationFrame` ou debounce. |
-| 6.2 | **Virtualização de listas** | Para ranking com muitos jogadores (máx 6, então não crítico). |
 | 6.3 | **Minimizar broadcasts desnecessários** | Alguns broadcasts (ex: `player-list`) são enviados a cada mudança; poderia ser enviado apenas quando houver mudança real. |
-| 6.4 | **Lazy loading de perguntas** | Carregar perguntas sob demanda por fase, em vez de todas de uma vez. |
+| 6.4 | **Lazy loading de perguntas** | Carregar perguntas sob demanda por área foco, em vez de todas de uma vez. |
+
+> O item 6.2 (virtualização de listas) saiu em 05/10/2026: com no máximo
+> 6 jogadores, as listas são pequenas demais para ganhar algo com isso.
 
 ---
 
@@ -78,10 +84,12 @@ números dos itens não mudam.
 |---|----------|---------------|
 | 7.1 | **JSDoc completo** | Muitas funções já têm comentários, mas faltam parâmetros e retornos detalhados. Padronizar. |
 | 7.3 | **Linter (ESLint) e formatter (Prettier)** | Manter estilo consistente e evitar erros comuns. |
-| 7.5 | **Separar helpers em arquivos próprios** | Funções como `buildRanking` poderiam estar em um arquivo `ranking-utils.js`. |
 | 7.6 | **Extrair helper compartilhado de renderização de alternativas** | `questionComponent.js` (Respondedor) e `advisoryModal.js` (Assessor) duplicam a lógica de montar a lista de alternativas + timer — visualmente quase idênticas, mas disparam ações diferentes no clique (`handleAnswer` vs `answerAdvisory`). Não fundir os dois modais (são interações conceitualmente diferentes), só extrair a parte genuinamente igual (montagem da lista + texto do timer) para uma função compartilhada tipo `Game.ui.renderAlternativesList(container, alternativas, onEscolher)`. Baixo risco, ganho pequeno — não é bug, é redução de duplicação. |
 | 7.8 | **Node 24 nos testes** | O workflow roda os testes com `node-version: 20`, fora de suporte desde 04/2026 (as ações do workflow já usam Node 24). Trocar pode mudar o resultado dos testes (`vm`, `crypto`, Playwright), por isso fica como frente própria, com o Actions conferido antes e depois. |
 | 7.9 | **Simulador de partidas para balanceamento** | Rodar muitas partidas simuladas (sem rede nem tela) para medir quantas rodadas uma partida leva, como os recursos variam e se a economia (Fase C) e os eventos estão justos. Precisa usar as regras de verdade (`domain/` e os engines, como os testes de `tests/logic`), não uma cópia que possa divergir do jogo. Saída: um relatório (tabela ou gráfico) para decidir ajustes de `config/game-config.js`. |
+
+> O item 7.5 (separar helpers, ex.: `buildRanking`) saiu em 05/10/2026:
+> já está feito — o ranking fica em `js/domain/rankingRules.js`.
 
 ---
 

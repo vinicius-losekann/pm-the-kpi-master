@@ -2,6 +2,31 @@
 
 > Última revisão: 05/10/2026
 
+## Tipo de arquitetura
+
+- **Aplicação estática no navegador, sem servidor próprio.** O site
+  (HTML, CSS, JS e os JSON de dados) é publicado no GitHub Pages; não
+  há back-end nem banco de dados. O único serviço externo é o servidor
+  público de sinalização do PeerJS, usado só para os navegadores se
+  acharem.
+- **Rede P2P em estrela, com host autoritativo.** Cada guest se conecta
+  só ao host (WebRTC, via PeerJS). O navegador do host faz o papel de
+  servidor: guarda o estado oficial, valida os pedidos (`*-request`) e
+  distribui os resultados. Se o host cai, outro jogador assume a sala
+  (troca de host, seção "Conexão, identidade e troca de host").
+- **Camadas** (`domain → state → engine → network/ui`), com a direção
+  de dependência descrita em `conventions.md`.
+- **Núcleo de regras puras + orquestração.** `domain/` calcula (KPI,
+  eventos, sorteio, ranking) sem tela, rede nem estado global; `engine/`
+  executa: lê e grava o estado, chama a rede e a tela. É uma aproximação
+  do padrão *functional core, imperative shell*, com as exceções da
+  NOTA-005.
+- **Estado centralizado.** Um único `Game.state` (`state/store.js`),
+  salvo no `localStorage` com versão e migração.
+- **Módulos por namespace global** (`window.Game`), carregados por
+  `<script>` em ordem, sem ES Modules nem build (motivo na seção "Por
+  que o projeto não usa ES Modules").
+
 ## Estrutura de arquivos
 
 ```
@@ -249,7 +274,7 @@ Resumo dos mecanismos; detalhes nos comentários de cada arquivo e no checklist 
 - **Saída da página:** `pagehide`/`beforeunload` encerram as conexões na hora, para os outros perceberem a saída sem esperar o tempo limite da rede.
 - **Versão do jogo:** o `player-join` leva `protocolVersion` (`PROTOCOL_VERSION` em `network/peerService.js`, hoje 6). O host confere antes de tudo e recusa quem vem com outra versão (`join-rejected` com `version-mismatch`; o aviso pede para recarregar a página). Motivo: logo depois de um deploy, quem dá F5 passa a rodar o código novo e os outros continuam no antigo; com nomes de campo diferentes nas mensagens, a partida travaria sem aviso. Sem o campo (jogo de antes da versão) conta como 1.
 - **Identidade (D2):** cada navegador gera um token por sala (`utils/identity.js`, guardado em `localStorage`). O `player-join` leva o token; o host guarda só o hash (SHA-256 próprio e síncrono — `crypto.subtle` só existe em HTTPS/localhost e é assíncrono) e exige o mesmo token para reconectar alguém que caiu.
-- **F5 do host (D3f):** o estado salvo (`utils/persistence.js`) inclui se a rodada está encerrada e se a partida está pausada (com o evento). Ao recarregar, `main.js` só chama `Game.core.resumeMatchAfterReload()` (`engine/sessionEngine.js`), que faz o que aconteceria sem o F5: pausa e rodada encerrada continuam; pergunta já respondida segue para a próxima dupla (ou encerra a partida, se a resposta completou a última fase); pergunta aberta é reexibida (com o host fora da dupla, a tela de espectador — BUG-020) com o prazo de resposta rearmado. A pergunta guardada na rodada leva os nomes de domínio e área (as etiquetas da tela), para o F5 e o `state-sync` mostrarem as etiquetas. O estado salvo também guarda o fim de jogo e o ranking final (`gameOver`, `finalRanking`): um F5 na tela final volta a ela (`Game.core.showGameOver()`) — BUG-021.
+- **F5 do host (D3f):** o estado salvo (`utils/persistence.js`) inclui se a rodada está encerrada e se a partida está pausada (com o evento). Ao recarregar, `main.js` só chama `Game.core.resumeMatchAfterReload()` (`engine/sessionEngine.js`), que faz o que aconteceria sem o F5: pausa e rodada encerrada continuam; pergunta já respondida segue para a próxima dupla (ou encerra a partida, se a resposta completou a última área foco); pergunta aberta é reexibida (com o host fora da dupla, a tela de espectador — BUG-020) com o prazo de resposta rearmado. A pergunta guardada na rodada leva os nomes de domínio e área (as etiquetas da tela), para o F5 e o `state-sync` mostrarem as etiquetas. O estado salvo também guarda o fim de jogo e o ranking final (`gameOver`, `finalRanking`): um F5 na tela final volta a ela (`Game.core.showGameOver()`) — BUG-021.
 - **O que quem reconecta recebe:** `state-sync` com a rodada, o relógio (a contagem local é religada), se a rodada está encerrada ou pausada, quem já respondeu nesta rodada e, no fim de jogo, o ranking final. Depois do fim de jogo a sala não fica travada: quem caiu na tela final pode voltar (BUG-021).
 - **Troca de host:** quando o host cai, os guests tentam o mesmo host por até `CONFIG.GAME.HOST_TIMEOUT` (10s). Esgotado, o backup assume num ID novo: a sala passa de `<ID base>` para `<ID base>-h1`, `-h2`... (`computeHostPeerId`). O ID muda porque o antigo pode ficar preso no servidor de sinalização por até ~1 min, e o host antigo voltando brigaria por ele. Quem assume marca `host=true` na URL (um F5 continua host); o host antigo fica na lista como jogador comum desconectado e, se voltar (ou recarregar a página), entra como jogador comum. O novo host não manda aviso de troca (ninguém está conectado ao ID novo nesse momento): cada guest acha a sala sozinho. O relógio de quem assume é a mesma contagem do início da partida (`Game.core.startClock()`).
 - **Procura da sala (D3c, `network/hostSearch.js`):** quem só conhece o ID base (tela inicial, link antigo, conexão inicial) procura o ID base e as versões seguintes ao mesmo tempo e fica com a que responder. A tela inicial também recusa criar sala com o código de uma partida que continua numa versão migrada.
