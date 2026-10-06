@@ -615,7 +615,7 @@ test('T83 Versão do jogo 3: jogadores e ranking só com os nomes novos (resourc
     env.Game.network.handleMessage({ type: 'help-request', requesterName: 'A' }, 'peer-a');
     const offer = env.record.sent.find(e => e.msg.type === 'help-offer');
     check(offer && offer.to === 'peer-b', 'a primeira oferta deveria ir para B (mais recursos), foi para: ' + (offer && offer.to));
-    env.Game.network.handleMessage({ type: 'help-offer-response', candidateName: 'B', accepted: true }, 'peer-b');
+    env.Game.network.handleMessage({ type: 'help-offer-response', candidateName: 'B', requesterName: 'A', accepted: true }, 'peer-b');
     const confirmed = env.broadcastsOfType('help-confirmed')[0];
     check(env.player('A').resources === 1 && env.player('B').resources === 4 &&
         confirmed && confirmed.donorResources === 4 && confirmed.requesterResources === 1,
@@ -962,7 +962,7 @@ test('T86 Versão do jogo 4: assessoria e pedido de ajuda só com os nomes novos
     ht.advance(C.GAME.HELP_OFFER_TIMEOUT);
     check(h.state.helpQueue && h.state.helpQueue.index === 2 && h.record.sent.some(e => e.to === 'peer-host' && e.msg.type === 'help-offer'),
         'sem resposta de C no prazo, a oferta deveria ir para o Host, veio: ' + JSON.stringify(h.state.helpQueue));
-    h.Game.core.handleHelpOfferResponse({ type: 'help-offer-response', candidateName: 'Host', accepted: true });
+    h.Game.core.handleHelpOfferResponse({ type: 'help-offer-response', candidateName: 'Host', requesterName: 'A', accepted: true });
     const confirmed = h.broadcastsOfType('help-confirmed')[0];
     check(confirmed && confirmed.donor === 'Host' && confirmed.requester === 'A' && confirmed.amount === amount &&
         confirmed.donorKpi === amount && confirmed.donorResources === 0 && confirmed.requesterKpi === 20 - amount && confirmed.requesterResources === 1,
@@ -993,13 +993,13 @@ test('T86 Versão do jogo 4: assessoria e pedido de ajuda só com os nomes novos
     check(a.alerts.pop() === 'trade.noHelp', 'A deveria ver o aviso de que ninguém pôde ajudar');
     h.player('B').resources = 2;
     h.Game.network.handleMessage({ type: 'help-request', requesterName: 'A' }, 'peer-a');
-    h.Game.network.handleMessage({ type: 'help-offer-response', candidateName: 'B', accepted: false }, 'peer-b');
+    h.Game.network.handleMessage({ type: 'help-offer-response', candidateName: 'B', requesterName: 'A', accepted: false }, 'peer-b');
     const allDeclined = noCandidates();
     check(allDeclined && allDeclined.msg.reason === 'all-declined', 'com todos recusando, o motivo deveria ser all-declined, veio: ' + JSON.stringify(allDeclined && allDeclined.msg));
     // Quem pediu fica sem KPI enquanto B decide: a troca é recusada na validação final.
     h.Game.network.handleMessage({ type: 'help-request', requesterName: 'A' }, 'peer-a');
     h.player('A').kpi = amount - 1;
-    h.Game.network.handleMessage({ type: 'help-offer-response', candidateName: 'B', accepted: true }, 'peer-b');
+    h.Game.network.handleMessage({ type: 'help-offer-response', candidateName: 'B', requesterName: 'A', accepted: true }, 'peer-b');
     const failed = noCandidates();
     check(failed && failed.msg.reason === 'no-donors' && failed !== noDonors && h.broadcastsOfType('help-confirmed').length === 1 && h.player('B').resources === 2,
         'recusada na validação final, A deveria receber no-donors, sem troca, veio: ' + JSON.stringify(failed && failed.msg));
