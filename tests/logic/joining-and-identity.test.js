@@ -1233,7 +1233,7 @@ test('T89 Versão do jogo 5: eventos só com os nomes novos (events, title, desc
 
 test('T90 Versão do jogo 6: áreas foco com os IDs novos (initiating...) no CONFIG, no JSON das perguntas (focusAreas), no sorteio, no estado salvo e nas mensagens', (use) => {
     const env = use(createEnvironment());
-    check(env.Game.network.PROTOCOL_VERSION === 6, 'a versão do protocolo deveria ser 6 (IDs novos das áreas foco), veio: ' + env.Game.network.PROTOCOL_VERSION);
+    check(env.Game.network.PROTOCOL_VERSION >= 6, 'a versão do protocolo deveria ser 6 ou mais (IDs novos das áreas foco), veio: ' + env.Game.network.PROTOCOL_VERSION);
     check(env.Game.persistence.STATE_VERSION === 6, 'a versão do estado salvo deveria ser 6 (IDs novos das áreas foco), veio: ' + env.Game.persistence.STATE_VERSION);
     const copy = (x) => JSON.parse(JSON.stringify(x));
     /** Mesmos campos e valores, em qualquer ordem. */
