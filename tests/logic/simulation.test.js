@@ -150,7 +150,7 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
         }
     });
 
-    test('T94 Simulador: as contas fecham (KPI de cada jogador, KPI Final, recursos nunca negativos, ranking em ordem)', () => {
+    test('T94 Simulador: as contas fecham (KPI de cada jogador, KPI Final, mínimo de recursos, ranking em ordem) e o estouro de orçamento acontece', () => {
         const runs = valueOf(accounts);
         const matches = matchesOf(...runs);
         check(matches.length === 8, 'deveriam ser 8 partidas, vieram ' + matches.length);
@@ -161,7 +161,6 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
                 const expectedKpi = k.CORRECT_ANSWER * p.correct + p.advisorBonus + k.RESOURCE_PRICE * (p.helpsGiven - p.helpsReceived);
                 if (p.kpi !== expectedKpi) problems.push('partida ' + i + ' ' + p.name + ': KPI ' + p.kpi + ', esperado ' + expectedKpi);
                 if (p.finalKpi !== p.kpi + p.resources * k.FINAL_RESOURCE_VALUE) problems.push('partida ' + i + ' ' + p.name + ': KPI Final errado');
-                if (p.resources < 0 || p.minResources < 0) problems.push('partida ' + i + ' ' + p.name + ': recurso negativo');
                 if (p.minResources > p.resources) problems.push('partida ' + i + ' ' + p.name + ': mínimo de recursos maior que o final');
                 if (p.kpi < 0) problems.push('partida ' + i + ' ' + p.name + ': KPI negativo');
                 if (p.correct > p.answers) problems.push('partida ' + i + ' ' + p.name + ': mais acertos que respostas');
@@ -193,9 +192,12 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
             }
         });
         check(problems.length === 0, problems.slice(0, 8).join('; '));
-        // Com 1 recurso no início, alguém chega a 0 — o mínimo é medido.
-        check(matchesOf(runs[1]).some(m => m.players.some(p => p.minResources === 0 && p.timesAtZero > 0)),
-            'com STARTING_RESOURCES 1, alguém deveria chegar a 0 recursos (minResources 0, timesAtZero > 0)');
+        // Com 1 recurso no início, alguém chega a 0 e alguém passa de 0
+        // (estouro de orçamento: o erro e o corte não têm piso) — o mínimo é medido.
+        check(matchesOf(runs[1]).some(m => m.players.some(p => p.minResources <= 0 && p.timesAtZero > 0)),
+            'com STARTING_RESOURCES 1, alguém deveria chegar a 0 recursos (minResources ≤ 0, timesAtZero > 0)');
+        check(matchesOf(runs[1]).some(m => m.players.some(p => p.minResources < 0)),
+            'com STARTING_RESOURCES 1, alguém deveria entrar em estouro de orçamento (minResources negativo)');
     });
 
     test('T95 Simulador: a mesma semente repete as mesmas partidas; outra semente dá outras', () => {

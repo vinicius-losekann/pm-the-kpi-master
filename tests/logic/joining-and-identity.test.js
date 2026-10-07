@@ -632,12 +632,13 @@ test('T83 Versão do jogo 3: jogadores e ranking só com os nomes novos (resourc
     vm.runInContext('var window = this;', eventCtx);
     vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/domain/eventRules.js'), 'utf8'), eventCtx);
     const events = eventCtx.Game.domain.event;
+    // O corte não tem piso: Y vai de 3 a −1 (estouro de orçamento).
     const ps = [{ name: 'X', resources: 3 }, { name: 'Y', resources: 1 }];
     const steps = [
         [{ resourcesForAll: 2 }, [5, 3]],
-        [{ resourcesForAll: -4 }, [1, 0]],
-        [{ resourcesForFewest: 2 }, [1, 2]],
-        [{ resourceSwap: true }, [2, 1]]
+        [{ resourcesForAll: -4 }, [1, -1]],
+        [{ resourcesForFewest: 1 }, [1, 0]],
+        [{ resourceSwap: true }, [0, 1]]
     ];
     for (const [event, expected] of steps) {
         events.applyEventEffects(event, ps);
