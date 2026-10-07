@@ -15,7 +15,11 @@ function updatePlayersOnlineList() {
         const safeName = Game.sanitize.escapeHtml(p.name);
         const offlineStyle = p.disconnected ? ' style="opacity:0.5;"' : '';
         const offlineIcon = p.disconnected ? `<span title="${Game.i18n.t('ranking.disconnected')}">📴</span>` : '';
-        return `<div class="online-player"${offlineStyle}><div class="player-avatar-xs">${Game.sanitize.escapeHtml(p.name.charAt(0))}</div><span>${safeName}</span>${offlineIcon}<span style="font-size:0.7rem; color:#ffd700;">📦${p.resources || 0}</span><span class="mini-focus-area">${focusArea.emoji}</span></div>`;
+        // Recurso negativo (estouro de orçamento) em vermelho, com a explicação no title.
+        const resources = p.resources < 0
+            ? `<span class="mini-resources resources-overrun" title="${Game.i18n.t('ranking.overrun')}">📦${p.resources}</span>`
+            : `<span class="mini-resources">📦${p.resources || 0}</span>`;
+        return `<div class="online-player"${offlineStyle}><div class="player-avatar-xs">${Game.sanitize.escapeHtml(p.name.charAt(0))}</div><span>${safeName}</span>${offlineIcon}${resources}<span class="mini-focus-area">${focusArea.emoji}</span></div>`;
     }).join('') || `<div style="color:#6a6a80; font-size:0.8rem;">${Game.i18n.t('ranking.noActivePlayers')}</div>`;
 }
 

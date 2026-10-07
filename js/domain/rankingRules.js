@@ -7,7 +7,8 @@
 
 /**
  * Constrói o ranking de todos os jogadores.
- * O KPI final = KPI acumulado + (recursos restantes × FINAL_RESOURCE_VALUE).
+ * O KPI final = KPI acumulado + (recursos × FINAL_RESOURCE_VALUE); recurso
+ * negativo (estouro de orçamento) desconta.
  *
  * Desempate (mesmo KPI Final), nesta ordem: quem avançou mais na trilha
  * (área foco mais adiantada, pela ordem de config.FOCUS_AREAS, e depois

@@ -20,8 +20,8 @@
      (exceto se estiver na Área Foco Encerramento)
 5. **Acertar** = +10 KPI + 1 atividade, sem gastar recurso
 6. **Errar** = 0 KPI + 0 atividade + **-1 recurso** (protegido pelo evento 🛡️ Reserva de Contingência)
-7. Sem recursos não impede de tentar — só não sobra reserva pra errar de novo sem custo
-8. **Pedir Ajuda**: quem está com 0 recursos pode pedir; fila automática de quem tem mais recurso, por 10 KPI
+7. Sem recursos não impede de tentar: errar com 0 recursos deixa o recurso **negativo** (estouro de orçamento), que desconta no KPI Final
+8. **Pedir Ajuda**: quem está com 0 recursos ou menos pode pedir; fila automática de quem tem mais recurso, por 10 KPI
 9. O jogo termina quando o primeiro jogador completa o **Encerramento**
 10. Vence quem tiver o **maior KPI Final**. Empate: fica à frente quem avançou mais nas áreas foco e, se ainda empatar, quem tem mais KPI acumulado; empate em tudo divide a posição (🥇 🥇 🥉)
 
@@ -32,7 +32,7 @@
 | Situação | KPI | Atividade | Recurso |
 |---|---|---|---|
 | ✅ Acertou | +10 | +1 | 0 (nunca gasta) |
-| ❌ Errou | 0 | 0 | -1📦 |
+| ❌ Errou | 0 | 0 | -1📦 (pode ficar negativo: estouro) |
 | 🛡️ Errou com Reserva de Contingência | 0 | 0 | 0 (protegido) |
 | 🆘 Deu ajuda (doador) | +10 | - | -1📦 |
 | 🆘 Pediu ajuda (recebeu) | -10 | - | +1📦 |
@@ -40,9 +40,9 @@
 
 ### KPI Final
 ```
-KPI Final = KPI acumulado na partida + (Recursos restantes × 5)
+KPI Final = KPI acumulado na partida + (Recursos × 5)
 ```
-O KPI acumulado já inclui acertos, ajudas dadas e recebidas e bônus de assessoria.
+O KPI acumulado já inclui acertos, ajudas dadas e recebidas e bônus de assessoria. Recurso negativo (estouro de orçamento) desconta: com −2 recursos, o KPI Final perde 10. No card do jogador e na lista de jogadores, o negativo aparece em vermelho (no card, com o rótulo "Estouro").
 
 ---
 
@@ -51,7 +51,7 @@ O KPI acumulado já inclui acertos, ajudas dadas e recebidas e bônus de assesso
 | # | Evento | Efeito |
 |---|---|---|
 | e1 | 🟢 **Apoio da Alta Gestão** | +1 recurso para todos |
-| e2 | 🔴 **Corte de Orçamento** | -1 recurso de todos |
+| e2 | 🔴 **Corte de Orçamento** | -1 recurso de todos (pode levar ao estouro: recurso negativo) |
 | e3 | 🎁 **Patrocinador Generoso** | +1 recurso para quem tem menos |
 | e4 | 🛡️ **Reserva de Contingência** | Errar nesta rodada não gasta recurso |
 | e5 | 🔄 **Reestruturação** | Mais rico dá 1 para mais pobre |
@@ -63,7 +63,7 @@ O KPI acumulado já inclui acertos, ajudas dadas e recebidas e bônus de assesso
 
 > Rede de segurança pra quem está sem recurso — não é um mercado livre.
 
-- O botão "Pedir Ajuda" só aparece pra quem está com **0 recursos**
+- O botão "Pedir Ajuda" só aparece pra quem está com **0 recursos ou menos** (estouro)
 - Ao pedir, o jogo monta uma **fila automática**: jogadores ativos com recurso, do que tem mais pro que tem menos
 - Pergunta um de cada vez — se recusar (ou não responder em 20s), passa pro próximo da fila sozinho
 - Quem caiu (desconectado) é pulado na fila; se quem pediu cai, o pedido é cancelado sem transferir nada

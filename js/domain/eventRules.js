@@ -39,9 +39,10 @@ function applyEventEffects(event, activePlayers) {
         logs.push('🟢 Evento: +' + event.resourcesForAll + ' recurso(s) para todos os ativos');
     }
 
+    // Corte sem piso: quem tem 0 entra no estouro de orçamento (negativo).
     if (event.resourcesForAll < 0) {
         active.forEach(p => {
-            p.resources = Math.max(0, p.resources + event.resourcesForAll);
+            p.resources += event.resourcesForAll;
         });
         logs.push('🔴 Evento: ' + event.resourcesForAll + ' recurso(s) de todos os ativos');
     }

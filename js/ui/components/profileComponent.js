@@ -24,10 +24,19 @@ function renderProfileCard(player) {
 
     // recursos é opcional em alguns payloads (ex: bônus de assessoria isolado)
     if (player.resources !== undefined) {
-        document.getElementById('myResources').textContent = player.resources;
+        // Recurso negativo (estouro de orçamento): número em vermelho e
+        // rótulo "Estouro", para o jogador ver que o KPI Final está
+        // sendo descontado.
+        const overrun = player.resources < 0;
+        const resourcesEl = document.getElementById('myResources');
+        resourcesEl.textContent = player.resources;
+        resourcesEl.className = 'stat-value' + (overrun ? ' resources-overrun' : '');
+        document.getElementById('myResourcesLabel').textContent = overrun
+            ? Game.i18n.t('profile.overrunLabel')
+            : Game.i18n.t('profile.resourcesLabel');
 
         // Botão "Pedir Ajuda" só aparece quando o jogador está
-        // com 0 recursos — rede de segurança, não mercado livre (ver
+        // com 0 recursos ou menos — rede de segurança, não mercado livre (ver
         // engine/tradeEngine.js e _docs/architecture.md). Atualizado sempre
         // que os recursos mudam, via syncPlayerViews().
         const helpButton = document.getElementById('btnRequestHelp');

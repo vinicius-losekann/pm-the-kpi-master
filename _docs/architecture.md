@@ -73,6 +73,7 @@ pm-the-kpi-master/
 │   │   ├── saved-state.test.js
 │   │   ├── end-of-match.test.js
 │   │   ├── help-and-advisory.test.js
+│   │   ├── economy.test.js          # economia de recursos: estouro de orçamento (erro e corte sem piso), KPI Final com negativo
 │   │   ├── questions.test.js        # banco de perguntas: formato, gabarito equilibrado
 │   │   ├── config-and-texts.test.js # chaves do CONFIG, textos da tela e nomes do HTML/CSS (só o que existe é pedido; CSS sem regra sem uso)
 │   │   └── simulation.test.js   # simulador de partidas: regras reais, contas, semente, relatório
@@ -203,7 +204,7 @@ Motivo: a migração da arquitetura extraiu a lógica do código original preser
 
 ### Sistema de recursos: "Pedido de Ajuda" em vez de mercado livre
 
-Em `engine/tradeEngine.js` (o comentário de cabeçalho do arquivo tem o racional completo): o botão só aparece pra quem está com **0 recursos** (`profileComponent.js` controla a visibilidade via `syncPlayerViews()`). Ao pedir ajuda, o host monta uma fila automática — jogadores ativos com recurso, do que tem mais pro que tem menos — e pergunta um de cada vez, avançando sozinho a cada recusa/timeout, até alguém aceitar ou a fila acabar. Não há escolha manual de "vender pra quem". Um pedido por vez: quem pede enquanto outro está em andamento é recusado na hora, com aviso (BUG-024).
+Em `engine/tradeEngine.js` (o comentário de cabeçalho do arquivo tem o racional completo): o botão só aparece pra quem está com **0 recursos ou menos** (`profileComponent.js` controla a visibilidade via `syncPlayerViews()`). Ao pedir ajuda, o host monta uma fila automática — jogadores ativos com recurso, do que tem mais pro que tem menos — e pergunta um de cada vez, avançando sozinho a cada recusa/timeout, até alguém aceitar ou a fila acabar. Não há escolha manual de "vender pra quem". Um pedido por vez: quem pede enquanto outro está em andamento é recusado na hora, com aviso (BUG-024).
 
 Motivo (feedback do piloto com alunos): um botão de venda sempre visível virava distração paralela ao objetivo do jogo (quiz de PMBOK). A matemática da troca fica em `domain/tradeRules.js`.
 
@@ -213,10 +214,11 @@ Motivo (feedback do piloto com alunos): um botão de venda sempre visível virav
 - **Acertar nunca gasta recurso**
 - **Errar gasta 1 recurso**, protegido pelo evento Reserva de Contingência
 - A decisão de gastar fica em `domain/kpiRules.js` → `calculateAnswerResult()` (campo `spendsResource` do retorno)
-- Não há "pular vez por falta de recurso": qualquer jogador ativo pode ser sorteado para responder (`engine/turnEngine.js` → `pickNewPair()`), mesmo com 0 recursos. Errar já estando em 0 deixa o recurso em 0 (nunca negativo), sem penalidade extra.
-- Por isso o "Pedido de Ajuda" é raro: só acontece depois de errar o bastante para zerar.
+- Não há "pular vez por falta de recurso": qualquer jogador ativo pode ser sorteado para responder (`engine/turnEngine.js` → `pickNewPair()`), mesmo com 0 recursos ou menos.
+- **Estouro de orçamento:** o recurso não tem piso. Errar com 0 vai a −1, com −1 a −2 (`engine/answerEngine.js`), e o Corte de Orçamento também tira de quem tem 0 ou menos (`domain/eventRules.js`). O KPI Final é o mesmo cálculo (`KPI + recursos × FINAL_RESOURCE_VALUE`, em `domain/rankingRules.js`), então o negativo desconta. Na tela, o card de perfil mostra o número em vermelho com o rótulo "Estouro" (`resources-overrun`, `profile.overrunLabel`) e a lista de jogadores, em vermelho com a explicação no `title`.
+- O "Pedido de Ajuda" só aparece depois de errar o bastante para zerar.
 
-Motivo (feedback do piloto): o recurso pune o erro, não é um custo de participar.
+Motivo (feedback do piloto): o recurso pune o erro, não é um custo de participar. O estouro faz o erro continuar custando depois de zerar.
 
 ### Schema de `data/questions.*.json` — chaves em inglês, estáveis entre idiomas
 

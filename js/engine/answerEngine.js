@@ -85,10 +85,10 @@ function handleAnswer(msg) {
     answerer.focusArea = result.newFocusArea;
     answerer.activities = result.newActivities;
 
-    // Nunca fica negativo — se já estava em 0 e errou de novo, só não perde
-    // recurso nenhum, sem penalidade extra.
+    // Sem piso: errar com 0 recursos vai a −1, com −1 a −2 (estouro de
+    // orçamento). O negativo desconta no KPI Final (domain/rankingRules.js).
     if (result.spendsResource) {
-        answerer.resources = Math.max(0, answerer.resources - 1);
+        answerer.resources -= 1;
     }
 
     const reserveNote = hasReserve ? ' (reserva de contingência)' : '';

@@ -98,6 +98,7 @@ A regra geral: **nome é em inglês; texto é em português.** Nome é tudo que 
   | assessoria / assessor / sugestão | advisory / advisor / suggestion |
   | pedido de ajuda / doador / quem pediu / fila / oferta | help request / donor / requester / queue / offer |
   | recursos / baralho / pergunta / alternativa | resources / deck / question / alternative |
+  | estouro de orçamento (recurso negativo) | overrun (`resources-overrun`, `overrunLabel`) |
   | evento / reserva de contingência | event / contingency reserve |
   | área foco (PMBOK 8; antes "fase") / atividades | focus area (`focusArea`) / activities |
   | sortear / acertou / KPI ganho | draw / isCorrect / kpiGained |

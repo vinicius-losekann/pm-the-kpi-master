@@ -38,6 +38,13 @@ window.Game.locales['pt-BR'] = {
         copy: '📋 Copiar',
     },
 
+    // Card de perfil: o rótulo dos recursos vira "Estouro" quando o
+    // recurso fica negativo (estouro de orçamento).
+    profile: {
+        resourcesLabel: 'Recursos',
+        overrunLabel: 'Estouro',
+    },
+
     question: {
         youAreAsking: '👀 <strong>Você está perguntando!</strong> Tela somente leitura.',
         timeLeft: '⏱️ {{seconds}}s',
@@ -82,7 +89,8 @@ window.Game.locales['pt-BR'] = {
 
     ranking: {
         noActivePlayers: 'Nenhum jogador ativo',
-        finalKpiFormula: 'KPI Final = KPI acumulado + (Recursos restantes × {{value}})',
+        finalKpiFormula: 'KPI Final = KPI acumulado + (Recursos × {{value}}) — recurso negativo (estouro de orçamento) desconta',
+        overrun: 'Estouro de orçamento: recurso negativo desconta do KPI Final',
         rankingDetail: 'KPI acumulado (acertos, ajudas e assessorias): {{kpi}} | Recursos: {{resources}}📦 × {{value}} = {{resourcesKpi}} KPI',
         disconnected: 'Desconectado, aguardando reconexão',
         tiebreakNote: 'Empate no KPI Final: fica à frente quem avançou mais nas áreas foco e, se ainda empatar, quem tem mais KPI acumulado. Empate em tudo divide a posição.',

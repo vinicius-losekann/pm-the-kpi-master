@@ -828,6 +828,17 @@ body {
     letter-spacing: 0.5px;
 }
 
+/* Recursos na lista de jogadores */
+.mini-resources {
+    font-size: 0.7rem;
+    color: var(--gold);
+}
+
+/* Recurso negativo (estouro de orçamento): no card de perfil e na lista */
+.resources-overrun {
+    color: var(--red);
+}
+
 /* Phases Card */
 .focus-areas-card h4,
 .ranking-card h4,

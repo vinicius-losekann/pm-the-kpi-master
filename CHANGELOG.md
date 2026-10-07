@@ -26,9 +26,15 @@
   regras reais do jogo (`tests/simulation/`). Mostra duração, recursos,
   economia, eventos e justiça, e compara com uma troca do config
   ("cenário B"). Não muda o jogo publicado. Testes T93–T99.
-- São 109 testes de lógica em 10 arquivos e 17 cenários no navegador.
+- São 113 testes de lógica em 11 arquivos e 17 cenários no navegador.
 
 ### Changed
+- **Estouro de orçamento:** o recurso pode ficar negativo. Errar com 0
+  recursos deixa em −1 (e com −1, em −2), e o Corte de Orçamento também
+  tira de quem tem 0. O KPI Final continua `KPI + recursos × 5`, então o
+  negativo desconta. O card do jogador mostra o negativo em vermelho, com
+  o rótulo "Estouro", e a lista de jogadores também em vermelho. Antes,
+  com 0 recursos, errar e o corte não custavam nada. Testes T107–T110.
 - **Documentação reorganizada:** cada documento abre com o que contém e
   o que não contém; os nomes dos arquivos passaram para o inglês
   (`_docs/connection-tests.md`, `_docs/issues.md`); os roteiros dos
