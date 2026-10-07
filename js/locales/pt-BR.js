@@ -83,7 +83,7 @@ window.Game.locales['pt-BR'] = {
     ranking: {
         noActivePlayers: 'Nenhum jogador ativo',
         finalKpiFormula: 'KPI Final = KPI acumulado + (Recursos restantes × {{value}})',
-        rankingDetail: 'KPI acumulado (acertos, vendas, compras e assessorias): {{kpi}} | Recursos: {{resources}}📦 × {{value}} = {{resourcesKpi}} KPI',
+        rankingDetail: 'KPI acumulado (acertos, ajudas e assessorias): {{kpi}} | Recursos: {{resources}}📦 × {{value}} = {{resourcesKpi}} KPI',
         disconnected: 'Desconectado, aguardando reconexão',
         tiebreakNote: 'Empate no KPI Final: fica à frente quem avançou mais nas áreas foco e, se ainda empatar, quem tem mais KPI acumulado. Empate em tudo divide a posição.',
     },

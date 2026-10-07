@@ -45,6 +45,9 @@
   foi feita. A versão das mensagens entre os jogadores (protocolo) passou
   da 6 para a 7: quem estiver com a página antiga aberta é recusado ao
   entrar na sala e vê o aviso para recarregar. Testes T103–T106.
+- **Detalhe do ranking final (NOTA-008):** o KPI acumulado de cada
+  jogador é descrito como "acertos, ajudas e assessorias"; antes citava
+  vendas e compras, do mercado de recursos que não existe mais.
 
 ---
 

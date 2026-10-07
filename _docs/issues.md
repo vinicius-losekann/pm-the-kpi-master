@@ -22,13 +22,6 @@ Nenhum bug em investigação.
 
 ## Limpeza pendente (não é bug)
 
-**NOTA-008 — texto desatualizado no detalhe do ranking final.**
-`ranking.rankingDetail` (`js/locales/pt-BR.js`) diz "KPI acumulado
-(acertos, vendas, compras e assessorias)"; vendas e compras são do
-mercado de recursos antigo, que deu lugar ao pedido de ajuda. Trocar por
-"acertos, ajudas e assessorias". Achado em 06/10/2026, na frente do
-desempate do ranking.
-
 **NOTA-009 — nomes em português que sobraram no código.** A regra é nome
 em inglês e texto em português (`conventions.md`, "Nomenclatura"), mas
 sobraram nomes em português fora do `js/`, e uma troca automática da
@@ -85,6 +78,7 @@ automatizado — os números (T…, E…) são os de `tests/logic` e
 |---|---|---|
 | NOTA-006 | Regras do `css/style.css` que nenhuma tela usava (`.btn-success`, `.btn-selected`, `.entry-form`, `.room-id-hint`, `.correct-answer`, `.correct-label`, `.correct-value`, `.final-rank-focus-area`, `.role-answerer`, `.sr-only`, `#btnPlayAgain`, `#btnExit`), achadas na Fase E/E4 | Conferidas uma a uma no HTML, no `js/` e nos testes (inclusive as classes montadas por concatenação, `feedback-*` e `top-1`…, que estão em uso) e apagadas em 05/10/2026; para quem joga, nada mudou. O T92 impede que voltem a se acumular |
 | NOTA-007 | O comentário de `sendNextHelpOffer()` (`engine/tradeEngine.js`) dizia que quem pediu ajuda e não recebeu "fica sem poder responder"; desde a Fase C, quem está com 0 recursos continua respondendo normalmente | Texto corrigido em 06/10/2026, junto com o BUG-024 |
+| NOTA-008 | O detalhe de cada jogador no ranking final (`ranking.rankingDetail`, `js/locales/pt-BR.js`) dizia "KPI acumulado (acertos, vendas, compras e assessorias)"; vendas e compras eram do mercado de recursos antigo, que deu lugar ao pedido de ajuda. Achada em 06/10/2026, na frente do desempate do ranking | Texto trocado para "acertos, ajudas e assessorias" em 06/10/2026; chave e marcadores iguais (o T88 confere) |
 
 ---
 
