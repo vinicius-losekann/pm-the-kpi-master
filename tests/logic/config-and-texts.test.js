@@ -220,8 +220,8 @@ const I18N_RENAMES = {
 };
 const OLD_I18N_KEYS = Object.keys(I18N_RENAMES);
 const OLD_I18N_MARKERS = ['assessor', 'sugestao', 'perguntador', 'respondedor', 'recursos', 'valor', 'kpiRecursos'];
-const I18N_MARKERS = ['advisor', 'answerer', 'asker', 'attempt', 'bonus', 'count', 'kpi', 'max', 'min',
-    'requester', 'resources', 'resourcesKpi', 'seconds', 'suggestion', 'value'];
+const I18N_MARKERS = ['advisor', 'amount', 'answerer', 'asker', 'attempt', 'bonus', 'count', 'giver', 'kpi', 'max', 'min', 'names',
+    'receiver', 'requester', 'resources', 'resourcesKpi', 'seconds', 'suggestion', 'value'];
 
 test('T88 Textos da tela em inglês: toda chave pedida existe no pt-BR.js real, toda chave dele é usada e cada chamada passa os marcadores do texto', () => {
     const dict = realDictionary();

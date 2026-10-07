@@ -632,8 +632,9 @@ test('T83 Versão do jogo 3: jogadores e ranking só com os nomes novos (resourc
     vm.runInContext('var window = this;', eventCtx);
     vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/domain/eventRules.js'), 'utf8'), eventCtx);
     const events = eventCtx.Game.domain.event;
-    // O corte não tem piso: Y vai de 3 a −1 (estouro de orçamento).
-    const ps = [{ name: 'X', resources: 3 }, { name: 'Y', resources: 1 }];
+    // O corte não tem piso: Y vai de 3 a −1 (estouro de orçamento). X e Y concluíram
+    // as mesmas atividades: o Patrocinador e a Reestruturação decidem pelos recursos.
+    const ps = [{ name: 'X', resources: 3, focusArea: first, activities: 0 }, { name: 'Y', resources: 1, focusArea: first, activities: 0 }];
     const steps = [
         [{ resourcesForAll: 2 }, [5, 3]],
         [{ resourcesForAll: -4 }, [1, -1]],
@@ -641,7 +642,7 @@ test('T83 Versão do jogo 3: jogadores e ranking só com os nomes novos (resourc
         [{ resourceSwap: true }, [0, 1]]
     ];
     for (const [event, expected] of steps) {
-        events.applyEventEffects(event, ps);
+        events.applyEventEffects(event, ps, C);
         check(ps[0].resources === expected[0] && ps[1].resources === expected[1] && oldPlayerNamesIn(ps).length === 0,
             'evento ' + JSON.stringify(event) + ' deveria deixar resources em ' + expected.join(' e ') + ', veio: ' + JSON.stringify(ps));
     }
@@ -1066,10 +1067,12 @@ test('T89 Versão do jogo 5: eventos só com os nomes novos (events, title, desc
     vm.runInContext('Math.random = () => 0.99', eventCtx);
     const otherDraw = rules.drawEvent(copy(json.events));
     check(otherDraw && otherDraw.id === 'e5', 'na outra metade, um dos outros cinco (com 0.99, o último: e5), deu: ' + JSON.stringify(otherDraw));
-    const ps = [{ name: 'X', resources: 3 }, { name: 'Y', resources: 1 }];
+    // X e Y concluíram as mesmas atividades: o Patrocinador (e3) e a Reestruturação (e5) decidem pelos recursos.
+    const firstArea = C.FOCUS_AREAS[0].id;
+    const ps = [{ name: 'X', resources: 3, focusArea: firstArea, activities: 0 }, { name: 'Y', resources: 1, focusArea: firstArea, activities: 0 }];
     const steps = [['e1', [4, 2]], ['e2', [3, 1]], ['e3', [3, 2]], ['e5', [2, 3]], ['e4', [2, 3]], ['e6', [2, 3]]];
     for (const [id, [x, y]] of steps) {
-        rules.applyEventEffects(byId(id), ps);
+        rules.applyEventEffects(byId(id), ps, C);
         check(ps[0].resources === x && ps[1].resources === y,
             'o evento ' + id + ' deveria deixar os recursos em ' + x + ' e ' + y + ', veio: ' + JSON.stringify(ps));
     }

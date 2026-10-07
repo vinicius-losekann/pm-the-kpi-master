@@ -4,12 +4,14 @@
 // Recursos como orçamento do projeto: o erro gasta recurso sem piso
 // (estouro de orçamento), o Corte de Orçamento também, e o KPI Final e
 // o ranking descontam o estouro. As telas mostram o recurso negativo.
+// O Patrocinador Generoso e a Reestruturação olham as atividades
+// concluídas, e o aviso do evento diz quem foi atingido.
 // Ambiente simulado e ajudantes: environment.js. Rodar a partir da raiz:
 //     node tests/logic/economy.test.js
 // ============================================
 
 const {
-    fs, path, vm, ROOT, createEnvironment, test, check, start, finish
+    fs, path, vm, ROOT, createEnvironment, recordScreens, test, check, start, finish
 } = require('./environment');
 
 start('Economia de recursos');
@@ -40,6 +42,36 @@ function nextQuestion(env, time, previousAnswerer) {
 
 /** Último kpi-update mandado aos guests sobre um jogador. */
 const lastUpdateOf = (env, name) => env.broadcastsOfType('kpi-update').filter(m => m.playerName === name).pop();
+
+/** Cópia simples (tira o objeto do contexto vm); undefined continua undefined. */
+const copy = (x) => (x === undefined ? undefined : JSON.parse(JSON.stringify(x)));
+
+/** Um evento do data/events.json real, copiado. */
+function eventById(id) {
+    const json = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/events.json'), 'utf8'));
+    return copy(json.events.find(e => e.id === id));
+}
+
+/**
+ * Regras reais de evento (domain/eventRules.js) com o CONFIG real, num
+ * contexto próprio. `player(name, areaIndex, activities, resources)`
+ * monta um jogador na área foco de índice `areaIndex`.
+ */
+function realEventRules() {
+    const ctx = vm.createContext({});
+    vm.runInContext('var window = this;' + fs.readFileSync(path.join(ROOT, 'config/game-config.js'), 'utf8'), ctx);
+    vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/domain/eventRules.js'), 'utf8'), ctx);
+    const C = vm.runInContext('CONFIG', ctx);
+    return {
+        rules: ctx.Game.domain.event,
+        C,
+        setRandom: (value) => vm.runInContext('Math.random = () => ' + value, ctx),
+        player: (name, areaIndex, activities, resources) => ({ name, focusArea: C.FOCUS_AREAS[areaIndex].id, activities, resources })
+    };
+}
+
+/** Recursos dos jogadores, "P:1,Q:2", para comparar e mostrar na mensagem. */
+const resourcesOf = (players) => players.map(p => p.name + ':' + p.resources).join(',');
 
 test('T107 Estouro de orçamento: errar com 0 recursos vai a −1 e com −1 vai a −2; acertar no estouro não mexe nos recursos', (use) => {
     const { env, time } = matchWithFourPlayers(use);
@@ -206,6 +238,195 @@ test('T110 KPI Final e ranking descontam o estouro; as telas mostram o recurso n
     const final = elements.finalRanking.innerHTML;
     check(final.includes((30 - 2 * ev) + ' ⭐') && final.includes('"resources":-2') && final.includes('"resourcesKpi":' + (-2 * ev)),
         'o ranking final deveria mostrar o KPI Final de Ana (' + (30 - 2 * ev) + ') e o detalhe com −2 recursos = ' + (-2 * ev) + ', veio: ' + final);
+});
+
+test('T111 Patrocinador Generoso: +1 para quem concluiu menos atividades; empate → quem tem menos recursos; empate em tudo → todos os empatados', () => {
+    const { rules, C, player } = realEventRules();
+    const sponsor = eventById('e3');
+    check(sponsor && sponsor.resourcesForFewest === 1, 'pré-condição: e3 = Patrocinador Generoso (resourcesForFewest 1) no events.json');
+
+    /** Aplica o Patrocinador e confere os recursos e quem recebeu (effect.receivers). */
+    function expectSponsor(label, players, expectedResources, expectedReceivers) {
+        const result = rules.applyEventEffects(sponsor, players, C);
+        const effect = copy(result && result.effect);
+        check(resourcesOf(players) === expectedResources,
+            label + ': os recursos deveriam ficar ' + expectedResources + ', veio: ' + resourcesOf(players));
+        check(effect && JSON.stringify(effect.receivers) === JSON.stringify(expectedReceivers) &&
+            effect.amount === sponsor.resourcesForFewest && effect.giver === undefined,
+            label + ': o efeito deveria ter receivers ' + JSON.stringify(expectedReceivers) + ' e amount ' + sponsor.resourcesForFewest +
+            ', sem giver, veio: ' + JSON.stringify(effect));
+    }
+
+    // R concluiu menos atividades e recebe, mesmo sendo quem tem mais recursos.
+    expectSponsor('menos atividades', [player('P', 0, 1, 2), player('Q', 1, 0, 0), player('R', 0, 0, 5)], 'P:2,Q:0,R:6', ['R']);
+    // Atividades concluídas = índice da área foco × atividades por área + as da área atual:
+    // P (2ª área, 0 na área) concluiu mais que Q (1ª área, 1 na área).
+    check(C.GAME.ACTIVITIES_PER_FOCUS_AREA > 1, 'pré-condição: mais de 1 atividade por área foco');
+    expectSponsor('atividades de áreas anteriores contam', [player('P', 1, 0, 5), player('Q', 0, 1, 5)], 'P:5,Q:6', ['Q']);
+    // Empate em atividades: quem tem menos recursos.
+    expectSponsor('empate em atividades', [player('P', 0, 0, 3), player('Q', 0, 0, 1), player('R', 1, 1, 0)], 'P:3,Q:2,R:0', ['Q']);
+    // Empate em tudo: todos os empatados recebem.
+    expectSponsor('empate em tudo', [player('P', 0, 0, 2), player('Q', 0, 0, 2), player('R', 1, 0, 0)], 'P:3,Q:3,R:0', ['P', 'Q']);
+    // No estouro: o mais atrás no tabuleiro recebe, não o de menor recurso.
+    expectSponsor('no estouro', [player('S', 0, 0, -2), player('T', 0, 1, -3)], 'S:-1,T:-3', ['S']);
+});
+
+test('T112 Reestruturação: quem concluiu mais atividades cede 1 a quem concluiu menos; empates por recursos e sorteio; sem efeito se quem cede está sem recursos ou se todos empatam', () => {
+    const { rules, C, player, setRandom } = realEventRules();
+    const swap = eventById('e5');
+    check(swap && swap.resourceSwap === true, 'pré-condição: e5 = Reestruturação (resourceSwap) no events.json');
+
+    /** Aplica a Reestruturação; confere recursos, soma igual e o efeito devolvido. */
+    function applySwap(label, players, expectedResources) {
+        const before = players.reduce((t, p) => t + p.resources, 0);
+        const result = rules.applyEventEffects(swap, players, C);
+        const effect = copy(result && result.effect);
+        check(resourcesOf(players) === expectedResources,
+            label + ': os recursos deveriam ficar ' + expectedResources + ', veio: ' + resourcesOf(players));
+        check(players.reduce((t, p) => t + p.resources, 0) === before, label + ': a soma dos recursos não deveria mudar');
+        return effect;
+    }
+    function expectTransfer(label, players, expectedResources, giver, receiver) {
+        const effect = applySwap(label, players, expectedResources);
+        check(effect && effect.giver === giver && JSON.stringify(effect.receivers) === JSON.stringify([receiver]) &&
+            effect.amount === 1 && effect.reason === undefined,
+            label + ': o efeito deveria ser giver ' + giver + ', receivers [' + receiver + '], amount 1, sem reason, veio: ' + JSON.stringify(effect));
+    }
+
+    setRandom(0.5);
+    // Mais atividades (P, com poucos recursos) cede a quem tem menos atividades (R, com mais recursos).
+    expectTransfer('mais → menos atividades', [player('P', 1, 1, 1), player('Q', 0, 1, 8), player('R', 0, 0, 9)], 'P:0,Q:8,R:10', 'P', 'R');
+    // Empate em atividades nos dois lados: cede quem tem mais recursos, recebe quem tem menos.
+    expectTransfer('empate em atividades', [player('P', 1, 1, 2), player('Q', 1, 1, 5), player('R', 0, 0, 4), player('S', 0, 0, 1)],
+        'P:2,Q:4,R:4,S:2', 'Q', 'S');
+    // Todos com as mesmas atividades, recursos diferentes: do mais rico para o mais pobre.
+    expectTransfer('mesmas atividades', [player('P', 0, 0, 4), player('Q', 0, 0, 1), player('R', 0, 0, 2)], 'P:3,Q:2,R:2', 'P', 'Q');
+
+    // Empate em tudo de cada lado: sorteio (com 0, o primeiro de cada lado; com 0.99, o último).
+    const tied = () => [player('P', 1, 1, 5), player('Q', 1, 1, 5), player('R', 0, 0, 1), player('S', 0, 0, 1)];
+    setRandom(0);
+    expectTransfer('sorteio (0)', tied(), 'P:4,Q:5,R:2,S:1', 'P', 'R');
+    setRandom(0.99);
+    expectTransfer('sorteio (0.99)', tied(), 'P:5,Q:4,R:1,S:2', 'Q', 'S');
+
+    // Quem cede está com 0 ou menos: o evento não acontece.
+    setRandom(0.5);
+    for (const resources of [0, -1]) {
+        const effect = applySwap('quem cede com ' + resources, [player('P', 1, 1, resources), player('Q', 0, 0, 5)], 'P:' + resources + ',Q:5');
+        check(effect && effect.giver === 'P' && Array.isArray(effect.receivers) && effect.receivers.length === 0 &&
+            effect.reason === 'giver-without-resources',
+            'quem cede com ' + resources + ': o efeito deveria ser giver P, receivers [], reason giver-without-resources, veio: ' + JSON.stringify(effect));
+    }
+
+    // Todos empatados em atividades e recursos: ninguém está atrás, o evento não acontece.
+    const effect = applySwap('todos empatados', [player('P', 0, 0, 10), player('Q', 0, 0, 10), player('R', 0, 0, 10)], 'P:10,Q:10,R:10');
+    check(effect && Array.isArray(effect.receivers) && effect.receivers.length === 0 && effect.reason === 'all-tied' && effect.giver === undefined,
+        'todos empatados: o efeito deveria ser receivers [], reason all-tied, sem giver, veio: ' + JSON.stringify(effect));
+});
+
+test('T113 Aviso do evento mostra quem foi atingido: show-event leva eventEffect, host e guests passam ao modal, e o modal monta o texto', (use) => {
+    // 1) Na partida: o host aplica o evento (regras reais) e manda o efeito no show-event.
+    /** Partida de Host, A e B com o evento fixo e o progresso dado: { nome: [índice da área, atividades, recursos] }. */
+    function matchWithEvent(event, progress) {
+        const env = use(createEnvironment());
+        vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/domain/eventRules.js'), 'utf8'), env.ctx);
+        env.Game.domain.event.drawEvent = () => copy(event);
+        env.createRoomAsHost();
+        env.join('A', 'peer-a');
+        env.join('B', 'peer-b');
+        for (const [name, [areaIndex, activities, resources]] of Object.entries(progress)) {
+            Object.assign(env.player(name), { focusArea: env.CONFIG.FOCUS_AREAS[areaIndex].id, activities, resources });
+        }
+        const calls = recordScreens(env);
+        env.startMatch();
+        const shown = env.broadcastsOfType('show-event')[0];
+        const hostModal = calls.find(c => c.name === 'showEventModal');
+        return { env, shown, hostEffect: hostModal ? copy(hostModal.args[1]) : undefined };
+    }
+    /** O guest A recebe o show-event; devolve o efeito que ele passou ao modal. */
+    function guestEffect(shown) {
+        const guest = use(createEnvironment());
+        guest.state.playerName = 'A';
+        const calls = recordScreens(guest);
+        guest.Game.network.handleMessage(copy(shown), 'sala');
+        const modal = calls.find(c => c.name === 'showEventModal');
+        return modal ? copy(modal.args[1]) : undefined;
+    }
+
+    // Patrocinador: B concluiu menos atividades e recebe.
+    const sponsor = matchWithEvent(eventById('e3'), { Host: [1, 0, 10], A: [0, 1, 10], B: [0, 0, 10] });
+    const sponsorEffect = sponsor.shown && copy(sponsor.shown.eventEffect);
+    check(sponsor.env.player('B').resources === 11 && sponsor.env.player('A').resources === 10,
+        'Patrocinador na partida: B (menos atividades) deveria ir a 11, veio: ' + resourcesOf(sponsor.env.state.players));
+    check(sponsorEffect && JSON.stringify(sponsorEffect.receivers) === '["B"]' && sponsorEffect.amount === 1,
+        'o show-event deveria levar eventEffect com receivers ["B"] e amount 1, veio: ' + JSON.stringify(sponsor.shown));
+    check(JSON.stringify(sponsor.hostEffect) === JSON.stringify(sponsorEffect),
+        'o host deveria passar o mesmo efeito ao próprio modal, passou: ' + JSON.stringify(sponsor.hostEffect));
+    check(JSON.stringify(guestEffect(sponsor.shown)) === JSON.stringify(sponsorEffect),
+        'o guest deveria passar ao modal o eventEffect do show-event');
+
+    // Reestruturação: Host concluiu mais atividades e cede a B.
+    const swap = matchWithEvent(eventById('e5'), { Host: [1, 1, 2], A: [0, 1, 10], B: [0, 0, 10] });
+    const swapEffect = swap.shown && copy(swap.shown.eventEffect);
+    check(swap.env.player('Host').resources === 1 && swap.env.player('B').resources === 11,
+        'Reestruturação na partida: Host deveria ceder 1 a B (1 e 11), veio: ' + resourcesOf(swap.env.state.players));
+    check(swapEffect && swapEffect.giver === 'Host' && JSON.stringify(swapEffect.receivers) === '["B"]' && swapEffect.amount === 1,
+        'o show-event deveria levar eventEffect com giver Host e receivers ["B"], veio: ' + JSON.stringify(swap.shown));
+    check(JSON.stringify(guestEffect(swap.shown)) === JSON.stringify(swapEffect), 'o guest deveria passar ao modal o efeito da Reestruturação');
+
+    // Evento sem atingidos específicos (Apoio da Alta Gestão): sem eventEffect.
+    const support = matchWithEvent(eventById('e1'), {});
+    check(support.shown && support.shown.eventEffect == null && support.hostEffect == null,
+        'o Apoio da Alta Gestão não deveria mandar eventEffect, veio: ' + JSON.stringify(support.shown && support.shown.eventEffect));
+
+    // 2) O modal real (ui/modals/eventModal.js) monta o texto do efeito pelo i18n.
+    const env = use(createEnvironment());
+    const elements = {};
+    env.ctx.document = {
+        getElementById: (id) => elements[id] || (elements[id] = { id, textContent: '', innerHTML: '', className: '', style: {} }),
+        querySelectorAll: () => []
+    };
+    env.Game.i18n.t = (key, values) => key + (values ? ' ' + JSON.stringify(values) : '');
+    vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/ui/modals/eventModal.js'), 'utf8'), env.ctx, { filename: 'eventModal.js' });
+    const e3 = eventById('e3');
+    /** Abre o modal com o efeito e devolve o texto e a exibição da linha do efeito. */
+    const effectLine = (event, effect) => {
+        env.ctx.showEventModal(event, effect);
+        const el = elements.eventModalEffect || { textContent: '', style: {} };
+        return { text: String(el.textContent), display: el.style.display };
+    };
+    /** O texto é a chave `key` (sem valores) ou a chave seguida dos valores, com cada trecho de `values`. */
+    const has = (text, key, values = []) => (values.length === 0 ? text === key : text.startsWith(key + ' ') && values.every(v => text.includes(v)));
+
+    let line = effectLine(e3, { receivers: ['Carla'], amount: 1 });
+    check(elements.eventModalTitle && elements.eventModalTitle.textContent === e3.title && elements.eventModalDesc.textContent === e3.description,
+        'o modal continua mostrando title e description do evento');
+    check(has(line.text, 'event.received', ['"names":"Carla"', '"amount":1']) && line.display !== 'none',
+        'um que recebeu: texto event.received com names e amount, à mostra, veio: ' + JSON.stringify(line));
+    line = effectLine(e3, { receivers: ['Ana', 'Carla'], amount: 1 });
+    check(has(line.text, 'event.receivedMany', ['Ana', 'Carla', '"amount":1']), 'vários que receberam: event.receivedMany com os nomes, veio: ' + line.text);
+    line = effectLine(eventById('e5'), { giver: 'Davi', receivers: ['Carla'], amount: 1 });
+    check(has(line.text, 'event.gave', ['"giver":"Davi"', '"receiver":"Carla"', '"amount":1']) && line.display !== 'none',
+        'troca: event.gave com giver, receiver e amount, veio: ' + JSON.stringify(line));
+    line = effectLine(eventById('e5'), { receivers: [], reason: 'all-tied' });
+    check(has(line.text, 'event.noneTied'), 'todos empatados: event.noneTied, veio: ' + line.text);
+    line = effectLine(eventById('e5'), { giver: 'Davi', receivers: [], reason: 'giver-without-resources' });
+    check(has(line.text, 'event.noneGiverWithoutResources', ['"giver":"Davi"']),
+        'quem cede sem recursos: event.noneGiverWithoutResources com giver, veio: ' + line.text);
+    line = effectLine(eventById('e1'), null);
+    check(line.text === '' && line.display === 'none', 'sem efeito: a linha fica vazia e escondida, veio: ' + JSON.stringify(line));
+
+    // 3) Os textos existem no pt-BR.js real, com os marcadores, e o game.html tem a linha do efeito.
+    const localeCtx = vm.createContext({});
+    vm.runInContext('var window = this;' + fs.readFileSync(path.join(ROOT, 'js/locales/pt-BR.js'), 'utf8'), localeCtx);
+    const texts = vm.runInContext("Game.locales['pt-BR'].event || {}", localeCtx);
+    const markers = (text) => [...new Set([...String(text).matchAll(/\{\{(\w+)\}\}/g)].map(m => m[1]))].sort().join();
+    const expectedMarkers = { received: 'amount,names', receivedMany: 'amount,names', gave: 'amount,giver,receiver', noneTied: '', noneGiverWithoutResources: 'giver' };
+    for (const [key, expected] of Object.entries(expectedMarkers)) {
+        check(typeof texts[key] === 'string' && texts[key].length > 0 && markers(texts[key]) === expected,
+            'o pt-BR.js deveria ter event.' + key + ' com os marcadores [' + expected + '], veio: ' + JSON.stringify(texts[key]));
+    }
+    check(/id="eventModalEffect"/.test(fs.readFileSync(path.join(ROOT, 'game.html'), 'utf8')), 'o game.html deveria ter o elemento eventModalEffect no modal do evento');
 });
 
 finish('Economia de recursos');
