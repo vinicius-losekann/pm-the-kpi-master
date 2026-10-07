@@ -94,6 +94,7 @@
 | 8.6 | **Bônus por sequência de acertos** | Ideia antiga (maio/2026): 3 ou mais acertos seguidos dão um bônus de KPI. Valor e regra a definir. |
 | 8.7 | **Penalidade por erros seguidos** | Ideia antiga (maio/2026): 3 erros seguidos dão uma penalidade. Avaliar junto com qualquer mudança na economia de recursos, porque também mexe no custo de errar. |
 | 8.8 | **Eventos novos** | Ideia antiga (maio/2026): eventos de bloqueio e de bônus de recurso, além dos 6 de `data/events.json`. |
+| 8.9 | **Chamar outro colega depois de uma recusa** | Hoje a recusa do assessor (ou o prazo esgotado) gasta o pedido da pergunta: quem responde segue sozinho. Isso obriga a escolher bem quem chamar e limita a espera a 20s. Rever com o jogo em uso: permitir uma segunda tentativa, na assessoria e no pedido de ajuda, mede-se pelo tempo extra da pergunta e por quantas recusas acontecem. |
 
 ---
 
