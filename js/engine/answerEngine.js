@@ -94,6 +94,21 @@ function handleAnswer(msg) {
     const reserveNote = hasReserve ? ' (reserva de contingência)' : '';
     console.log('📊 ' + (isCorrect ? '✅ Acertou' : '❌ Errou') + ' | Recursos: ' + answerer.resources + reserveNote + ' | KPI: ' + answerer.kpi);
 
+    // Honorário de assessoria (sugestão seguida e certa): quem respondeu
+    // paga ao assessor, em recurso — cálculo puro delegado a
+    // domain/advisoryRules.js. Assessor que saiu da sala (fora da lista):
+    // ninguém paga; só desconectado, continua recebendo.
+    const advisory = state.currentRound.advisory;
+    const advisor = advisory ? Game.getPlayerByName(advisory.advisorName) : null;
+    const fee = advisor ? Game.domain.advisory.calculateAdvisoryFee(advisory, msg.alternative, isCorrect, CONFIG) : 0;
+    if (fee > 0) {
+        answerer.resources -= fee;
+        advisor.resources += fee;
+        console.log('🧭 Honorário de assessoria: ' + answererName + ' pagou ' + fee + ' recurso(s) a ' + advisor.name);
+    }
+    // Quem pagou a quem vai no kpi-update dos dois (supportOutcome 'fee').
+    const answererSupport = fee > 0 ? { supportOutcome: 'fee', supportAmount: fee, supportPartner: advisor.name } : {};
+
     // Quem respondeu entra no rodízio ANTES do aviso aos
     // guests — o 'kpi-update' leva a lista (`answeredThisRound`). Se o host
     // cair logo depois, quem assumir já sabe quem respondeu nesta rodada.
@@ -108,6 +123,7 @@ function handleAnswer(msg) {
         resources: answerer.resources,
         isCorrect,
         kpiGained,
+        ...answererSupport,
         answeredThisRound: state.answeredThisRound.slice()
     });
 
@@ -119,45 +135,30 @@ function handleAnswer(msg) {
             activities: answerer.activities,
             resources: answerer.resources,
             isCorrect,
-            kpiGained
+            kpiGained,
+            ...answererSupport
         });
     }
 
-    // Bônus de assessoria (se a sugestão foi seguida e correta) — cálculo
-    // puro delegado a domain/advisoryRules.js
-    const advisory = state.currentRound.advisory;
-    const advisorBonus = Game.domain.advisory.calculateAdvisorBonus(advisory, msg.alternative, isCorrect, CONFIG);
-    if (advisorBonus > 0) {
-        const advisor = Game.getPlayerByName(advisory.advisorName);
-        if (advisor) {
-            advisor.kpi += advisorBonus;
-            console.log('🧭 Assessoria: ' + advisor.name + ' +' + advisorBonus + ' KPI');
-
-            Game.network.broadcastAll({
-                type: 'kpi-update',
-                playerName: advisor.name,
-                kpi: advisor.kpi,
-                focusArea: advisor.focusArea,
-                activities: advisor.activities,
-                resources: advisor.resources,
-                advisorBonus: advisorBonus
-            });
-
-            if (state.isHost && advisor.name === state.playerName) {
-                updatePlayerKPI({
-                    playerName: advisor.name,
-                    kpi: advisor.kpi,
-                    focusArea: advisor.focusArea,
-                    activities: advisor.activities,
-                    resources: advisor.resources,
-                    advisorBonus: advisorBonus
-                });
-            }
+    if (fee > 0) {
+        const advisorUpdate = {
+            playerName: advisor.name,
+            kpi: advisor.kpi,
+            focusArea: advisor.focusArea,
+            activities: advisor.activities,
+            resources: advisor.resources,
+            supportOutcome: 'fee',
+            supportAmount: fee,
+            supportPartner: answererName
+        };
+        Game.network.broadcastAll({ type: 'kpi-update', ...advisorUpdate });
+        if (state.isHost && advisor.name === state.playerName) {
+            updatePlayerKPI(advisorUpdate);
         }
     }
 
     // Atualização de tela do host: cobre tanto o
-    // respondedor quanto o bônus de assessoria acima, para os casos em
+    // respondedor quanto o honorário de assessoria acima, para os casos em
     // que nenhum dos dois é o próprio host (broadcastAll não se
     // auto-envia, então sem isso o ranking do host fica desatualizado).
     if (state.isHost) {
@@ -193,10 +194,15 @@ function updatePlayerKPI(msg) {
     Game.ui.syncPlayerViews({ ...msg, name: msg.playerName });
 
     if (msg.playerName === state.playerName) {
+        // Apoio (por enquanto, só o honorário de assessoria): quem
+        // respondeu vê junto do resultado; o assessor, num aviso próprio.
+        const support = msg.supportOutcome
+            ? { outcome: msg.supportOutcome, amount: msg.supportAmount, partner: msg.supportPartner }
+            : undefined;
         if (msg.isCorrect !== undefined) {
-            Game.ui.showResultModal(msg.isCorrect, msg.kpiGained, msg.resources);
-        } else if (msg.advisorBonus) {
-            Game.ui.showAdvisoryBonusModal(msg.advisorBonus);
+            Game.ui.showResultModal(msg.isCorrect, msg.kpiGained, msg.resources, support);
+        } else if (support) {
+            Game.ui.showSupportResultModal(support.outcome, support.amount, support.partner);
         }
     }
 }

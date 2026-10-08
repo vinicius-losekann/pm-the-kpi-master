@@ -7,7 +7,7 @@
 > de escrita de código (→ `conventions.md`), bugs (→ `issues.md`) nem
 > planos (→ `roadmap.md`).
 >
-> Última revisão: 07/10/2026
+> Última revisão: 08/10/2026
 
 ## Tipo de arquitetura
 
@@ -72,7 +72,7 @@ pm-the-kpi-master/
 │   │   ├── host-reload.test.js
 │   │   ├── saved-state.test.js
 │   │   ├── end-of-match.test.js
-│   │   ├── help-and-advisory.test.js
+│   │   ├── help-and-advisory.test.js # pedido de ajuda e assessoria (só com recurso; honorário ao assessor)
 │   │   ├── economy.test.js          # economia de recursos: estouro de orçamento (erro e corte sem piso), KPI Final com negativo, eventos pelo tabuleiro e aviso com os nomes
 │   │   ├── questions.test.js        # banco de perguntas: formato, gabarito equilibrado
 │   │   ├── config-and-texts.test.js # chaves do CONFIG, textos da tela e nomes do HTML/CSS (só o que existe é pedido; CSS sem regra sem uso)
@@ -111,7 +111,7 @@ pm-the-kpi-master/
     │   ├── eventRules.js        # drawEvent(...), applyEventEffects(...)
     │   ├── deckRules.js         # drawQuestion(...), resetDeck(...)
     │   ├── tradeRules.js        # validateResourceTransfer(...)
-    │   ├── advisoryRules.js     # validateAdvisoryRequest(...), calculateAdvisorBonus(...)
+    │   ├── advisoryRules.js     # validateAdvisoryRequest(...), calculateAdvisoryFee(...)
     │   └── rankingRules.js      # buildRanking(...): KPI Final; desempate por área foco, atividades e KPI; empate total divide a posição
     │
     ├── state/
@@ -144,7 +144,7 @@ pm-the-kpi-master/
     │   │   ├── timerComponent.js
     │   │   └── rankingComponent.js
     │   └── modals/
-    │       ├── resultModal.js
+    │       ├── resultModal.js         # acertou/errou (com o honorário pago) + aviso do honorário recebido
     │       ├── eventModal.js
     │       ├── tradeModal.js          # status do pedido de ajuda + aceitar/recusar
     │       └── advisoryModal.js       # seleção + pergunta + resultado
@@ -217,6 +217,7 @@ Motivo (feedback do piloto com alunos): um botão de venda sempre visível virav
 - Não há "pular vez por falta de recurso": qualquer jogador ativo pode ser sorteado para responder (`engine/turnEngine.js` → `pickNewPair()`), mesmo com 0 recursos ou menos.
 - **Estouro de orçamento:** o recurso não tem piso. Errar com 0 vai a −1, com −1 a −2 (`engine/answerEngine.js`), e o Corte de Orçamento também tira de quem tem 0 ou menos (`domain/eventRules.js`). O KPI Final é o mesmo cálculo (`KPI + recursos × FINAL_RESOURCE_VALUE`, em `domain/rankingRules.js`), então o negativo desconta. Na tela, o card de perfil mostra o número em vermelho com o rótulo "Estouro" (`resources-overrun`, `profile.overrunLabel`) e a lista de jogadores, em vermelho com a explicação no `title`.
 - **Eventos pelo tabuleiro:** o Patrocinador Generoso e a Reestruturação olham as atividades concluídas na partida (índice da área foco × `ACTIVITIES_PER_FOCUS_AREA` + as da área atual; `countCompletedActivities()` em `domain/eventRules.js`). O Patrocinador dá o recurso a quem concluiu menos (empate: menos recursos; empate em tudo: todos os empatados). Na Reestruturação, quem concluiu mais cede 1 a quem concluiu menos (empate: cede quem tem mais recursos, recebe quem tem menos; empate em tudo de um lado: sorteio); não acontece quando todos estão empatados em atividades e recursos (`all-tied`) nem quando quem cederia tem 0 ou menos (`giver-without-resources`). `applyEventEffects()` devolve `{ logs, effect }`: o `effect` (`receivers`, `giver`, `amount`, `reason`) vai no `show-event` como `eventEffect` e o modal do evento (`ui/modals/eventModal.js`) mostra quem foi atingido. O efeito não vai para o estado salvo: o aviso só aparece no início da rodada.
+- **Assessoria com honorário:** só pede quem tem 1 recurso ou mais — `validateAdvisoryRequest()` (`domain/advisoryRules.js`) recusa com `needs-resources`, o `requestAdvisory()` do cliente nem envia e a área da assessoria fica escondida (`questionComponent.js`). Nada é pago no pedido: em `handleAnswer()` (`engine/answerEngine.js`), `calculateAdvisoryFee()` devolve `RESOURCES.ADVISORY_FEE` quando a sugestão aceita foi seguida e a resposta está certa, e o recurso passa de quem respondeu ao assessor (sem piso; a Reserva de Contingência não entra). Assessor fora da lista (saiu da sala) não recebe e ninguém paga. O honorário vai nos `kpi-update` dos dois (`supportOutcome`, `supportAmount`, `supportPartner`, ver `conventions.md`); quem respondeu vê no resultado (`showResultModal`) e o assessor num aviso próprio (`showSupportResultModal`, `ui/modals/resultModal.js`). Não há bônus de KPI para o assessor.
 - O "Pedido de Ajuda" só aparece depois de errar o bastante para zerar.
 
 Motivo (feedback do piloto): o recurso pune o erro, não é um custo de participar. O estouro faz o erro continuar custando depois de zerar. Os eventos de recurso favorecem quem está mais atrás no tabuleiro, não só quem tem menos recursos.
@@ -288,7 +289,7 @@ Resumo dos mecanismos; detalhes nos comentários de cada arquivo e no checklist 
 - **Sala travada:** com a partida em andamento, nome novo é recusado (`join-rejected` com `room-locked`); só volta quem já estava na partida.
 - **Pausa:** se faltam jogadores *conectados* mas não jogadores da partida, a partida pausa (`match-paused`) e retoma sozinha quando alguém volta, com o mesmo evento. Se todos os conectados já tinham respondido, a rodada é encerrada em vez de recomeçar (D3e).
 - **Saída da página:** `pagehide`/`beforeunload` encerram as conexões na hora, para os outros perceberem a saída sem esperar o tempo limite da rede.
-- **Versão do jogo:** o `player-join` leva `protocolVersion` (`PROTOCOL_VERSION` em `network/peerService.js`, hoje 7). O host confere antes de tudo e recusa quem vem com outra versão (`join-rejected` com `version-mismatch`; o aviso pede para recarregar a página). Motivo: logo depois de um deploy, quem dá F5 passa a rodar o código novo e os outros continuam no antigo; com nomes de campo diferentes nas mensagens, a partida travaria sem aviso. Sem o campo (jogo de antes da versão) conta como 1.
+- **Versão do jogo:** o `player-join` leva `protocolVersion` (`PROTOCOL_VERSION` em `network/peerService.js`, hoje 8). O host confere antes de tudo e recusa quem vem com outra versão (`join-rejected` com `version-mismatch`; o aviso pede para recarregar a página). Motivo: logo depois de um deploy, quem dá F5 passa a rodar o código novo e os outros continuam no antigo; com nomes de campo diferentes nas mensagens, a partida travaria sem aviso. Sem o campo (jogo de antes da versão) conta como 1.
 - **Identidade (D2):** cada navegador gera um token por sala (`utils/identity.js`, guardado em `localStorage`). O `player-join` leva o token; o host guarda só o hash (SHA-256 próprio e síncrono — `crypto.subtle` só existe em HTTPS/localhost e é assíncrono) e exige o mesmo token para reconectar alguém que caiu.
 - **F5 do host (D3f):** o estado salvo (`utils/persistence.js`) inclui se a rodada está encerrada e se a partida está pausada (com o evento). Ao recarregar, `main.js` só chama `Game.core.resumeMatchAfterReload()` (`engine/sessionEngine.js`), que faz o que aconteceria sem o F5: pausa e rodada encerrada continuam; pergunta já respondida segue para a próxima dupla (ou encerra a partida, se a resposta completou a última área foco); pergunta aberta é reexibida (com o host fora da dupla, a tela de espectador — BUG-020) com o prazo de resposta rearmado. A pergunta guardada na rodada leva os nomes de domínio e área (as etiquetas da tela), para o F5 e o `state-sync` mostrarem as etiquetas. O estado salvo também guarda o fim de jogo e o ranking final (`gameOver`, `finalRanking`): um F5 na tela final volta a ela (`Game.core.showGameOver()`) — BUG-021.
 - **O que quem reconecta recebe:** `state-sync` com a rodada, o relógio (a contagem local é religada), se a rodada está encerrada ou pausada, quem já respondeu nesta rodada e, no fim de jogo, o ranking final. Depois do fim de jogo a sala não fica travada: quem caiu na tela final pode voltar (BUG-021).

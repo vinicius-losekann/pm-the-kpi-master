@@ -17,7 +17,8 @@
    - Um jogador **pergunta** (vê a resposta)
    - Outro jogador **responde** (escolhe entre 4 alternativas)
    - O Respondedor pode, opcionalmente, **pedir Assessoria** a outro jogador antes de responder
-     (exceto se estiver na Área Foco Encerramento)
+     (precisa ter 1 recurso ou mais e não estar na Área Foco Encerramento); seguiu a sugestão e
+     acertou, paga 1 recurso de honorário ao assessor
 5. **Acertar** = +10 KPI + 1 atividade, sem gastar recurso
 6. **Errar** = 0 KPI + 0 atividade + **-1 recurso** (protegido pelo evento 🛡️ Reserva de Contingência)
 7. Sem recursos não impede de tentar: errar com 0 recursos deixa o recurso **negativo** (estouro de orçamento), que desconta no KPI Final
@@ -36,13 +37,14 @@
 | 🛡️ Errou com Reserva de Contingência | 0 | 0 | 0 (protegido) |
 | 🆘 Deu ajuda (doador) | +10 | - | -1📦 |
 | 🆘 Pediu ajuda (recebeu) | -10 | - | +1📦 |
-| 🧭 Assessorou e acertou | +5 | - | - |
+| 🧭 Pediu assessoria, seguiu a sugestão e acertou | +10 | +1 | -1📦 (honorário ao assessor) |
+| 🧭 Assessorou: a sugestão foi seguida e estava certa | 0 | - | +1📦 (honorário) |
 
 ### KPI Final
 ```
 KPI Final = KPI acumulado na partida + (Recursos × 5)
 ```
-O KPI acumulado já inclui acertos, ajudas dadas e recebidas e bônus de assessoria. Recurso negativo (estouro de orçamento) desconta: com −2 recursos, o KPI Final perde 10. No card do jogador e na lista de jogadores, o negativo aparece em vermelho (no card, com o rótulo "Estouro").
+O KPI acumulado já inclui acertos e ajudas dadas e recebidas (o honorário de assessoria é pago em recurso, e entra no KPI Final pelos recursos). Recurso negativo (estouro de orçamento) desconta: com −2 recursos, o KPI Final perde 10. No card do jogador e na lista de jogadores, o negativo aparece em vermelho (no card, com o rótulo "Estouro").
 
 ---
 
@@ -75,7 +77,8 @@ O KPI acumulado já inclui acertos, ajudas dadas e recebidas e bônus de assesso
 
 ## 🧭 Sistema de Assessoria
 
-> Qualquer jogador pode ser chamado para ajudar quem está respondendo — e ganha KPI se acertar.
+> Qualquer jogador pode ser chamado para ajudar quem está respondendo — e recebe honorário se a
+> sugestão for seguida e estiver certa.
 
 ### Objetivo
 
@@ -86,8 +89,9 @@ do PMBOK em praticamente todos os domínios de desempenho.
 
 ### Como funciona
 
-1. Ao ser escolhido como **Respondedor**, antes de selecionar uma alternativa, o jogador pode
-   clicar em **📞 Pedir Assessoria**.
+1. Ao ser escolhido como **Respondedor**, antes de selecionar uma alternativa, o jogador com
+   **1 recurso ou mais** pode clicar em **📞 Pedir Assessoria**. Com 0 recursos ou menos, o
+   botão não aparece.
 2. Ele escolhe **um jogador ativo** (exceto o Perguntador da rodada) para chamar como assessor.
 3. O assessor recebe a mesma pergunta e as 4 alternativas — **sem saber qual é a correta**. Ele
    raciocina do zero, como se estivesse respondendo.
@@ -97,7 +101,21 @@ do PMBOK em praticamente todos os domínios de desempenho.
    resposta, o pedido é tratado como recusado automaticamente.
 6. O Respondedor vê a sugestão recebida (quando houver), mas a decisão final é sempre dele:
    pode seguir a sugestão ou escolher outra alternativa.
-7. O resultado é revelado normalmente, seguindo as regras já existentes de KPI e recursos.
+7. O resultado é revelado normalmente, seguindo as regras já existentes de KPI e recursos; se
+   o Respondedor seguiu a sugestão e acertou, paga o honorário ao assessor (veja abaixo).
+
+### Honorário: só com recurso, pago no êxito
+
+Assessoria é trabalho de especialista, e especialista cobra: o recurso é o orçamento do projeto.
+
+- Só pede quem tem **1 recurso ou mais**. A regra vale no cliente (o botão some e o pedido é
+  recusado com aviso) e no **host**, que recusa o pedido de quem está com 0 ou menos.
+- **Nada é pago no pedido.** Se o Respondedor **seguiu a sugestão e acertou**, paga **1 recurso**
+  de honorário ao assessor. Em qualquer outro caso (seguiu e errou, ignorou a sugestão, recusa,
+  prazo esgotado), ninguém paga.
+- O honorário não muda o KPI de ninguém: vale no KPI Final pelos recursos (1 recurso = 5 KPI).
+- A 🛡️ Reserva de Contingência protege o erro, não o honorário.
+- Os dois veem o que aconteceu: quem pediu, no resultado da pergunta; o assessor, num aviso.
 
 ### Restrição: Área Foco Encerramento
 
@@ -132,23 +150,26 @@ sugestão — ambos os casos têm o mesmo efeito.
 
 - A recusa **consome o pedido de Assessoria da rodada**. O Respondedor não pode chamar outro
   jogador na mesma rodada; ele responde sozinho a partir daí.
-- Recusar não gera penalidade nem bônus para o Assessor.
+- Recusar não gera penalidade nem honorário para o Assessor.
 - Não há limite de quantas vezes um jogador pode recusar ao longo da partida.
 
 ### Regras de recompensa
 
 | Situação | Respondedor | Assessor |
 |---|---|---|
-| Pediu assessoria, assessor aceitou, seguiu a sugestão, **acertou** | +10 KPI, 0📦 (nunca gasta ao acertar) | **+5 KPI** |
-| Pediu assessoria, assessor aceitou, seguiu a sugestão, **errou** | 0 KPI, -1📦 (regra padrão de erro) | +0 KPI |
-| Pediu assessoria, mas **ignorou** a sugestão recebida | Resultado normal, sem alteração | +0 KPI (sugestão não validada) |
-| Assessor **recusou** ou não respondeu a tempo | Resultado normal, sem custo extra | — |
+| Pediu assessoria, assessor aceitou, seguiu a sugestão, **acertou** | +10 KPI, **-1📦 de honorário** | **+1📦 de honorário** |
+| Pediu assessoria, assessor aceitou, seguiu a sugestão, **errou** | 0 KPI, -1📦 (regra padrão de erro) | nada |
+| Pediu assessoria, mas **ignorou** a sugestão recebida | Resultado normal, sem honorário | nada |
+| Assessor **recusou** ou não respondeu a tempo | Resultado normal, sem honorário | — |
 
 **Notas importantes:**
-- Pedir assessoria **não consome recurso adicional**. O custo de responder continua sendo o
-  já existente (0📦 se acertar, -1📦 se errar, exceto com 🛡️ Reserva de Contingência).
-- O assessor só ganha KPI se sua sugestão **coincidir com a alternativa final escolhida pelo
-  Respondedor** e essa alternativa estiver correta.
+- Pedir assessoria **não custa nada no pedido**. O custo de responder continua sendo o
+  já existente (0📦 se acertar, -1📦 se errar, exceto com 🛡️ Reserva de Contingência), mais o
+  honorário quando a sugestão seguida acerta.
+- O assessor só recebe o honorário se sua sugestão **coincidir com a alternativa final escolhida
+  pelo Respondedor** e essa alternativa estiver correta. Se ele sair da sala antes da resposta,
+  ninguém paga; se só tiver caído (continua na partida), recebe normalmente.
+- Vale a pena pedir quando o colega chamado tem uma chance de acerto bem maior que a sua.
 - Limite de **1 pedido de assessoria por Respondedor por rodada** — não é possível consultar
   mais de um jogador na mesma pergunta, mesmo em caso de recusa.
 - Um mesmo jogador pode ser chamado como assessor em rodadas diferentes sem limite de
@@ -159,7 +180,7 @@ sugestão — ambos os casos têm o mesmo efeito.
 ```
 Respondedor recebe pergunta
         │
-        ├── Está na Área Foco Encerramento? → Sim → não pode pedir Assessoria
+        ├── Está na Área Foco Encerramento ou com 0 recursos ou menos? → Sim → não pode pedir Assessoria
         │        (validado no cliente E no host)
         │
         ├── (opcional) Pede Assessoria → escolhe jogador ativo (≠ Perguntador)
@@ -172,7 +193,7 @@ Respondedor recebe pergunta
         ├── Respondedor decide: segue sugestão (se houver) ou escolhe outra alternativa
         │
         └── Resultado revelado → aplica regras de KPI/recursos (Respondedor)
-                              → aplica bônus de assessoria, se aplicável (Assessor)
+                              → seguiu a sugestão e acertou: honorário de 1📦 ao Assessor
 ```
 
 ---
@@ -182,7 +203,7 @@ Respondedor recebe pergunta
 | Papel | O que vê | O que faz |
 |---|---|---|
 | 🗣️ **Perguntador** | Pergunta + resposta correta destacada | Somente leitura |
-| 🎯 **Respondedor** | Pergunta + 4 alternativas | Escolhe a resposta; pode pedir Assessoria (exceto no Encerramento) |
+| 🎯 **Respondedor** | Pergunta + 4 alternativas | Escolhe a resposta; pode pedir Assessoria (com 1 recurso ou mais, exceto no Encerramento) |
 | 🧭 **Assessor** | Pergunta + 4 alternativas (sem gabarito) | Aceita e sugere, ou recusa, se chamado |
 | ⏳ **Espectador** | Quem está jogando | Aguarda sua vez |
 

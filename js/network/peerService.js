@@ -11,7 +11,7 @@
 // logo depois de um deploy, quem deu F5 roda o código novo e os outros,
 // o antigo — com nomes de campo diferentes, a partida travaria sem
 // aviso. Aumentar ao mudar o nome ou o formato de um campo de mensagem.
-const PROTOCOL_VERSION = 7;
+const PROTOCOL_VERSION = 8;
 
 // ============================================
 // INICIALIZAÇÃO PEERJS

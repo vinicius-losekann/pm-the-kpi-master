@@ -80,6 +80,7 @@ function showAdvisoryQuestionModal(msg) {
     document.getElementById('advisoryModalAsker').textContent = round?.asker || '---';
     document.getElementById('advisoryModalAnswerer').textContent = round?.answerer || '---';
     document.getElementById('advisoryQuestionText').textContent = msg.question;
+    document.getElementById('advisoryFeeNotice').textContent = Game.i18n.t('advisory.feeNotice', { amount: CONFIG.RESOURCES.ADVISORY_FEE });
     document.getElementById('advisoryAlternativesList').innerHTML = msg.alternatives.map(alt => {
         const letter = alt.charAt(0).toLowerCase();
         return `<button class="btn btn-glass" onclick="Game.ui.answerAdvisory('${letter}', false)"
@@ -131,6 +132,8 @@ function showAdvisoryResult(msg) {
     if (msg.declined) {
         if (msg.invalid && msg.reason === 'closing-focus-area') {
             statusEl.textContent = Game.i18n.t('advisory.closingFocusArea');
+        } else if (msg.invalid && msg.reason === 'needs-resources') {
+            statusEl.textContent = Game.i18n.t('advisory.needsResources');
         } else if (msg.invalid) {
             statusEl.textContent = Game.i18n.t('advisory.invalid', { advisor: msg.advisorName });
         } else if (msg.timeout) {
@@ -146,7 +149,10 @@ function showAdvisoryResult(msg) {
         document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = false);
     }
 
-    if (msg.invalid && msg.reason !== 'closing-focus-area') {
+    // Recusa por um motivo que não muda durante a pergunta (última área
+    // foco, sem recursos): o botão continua travado. Nos outros (ex.:
+    // assessor que caiu), quem responde pode chamar outro.
+    if (msg.invalid && msg.reason !== 'closing-focus-area' && msg.reason !== 'needs-resources') {
         const requestButton = document.getElementById('btnRequestAdvisory');
         if (requestButton && !state.currentRound.answered) requestButton.disabled = false;
 

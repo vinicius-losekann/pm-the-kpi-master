@@ -127,13 +127,17 @@ function displayQuestion(q) {
         const me = Game.getPlayerByName(Game.state.playerName);
         const inClosingFocusArea = me && Game.getFocusAreaIndex(me.focusArea) === CONFIG.FOCUS_AREAS.length - 1;
         const noAdvisorAvailable = Game.getActivePlayers().length < 3;
+        // A assessoria tem honorário: com 0 recursos ou menos não se pede.
+        const withoutResources = !!me && me.resources < 1;
         const advisoryArea = document.getElementById('advisoryArea');
         if (advisoryArea) {
-            if (inClosingFocusArea || noAdvisorAvailable || alreadyAnswered) {
+            if (inClosingFocusArea || noAdvisorAvailable || alreadyAnswered || withoutResources) {
                 advisoryArea.style.display = round?.advisory ? 'block' : 'none';
             } else {
                 advisoryArea.style.display = 'block';
             }
+            document.getElementById('advisoryFeeHint').textContent =
+                Game.i18n.t('advisory.feeHint', { amount: CONFIG.RESOURCES.ADVISORY_FEE });
 
             if (round?.advisory) {
                 document.getElementById('btnRequestAdvisory').disabled = true;

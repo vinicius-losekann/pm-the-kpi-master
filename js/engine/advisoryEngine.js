@@ -8,7 +8,8 @@
 
 /**
  * Solicita assessoria a outro jogador (chamado pelo Respondedor).
- * Verifica se a rodada ainda está ativa e se o jogador não está na Área Foco Encerramento.
+ * Verifica se a rodada ainda está ativa, se o jogador não está na Área
+ * Foco Encerramento e se tem 1 recurso ou mais.
  */
 function requestAdvisory(advisorName) {
     const state = Game.state;
@@ -24,6 +25,12 @@ function requestAdvisory(advisorName) {
     const me = Game.getPlayerByName(state.playerName);
     if (me && Game.getFocusAreaIndex(me.focusArea) === CONFIG.FOCUS_AREAS.length - 1) {
         alert(Game.i18n.t('advisory.closingFocusArea'));
+        return false;
+    }
+    // A assessoria tem honorário: com 0 recursos ou menos não se pede
+    // (o host também recusa, com 'needs-resources').
+    if (me && me.resources < 1) {
+        alert(Game.i18n.t('advisory.needsResources'));
         return false;
     }
 
@@ -71,8 +78,11 @@ function handleAdvisoryRequest(msg) {
     });
 
     if (validation.invalid) {
-        console.warn('⚠️ Pedido de assessoria rejeitado pelo host:', msg.advisorName,
-            validation.reason === 'closing-focus-area' ? '(Respondedor na Área Foco Encerramento)' : '');
+        const reasonNote = {
+            'closing-focus-area': '(Respondedor na Área Foco Encerramento)',
+            'needs-resources': '(Respondedor sem recursos para o honorário)'
+        }[validation.reason] || '';
+        console.warn('⚠️ Pedido de assessoria rejeitado pelo host:', msg.advisorName, reasonNote);
         if (requester) {
             Game.network.sendToPlayer(requester.peerId, {
                 type: 'advisory-result',

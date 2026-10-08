@@ -10,7 +10,10 @@ const CONFIG = {
         CORRECT_ANSWER: 10,                   // KPI ganho por acerto
         FINAL_RESOURCE_VALUE: 5,              // Multiplicador de recursos no KPI final
         RESOURCE_PRICE: 10,                   // Preço de 1 recurso no pedido de ajuda (em KPI)
-        ADVISOR_BONUS: 5,                     // Bônus de KPI para o assessor quando sua sugestão é seguida e correta
+    },
+
+    RESOURCES: {
+        ADVISORY_FEE: 1,                      // Honorário (em recursos) que quem pediu assessoria paga ao assessor, só se seguiu a sugestão e acertou
     },
 
     STARTING_RESOURCES: 10,                   // Recursos que cada jogador recebe no início de cada partida (recurso é punição por erro, não custo incondicional — ver _docs/architecture.md)

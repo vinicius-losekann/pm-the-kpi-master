@@ -65,6 +65,9 @@ window.Game.locales['pt-BR'] = {
         timeout: '⌛ {{advisor}} não respondeu a tempo.',
         invalid: '⚠️ Não foi possível chamar {{advisor}}. Escolha uma alternativa.',
         closingFocusArea: '⚠️ Jogadores na Área Foco Encerramento não podem pedir assessoria.',
+        needsResources: '⚠️ Para pedir assessoria é preciso ter pelo menos 1 recurso.',
+        feeHint: '💡 Honorário de {{amount}} 📦 ao assessor, só se você seguir a sugestão e acertar.',
+        feeNotice: '💼 Se a sua sugestão for seguida e estiver certa, você recebe {{amount}} 📦 de honorário.',
         timeLeft: '⏱️ {{seconds}}s',
     },
 
@@ -93,15 +96,18 @@ window.Game.locales['pt-BR'] = {
         kpiGained: '+{{kpi}} KPI',
         kpiZero: '0 KPI',
         withResources: ' | 📦 {{resources}} recursos',
+        // Honorário de assessoria: o que quem pediu pagou (vem depois dos
+        // recursos) e o aviso de quem assessorou (ver ui/modals/resultModal.js).
+        feePaid: ' | 🧭 Você pagou {{amount}} 📦 de honorário a {{advisor}}.',
         advisoryTitle: '🧭 Assessoria!',
-        advisorBonus: '+{{bonus}} KPI (sugestão correta)',
+        feeReceived: '{{requester}} seguiu sua sugestão e acertou: +{{amount}} 📦 de honorário.',
     },
 
     ranking: {
         noActivePlayers: 'Nenhum jogador ativo',
         finalKpiFormula: 'KPI Final = KPI acumulado + (Recursos × {{value}}) — recurso negativo (estouro de orçamento) desconta',
         overrun: 'Estouro de orçamento: recurso negativo desconta do KPI Final',
-        rankingDetail: 'KPI acumulado (acertos, ajudas e assessorias): {{kpi}} | Recursos: {{resources}}📦 × {{value}} = {{resourcesKpi}} KPI',
+        rankingDetail: 'KPI acumulado (acertos e ajudas): {{kpi}} | Recursos: {{resources}}📦 × {{value}} = {{resourcesKpi}} KPI',
         disconnected: 'Desconectado, aguardando reconexão',
         tiebreakNote: 'Empate no KPI Final: fica à frente quem avançou mais nas áreas foco e, se ainda empatar, quem tem mais KPI acumulado. Empate em tudo divide a posição.',
     },

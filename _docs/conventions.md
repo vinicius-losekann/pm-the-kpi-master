@@ -51,7 +51,7 @@ Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` o
 | `round-start` | host → todos | `event`, `asker`, `answerer`, `answeredThisRound` |
 | `question` | host → Perguntador e Respondedor | a pergunta; `isAsker` (com o gabarito `correct`) ou `isAnswerer` (sem o gabarito) |
 | `answer` | Respondedor → host | `alternative`, `playerName` |
-| `kpi-update` | host → todos | o jogador: `kpi`, `focusArea`, `activities`, `resources`; da resposta: `isCorrect`, `kpiGained`, `answeredThisRound`; do bônus de assessoria: `advisorBonus` |
+| `kpi-update` | host → todos | o jogador: `kpi`, `focusArea`, `activities`, `resources`; da resposta: `isCorrect`, `kpiGained`, `answeredThisRound`; do apoio: `supportOutcome` (`fee`: honorário de assessoria), `supportAmount` (recursos) e `supportPartner` (no de quem respondeu, o assessor que recebeu; no do assessor, quem pagou). O honorário vai nos dois `kpi-update`: no de quem respondeu (com `isCorrect`) e num segundo, do assessor (sem `isCorrect`) |
 | `player-list`, `match-ended` | host → todos | `players` (cada jogador com `kpi`, `resources`, `focusArea`, `activities`...) |
 | `game-over` | host → todos | `ranking`: cada jogador com `position` (empatados em tudo têm a mesma: 1, 1, 3), `finalKpi` (KPI + recursos × `FINAL_RESOURCE_VALUE`), `kpi`, `resources`, `focusArea` |
 | `show-event` | host → todos | `event` (início de rodada nova), `players` (os efeitos do evento mudam os recursos) e `eventEffect` (quem foi atingido, no Patrocinador Generoso e na Reestruturação: `receivers`, `giver`, `amount` e, se o evento não acontece, `reason` — `all-tied` ou `giver-without-resources`; nos outros eventos, `null`) |
@@ -60,7 +60,7 @@ Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` o
 | `advisory-request` | Respondedor → host | `advisorName`, `requesterName`. A assessoria fica na rodada: `currentRound.advisory` (`advisorName`, `status` `pending`/`accepted`/`declined`, `suggestion`) |
 | `advisory-started` / `advisory-question` | host → todos / host → assessor | `advisorName`, `requesterName` / a pergunta (sem o gabarito) |
 | `advisory-answer` | assessor → host | `alternative`, `declined` |
-| `advisory-result` | host → todos (ou só a quem pediu, se o pedido é inválido) | `advisorName`, `suggestion`, `declined`, `timeout`; pedido inválido: `invalid` e `reason` (`closing-focus-area`, `already-answered` ou nenhum) |
+| `advisory-result` | host → todos (ou só a quem pediu, se o pedido é inválido) | `advisorName`, `suggestion`, `declined`, `timeout`; pedido inválido: `invalid` e `reason` (`closing-focus-area`, `needs-resources` — quem pediu tem 0 recursos ou menos —, `already-answered` ou nenhum) |
 | `help-request` | quem pediu → host | `requesterName`. A fila fica só no host: `helpQueue` (`requesterName`, `candidates`, `index`) |
 | `help-trying` / `help-offer` | host → quem pediu / host → candidato | `candidateName` / `requesterName` |
 | `help-offer-response` | candidato → host | `candidateName`, `requesterName` (para quem era a oferta; o host só aceita a resposta do pedido em andamento), `accepted` |
@@ -96,6 +96,7 @@ A regra geral: **nome é em inglês; texto é em português.** Nome é tudo que 
   | partida / rodada / sala / jogador | match / round / room / player |
   | Perguntador / Respondedor | asker / answerer |
   | assessoria / assessor / sugestão | advisory / advisor / suggestion |
+  | apoio (o que um jogador fez pela pergunta de outro) / honorário / o outro jogador do apoio | support (`supportOutcome`, `supportAmount`) / fee (`ADVISORY_FEE`) / partner (`supportPartner`) |
   | pedido de ajuda / doador / quem pediu / fila / oferta | help request / donor / requester / queue / offer |
   | recursos / baralho / pergunta / alternativa | resources / deck / question / alternative |
   | estouro de orçamento (recurso negativo) | overrun (`resources-overrun`, `overrunLabel`) |

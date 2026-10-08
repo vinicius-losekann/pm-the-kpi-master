@@ -26,7 +26,7 @@
   regras reais do jogo (`tests/simulation/`). Mostra duração, recursos,
   economia, eventos e justiça, e compara com uma troca do config
   ("cenário B"). Não muda o jogo publicado. Testes T93–T99.
-- São 116 testes de lógica em 11 arquivos e 17 cenários no navegador.
+- São 120 testes de lógica em 11 arquivos e 17 cenários no navegador.
 
 ### Changed
 - **Estouro de orçamento:** o recurso pode ficar negativo. Errar com 0
@@ -44,6 +44,13 @@
   quem cederia está com 0 recursos ou menos. O aviso do evento passa a
   mostrar quem foi atingido. Antes, os dois eventos olhavam só os
   recursos. Testes T111–T113.
+- **Assessoria com honorário:** só pede assessoria quem tem 1 recurso ou
+  mais (com 0 ou menos, a opção some e o pedido é recusado). Nada é pago
+  no pedido: se quem respondeu seguiu a sugestão e acertou, paga 1
+  recurso de honorário ao assessor; nos outros casos, ninguém paga. Sai o
+  bônus de +5 KPI do assessor (o honorário vale o mesmo no KPI Final). Os
+  dois veem o honorário na tela. A versão das mensagens entre os
+  jogadores (protocolo) passou da 7 para a 8. Testes T114–T117.
 - **Documentação reorganizada:** cada documento abre com o que contém e
   o que não contém; os nomes dos arquivos passaram para o inglês
   (`_docs/connection-tests.md`, `_docs/issues.md`); os roteiros dos

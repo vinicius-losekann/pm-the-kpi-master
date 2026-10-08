@@ -73,7 +73,7 @@ const DEFAULT_OPTIONS = Object.freeze({
 // Chaves do config mostradas no relatório (as trocadas entram também).
 const REPORT_CONFIG_KEYS = [
     'STARTING_RESOURCES', 'KPI.CORRECT_ANSWER', 'KPI.FINAL_RESOURCE_VALUE', 'KPI.RESOURCE_PRICE',
-    'KPI.ADVISOR_BONUS', 'GAME.SESSION_DURATION', 'GAME.ACTIVITIES_PER_FOCUS_AREA', 'GAME.ANSWER_TIMEOUT'
+    'RESOURCES.ADVISORY_FEE', 'GAME.SESSION_DURATION', 'GAME.ACTIVITIES_PER_FOCUS_AREA', 'GAME.ANSWER_TIMEOUT'
 ];
 
 // ============================================
@@ -230,7 +230,7 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
         durationSeconds: 0,
         questionIds: [],
         events: {},
-        advisories: { requested: 0, accepted: 0, declined: 0, bonusTotal: 0 },
+        advisories: { requested: 0, accepted: 0, declined: 0, feeTotal: 0 },
         help: { requested: 0, accepted: 0, kpiMoved: 0, noDonors: 0, insufficientKpi: 0, allDeclined: 0 },
         config: null,
         players: []
@@ -284,7 +284,7 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
     names.forEach(name => {
         stats[name] = {
             accuracy: pick(o.accuracies), answers: 0, correct: 0, minResources: Infinity, timesAtZero: 0,
-            advisorBonus: 0, advisoriesGiven: 0, helpsAsked: 0, helpsReceived: 0, helpsGiven: 0,
+            feesReceived: 0, feesPaid: 0, advisoriesGiven: 0, helpsAsked: 0, helpsReceived: 0, helpsGiven: 0,
             atZero: false, wantsHelp: false, askedThisTime: false
         };
     });
@@ -327,9 +327,15 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
                 s.answers++;
                 if (msg.isCorrect) s.correct++;
             }
-            if (msg.advisorBonus) {
-                s.advisorBonus += msg.advisorBonus;
-                result.advisories.bonusTotal += msg.advisorBonus;
+            // Honorário de assessoria: vem no kpi-update de quem respondeu
+            // (pagou) e no do assessor (recebeu, sem isCorrect).
+            if (msg.supportOutcome === 'fee') {
+                if (msg.isCorrect !== undefined) {
+                    s.feesPaid += msg.supportAmount;
+                } else {
+                    s.feesReceived += msg.supportAmount;
+                    result.advisories.feeTotal += msg.supportAmount;
+                }
             }
         } else if (msg.type === 'advisory-started') {
             result.advisories.requested++;
@@ -375,13 +381,16 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
         }
     }
 
-    /** Respondedor: talvez peça assessoria; responde (ou deixa o prazo vencer). */
+    /**
+     * Respondedor: talvez peça assessoria (só com 1 recurso ou mais, como
+     * no jogo: a assessoria tem honorário); responde (ou deixa o prazo vencer).
+     */
     function answererRobot(player) {
         const round = state.currentRound;
         if (botRandom() < o.timeoutChance) return;   // o prazo de resposta do jogo encerra a pergunta
         const think = between(o.answerSeconds);
         const inClosing = Game.getFocusAreaIndex(player.focusArea) === CONFIG.FOCUS_AREAS.length - 1;
-        if (!inClosing && botRandom() < o.advisoryChance) {
+        if (!inClosing && player.resources >= 1 && botRandom() < o.advisoryChance) {
             const candidates = Game.getActivePlayers().filter(p => p.name !== round.asker && p.name !== round.answerer);
             if (candidates.length > 0) {
                 const advisor = pick(candidates);
@@ -467,7 +476,7 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
             name: r.name, accuracy: s.accuracy, position: r.position, kpi: r.kpi, resources: r.resources, finalKpi: r.finalKpi,
             focusAreaIndex: Game.getFocusAreaIndex(r.focusArea), activities: r.activities,
             answers: s.answers, correct: s.correct, minResources: s.minResources, timesAtZero: s.timesAtZero,
-            advisorBonus: s.advisorBonus, advisoriesGiven: s.advisoriesGiven,
+            feesReceived: s.feesReceived, feesPaid: s.feesPaid, advisoriesGiven: s.advisoriesGiven,
             helpsAsked: s.helpsAsked, helpsReceived: s.helpsReceived, helpsGiven: s.helpsGiven
         };
     });
@@ -688,7 +697,7 @@ function buildReport({ a, b = null, commit = '' }) {
     compare([
         ['Assessorias pedidas por partida', run => perMatch(run, m => m.advisories.requested)],
         ['Assessorias respondidas', run => percentText(total(run.matches, m => m.advisories.accepted), total(run.matches, m => m.advisories.requested))],
-        ['Bônus de assessoria pago por partida (KPI)', run => perMatch(run, m => m.advisories.bonusTotal)],
+        ['Honorário de assessoria pago por partida (recursos)', run => perMatch(run, m => m.advisories.feeTotal)],
         ['Pedidos de ajuda por partida', run => perMatch(run, m => m.help.requested)],
         ['Pedidos de ajuda aceitos', run => percentText(total(run.matches, m => m.help.accepted), total(run.matches, m => m.help.requested))],
         ['Pedidos sem ninguém para doar / todos recusaram (por partida)', run =>
@@ -735,14 +744,14 @@ function buildReport({ a, b = null, commit = '' }) {
 function toCsv(run) {
     const header = ['partida', 'semente', 'fim', 'rodadas', 'perguntas', 'minutos', 'jogador', 'perfil_acerto', 'posicao',
         'kpi', 'recursos', 'kpi_final', 'area_final', 'respostas', 'acertos', 'min_recursos', 'vezes_em_zero',
-        'ajudas_pedidas', 'ajudas_recebidas', 'ajudas_dadas', 'assessorias_dadas', 'bonus_assessoria'];
+        'ajudas_pedidas', 'ajudas_recebidas', 'ajudas_dadas', 'assessorias_dadas', 'honorarios_recebidos', 'honorarios_pagos'];
     const rows = [header.join(';')];
     const cell = (v) => (typeof v === 'number' ? String(v).replace('.', ',') : String(v).replace(/[;\n]/g, ' '));
     run.matches.forEach((m, i) => m.players.forEach(p => {
         const area = m.config.FOCUS_AREAS[p.focusAreaIndex];
         rows.push([i + 1, m.seed, m.endReason, m.rounds, m.questions, Math.round(m.durationSeconds / 6) / 10, p.name, p.accuracy,
             p.position, p.kpi, p.resources, p.finalKpi, area ? area.name : '', p.answers, p.correct, p.minResources, p.timesAtZero,
-            p.helpsAsked, p.helpsReceived, p.helpsGiven, p.advisoriesGiven, p.advisorBonus].map(cell).join(';'));
+            p.helpsAsked, p.helpsReceived, p.helpsGiven, p.advisoriesGiven, p.feesReceived, p.feesPaid].map(cell).join(';'));
     }));
     return rows.join('\n') + '\n';
 }

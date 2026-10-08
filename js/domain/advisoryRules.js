@@ -2,8 +2,8 @@
 // PM: The KPI Master - Domain: Assessoria
 // ============================================
 // Regras PURAS de validação de pedido de assessoria e cálculo
-// do bônus de KPI do assessor. Não acessa Game.state, network
-// ou DOM diretamente.
+// do honorário que quem pediu paga ao assessor. Não acessa
+// Game.state, network ou DOM diretamente.
 // ============================================
 
 /**
@@ -17,10 +17,14 @@
  * @param {string} params.answererName - nome do Respondedor da rodada atual
  * @param {Array} params.focusAreas - CONFIG.FOCUS_AREAS
  * @returns {{invalid: boolean, reason: (string|undefined)}}
+ *   reason: 'closing-focus-area' (Respondedor na última área foco),
+ *   'needs-resources' (Respondedor com 0 recursos ou menos) ou nenhum
  */
 function validateAdvisoryRequest({ advisor, requester, advisorName, askerName, answererName, focusAreas }) {
     const requesterInClosing = !!requester &&
         focusAreas.findIndex(f => f.id === requester.focusArea) === focusAreas.length - 1;
+    // Assessoria tem honorário: só pede quem tem com o que pagar.
+    const requesterWithoutResources = !!requester && requester.resources < 1;
 
     // Assessor que caiu (continua na lista, desconectado) também
     // é inválido — sem isso, a pergunta ia para quem não podia responder
@@ -30,32 +34,35 @@ function validateAdvisoryRequest({ advisor, requester, advisorName, askerName, a
         advisor.waitingInLobby ||
         advisor.disconnected ||
         requesterInClosing ||
+        requesterWithoutResources ||
         advisorName === askerName ||
         advisorName === answererName;
 
-    return {
-        invalid,
-        reason: requesterInClosing ? 'closing-focus-area' : undefined
-    };
+    let reason;
+    if (requesterInClosing) reason = 'closing-focus-area';
+    else if (requesterWithoutResources) reason = 'needs-resources';
+
+    return { invalid, reason };
 }
 
 /**
- * Calcula o bônus de KPI do assessor, caso a sugestão dele tenha sido
- * seguida pelo Respondedor e a resposta esteja correta.
+ * Calcula o honorário que quem pediu a assessoria paga ao assessor: só
+ * quando a sugestão foi seguida e a resposta está correta. A Reserva de
+ * Contingência não entra aqui — ela protege o erro, não o honorário.
  *
  * @param {object} advisory - state.currentRound.advisory
  * @param {string} chosenAlternative - alternativa marcada pelo Respondedor
  * @param {boolean} isCorrect - se o Respondedor acertou a pergunta
- * @param {object} config - CONFIG (usa config.KPI.ADVISOR_BONUS)
- * @returns {number} bônus de KPI (0 se não elegível)
+ * @param {object} config - CONFIG (usa config.RESOURCES.ADVISORY_FEE)
+ * @returns {number} recursos de honorário (0 se ninguém paga)
  */
-function calculateAdvisorBonus(advisory, chosenAlternative, isCorrect, config) {
+function calculateAdvisoryFee(advisory, chosenAlternative, isCorrect, config) {
     const eligible = !!advisory &&
         advisory.status === 'accepted' &&
         advisory.suggestion === chosenAlternative &&
         isCorrect;
 
-    return eligible ? config.KPI.ADVISOR_BONUS : 0;
+    return eligible ? config.RESOURCES.ADVISORY_FEE : 0;
 }
 
 // ============================================
@@ -65,5 +72,5 @@ window.Game = window.Game || {};
 window.Game.domain = window.Game.domain || {};
 window.Game.domain.advisory = {
     validateAdvisoryRequest,
-    calculateAdvisorBonus
+    calculateAdvisoryFee
 };
