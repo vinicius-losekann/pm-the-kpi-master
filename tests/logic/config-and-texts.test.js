@@ -61,7 +61,7 @@ test('T87 CONFIG em inglês: o jogo e os testes só usam chaves que existem no c
     // 1) O config real tem as chaves novas e nenhuma antiga.
     for (const keyPath of ['GAME.MAX_PLAYERS', 'GAME.MIN_PLAYERS', 'GAME.SESSION_DURATION', 'GAME.ACTIVITIES_PER_FOCUS_AREA',
         'GAME.HOST_TIMEOUT', 'GAME.ADVISORY_TIMEOUT', 'GAME.HELP_OFFER_TIMEOUT', 'GAME.ANSWER_TIMEOUT', 'STARTING_RESOURCES',
-        'KPI.CORRECT_ANSWER', 'KPI.FINAL_RESOURCE_VALUE', 'KPI.RESOURCE_PRICE', 'KPI.ADVISOR_BONUS']) {
+        'KPI.CORRECT_ANSWER', 'KPI.FINAL_RESOURCE_VALUE', 'KPI.RESOURCE_PRICE', 'RESOURCES.ADVISORY_FEE']) {
         check(typeof valueAt(C, keyPath) === 'number', 'config/game-config.js deveria ter CONFIG.' + keyPath + ' (número)');
     }
     check(C.GAME.HELP_OFFER_TIMEOUT === 20000, 'a oferta de ajuda deveria continuar com 20s, veio: ' + C.GAME.HELP_OFFER_TIMEOUT);
@@ -102,8 +102,8 @@ test('T87 CONFIG em inglês: o jogo e os testes só usam chaves que existem no c
     const env = use(createEnvironment());
     const notInReal = keyPaths(env.CONFIG).filter(p => valueAt(C, p) === undefined);
     check(notInReal.length === 0, 'o CONFIG de teste (environment.js) tem chaves que o real não tem: ' + notInReal.join(', '));
-    const notInTest = keyPaths(C).filter(p => /^(GAME|KPI)\.|^STARTING_RESOURCES$|^FOCUS_AREAS$/.test(p) && valueAt(env.CONFIG, p) === undefined);
-    check(notInTest.length === 0, 'faltam no CONFIG de teste (environment.js) chaves do jogo e do KPI: ' + notInTest.join(', '));
+    const notInTest = keyPaths(C).filter(p => /^(GAME|KPI|RESOURCES)\.|^STARTING_RESOURCES$|^FOCUS_AREAS$/.test(p) && valueAt(env.CONFIG, p) === undefined);
+    check(notInTest.length === 0, 'faltam no CONFIG de teste (environment.js) chaves do jogo, do KPI e dos recursos: ' + notInTest.join(', '));
     check(env.CONFIG.FOCUS_AREAS.every(f => f.id && f.name && f.emoji), 'as áreas foco do CONFIG de teste deveriam ter id, name e emoji');
 
     // 4) A oferta de ajuda usa HELP_OFFER_TIMEOUT e a assessoria, ADVISORY_TIMEOUT.
@@ -201,7 +201,8 @@ const I18N_RENAMES = {
     'result.kpiGanho': 'result.kpiGained',
     'result.comRecursos': 'result.withResources',
     'result.assessoriaTitulo': 'result.advisoryTitle',
-    'result.assessoriaBonus': 'result.advisorBonus',
+    // O bônus de KPI do assessor virou honorário em recurso (economia de recursos).
+    'result.assessoriaBonus': 'result.feeReceived',
     'ranking.nenhumJogadorAtivo': 'ranking.noActivePlayers',
     'ranking.formulaKpiFinal': 'ranking.finalKpiFormula',
     'ranking.detalheRanking': 'ranking.rankingDetail',
@@ -220,7 +221,7 @@ const I18N_RENAMES = {
 };
 const OLD_I18N_KEYS = Object.keys(I18N_RENAMES);
 const OLD_I18N_MARKERS = ['assessor', 'sugestao', 'perguntador', 'respondedor', 'recursos', 'valor', 'kpiRecursos'];
-const I18N_MARKERS = ['advisor', 'amount', 'answerer', 'asker', 'attempt', 'bonus', 'count', 'giver', 'kpi', 'max', 'min', 'names',
+const I18N_MARKERS = ['advisor', 'amount', 'answerer', 'asker', 'attempt', 'count', 'giver', 'kpi', 'max', 'min', 'names',
     'receiver', 'requester', 'resources', 'resourcesKpi', 'seconds', 'suggestion', 'value'];
 
 test('T88 Textos da tela em inglês: toda chave pedida existe no pt-BR.js real, toda chave dele é usada e cada chamada passa os marcadores do texto', () => {

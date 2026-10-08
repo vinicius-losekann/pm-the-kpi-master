@@ -69,7 +69,8 @@ var CONFIG = {
         { id: 'planning', name: 'Planejamento', emoji: '📋' }
     ],
     STARTING_RESOURCES: 10,
-    KPI: { FINAL_RESOURCE_VALUE: 2, CORRECT_ANSWER: 10, ADVISOR_BONUS: 5, RESOURCE_PRICE: 10 },
+    KPI: { FINAL_RESOURCE_VALUE: 2, CORRECT_ANSWER: 10, RESOURCE_PRICE: 10 },
+    RESOURCES: { ADVISORY_FEE: 2 },          // diferente do real (1): o jogo tem de ler o CONFIG, não um 1 fixo
     PEER: { debug: 0 }
 };
 `;
@@ -565,6 +566,31 @@ function recordScreens(env) {
 }
 
 /**
+ * Guest com a cópia dos jogadores do host e as telas reais de `files`,
+ * com DOM falso (cada elemento pedido é criado na hora e fica em
+ * `elements`). O i18n devolve a chave seguida dos valores, para o teste
+ * ver quais campos a tela leu; os avisos (alert) ficam em `alerts`.
+ */
+function guestWithScreens(use, host, name, files) {
+    const guest = use(createEnvironment());
+    guest.state.playerName = name;
+    guest.state.peerId = host.player(name).peerId;
+    guest.state.players = JSON.parse(JSON.stringify(host.state.players));
+    const elements = {};
+    guest.ctx.document = {
+        getElementById: (id) => elements[id] || (elements[id] = {
+            id, textContent: '', innerHTML: '', disabled: false, style: {}, classList: { add() {} }, addEventListener() {}
+        }),
+        querySelectorAll: () => []
+    };
+    guest.Game.i18n.t = (key, values) => key + (values ? ' ' + JSON.stringify(values) : '');
+    const alerts = [];
+    guest.ctx.alert = (text) => { alerts.push(String(text)); };
+    for (const file of files) vm.runInContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), guest.ctx, { filename: file });
+    return { guest, elements, alerts };
+}
+
+/**
  * Estado salvo na versão 1 (nomes em português dos campos da rodada e da
  * partida), escrito à mão — o saveState() grava sempre a versão atual.
  * Partida de Host e A na sala de roomToReload(), com a pergunta aberta:
@@ -854,7 +880,7 @@ function oldEventNamesIn(value) {
 module.exports = {
     fs, path, vm, ROOT,
     createEnvironment, tokenOf, test, check, start, finish,
-    syncTo, roundScreens, unavailable, roomToReload, reloadHost, tryReloadHost, recordScreens,
+    syncTo, roundScreens, unavailable, roomToReload, reloadHost, tryReloadHost, recordScreens, guestWithScreens,
     savedStateV1, savedStateV2, finalRankingV2, oldNamesIn, oldPlayerNamesIn,
     savedStateV3, oldAdvisoryNamesIn, OLD_ADVISORY_TYPES, OLD_ADVISORY_REASONS,
     savedStateV4, oldEventNamesIn, OLD_EVENT_NAMES,

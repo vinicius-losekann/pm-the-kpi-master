@@ -390,7 +390,7 @@ test('T59 F5 do host com assessoria pendente: o pedido é cancelado, quem respon
 });
 
 test('T60 F5 do host com a assessoria já resolvida: a sugestão (ou a recusa) continua valendo', (use) => {
-    // Sugestão recebida antes do F5: continua na rodada e o bônus do assessor vale.
+    // Sugestão recebida antes do F5: continua na rodada e o honorário do assessor vale.
     const env = use(createEnvironment());
     const r = preparePendingAdvisory(env, { asker: 'Host', answerer: 'A', advisor: 'B' });
     env.Game.network.handleMessage({ type: 'advisory-answer', alternative: r.question.correct, declined: false }, 'peer-b');
@@ -406,9 +406,12 @@ test('T60 F5 do host com a assessoria já resolvida: a sugestão (ou a recusa) c
     reloaded.join('A', 'peer-a2');
     const sync = syncTo(reloaded, 'peer-a2');
     check(sync && sync.currentRound.advisory && sync.currentRound.advisory.status === 'accepted', 'A deveria voltar vendo a sugestão');
+    const fee = reloaded.CONFIG.RESOURCES.ADVISORY_FEE;
+    const before = { A: reloaded.player('A').resources, B: reloaded.player('B').resources };
     reloaded.Game.network.handleMessage({ type: 'answer', alternative: r.question.correct, playerName: 'A' }, 'peer-a2');
-    check(reloaded.broadcastsOfType('kpi-update').some(m => m.playerName === 'B' && m.advisorBonus === reloaded.CONFIG.KPI.ADVISOR_BONUS),
-        'seguindo a sugestão certa, o assessor deveria ganhar o bônus');
+    check(reloaded.broadcastsOfType('kpi-update').some(m => m.playerName === 'B' && m.supportOutcome === 'fee' && m.supportPartner === 'A') &&
+        reloaded.player('A').resources === before.A - fee && reloaded.player('B').resources === before.B + fee,
+        'seguindo a sugestão certa, A deveria pagar o honorário a B, veio: ' + JSON.stringify({ A: reloaded.player('A').resources, B: reloaded.player('B').resources }));
 
     // Prazo do assessor esgotado antes do F5: continua recusada e não dá para pedir de novo.
     const env2 = use(createEnvironment());
@@ -686,7 +689,7 @@ test('T85 F5 do host com o estado salvo na versão 3 (gravado antes de o jogo se
         'ao salvar de novo, o estado deveria ficar na versão atual, com a assessoria nos nomes novos, veio: ' + JSON.stringify(saved.currentRound));
 
     // 2) Sugestão recebida antes da atualização: continua valendo, vai para
-    // quem volta e o bônus do assessor vale.
+    // quem volta e o honorário do assessor vale.
     const env2 = use(createEnvironment());
     roomToReload(env2);
     const accepted = savedStateV3();
@@ -705,10 +708,12 @@ test('T85 F5 do host com o estado salvo na versão 3 (gravado antes de o jogo se
     check(syncAdvisory && syncAdvisory.status === 'accepted' && syncAdvisory.suggestion === 'b' && sync.currentRound.question.correct === undefined,
         'A deveria voltar vendo a sugestão (e sem o gabarito), veio: ' + JSON.stringify(sync && sync.currentRound));
     reloaded2.Game.network.handleMessage({ type: 'answer', alternative: 'b', playerName: 'A' }, 'peer-a2');
-    const bonus = reloaded2.broadcastsOfType('kpi-update').find(m => m.playerName === 'B');
-    const C = reloaded2.CONFIG;
-    check(bonus && bonus.advisorBonus === C.KPI.ADVISOR_BONUS && bonus.kpi === 30 + C.KPI.ADVISOR_BONUS && reloaded2.player('B').kpi === bonus.kpi,
-        'seguindo a sugestão certa, B deveria ganhar o bônus sobre o KPI salvo, veio: ' + JSON.stringify(bonus));
+    // Salvos: A com 7 recursos, B com 4 e 30 de KPI (savedStateV3).
+    const feeUpdate = reloaded2.broadcastsOfType('kpi-update').find(m => m.playerName === 'B');
+    const fee = reloaded2.CONFIG.RESOURCES.ADVISORY_FEE;
+    check(feeUpdate && feeUpdate.supportOutcome === 'fee' && feeUpdate.resources === 4 + fee && feeUpdate.kpi === 30 &&
+        reloaded2.player('B').resources === 4 + fee && reloaded2.player('A').resources === 7 - fee,
+        'seguindo a sugestão certa, A deveria pagar o honorário a B sobre os recursos salvos (sem mudar o KPI de B), veio: ' + JSON.stringify(feeUpdate));
 
     // 3) Prazo do assessor esgotado antes da atualização: continua recusada
     // e não dá para pedir de novo (um pedido por pergunta).

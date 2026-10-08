@@ -10,7 +10,7 @@
 
 const {
     fs, path, vm, ROOT, createEnvironment, tokenOf, test, check, start, finish,
-    syncTo, roundScreens, unavailable, roomToReload, reloadHost, tryReloadHost, recordScreens,
+    syncTo, roundScreens, unavailable, roomToReload, reloadHost, tryReloadHost, recordScreens, guestWithScreens,
     savedStateV1, oldNamesIn, oldPlayerNamesIn,
     oldAdvisoryNamesIn, OLD_ADVISORY_TYPES, OLD_ADVISORY_REASONS,
     savedStateV4, oldEventNamesIn, OLD_EVENT_NAMES,
@@ -576,12 +576,14 @@ test('T83 Versão do jogo 3: jogadores e ranking só com os nomes novos (resourc
     check(env.state.currentRound.advisory && env.state.currentRound.advisory.status === 'pending', 'pré-condição: assessoria pendente');
     env.Game.core.handleAdvisoryAnswer({ alternative: round.question.correct, declined: false });
     env.Game.network.handleMessage({ type: 'answer', alternative: round.question.correct, playerName: 'B' }, 'peer-b');
+    // B seguiu a sugestão e acertou: paga o honorário (RESOURCES.ADVISORY_FEE) ao host.
+    const fee = C.RESOURCES.ADVISORY_FEE;
     const kpiB = env.broadcastsOfType('kpi-update').find(m => m.playerName === 'B');
-    check(kpiB && kpiB.isCorrect === true && kpiB.resources === C.STARTING_RESOURCES && kpiB.focusArea === first && kpiB.activities === 1,
-        'o kpi-update da resposta deveria levar resources e focusArea, veio: ' + JSON.stringify(kpiB));
+    check(kpiB && kpiB.isCorrect === true && kpiB.resources === C.STARTING_RESOURCES - fee && kpiB.focusArea === first && kpiB.activities === 1,
+        'o kpi-update da resposta deveria levar resources (já sem o honorário) e focusArea, veio: ' + JSON.stringify(kpiB));
     const kpiHost = env.broadcastsOfType('kpi-update').find(m => m.playerName === 'Host');
-    check(kpiHost && kpiHost.advisorBonus === C.KPI.ADVISOR_BONUS && kpiHost.resources === C.STARTING_RESOURCES && kpiHost.focusArea === first,
-        'o kpi-update do bônus de assessoria deveria levar resources e focusArea, veio: ' + JSON.stringify(kpiHost));
+    check(kpiHost && kpiHost.supportOutcome === 'fee' && kpiHost.resources === C.STARTING_RESOURCES + fee && kpiHost.focusArea === first,
+        'o kpi-update do honorário de assessoria deveria levar resources e focusArea, veio: ' + JSON.stringify(kpiHost));
 
     // O guest aplica os dois kpi-update (a cópia dele estava com outros valores).
     guest.player('B').resources = 0;
@@ -591,10 +593,11 @@ test('T83 Versão do jogo 3: jogadores e ranking só com os nomes novos (resourc
     guest.Game.network.handleMessage(kpiHost, 'sala');
     const gb = guest.player('B');
     const gh = guest.player('Host');
-    check(gb.resources === C.STARTING_RESOURCES && gb.focusArea === first && gb.activities === 1 && gh.focusArea === first && gh.kpi === kpiHost.kpi,
+    check(gb.resources === C.STARTING_RESOURCES - fee && gb.focusArea === first && gb.activities === 1 && gh.focusArea === first && gh.kpi === kpiHost.kpi &&
+        gh.resources === C.STARTING_RESOURCES + fee,
         'o guest deveria aplicar resources e focusArea dos kpi-update, veio: ' + JSON.stringify([gb, gh]));
     const result = guestScreens.find(c => c.name === 'showResultModal');
-    check(result && result.args[0] === true && result.args[2] === C.STARTING_RESOURCES,
+    check(result && result.args[0] === true && result.args[2] === C.STARTING_RESOURCES - fee,
         'B deveria ver o resultado com os recursos que sobraram, veio: ' + JSON.stringify(result && result.args));
 
     // Próxima dupla: A erra e gasta 1 recurso.
@@ -722,31 +725,6 @@ test('T83 Versão do jogo 3: jogadores e ranking só com os nomes novos (resourc
         'o ranking final deveria mostrar a posição (#4) e o KPI final de cada um, veio: ' + finalHtml);
 });
 
-/**
- * Guest com a cópia dos jogadores do host e as telas reais de `files`,
- * com DOM falso (cada elemento pedido é criado na hora e fica em
- * `elements`). O i18n devolve a chave seguida dos valores, para o teste
- * ver quais campos a tela leu; os avisos (alert) ficam em `alerts`.
- */
-function guestWithScreens(use, host, name, files) {
-    const guest = use(createEnvironment());
-    guest.state.playerName = name;
-    guest.state.peerId = host.player(name).peerId;
-    guest.state.players = JSON.parse(JSON.stringify(host.state.players));
-    const elements = {};
-    guest.ctx.document = {
-        getElementById: (id) => elements[id] || (elements[id] = {
-            id, textContent: '', innerHTML: '', disabled: false, style: {}, classList: { add() {} }, addEventListener() {}
-        }),
-        querySelectorAll: () => []
-    };
-    guest.Game.i18n.t = (key, values) => key + (values ? ' ' + JSON.stringify(values) : '');
-    const alerts = [];
-    guest.ctx.alert = (text) => { alerts.push(String(text)); };
-    for (const file of files) vm.runInContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), guest.ctx, { filename: file });
-    return { guest, elements, alerts };
-}
-
 test('T86 Versão do jogo 4: assessoria e pedido de ajuda só com os nomes novos (advisory-*, help-*) no estado, no estado salvo, nas mensagens e nas telas', (use) => {
     const first = use(createEnvironment());
     check(first.Game.network.PROTOCOL_VERSION >= 4, 'a versão do protocolo deveria ser 4 ou mais (nomes novos da assessoria e do pedido de ajuda), veio: ' + first.Game.network.PROTOCOL_VERSION);
@@ -855,15 +833,19 @@ test('T86 Versão do jogo 4: assessoria e pedido de ajuda só com os nomes novos
     b.guest.ctx.displayQuestion(b.guest.state.currentRound.question);
     check(b.elements.advisoryStatus.textContent === suggestionText, 'a pergunta reexibida deveria mostrar a sugestão, veio: ' + b.elements.advisoryStatus.textContent);
 
-    // B acerta: C ganha o bônus (advisorBonus) e vê o aviso.
+    // B acerta: C recebe o honorário (supportOutcome 'fee') e vê o aviso.
+    const fee = C.RESOURCES.ADVISORY_FEE;
+    const advisorResources = env.player('C').resources;
     env.Game.network.handleMessage({ type: 'answer', alternative: correct, playerName: 'B' }, 'peer-b');
-    const bonus = env.broadcastsOfType('kpi-update').find(m => m.playerName === 'C');
-    check(bonus && bonus.advisorBonus === C.KPI.ADVISOR_BONUS && env.player('C').kpi === C.KPI.ADVISOR_BONUS,
-        'o kpi-update do assessor deveria levar advisorBonus, veio: ' + JSON.stringify(bonus));
+    const feeUpdate = env.broadcastsOfType('kpi-update').find(m => m.playerName === 'C');
+    check(feeUpdate && feeUpdate.supportOutcome === 'fee' && feeUpdate.supportAmount === fee && feeUpdate.supportPartner === 'B' &&
+        env.player('C').resources === advisorResources + fee && env.player('C').kpi === 0,
+        'o kpi-update do assessor deveria levar o honorário (supportOutcome, supportAmount, supportPartner), veio: ' + JSON.stringify(feeUpdate));
     const cScreens = recordScreens(c.guest);
-    c.guest.Game.network.handleMessage(bonus, 'sala');
-    const bonusModal = cScreens.find(s => s.name === 'showAdvisoryBonusModal');
-    check(bonusModal && bonusModal.args[0] === C.KPI.ADVISOR_BONUS, 'C deveria ver o aviso do bônus, viu: ' + cScreens.map(s => s.name).join(', '));
+    c.guest.Game.network.handleMessage(feeUpdate, 'sala');
+    const feeModal = cScreens.find(s => s.name === 'showSupportResultModal');
+    check(feeModal && feeModal.args[0] === 'fee' && feeModal.args[1] === fee && feeModal.args[2] === 'B',
+        'C deveria ver o aviso do honorário, viu: ' + cScreens.map(s => s.name).join(', '));
 
     // 2) C recusa: declined, sem sugestão.
     const r2 = matchOfFour().m;

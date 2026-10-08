@@ -900,7 +900,7 @@ test('T49 Quem já respondeu na rodada chega aos guests (resposta, nova dupla, r
     check(JSON.stringify(g.state.answeredThisRound) === '["A"]', 'guest deveria guardar a lista da resposta');
     g.Game.network.handleMessage({ type: 'round-start', event: { id: 'e1' }, asker: 'A', answerer: 'B', answeredThisRound: ['A', 'C'] }, 'sala');
     check(JSON.stringify(g.state.answeredThisRound) === '["A","C"]', 'guest deveria guardar a lista da nova dupla');
-    g.Game.network.handleMessage({ type: 'kpi-update', playerName: 'A', kpi: 15, focusArea: 'initiating', activities: 1, resources: 10, advisorBonus: 5 }, 'sala');
+    g.Game.network.handleMessage({ type: 'kpi-update', playerName: 'A', kpi: 15, focusArea: 'initiating', activities: 1, resources: 11, supportOutcome: 'fee', supportAmount: 1, supportPartner: 'B' }, 'sala');
     check(JSON.stringify(g.state.answeredThisRound) === '["A","C"]', 'mensagem sem a lista não deveria apagar a lista');
     g.receiveSync('B', { players: [], decks: {}, timer: 500, gameStarted: true, hostVersion: 0, currentRound: null, answeredThisRound: ['Host'] });
     check(JSON.stringify(g.state.answeredThisRound) === '["Host"]', 'guest deveria guardar a lista da reconexão');

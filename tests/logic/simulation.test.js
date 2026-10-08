@@ -158,7 +158,8 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
         matches.forEach((m, i) => {
             const k = m.config.KPI;
             m.players.forEach(p => {
-                const expectedKpi = k.CORRECT_ANSWER * p.correct + p.advisorBonus + k.RESOURCE_PRICE * (p.helpsGiven - p.helpsReceived);
+                // A assessoria não mexe no KPI: o honorário é pago em recurso.
+                const expectedKpi = k.CORRECT_ANSWER * p.correct + k.RESOURCE_PRICE * (p.helpsGiven - p.helpsReceived);
                 if (p.kpi !== expectedKpi) problems.push('partida ' + i + ' ' + p.name + ': KPI ' + p.kpi + ', esperado ' + expectedKpi);
                 if (p.finalKpi !== p.kpi + p.resources * k.FINAL_RESOURCE_VALUE) problems.push('partida ' + i + ' ' + p.name + ': KPI Final errado');
                 if (p.minResources > p.resources) problems.push('partida ' + i + ' ' + p.name + ': mínimo de recursos maior que o final');
@@ -172,7 +173,8 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
             if (answers !== m.questions && answers !== m.questions - 1) {
                 problems.push('partida ' + i + ': ' + answers + ' respostas para ' + m.questions + ' perguntas');
             }
-            if (sum(m.players, p => p.advisorBonus) !== m.advisories.bonusTotal) problems.push('partida ' + i + ': bônus de assessoria não bate');
+            if (sum(m.players, p => p.feesReceived) !== m.advisories.feeTotal ||
+                sum(m.players, p => p.feesPaid) !== m.advisories.feeTotal) problems.push('partida ' + i + ': honorários de assessoria não batem');
             if (sum(m.players, p => p.helpsReceived) !== m.help.accepted ||
                 sum(m.players, p => p.helpsGiven) !== m.help.accepted) problems.push('partida ' + i + ': ajudas não batem');
         });
@@ -238,16 +240,19 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
         const K = C.KPI;
 
         // Assessoria sempre pedida, aceita e seguida, com acerto 100%: todo
-        // pedido vira bônus.
+        // pedido vira honorário (quem pediu paga em recurso ao assessor).
+        const fee = C.RESOURCES.ADVISORY_FEE;
         const adv = r.advisory.matches;
         const requested = sum(adv, m => m.advisories.requested);
         const accepted = sum(adv, m => m.advisories.accepted);
         check(requested > 0, 'com advisoryChance 1, deveria haver pedidos de assessoria');
         check(accepted === requested, 'com advisorAcceptChance 1, todo pedido deveria ser aceito: ' + accepted + ' de ' + requested);
-        check(sum(adv, m => m.advisories.bonusTotal) === accepted * K.ADVISOR_BONUS,
-            'cada assessoria aceita, seguida e certa deveria pagar ADVISOR_BONUS (' + K.ADVISOR_BONUS + '), veio: ' +
-            sum(adv, m => m.advisories.bonusTotal) + ' para ' + accepted);
-        check(r.noAdvisory.matches.every(m => m.advisories.requested === 0 && m.advisories.bonusTotal === 0),
+        check(sum(adv, m => m.advisories.feeTotal) === accepted * fee,
+            'cada assessoria aceita, seguida e certa deveria pagar o honorário (RESOURCES.ADVISORY_FEE = ' + fee + '), veio: ' +
+            sum(adv, m => m.advisories.feeTotal) + ' para ' + accepted);
+        check(adv.every(m => m.players.every(p => p.kpi === K.CORRECT_ANSWER * p.correct + K.RESOURCE_PRICE * (p.helpsGiven - p.helpsReceived))),
+            'a assessoria não deveria dar KPI a ninguém (sem bônus do assessor)');
+        check(r.noAdvisory.matches.every(m => m.advisories.requested === 0 && m.advisories.feeTotal === 0),
             'com advisoryChance 0, não deveria haver assessoria');
 
         // Pedido de ajuda: só com 0 recursos; cada ajuda aceita move
