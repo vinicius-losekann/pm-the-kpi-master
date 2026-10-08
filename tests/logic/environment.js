@@ -152,7 +152,7 @@ function createEnvironment(options = {}) {
         domain: {
             event: {
                 drawEvent: () => ({ id: 'e' + Math.random().toString(36).slice(2, 7), title: 'Evento de teste' }),
-                applyEventEffects: () => []
+                applyEventEffects: () => ({ logs: [], effect: null })
             },
             deck: {
                 drawQuestion: () => ({ id: 'q1', question: 'Pergunta?', alternatives: ['A', 'B', 'C', 'D'], correct: 'A', domain_key: 'd1' }),

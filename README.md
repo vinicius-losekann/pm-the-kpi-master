@@ -13,7 +13,7 @@
 3. Host inicia a partida (90 minutos)
 4. A cada rodada:
    - Um **evento** é sorteado (afeta recursos)
-   - Um **modal** mostra o evento para todos
+   - Um **modal** mostra o evento para todos e, no Patrocinador Generoso e na Reestruturação, quem foi atingido
    - Um jogador **pergunta** (vê a resposta)
    - Outro jogador **responde** (escolhe entre 4 alternativas)
    - O Respondedor pode, opcionalmente, **pedir Assessoria** a outro jogador antes de responder
@@ -52,9 +52,9 @@ O KPI acumulado já inclui acertos, ajudas dadas e recebidas e bônus de assesso
 |---|---|---|
 | e1 | 🟢 **Apoio da Alta Gestão** | +1 recurso para todos |
 | e2 | 🔴 **Corte de Orçamento** | -1 recurso de todos (pode levar ao estouro: recurso negativo) |
-| e3 | 🎁 **Patrocinador Generoso** | +1 recurso para quem tem menos |
+| e3 | 🎁 **Patrocinador Generoso** | +1 recurso para quem concluiu menos atividades (empate: quem tem menos recursos; empate em tudo: todos os empatados) |
 | e4 | 🛡️ **Reserva de Contingência** | Errar nesta rodada não gasta recurso |
-| e5 | 🔄 **Reestruturação** | Mais rico dá 1 para mais pobre |
+| e5 | 🔄 **Reestruturação** | Quem concluiu mais atividades cede 1 recurso a quem concluiu menos (empate: cede quem tem mais recursos, recebe quem tem menos; empate em tudo de um lado: sorteio). Sem efeito se todos estão empatados ou se quem cederia está com 0 recursos ou menos |
 | e6 | ⚪ **Operação Normal** | Nenhum efeito nos recursos (evento neutro, ~50% de chance por rodada) |
 
 ---

@@ -68,6 +68,16 @@ window.Game.locales['pt-BR'] = {
         timeLeft: '⏱️ {{seconds}}s',
     },
 
+    // Aviso do evento: quem foi atingido pelo Patrocinador Generoso ou
+    // pela Reestruturação (ver ui/modals/eventModal.js).
+    event: {
+        received: '🎁 {{names}} recebeu +{{amount}} recurso.',
+        receivedMany: '🎁 {{names}} receberam +{{amount}} recurso cada.',
+        gave: '🔄 {{giver}} cedeu {{amount}} recurso a {{receiver}}.',
+        noneTied: '🔄 Todos estão empatados em atividades e recursos: ninguém cedeu.',
+        noneGiverWithoutResources: '🔄 {{giver}} está à frente, mas sem recursos para ceder: ninguém cedeu.',
+    },
+
     // Pedido de ajuda: só quem está sem recurso pode pedir; fila
     // automática, sem escolha manual (ver engine/tradeEngine.js).
     trade: {

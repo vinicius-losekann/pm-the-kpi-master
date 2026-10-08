@@ -162,7 +162,7 @@ function handleMessage(msg, fromPeerId) {
             if (msg.players) {
                 state.players = msg.players;
             }
-            Game.ui.showEventModal(msg.event);
+            Game.ui.showEventModal(msg.event, msg.eventEffect);
             Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
             break;
 

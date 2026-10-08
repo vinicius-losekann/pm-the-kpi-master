@@ -15,7 +15,7 @@
     {
       "id": "e3",
       "title": "Patrocinador Generoso",
-      "description": "Patrocinador injetou capital! Quem tem menos recursos ganha +1.",
+      "description": "O patrocinador investiu em quem mais precisa! Quem concluiu menos atividades ganha +1 recurso. Empate: vai para quem tem menos recursos.",
       "resourcesForFewest": 1
     },
     {
@@ -27,7 +27,7 @@
     {
       "id": "e5",
       "title": "Reestruturação",
-      "description": "Equipe reorganizada! Quem tem mais dá 1 recurso para quem tem menos.",
+      "description": "Equipe reorganizada! Quem concluiu mais atividades cede 1 recurso a quem concluiu menos. Empate: cede quem tem mais recursos e recebe quem tem menos.",
       "resourceSwap": true
     },
     {

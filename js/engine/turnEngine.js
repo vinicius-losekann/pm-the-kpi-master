@@ -31,13 +31,19 @@ function startNewRound() {
         return;
     }
 
-    const active = Game.getActivePlayers();
-    const logs = Game.domain.event.applyEventEffects(event, active);
+    const eventEffect = applyDrawnEvent(event);
+    pickNewPair(event, 0, true, eventEffect);
+}
+
+/**
+ * Aplica os efeitos do evento sorteado aos jogadores ativos e atualiza
+ * a tela do host. Devolve quem foi atingido, para o aviso do evento.
+ */
+function applyDrawnEvent(event) {
+    const { logs, effect } = Game.domain.event.applyEventEffects(event, Game.getActivePlayers(), CONFIG);
     logs.forEach(msg => console.log(msg));
-
-    Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
-
-    pickNewPair(event);
+    Game.ui.syncPlayerViews(Game.getPlayerByName(Game.state.playerName));
+    return effect;
 }
 
 /**
@@ -49,8 +55,10 @@ function startNewRound() {
  *   (só deve ser true no INÍCIO de uma rodada nova — startNewRound() usa
  *   o padrão `true`; continuações dentro da mesma rodada, vindas de
  *   nextTurn(), passam `false` explicitamente)
+ * @param {object|null} eventEffect – quem o evento atingiu (applyEventEffects()),
+ *   mostrado no aviso do evento
  */
-function pickNewPair(event = null, depth = 0, showModal = true) {
+function pickNewPair(event = null, depth = 0, showModal = true, eventEffect = null) {
     const state = Game.state;
 
     if (depth > CONFIG.GAME.MAX_PLAYERS * 2) {
@@ -63,19 +71,14 @@ function pickNewPair(event = null, depth = 0, showModal = true) {
     if (!event) {
         event = Game.domain.event.drawEvent(state.questionsData?.events || []);
         if (!event) return;
-
-        const active = Game.getActivePlayers();
-        const logs = Game.domain.event.applyEventEffects(event, active);
-        logs.forEach(msg => console.log(msg));
-
-        Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
+        eventEffect = applyDrawnEvent(event);
     }
 
     // O modal do evento só aparece no início de uma rodada nova
     // (parâmetro explícito) — não a cada pergunta dentro do mesmo ciclo.
     if (showModal) {
-        Game.network.broadcastAll({ type: 'show-event', event, players: state.players });
-        Game.ui.showEventModal(event);
+        Game.network.broadcastAll({ type: 'show-event', event, players: state.players, eventEffect });
+        Game.ui.showEventModal(event, eventEffect);
     }
 
     const activePlayers = Game.getActivePlayers();

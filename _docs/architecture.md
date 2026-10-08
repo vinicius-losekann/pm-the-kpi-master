@@ -7,7 +7,7 @@
 > de escrita de código (→ `conventions.md`), bugs (→ `issues.md`) nem
 > planos (→ `roadmap.md`).
 >
-> Última revisão: 06/10/2026
+> Última revisão: 07/10/2026
 
 ## Tipo de arquitetura
 
@@ -73,7 +73,7 @@ pm-the-kpi-master/
 │   │   ├── saved-state.test.js
 │   │   ├── end-of-match.test.js
 │   │   ├── help-and-advisory.test.js
-│   │   ├── economy.test.js          # economia de recursos: estouro de orçamento (erro e corte sem piso), KPI Final com negativo
+│   │   ├── economy.test.js          # economia de recursos: estouro de orçamento (erro e corte sem piso), KPI Final com negativo, eventos pelo tabuleiro e aviso com os nomes
 │   │   ├── questions.test.js        # banco de perguntas: formato, gabarito equilibrado
 │   │   ├── config-and-texts.test.js # chaves do CONFIG, textos da tela e nomes do HTML/CSS (só o que existe é pedido; CSS sem regra sem uso)
 │   │   └── simulation.test.js   # simulador de partidas: regras reais, contas, semente, relatório
@@ -189,7 +189,7 @@ O jogo roda com várias salas ao mesmo tempo (2 a 6 jogadores cada); depurar pel
 
 O contrato planejado para as camadas era: `domain/` recebe o estado (ou uma parte dele) e retorna um resultado, sem mutar; só `mutations.js` escreve no store. Esse contrato não é seguido:
 
-- `domain/eventRules.js` → `applyEventEffects()` muta os recursos dos jogadores recebidos em vez de retornar um delta
+- `domain/eventRules.js` → `applyEventEffects()` muta os recursos dos jogadores recebidos em vez de retornar um delta (devolve só os logs e quem foi atingido)
 - `domain/deckRules.js` → `drawQuestion()` muta o baralho recebido (marca a pergunta como usada e desconta as disponíveis)
 - `state/mutations.js` só tem `resetAllPlayers()`/`resetGameState()`, sem setters por campo
 - os `engine/*.js` escrevem direto em `Game.state.players` (ex.: o KPI do Respondedor em `answerEngine.js`)
@@ -216,9 +216,10 @@ Motivo (feedback do piloto com alunos): um botão de venda sempre visível virav
 - A decisão de gastar fica em `domain/kpiRules.js` → `calculateAnswerResult()` (campo `spendsResource` do retorno)
 - Não há "pular vez por falta de recurso": qualquer jogador ativo pode ser sorteado para responder (`engine/turnEngine.js` → `pickNewPair()`), mesmo com 0 recursos ou menos.
 - **Estouro de orçamento:** o recurso não tem piso. Errar com 0 vai a −1, com −1 a −2 (`engine/answerEngine.js`), e o Corte de Orçamento também tira de quem tem 0 ou menos (`domain/eventRules.js`). O KPI Final é o mesmo cálculo (`KPI + recursos × FINAL_RESOURCE_VALUE`, em `domain/rankingRules.js`), então o negativo desconta. Na tela, o card de perfil mostra o número em vermelho com o rótulo "Estouro" (`resources-overrun`, `profile.overrunLabel`) e a lista de jogadores, em vermelho com a explicação no `title`.
+- **Eventos pelo tabuleiro:** o Patrocinador Generoso e a Reestruturação olham as atividades concluídas na partida (índice da área foco × `ACTIVITIES_PER_FOCUS_AREA` + as da área atual; `countCompletedActivities()` em `domain/eventRules.js`). O Patrocinador dá o recurso a quem concluiu menos (empate: menos recursos; empate em tudo: todos os empatados). Na Reestruturação, quem concluiu mais cede 1 a quem concluiu menos (empate: cede quem tem mais recursos, recebe quem tem menos; empate em tudo de um lado: sorteio); não acontece quando todos estão empatados em atividades e recursos (`all-tied`) nem quando quem cederia tem 0 ou menos (`giver-without-resources`). `applyEventEffects()` devolve `{ logs, effect }`: o `effect` (`receivers`, `giver`, `amount`, `reason`) vai no `show-event` como `eventEffect` e o modal do evento (`ui/modals/eventModal.js`) mostra quem foi atingido. O efeito não vai para o estado salvo: o aviso só aparece no início da rodada.
 - O "Pedido de Ajuda" só aparece depois de errar o bastante para zerar.
 
-Motivo (feedback do piloto): o recurso pune o erro, não é um custo de participar. O estouro faz o erro continuar custando depois de zerar.
+Motivo (feedback do piloto): o recurso pune o erro, não é um custo de participar. O estouro faz o erro continuar custando depois de zerar. Os eventos de recurso favorecem quem está mais atrás no tabuleiro, não só quem tem menos recursos.
 
 ### Schema de `data/questions.*.json` — chaves em inglês, estáveis entre idiomas
 

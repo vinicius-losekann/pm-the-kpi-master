@@ -54,7 +54,7 @@ Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` o
 | `kpi-update` | host → todos | o jogador: `kpi`, `focusArea`, `activities`, `resources`; da resposta: `isCorrect`, `kpiGained`, `answeredThisRound`; do bônus de assessoria: `advisorBonus` |
 | `player-list`, `match-ended` | host → todos | `players` (cada jogador com `kpi`, `resources`, `focusArea`, `activities`...) |
 | `game-over` | host → todos | `ranking`: cada jogador com `position` (empatados em tudo têm a mesma: 1, 1, 3), `finalKpi` (KPI + recursos × `FINAL_RESOURCE_VALUE`), `kpi`, `resources`, `focusArea` |
-| `show-event` | host → todos | `event` (início de rodada nova) e `players` (os efeitos do evento mudam os recursos) |
+| `show-event` | host → todos | `event` (início de rodada nova), `players` (os efeitos do evento mudam os recursos) e `eventEffect` (quem foi atingido, no Patrocinador Generoso e na Reestruturação: `receivers`, `giver`, `amount` e, se o evento não acontece, `reason` — `all-tied` ou `giver-without-resources`; nos outros eventos, `null`) |
 | `round-ended` | host → todos | rodada encerrada, aguardando o "Nova Rodada" |
 | `match-paused` | host → todos | faltam jogadores conectados; retoma sozinha quando alguém volta |
 | `advisory-request` | Respondedor → host | `advisorName`, `requesterName`. A assessoria fica na rodada: `currentRound.advisory` (`advisorName`, `status` `pending`/`accepted`/`declined`, `suggestion`) |
@@ -100,6 +100,8 @@ A regra geral: **nome é em inglês; texto é em português.** Nome é tudo que 
   | recursos / baralho / pergunta / alternativa | resources / deck / question / alternative |
   | estouro de orçamento (recurso negativo) | overrun (`resources-overrun`, `overrunLabel`) |
   | evento / reserva de contingência | event / contingency reserve |
+  | efeito do evento / quem recebe / quem cede / quantidade / todos empatados | event effect (`eventEffect`) / receivers / giver / amount / all tied |
+  | atividades concluídas na partida | completed activities (`countCompletedActivities`) |
   | área foco (PMBOK 8; antes "fase") / atividades | focus area (`focusArea`) / activities |
   | sortear / acertou / KPI ganho | draw / isCorrect / kpiGained |
   | partida pausada / rodada encerrada / fim de jogo | paused / round ended / game over |
