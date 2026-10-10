@@ -95,7 +95,7 @@ só automatizado (falta o manual).
 | Caso | Testes | Manual |
 |---|---|---|
 | Espectador cai: fica na lista, fora do sorteio, volta com tudo | 🤖 T4 | — |
-| Quem caiu fica fora do pedido de ajuda (é pulado na fila; se quem pediu cai, o pedido é cancelado) e não pode ser chamado como assessor (recusa na hora) | 🤖 T69, T70 | — |
+| Quem caiu não pode ser chamado como assessor nem para ajudar (recusa na hora; quem pede chama outro); quem foi chamado e cai antes de responder libera quem responde no fim do prazo (20s) | 🤖 T70, T119, T122 | — |
 | Participante da rodada cai: rodada abortada, nova dupla | 🤖 T5 | — |
 | Falta só conexão: partida pausa e retoma com o mesmo evento | 🤖 T6, T33 | — |
 | Ciclo da rodada termina sem esperar o desconectado | 🤖 T8 | — |
@@ -112,8 +112,8 @@ só automatizado (falta o manual).
 | F5 do host com a rodada encerrada: continua encerrada para todos, nada começa sozinho | 🤖 T53, T57 · 🌐 E9 | — (coberto por E9) |
 | F5 do host logo depois de uma resposta: segue para a próxima dupla ou encerra a rodada; se a resposta completou a última área foco, a partida termina | 🤖 T54, T58 · 🌐 E10 | — (coberto por E10) |
 | F5 do host com a partida pausada: continua pausada com o mesmo evento e retoma quando alguém volta | 🤖 T55, T57 · 🌐 E11 | — (coberto por E11) |
-| F5 do host com um pedido de assessoria sem resposta: o pedido é cancelado, quem responde pode pedir de novo e a rodada segue; assessoria já respondida continua valendo | 🤖 T59, T60 · 🌐 E12 | — (coberto por E12) |
-| F5 do host logo depois de o jogo ser atualizado (estado salvo pela versão anterior): o estado é migrado e a partida continua de onde estava (pergunta aberta, pausa, rodada encerrada); recursos, área foco e ranking final dos jogadores e a assessoria da rodada (pendente é cancelada; sugestão ou recusa continuam) chegam iguais | 🤖 T78, T79, T81, T82, T84, T85 | — |
+| F5 do host com um pedido de assessoria ou de ajuda sem resposta: o pedido é cancelado, quem responde pode pedir de novo e a rodada segue; apoio já respondido continua valendo (com o honorário, a recompensa ou a cobertura) | 🤖 T59, T60, T122 · 🌐 E12 | — (coberto por E12) |
+| F5 do host logo depois de o jogo ser atualizado (estado salvo pela versão anterior): o estado é migrado e a partida continua de onde estava (pergunta aberta, pausa, rodada encerrada); recursos, área foco e ranking final dos jogadores e a assessoria da rodada (pendente é cancelada; sugestão ou recusa continuam) chegam iguais | 🤖 T78, T79, T81, T82, T84, T85, T125 | — |
 | Host não volta: backup assume em ~10s, não antes | 🤖 T39, T40 · 🌐 E2 | 👤 |
 | Backup desconectado é pulado, o próximo assume | 🤖 T10 | — |
 | Novo host marca os outros como desconectados, pausa e retoma | 🤖 T17, T21, T21b | 👤 |
@@ -134,7 +134,7 @@ só automatizado (falta o manual).
 | Caso | Testes | Manual |
 |---|---|---|
 | Fim de jogo: quem cai sai da lista | 🤖 T11 | — |
-| Fim de jogo, encerrar a partida e troca de dupla cancelam os prazos pendentes (resposta, assessoria; o pedido de ajuda só no fim e no encerramento) | 🤖 T72 | — |
+| Fim de jogo, encerrar a partida e troca de dupla cancelam os prazos pendentes (resposta e assessoria ou ajuda) | 🤖 T72 | — |
 | F5 na tela de fim de jogo (host e guest) volta à tela final com o mesmo ranking, sem recomeçar a partida; quem cai no fim de jogo pode voltar à sala e vê o ranking (BUG-021) | 🤖 T66, T67, T68 | — |
 | Encerrar partida (normal e pausada) | 🤖 T14, T15 | — |
 | Voltar ao lobby após o fim de jogo (host e guest) | 🤖 T16, T16b | — |
@@ -226,6 +226,7 @@ não mudam: o teste só aponta o PeerJS para o servidor local.
 | E16 | 6 jogadores: o 7º é recusado no lobby ("Sala cheia"); com a partida em andamento, um cai e volta ao próprio lugar | M15 |
 | E17 | Guest sai (pausa), depois o host; o host reabre: continua pausada com o mesmo evento, sem mostrar outro; retoma quando o guest volta | M13, M16 (até 5 min) |
 | E18 | Todos saem e voltam depois de 5 min: lobby novo, quem volta entra como jogador novo e uma partida nova começa | M16 (depois de 5 min) |
+| E19 | 3 jogadores; o guest que responde está sem recursos, pede ajuda ao colega fora da dupla, que sugere a certa; seguindo, ele acerta sem mexer nos recursos e quem ajudou ganha a recompensa e vê o aviso | — |
 
 Queda de rede (M7) não entrou: a simulação de "sem rede" do navegador
 não derruba a conexão direta entre janelas na mesma máquina (conferido —

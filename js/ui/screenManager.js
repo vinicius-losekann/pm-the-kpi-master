@@ -28,7 +28,7 @@ function showScreen(screen) {
 function closeAllModals() {
     // Todos os modais do game.html: ao criar um modal novo, incluir aqui
     // (senão ele continua aberto ao trocar de tela).
-    ['modalAnswerQuestion', 'modalResult', 'modalEvent', 'modalHelpRequest', 'modalHelpOffer',
+    ['modalAnswerQuestion', 'modalResult', 'modalEvent',
      'modalAdvisorySelect', 'modalAdvisoryQuestion'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';

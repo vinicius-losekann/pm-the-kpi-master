@@ -7,7 +7,7 @@
 > de escrita de código (→ `conventions.md`), bugs (→ `issues.md`) nem
 > planos (→ `roadmap.md`).
 >
-> Última revisão: 08/10/2026
+> Última revisão: 10/10/2026
 
 ## Tipo de arquitetura
 
@@ -110,8 +110,7 @@ pm-the-kpi-master/
     │   ├── kpiRules.js          # calculateAnswerResult(...)
     │   ├── eventRules.js        # drawEvent(...), applyEventEffects(...)
     │   ├── deckRules.js         # drawQuestion(...), resetDeck(...)
-    │   ├── tradeRules.js        # validateResourceTransfer(...)
-    │   ├── advisoryRules.js     # validateAdvisoryRequest(...), calculateAdvisoryFee(...)
+    │   ├── advisoryRules.js     # validateAdvisoryRequest(...), calculateSupportOutcome(...) — assessoria e pedido de ajuda
     │   └── rankingRules.js      # buildRanking(...): KPI Final; desempate por área foco, atividades e KPI; empate total divide a posição
     │
     ├── state/
@@ -122,9 +121,8 @@ pm-the-kpi-master/
     ├── engine/                  # 🎬 orquestração — chama domain, mexe em state, network, ui
     │   ├── sessionEngine.js     # startGame, endGame, endMatch, endSession, leaveMatch, retomada após F5 do host...
     │   ├── turnEngine.js        # startNewRound, pickNewPair, nextTurn
-    │   ├── answerEngine.js      # handleAnswer, updatePlayerKPI
-    │   ├── tradeEngine.js       # pedido de ajuda: requestHelp, processHelp
-    │   └── advisoryEngine.js    # requestAdvisory, handleAdvisoryAnswer
+    │   ├── answerEngine.js      # handleAnswer (com o resultado do apoio), updatePlayerKPI
+    │   └── advisoryEngine.js    # assessoria e pedido de ajuda: requestAdvisory, handleAdvisoryAnswer
     │
     ├── network/
     │   ├── connectionState.js   # estado compartilhado (myPeer, connections) — ver nota
@@ -144,10 +142,9 @@ pm-the-kpi-master/
     │   │   ├── timerComponent.js
     │   │   └── rankingComponent.js
     │   └── modals/
-    │       ├── resultModal.js         # acertou/errou (com o honorário pago) + aviso do honorário recebido
+    │       ├── resultModal.js         # acertou/errou (com o apoio: honorário, ajuda, cobertura) + aviso de quem apoiou
     │       ├── eventModal.js
-    │       ├── tradeModal.js          # status do pedido de ajuda + aceitar/recusar
-    │       └── advisoryModal.js       # seleção + pergunta + resultado
+    │       └── advisoryModal.js       # assessoria e pedido de ajuda: seleção + pergunta + resultado
     │
     ├── locales/
     │   └── pt-BR.js              # textos da tela — ver NOTA-003
@@ -202,11 +199,16 @@ Motivo: a migração da arquitetura extraiu a lógica do código original preser
 
 `ui/*.js` e `network/*.js` chamam a lógica por `Game.core.*`, não por `Game.engine.X.Y()`. Passar para `Game.engine` seria trabalho mecânico em ~15–20 arquivos, sem ganho funcional; por isso `Game.core.*` é a API oficial entre camadas, e os comentários de exportação dos `engine/*.js` dizem isso.
 
-### Sistema de recursos: "Pedido de Ajuda" em vez de mercado livre
+### Apoio na vez de responder: assessoria ou pedido de ajuda
 
-Em `engine/tradeEngine.js` (o comentário de cabeçalho do arquivo tem o racional completo): o botão só aparece pra quem está com **0 recursos ou menos** (`profileComponent.js` controla a visibilidade via `syncPlayerViews()`). Ao pedir ajuda, o host monta uma fila automática — jogadores ativos com recurso, do que tem mais pro que tem menos — e pergunta um de cada vez, avançando sozinho a cada recusa/timeout, até alguém aceitar ou a fila acabar. Não há escolha manual de "vender pra quem". Um pedido por vez: quem pede enquanto outro está em andamento é recusado na hora, com aviso (BUG-024).
+O Respondedor pode chamar outro jogador para sugerir uma alternativa — um apoio por pergunta, fora da Área Foco Encerramento. Com **1 recurso ou mais**, o apoio é **assessoria**; com **0 ou menos**, é **pedido de ajuda** (fiança). Os dois seguem o mesmo caminho (`engine/advisoryEngine.js`, `ui/modals/advisoryModal.js`, mensagens `advisory-*`) e ficam em `currentRound.advisory`, com o tipo em `kind` (`advisory` | `help`; sem o campo = `advisory`). Na tela é um botão só (`btnRequestAdvisory`, na pergunta de quem responde), que vira "Pedir Assessoria" ou "Pedir Ajuda" pelos recursos (`questionComponent.js`). O que muda entre os dois:
 
-Motivo (feedback do piloto com alunos): um botão de venda sempre visível virava distração paralela ao objetivo do jogo (quiz de PMBOK). A matemática da troca fica em `domain/tradeRules.js`.
+- **Quem pode pedir:** `validateAdvisoryRequest()` (`domain/advisoryRules.js`) recusa a assessoria com 0 ou menos (`needs-resources`) e a ajuda com 1 ou mais (`has-resources`); o `requestAdvisory()` do cliente nem envia.
+- **Quem pode ser chamado:** jogador ativo, conectado, que não seja o Perguntador. Na ajuda, também precisa ter pelo menos `RESOURCES.HELP_COVER` recursos (`helper-without-resources`), para nunca ficar negativo por cobrir um erro; a lista de escolha só mostra quem pode.
+- **Resultado depois da resposta** (só com a sugestão aceita e seguida): `calculateSupportOutcome()` decide e `handleAnswer()` (`engine/answerEngine.js`) aplica — assessoria certa: `fee` (honorário, abaixo); ajuda certa: `reward` (quem ajudou ganha `RESOURCES.HELP_REWARD` do patrocinador; quem pediu não paga); ajuda errada sem a Reserva de Contingência: `cover` (quem ajudou perde `RESOURCES.HELP_COVER` e quem pediu não perde o recurso do erro). Ignorou a sugestão, recusa ou prazo: resultado normal. O resultado vai nos `kpi-update` dos dois (`supportOutcome`, `supportAmount`, `supportPartner`, ver `conventions.md`); quem respondeu vê no resultado (`showResultModal`) e quem apoiou num aviso próprio (`showSupportResultModal`, `ui/modals/resultModal.js`). Quem apoiou e caiu continua valendo; quem saiu da sala (fora da lista), não.
+- **Prazo, recusa, F5 e troca de host:** iguais para os dois (`ADVISORY_TIMEOUT`; recusa ou prazo gastam o apoio da pergunta; no F5 do host, o pendente é cancelado e o já respondido continua — `cancelPendingAdvisory()` em `engine/sessionEngine.js`; quem foi chamado e caiu sem responder libera quem responde no fim do prazo).
+
+Motivo (feedback do piloto e economia de recursos): o pedido de ajuda era uma venda fora da vez (fila automática, recurso por KPI) e quase não acontecia. Como fiança na vez de responder, quem está no estouro tem apoio na pergunta, e quem ajuda arrisca o próprio orçamento.
 
 ### Economia de recursos: erro é que custa, não participar
 
@@ -217,8 +219,8 @@ Motivo (feedback do piloto com alunos): um botão de venda sempre visível virav
 - Não há "pular vez por falta de recurso": qualquer jogador ativo pode ser sorteado para responder (`engine/turnEngine.js` → `pickNewPair()`), mesmo com 0 recursos ou menos.
 - **Estouro de orçamento:** o recurso não tem piso. Errar com 0 vai a −1, com −1 a −2 (`engine/answerEngine.js`), e o Corte de Orçamento também tira de quem tem 0 ou menos (`domain/eventRules.js`). O KPI Final é o mesmo cálculo (`KPI + recursos × FINAL_RESOURCE_VALUE`, em `domain/rankingRules.js`), então o negativo desconta. Na tela, o card de perfil mostra o número em vermelho com o rótulo "Estouro" (`resources-overrun`, `profile.overrunLabel`) e a lista de jogadores, em vermelho com a explicação no `title`.
 - **Eventos pelo tabuleiro:** o Patrocinador Generoso e a Reestruturação olham as atividades concluídas na partida (índice da área foco × `ACTIVITIES_PER_FOCUS_AREA` + as da área atual; `countCompletedActivities()` em `domain/eventRules.js`). O Patrocinador dá o recurso a quem concluiu menos (empate: menos recursos; empate em tudo: todos os empatados). Na Reestruturação, quem concluiu mais cede 1 a quem concluiu menos (empate: cede quem tem mais recursos, recebe quem tem menos; empate em tudo de um lado: sorteio); não acontece quando todos estão empatados em atividades e recursos (`all-tied`) nem quando quem cederia tem 0 ou menos (`giver-without-resources`). `applyEventEffects()` devolve `{ logs, effect }`: o `effect` (`receivers`, `giver`, `amount`, `reason`) vai no `show-event` como `eventEffect` e o modal do evento (`ui/modals/eventModal.js`) mostra quem foi atingido. O efeito não vai para o estado salvo: o aviso só aparece no início da rodada.
-- **Assessoria com honorário:** só pede quem tem 1 recurso ou mais — `validateAdvisoryRequest()` (`domain/advisoryRules.js`) recusa com `needs-resources`, o `requestAdvisory()` do cliente nem envia e a área da assessoria fica escondida (`questionComponent.js`). Nada é pago no pedido: em `handleAnswer()` (`engine/answerEngine.js`), `calculateAdvisoryFee()` devolve `RESOURCES.ADVISORY_FEE` quando a sugestão aceita foi seguida e a resposta está certa, e o recurso passa de quem respondeu ao assessor (sem piso; a Reserva de Contingência não entra). Assessor fora da lista (saiu da sala) não recebe e ninguém paga. O honorário vai nos `kpi-update` dos dois (`supportOutcome`, `supportAmount`, `supportPartner`, ver `conventions.md`); quem respondeu vê no resultado (`showResultModal`) e o assessor num aviso próprio (`showSupportResultModal`, `ui/modals/resultModal.js`). Não há bônus de KPI para o assessor.
-- O "Pedido de Ajuda" só aparece depois de errar o bastante para zerar.
+- **Assessoria com honorário:** só com 1 recurso ou mais (seção anterior). Nada é pago no pedido: quando a sugestão aceita foi seguida e a resposta está certa, `calculateSupportOutcome()` devolve `fee` com `RESOURCES.ADVISORY_FEE`, e o recurso passa de quem respondeu ao assessor (sem piso; a Reserva de Contingência não entra). Não há bônus de KPI para o assessor.
+- **Pedido de ajuda como fiança:** com 0 ou menos (seção anterior). Recompensa e cobertura são em recurso; nenhuma troca entre KPI e recurso sobra — o KPI só vem do acerto.
 
 Motivo (feedback do piloto): o recurso pune o erro, não é um custo de participar. O estouro faz o erro continuar custando depois de zerar. Os eventos de recurso favorecem quem está mais atrás no tabuleiro, não só quem tem menos recursos.
 
@@ -259,7 +261,7 @@ O projeto usa `<script>` simples + namespace global `window.Game`. ES Modules ex
 
 ### Versão do estado salvo
 
-O estado salvo no `localStorage` (`pmKPI_roomState` e `pmKPI_myData`, gravados juntos por `utils/persistence.js`) tem um número de versão, no campo `stateVersion` de `pmKPI_roomState` (`STATE_VERSION`, hoje 6) — não confundir com `hostVersion`, que conta as trocas de host. Antes de restaurar, `migrateSavedState()` aplica em ordem os passos da tabela `STATE_MIGRATIONS` (passo N converte da versão N para N+1) até a versão atual. Regras:
+O estado salvo no `localStorage` (`pmKPI_roomState` e `pmKPI_myData`, gravados juntos por `utils/persistence.js`) tem um número de versão, no campo `stateVersion` de `pmKPI_roomState` (`STATE_VERSION`, hoje 7) — não confundir com `hostVersion`, que conta as trocas de host. Antes de restaurar, `migrateSavedState()` aplica em ordem os passos da tabela `STATE_MIGRATIONS` (passo N converte da versão N para N+1) até a versão atual. Regras:
 
 - **Sem versão**: conta como versão 1 — o formato é o mesmo. No próximo salvamento passa a ter `stateVersion: 1`.
 - **Versão mais nova que o código** (ex.: arquivos antigos em cache logo depois de um deploy): não restaura e não apaga — a versão nova do código ainda consegue usar.
@@ -274,6 +276,7 @@ Passos existentes:
 - **3 → 4** (`migrateAdvisoryFieldsToEnglish()`): a assessoria da rodada em inglês — `currentRound.assessoria { assessorName, sugestao }` → `currentRound.advisory { advisorName, suggestion }` (o `status` já era em inglês). O pedido de ajuda não é salvo; jogadores, baralhos e `pmKPI_myData` não mudam.
 - **4 → 5** (`migrateEventFieldsToEnglish()`): os campos do evento em inglês, no evento da rodada (`currentRound.event`) e no da pausa (`matchPaused.event`) — `titulo` → `title`, `descricao` → `description` e os efeitos `recursos_todos` → `resourcesForAll`, `recursos_menos` → `resourcesForFewest`, `troca_recursos` → `resourceSwap`, `reserva_contingencia` → `contingencyReserve`, `neutro` → `neutral` (os mesmos nomes de `data/events.json`, cuja lista passou de `eventos` a `events`). Jogadores, baralhos e `pmKPI_myData` não mudam.
 - **5 → 6** (`migrateFocusAreaIdsToEnglish()`): os IDs das áreas foco em inglês — o **valor** de `focusArea` (não o nome do campo) nos jogadores, em cada linha de `finalRanking` e em `pmKPI_myData`: `iniciacao` → `initiating`, `planejamento` → `planning`, `execucao` → `executing`, `monitoramento_controle` → `monitoringControlling`, `encerramento` → `closing`. Valor fora da tabela fica como está. A pergunta da rodada guarda o nome da área (`area`: "Iniciação"), não o ID, e não muda; rodada e baralhos não mudam.
+- **6 → 7** (`addSupportKind()`): o pedido de ajuda passou a usar o campo da assessoria (`currentRound.advisory`), com o tipo em `kind`; a assessoria salva antes disso ganha `kind: 'advisory'`. Assessoria cancelada (`null`), rodada sem ela, jogadores, baralhos e `pmKPI_myData` não mudam.
 
 ### `connectionState.js` — por que existe
 
@@ -285,7 +288,7 @@ Passos existentes:
 
 Resumo dos mecanismos; detalhes nos comentários de cada arquivo e no checklist `connection-tests.md`.
 
-- **Jogador desconectado:** durante a partida, quem cai continua na lista com `disconnected: true` (KPI, recursos e vaga preservados), fora do sorteio, do rodízio, dos efeitos de evento, da fila do pedido de ajuda e da escolha de assessor (BUG-022). No lobby e no fim de jogo, quem cai sai da lista. `getActivePlayers()` exclui desconectados; `getMatchPlayers()` inclui.
+- **Jogador desconectado:** durante a partida, quem cai continua na lista com `disconnected: true` (KPI, recursos e vaga preservados), fora do sorteio, do rodízio, dos efeitos de evento e da escolha de assessor ou de quem ajuda (BUG-022). No lobby e no fim de jogo, quem cai sai da lista. `getActivePlayers()` exclui desconectados; `getMatchPlayers()` inclui.
 - **Sala travada:** com a partida em andamento, nome novo é recusado (`join-rejected` com `room-locked`); só volta quem já estava na partida.
 - **Pausa:** se faltam jogadores *conectados* mas não jogadores da partida, a partida pausa (`match-paused`) e retoma sozinha quando alguém volta, com o mesmo evento. Se todos os conectados já tinham respondido, a rodada é encerrada em vez de recomeçar (D3e).
 - **Saída da página:** `pagehide`/`beforeunload` encerram as conexões na hora, para os outros perceberem a saída sem esperar o tempo limite da rede.
@@ -310,5 +313,5 @@ As regras para escrever teste (onde entra, numeração, os dois commits) estão 
 ## Simulador de partidas (balanceamento)
 
 - `tests/simulation/simulator.js` roda partidas inteiras sem rede e sem tela, para medir duração, recursos, economia, eventos e justiça antes de mexer no `config/game-config.js`. Carrega num contexto `vm` os arquivos reais (`config/`, `state/`, `domain/`, `engine/` e o `main.js`, cujo `loadQuestions()` monta os baralhos a partir de `data/`) — nenhuma regra é copiada.
-- Robôs fazem o papel dos jogadores: o host real recebe resposta, pedido e resposta de assessoria, pedido de ajuda e resposta à oferta pelas mesmas funções de `Game.core.*` que a rede chamaria. O tempo é falso (prazos e relógio da partida andam sem esperar) e o sorteio usa semente (mesma semente, mesmas partidas). Trocas do config ("cenário B") valem só dentro da simulação.
+- Robôs fazem o papel dos jogadores: o host real recebe resposta, pedido de assessoria ou de ajuda e a resposta de quem foi chamado pelas mesmas funções de `Game.core.*` que a rede chamaria. O tempo é falso (prazos e relógio da partida andam sem esperar) e o sorteio usa semente (mesma semente, mesmas partidas). Trocas do config ("cenário B") valem só dentro da simulação.
 - Roda no Actions pelo workflow `simulacao.yml` (botão "Run workflow", formulário com as chances dos robôs e o cenário B); relatório no resumo da execução e planilhas `.csv` no artefato "simulacao". O ranking das partidas simuladas usa o desempate real, e o relatório mede os empates que sobram. Testes: T93–T99 e T102.

@@ -9,11 +9,12 @@ const CONFIG = {
     KPI: {
         CORRECT_ANSWER: 10,                   // KPI ganho por acerto
         FINAL_RESOURCE_VALUE: 5,              // Multiplicador de recursos no KPI final
-        RESOURCE_PRICE: 10,                   // Preço de 1 recurso no pedido de ajuda (em KPI)
     },
 
     RESOURCES: {
         ADVISORY_FEE: 1,                      // Honorário (em recursos) que quem pediu assessoria paga ao assessor, só se seguiu a sugestão e acertou
+        HELP_REWARD: 2,                       // Recompensa (em recursos) do patrocinador a quem ajudou, se a sugestão foi seguida e estava certa
+        HELP_COVER: 1,                        // Recursos com que quem ajudou cobre o erro de quem pediu (sugestão seguida e errada); também o mínimo para poder ajudar
     },
 
     STARTING_RESOURCES: 10,                   // Recursos que cada jogador recebe no início de cada partida (recurso é punição por erro, não custo incondicional — ver _docs/architecture.md)
@@ -24,8 +25,7 @@ const CONFIG = {
         SESSION_DURATION: 5400,               // 90 minutos (em segundos)
         ACTIVITIES_PER_FOCUS_AREA: 2,         // Atividades necessárias para avançar de área foco
         HOST_TIMEOUT: 10000,                  // Prazo total (ms) que os jogadores esperam o host voltar depois de uma queda; esgotado, outro jogador assume como host
-        ADVISORY_TIMEOUT: 20000,              // Tempo máximo para o assessor responder (ms)
-        HELP_OFFER_TIMEOUT: 20000,            // Tempo máximo para cada jogador da fila responder ao pedido de ajuda (ms)
+        ADVISORY_TIMEOUT: 20000,              // Tempo máximo para o assessor (ou quem ajuda) responder (ms)
         ANSWER_TIMEOUT: 60000,                // Tempo máximo para o Respondedor escolher uma alternativa (ms)
     },
 

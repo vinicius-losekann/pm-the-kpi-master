@@ -35,7 +35,9 @@ Actions:
   `semente`...) e as variáveis de ambiente (`PARTIDAS`...`CENARIO_B`).
 - **Simulador:** a pasta gerada `simulacao/` (também no `.gitignore`) e
   os arquivos `relatorio.md`, `partidas.csv` e `partidas-cenario-b.csv`
-  (`tests/simulation/run.js`), e a lista de campos lida do ambiente.
+  (`tests/simulation/run.js`), a lista de campos lida do ambiente e as
+  colunas do CSV (`partida`, `jogador`, `ajudas_pedidas`...; as novas,
+  como `rewards_received`, já entram em inglês) em `toCsv()`.
 - **Títulos de teste:** E1 e E4 (`tests/browser/connection.spec.js`)
   dizem "no meio da question" em vez de "no meio da pergunta".
 - Os textos que aparecem na tela do Actions (`name:` e `description:`)

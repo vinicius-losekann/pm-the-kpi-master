@@ -39,7 +39,7 @@ O **host é sempre a fonte da verdade**. Um guest nunca aplica uma mudança de e
 
 **Pegadinha recorrente (já causou BUG-002, BUG-006 e BUG-007 — vale ler antes de mexer em qualquer fluxo de rede novo):** `Game.network.sendToPlayer()`/`broadcastAll()`, quando o destinatário é o próprio host, processam a mensagem **na hora, de forma síncrona** — não passam pela rede de verdade. Isso significa que a ordem de execução no host pode ficar diferente da ordem que um guest recebe (que é sempre sequencial, via rede). Ao adicionar um fluxo novo que envolve o host mandar algo pra si mesmo, sempre perguntar: "essa sequência de eventos faz sentido também quando roda tudo de uma vez, sem esperar a rede?"
 
-Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` ou `<coisa>-offer` (o host processa e encaminha) → `<coisa>-response` (resposta de quem foi perguntado) → `<coisa>-confirmed` (resultado final, broadcast pra todos). Ver `engine/tradeEngine.js` (`help-request` → `help-offer` → `help-offer-response` → `help-confirmed`) como referência mais recente e mais limpa desse padrão.
+Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` ou `<coisa>-offer` (o host processa e encaminha) → `<coisa>-response` (resposta de quem foi perguntado) → `<coisa>-confirmed` (resultado final, broadcast pra todos). O fluxo da assessoria e do pedido de ajuda é uma variação: `advisory-request` → `advisory-started`/`advisory-question` → `advisory-answer` → `advisory-result`.
 
 ### Mensagens de rede
 
@@ -51,23 +51,18 @@ Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` o
 | `round-start` | host → todos | `event`, `asker`, `answerer`, `answeredThisRound` |
 | `question` | host → Perguntador e Respondedor | a pergunta; `isAsker` (com o gabarito `correct`) ou `isAnswerer` (sem o gabarito) |
 | `answer` | Respondedor → host | `alternative`, `playerName` |
-| `kpi-update` | host → todos | o jogador: `kpi`, `focusArea`, `activities`, `resources`; da resposta: `isCorrect`, `kpiGained`, `answeredThisRound`; do apoio: `supportOutcome` (`fee`: honorário de assessoria), `supportAmount` (recursos) e `supportPartner` (no de quem respondeu, o assessor que recebeu; no do assessor, quem pagou). O honorário vai nos dois `kpi-update`: no de quem respondeu (com `isCorrect`) e num segundo, do assessor (sem `isCorrect`) |
+| `kpi-update` | host → todos | o jogador: `kpi`, `focusArea`, `activities`, `resources`; da resposta: `isCorrect`, `kpiGained`, `answeredThisRound`; do apoio: `supportOutcome` (`fee`: honorário de assessoria; `reward`: recompensa do patrocinador a quem ajudou; `cover`: quem ajudou cobriu o erro), `supportAmount` (recursos) e `supportPartner` (no de quem respondeu, quem apoiou; no de quem apoiou, quem respondeu). O apoio vai nos dois `kpi-update`: no de quem respondeu (com `isCorrect`) e num segundo, de quem apoiou (sem `isCorrect`) |
 | `player-list`, `match-ended` | host → todos | `players` (cada jogador com `kpi`, `resources`, `focusArea`, `activities`...) |
 | `game-over` | host → todos | `ranking`: cada jogador com `position` (empatados em tudo têm a mesma: 1, 1, 3), `finalKpi` (KPI + recursos × `FINAL_RESOURCE_VALUE`), `kpi`, `resources`, `focusArea` |
 | `show-event` | host → todos | `event` (início de rodada nova), `players` (os efeitos do evento mudam os recursos) e `eventEffect` (quem foi atingido, no Patrocinador Generoso e na Reestruturação: `receivers`, `giver`, `amount` e, se o evento não acontece, `reason` — `all-tied` ou `giver-without-resources`; nos outros eventos, `null`) |
 | `round-ended` | host → todos | rodada encerrada, aguardando o "Nova Rodada" |
 | `match-paused` | host → todos | faltam jogadores conectados; retoma sozinha quando alguém volta |
-| `advisory-request` | Respondedor → host | `advisorName`, `requesterName`. A assessoria fica na rodada: `currentRound.advisory` (`advisorName`, `status` `pending`/`accepted`/`declined`, `suggestion`) |
-| `advisory-started` / `advisory-question` | host → todos / host → assessor | `advisorName`, `requesterName` / a pergunta (sem o gabarito) |
-| `advisory-answer` | assessor → host | `alternative`, `declined` |
-| `advisory-result` | host → todos (ou só a quem pediu, se o pedido é inválido) | `advisorName`, `suggestion`, `declined`, `timeout`; pedido inválido: `invalid` e `reason` (`closing-focus-area`, `needs-resources` — quem pediu tem 0 recursos ou menos —, `already-answered` ou nenhum) |
-| `help-request` | quem pediu → host | `requesterName`. A fila fica só no host: `helpQueue` (`requesterName`, `candidates`, `index`) |
-| `help-trying` / `help-offer` | host → quem pediu / host → candidato | `candidateName` / `requesterName` |
-| `help-offer-response` | candidato → host | `candidateName`, `requesterName` (para quem era a oferta; o host só aceita a resposta do pedido em andamento), `accepted` |
-| `help-no-candidates` | host → quem pediu | `reason`: `insufficient-kpi`, `no-donors`, `all-declined`, `request-in-progress` (outro jogador já está pedindo ajuda; um pedido por vez) |
-| `help-confirmed` | host → todos | `donor`, `requester`, `amount`, `donorKpi`, `donorResources`, `requesterKpi`, `requesterResources` |
+| `advisory-request` | Respondedor → host | `kind` (`advisory`: assessoria; `help`: pedido de ajuda; sem o campo, assessoria), `advisorName` (quem é chamado), `requesterName`. O apoio fica na rodada: `currentRound.advisory` (`advisorName`, `status` `pending`/`accepted`/`declined`, `suggestion`, `kind`) |
+| `advisory-started` / `advisory-question` | host → todos / host → quem é chamado | `kind`, `advisorName`, `requesterName` / `kind` e a pergunta (sem o gabarito) |
+| `advisory-answer` | quem é chamado → host | `alternative`, `declined` |
+| `advisory-result` | host → todos (ou só a quem pediu, se o pedido é inválido) | `kind`, `advisorName`, `suggestion`, `declined`, `timeout`; pedido inválido: `invalid` e `reason` (`closing-focus-area`; `needs-resources` — assessoria com 0 recursos ou menos; `has-resources` — ajuda com 1 ou mais; `helper-without-resources` — quem ajuda sem `HELP_COVER` recursos; `already-answered`; ou nenhum) |
 
-Mensagem que chega sem um campo novo (de uma versão anterior do jogo) mantém o comportamento antigo, salvo quando o campo veio com uma versão nova do protocolo: aí o host exige o campo (ex.: `requesterName` do `help-offer-response`, desde a versão 7).
+Mensagem que chega sem um campo novo (de uma versão anterior do jogo) mantém o comportamento antigo (ex.: `advisory-request` sem `kind` é assessoria), salvo quando o campo veio com uma versão nova do protocolo e o host precisa dele: aí o host exige o campo.
 
 **Versão do protocolo:** ao mudar o nome ou o formato de um campo de mensagem, aumentar `PROTOCOL_VERSION` (`network/peerService.js`). O host recusa quem entra com outra versão (`version-mismatch`), em vez de a partida travar quando, logo depois de um deploy, uns jogadores rodam o código novo e outros o antigo. Se o mesmo campo também é salvo no `localStorage`, aumentar junto o `STATE_VERSION`, com o passo de migração (`utils/persistence.js`).
 
@@ -97,7 +92,8 @@ A regra geral: **nome é em inglês; texto é em português.** Nome é tudo que 
   | Perguntador / Respondedor | asker / answerer |
   | assessoria / assessor / sugestão | advisory / advisor / suggestion |
   | apoio (o que um jogador fez pela pergunta de outro) / honorário / o outro jogador do apoio | support (`supportOutcome`, `supportAmount`) / fee (`ADVISORY_FEE`) / partner (`supportPartner`) |
-  | pedido de ajuda / doador / quem pediu / fila / oferta | help request / donor / requester / queue / offer |
+  | pedido de ajuda / quem ajuda / quem pediu / tipo do apoio | help / helper / requester / kind (`advisory` ou `help`) |
+  | recompensa do patrocinador / cobrir o erro | reward (`HELP_REWARD`) / cover (`HELP_COVER`) |
   | recursos / baralho / pergunta / alternativa | resources / deck / question / alternative |
   | estouro de orçamento (recurso negativo) | overrun (`resources-overrun`, `overrunLabel`) |
   | evento / reserva de contingência | event / contingency reserve |
@@ -111,8 +107,8 @@ A regra geral: **nome é em inglês; texto é em português.** Nome é tudo que 
   | troca de host / host antigo / backup | host migration / old host / backup |
   | token de identidade / estado salvo | identity token / saved state |
 - **Comentários**: sempre em português. Explicam o que o código faz e por quê — sem fase, número de bug ou item do roadmap e sem a história do "antes era assim": isso fica no `roadmap.md`, no `issues.md`, no `CHANGELOG.md` e no histórico do Git. Os títulos dos testes continuam com os números (T…, E…, BUG-…), que ligam o teste ao registro.
-- **Tipos de mensagem de rede** (`msg.type`) e seus campos: em inglês, kebab-case para o tipo, com os sufixos do padrão acima (`match-paused`, `show-event`, `round-start`, `advisory-request`, `help-offer-response`); os valores de motivo (`reason`) também em inglês, kebab-case (`already-answered`, `no-donors`). Mudar o nome de um tipo ou campo exige aumentar `PROTOCOL_VERSION` (acima).
-- **IDs de elemento HTML e classes CSS**: em inglês, com o glossário acima; camelCase pra IDs (`btnRequestHelp`, `modalHelpOffer`), kebab-case pra classes e atributos `data-*` (`.focus-area-item`, `.stat-chip`, `data-advisor-name`). O T91 confere que todo ID, seletor e `dataset` pedido pelo jogo e pelos testes no navegador existe no HTML e no CSS; o T92, que toda classe com regra no CSS é usada pelo HTML ou pelo `js/` e todo `#id` do CSS existe no HTML (classe montada por concatenação entra na lista `BUILT_CLASSES` do teste).
+- **Tipos de mensagem de rede** (`msg.type`) e seus campos: em inglês, kebab-case para o tipo, com os sufixos do padrão acima (`match-paused`, `show-event`, `round-start`, `advisory-request`, `advisory-result`); os valores de motivo (`reason`) também em inglês, kebab-case (`already-answered`, `helper-without-resources`). Mudar o nome de um tipo ou campo exige aumentar `PROTOCOL_VERSION` (acima).
+- **IDs de elemento HTML e classes CSS**: em inglês, com o glossário acima; camelCase pra IDs (`btnRequestAdvisory`, `modalAdvisoryQuestion`), kebab-case pra classes e atributos `data-*` (`.focus-area-item`, `.stat-chip`, `data-advisor-name`). O T91 confere que todo ID, seletor e `dataset` pedido pelo jogo e pelos testes no navegador existe no HTML e no CSS; o T92, que toda classe com regra no CSS é usada pelo HTML ou pelo `js/` e todo `#id` do CSS existe no HTML (classe montada por concatenação entra na lista `BUILT_CLASSES` do teste).
 - **Nomes de arquivo `.js`**: camelCase (`profileComponent.js`, `tradeEngine.js`, `deckRules.js`). Exceção antiga: `config/game-config.js`.
 
 ### Formato dos nomes
@@ -122,8 +118,8 @@ A regra geral: **nome é em inglês; texto é em português.** Nome é tudo que 
 | Funções, variáveis, parâmetros, campos de objeto | camelCase | `drawQuestion`, `currentRound`, `answeredThisRound` |
 | Constantes de módulo e chaves do CONFIG | MAIÚSCULAS_COM_SUBLINHADO | `STATE_VERSION`, `PROTOCOL_VERSION`, `CONFIG.GAME.ANSWER_TIMEOUT` |
 | Booleanos | prefixo `is`/`has`/`can` | `isHost`, `isCorrect`, `hasReserve`, `canContinueRound` |
-| Tipos de mensagem, classes CSS, atributos `data-*` | kebab-case | `help-offer-response`, `.focus-area-item`, `data-advisor-name` |
-| IDs de elemento HTML | camelCase | `btnRequestHelp`, `modalHelpOffer` |
+| Tipos de mensagem, classes CSS, atributos `data-*` | kebab-case | `advisory-request`, `.focus-area-item`, `data-advisor-name` |
+| IDs de elemento HTML | camelCase | `btnRequestAdvisory`, `modalAdvisoryQuestion` |
 
 - **Função começa com verbo**, e o verbo indica o que ela faz:
   - `calculate`/`validate`/`draw`/`build`: regra pura, que devolve um resultado (`domain/`);

@@ -84,8 +84,9 @@ function startClock() {
  *     critério de becomeHost() (network/hostMigration.js);
  *   - pergunta em aberto → reexibe a mesma pergunta (ou, com o host fora
  *     da dupla, a tela de espectador) e rearma o prazo de resposta — a
- *     pergunta não pode ser trocada pelo F5. Um pedido de assessoria
- *     ainda sem resposta é cancelado antes (ver cancelPendingAdvisory()).
+ *     pergunta não pode ser trocada pelo F5. Um pedido de assessoria ou
+ *     de ajuda ainda sem resposta é cancelado antes (ver
+ *     cancelPendingAdvisory()).
  */
 function resumeMatchAfterReload() {
     const state = Game.state;
@@ -142,14 +143,14 @@ function resumeMatchAfterReload() {
 }
 
 /**
- * No F5 do host, um pedido de assessoria ainda sem resposta é
- * cancelado. O prazo de 20s do assessor (setTimeout de
+ * No F5 do host, um pedido de assessoria ou de ajuda ainda sem resposta é
+ * cancelado. O prazo de 20s de quem foi chamado (setTimeout de
  * advisoryEngine.handleAdvisoryRequest()) se perde com a página, e o
- * assessor perde a pergunta (a reconexão fecha os modais) — sem cancelar,
+ * chamado perde a pergunta (a reconexão fecha os modais) — sem cancelar,
  * a rodada ficaria presa esperando uma resposta que não vem. Quem
  * responde pode pedir de novo; é o mesmo resultado de uma troca de host.
  *
- * Se a resposta já tinha chegado e esperava o assessor, ela é processada
+ * Se a resposta já tinha chegado e esperava o apoio, ela é processada
  * agora (answerEngine.handleAnswer() segue para a próxima dupla).
  * @returns {boolean} true se processou a resposta guardada (a pergunta
  *   não deve ser reexibida)
@@ -157,7 +158,7 @@ function resumeMatchAfterReload() {
 function cancelPendingAdvisory(round) {
     if (!round.advisory || round.advisory.status !== 'pending') return false;
 
-    console.log('🧭 Pedido de assessoria sem resposta cancelado pelo F5 do host — quem responde pode pedir de novo.');
+    console.log('🧭 Pedido de apoio (assessoria ou ajuda) sem resposta cancelado pelo F5 do host — quem responde pode pedir de novo.');
     round.advisory = null;
 
     if (!round.pendingAnswer) return false;
@@ -186,7 +187,6 @@ function endGame(ranking) {
     clearInterval(state.timerInterval);
 
     cancelRoundTimeouts();
-    cancelHelpRequest();
     state.currentRound = null;
     // O ranking do fim da partida fica guardado (estado salvo e
     // state-sync) — um F5 ou quem volta à sala vê o mesmo ranking.
@@ -202,8 +202,9 @@ function endGame(ranking) {
 
 /**
  * Cancela os prazos da pergunta em andamento: o de resposta do
- * Respondedor e o do assessor. Usada no fim de jogo, ao encerrar a
- * partida e quando a dupla é trocada (abortRoundIfParticipant()).
+ * Respondedor e o de quem foi chamado (assessoria ou ajuda). Usada no
+ * fim de jogo, ao encerrar a partida e quando a dupla é trocada
+ * (abortRoundIfParticipant()).
  */
 function cancelRoundTimeouts() {
     const state = Game.state;
@@ -215,19 +216,6 @@ function cancelRoundTimeouts() {
         clearTimeout(state.answerTimeout);
         state.answerTimeout = null;
     }
-}
-
-/**
- * Cancela o pedido de ajuda em andamento (prazo da oferta atual e a
- * fila). Usada no fim de jogo e ao encerrar a partida.
- */
-function cancelHelpRequest() {
-    const state = Game.state;
-    if (state.helpTimeout) {
-        clearTimeout(state.helpTimeout);
-        state.helpTimeout = null;
-    }
-    state.helpQueue = null;
 }
 
 /**
@@ -251,7 +239,6 @@ function endMatch() {
     if (!confirm('🏁 Encerrar a partida? Todos voltarão ao lobby com KPI zerado.')) return;
 
     cancelRoundTimeouts();
-    cancelHelpRequest();
 
     // Quem caiu durante a partida e não voltou sai da lista
     // antes de ir para o lobby — o 'match-ended' já leva a lista limpa
@@ -411,7 +398,6 @@ function abortRoundIfParticipant(playerName) {
     if (round && !round.answered &&
         (round.asker === playerName || round.answerer === playerName)) {
         console.warn('⚠️ Participante da rodada atual ficou indisponível — abortando rodada e sorteando nova.');
-        // O pedido de ajuda não é da rodada: continua com a dupla nova.
         cancelRoundTimeouts();
         state.currentRound = null;
         Game.engine.turn.pickNewPair();

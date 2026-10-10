@@ -26,7 +26,7 @@
   regras reais do jogo (`tests/simulation/`). Mostra duração, recursos,
   economia, eventos e justiça, e compara com uma troca do config
   ("cenário B"). Não muda o jogo publicado. Testes T93–T99.
-- São 120 testes de lógica em 11 arquivos e 17 cenários no navegador.
+- São 122 testes de lógica em 11 arquivos e 18 cenários no navegador.
 
 ### Changed
 - **Estouro de orçamento:** o recurso pode ficar negativo. Errar com 0
@@ -51,6 +51,17 @@
   bônus de +5 KPI do assessor (o honorário vale o mesmo no KPI Final). Os
   dois veem o honorário na tela. A versão das mensagens entre os
   jogadores (protocolo) passou da 7 para a 8. Testes T114–T117.
+- **Pedido de ajuda como fiança:** a ajuda passa a ser pedida na vez de
+  responder, por quem está com 0 recursos ou menos, no lugar da
+  assessoria (o mesmo botão vira "Pedir Ajuda"; um apoio por pergunta,
+  fora do Encerramento). Quem pede escolhe um colega com recurso, que tem
+  20 segundos para sugerir ou recusar. Seguiu a sugestão e acertou: quem
+  ajudou ganha 2 recursos do patrocinador. Seguiu e errou: quem ajudou
+  cobre o erro com 1 recurso, e quem pediu não perde (com a Reserva de
+  Contingência, ninguém perde). Saem a fila automática e a doação de
+  recurso por 10 KPI (e, com elas, o caso do BUG-024): o KPI agora só vem
+  dos acertos. O estado salvo passou da versão 6 para a 7; o protocolo
+  continua na 8. Testes T118–T125 e o cenário E19 no navegador.
 - **Documentação reorganizada:** cada documento abre com o que contém e
   o que não contém; os nomes dos arquivos passaram para o inglês
   (`_docs/connection-tests.md`, `_docs/issues.md`); os roteiros dos

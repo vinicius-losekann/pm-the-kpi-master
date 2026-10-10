@@ -17,7 +17,7 @@ const RESTORE_WINDOW_MS = 5 * 60 * 1000;
 // em STATE_MIGRATIONS o passo que converte da versão anterior. Estado
 // salvo sem versão (antes do 3.1) é a versão 1. O número vale para as
 // duas chaves (são sempre gravadas juntas).
-const STATE_VERSION = 6;
+const STATE_VERSION = 7;
 
 /**
  * Cópia de `obj` com os campos renomeados conforme `names`
@@ -156,6 +156,21 @@ function migrateFocusAreaIdsToEnglish(roomState, myData) {
     return { roomState: room, myData: withNewId(myData) };
 }
 
+/**
+ * Versão 6 → 7: o pedido de ajuda passou a usar o mesmo campo da
+ * assessoria (currentRound.advisory), com o tipo em `kind`. A assessoria
+ * salva antes disso ganha kind 'advisory'. Rodada sem assessoria (ou com
+ * ela cancelada, null), jogadores, baralhos e pmKPI_myData não mudam.
+ */
+function addSupportKind(roomState, myData) {
+    const room = { ...roomState };
+    const advisory = room.currentRound && room.currentRound.advisory;
+    if (advisory && typeof advisory === 'object' && !('kind' in advisory)) {
+        room.currentRound = { ...room.currentRound, advisory: { ...advisory, kind: 'advisory' } };
+    }
+    return { roomState: room, myData };
+}
+
 // Passo N: converte da versão N para N+1. Recebe (roomState, myData) e
 // devolve { roomState, myData }.
 const STATE_MIGRATIONS = {
@@ -163,7 +178,8 @@ const STATE_MIGRATIONS = {
     2: migratePlayerFieldsToEnglish,
     3: migrateAdvisoryFieldsToEnglish,
     4: migrateEventFieldsToEnglish,
-    5: migrateFocusAreaIdsToEnglish
+    5: migrateFocusAreaIdsToEnglish,
+    6: addSupportKind
 };
 
 /**

@@ -1,24 +1,45 @@
 // ============================================
-// PM: The KPI Master - UI Modal: Assessoria
+// PM: The KPI Master - UI Modal: Assessoria e pedido de ajuda
 // ============================================
-// Cobre a seleção do assessor, a pergunta enviada ao assessor e a
-// exibição do resultado (sugestão, recusa ou timeout).
+// Cobre a escolha de quem chamar, a pergunta enviada a quem foi chamado
+// e a exibição do resultado (sugestão, recusa ou timeout). O tipo do
+// apoio vem dos recursos de quem responde: com 1 ou mais, assessoria
+// (kind 'advisory'); com 0 ou menos, pedido de ajuda (kind 'help').
 // ============================================
 
 let advisoryCountdownInterval = null;
+
+/** Tipo do apoio que este jogador pede agora, pelos recursos dele. */
+function supportKindForMe() {
+    const me = Game.getPlayerByName(Game.state.playerName);
+    return me && me.resources < 1 ? 'help' : 'advisory';
+}
 
 function showAdvisorySelectModal() {
     const state = Game.state;
     const round = state.currentRound;
     if (!round) return;
 
+    const kind = supportKindForMe();
+    // Na ajuda, só quem pode cobrir um erro sem ficar negativo.
     const candidates = Game.getActivePlayers().filter(p =>
-        p.name !== round.asker && p.name !== state.playerName
+        p.name !== round.asker && p.name !== state.playerName &&
+        (kind !== 'help' || p.resources >= CONFIG.RESOURCES.HELP_COVER)
     );
 
     if (candidates.length === 0) {
-        alert(Game.i18n.t('advisory.noAdvisorAvailable'));
+        if (kind === 'help') {
+            alert(Game.i18n.t('help.noHelperAvailable'));
+        } else {
+            alert(Game.i18n.t('advisory.noAdvisorAvailable'));
+        }
         return;
+    }
+
+    if (kind === 'help') {
+        document.getElementById('advisorySelectTitle').textContent = Game.i18n.t('help.selectTitle');
+    } else {
+        document.getElementById('advisorySelectTitle').textContent = Game.i18n.t('advisory.selectTitle');
     }
 
     document.getElementById('advisoryPlayersList').innerHTML = candidates.map(p => `
@@ -43,7 +64,8 @@ function showAdvisorySelectModal() {
 
 function chooseAdvisor(advisorName) {
     document.getElementById('modalAdvisorySelect').style.display = 'none';
-    const ok = Game.core.requestAdvisory(advisorName);
+    const kind = supportKindForMe();
+    const ok = Game.core.requestAdvisory(advisorName, kind);
     if (ok) {
         document.getElementById('btnRequestAdvisory').disabled = true;
         document.getElementById('advisoryStatus').textContent = Game.i18n.t('advisory.waitingForAnswer', { advisor: advisorName });
@@ -53,7 +75,8 @@ function chooseAdvisor(advisorName) {
             Game.state.currentRound.advisory = {
                 advisorName: advisorName,
                 status: 'pending',
-                suggestion: null
+                suggestion: null,
+                kind
             };
         }
     }
@@ -69,7 +92,8 @@ function showAdvisoryStarted(msg) {
             state.currentRound.advisory = {
                 advisorName: msg.advisorName,
                 status: 'pending',
-                suggestion: null
+                suggestion: null,
+                kind: msg.kind === 'help' ? 'help' : 'advisory'
             };
         }
     }
@@ -80,7 +104,16 @@ function showAdvisoryQuestionModal(msg) {
     document.getElementById('advisoryModalAsker').textContent = round?.asker || '---';
     document.getElementById('advisoryModalAnswerer').textContent = round?.answerer || '---';
     document.getElementById('advisoryQuestionText').textContent = msg.question;
-    document.getElementById('advisoryFeeNotice').textContent = Game.i18n.t('advisory.feeNotice', { amount: CONFIG.RESOURCES.ADVISORY_FEE });
+    // O convite diz o que quem foi chamado ganha (ou cobre) se a sugestão for seguida.
+    if (msg.kind === 'help') {
+        document.getElementById('advisoryModalTitle').textContent = Game.i18n.t('help.modalTitle');
+        document.getElementById('advisoryFeeNotice').textContent = Game.i18n.t('help.notice', {
+            reward: CONFIG.RESOURCES.HELP_REWARD, cover: CONFIG.RESOURCES.HELP_COVER
+        });
+    } else {
+        document.getElementById('advisoryModalTitle').textContent = Game.i18n.t('advisory.modalTitle');
+        document.getElementById('advisoryFeeNotice').textContent = Game.i18n.t('advisory.feeNotice', { amount: CONFIG.RESOURCES.ADVISORY_FEE });
+    }
     document.getElementById('advisoryAlternativesList').innerHTML = msg.alternatives.map(alt => {
         const letter = alt.charAt(0).toLowerCase();
         return `<button class="btn btn-glass" onclick="Game.ui.answerAdvisory('${letter}', false)"
@@ -134,10 +167,16 @@ function showAdvisoryResult(msg) {
             statusEl.textContent = Game.i18n.t('advisory.closingFocusArea');
         } else if (msg.invalid && msg.reason === 'needs-resources') {
             statusEl.textContent = Game.i18n.t('advisory.needsResources');
+        } else if (msg.invalid && msg.reason === 'has-resources') {
+            statusEl.textContent = Game.i18n.t('help.hasResources');
+        } else if (msg.invalid && msg.reason === 'helper-without-resources') {
+            statusEl.textContent = Game.i18n.t('help.helperWithoutResources', { advisor: msg.advisorName });
         } else if (msg.invalid) {
             statusEl.textContent = Game.i18n.t('advisory.invalid', { advisor: msg.advisorName });
         } else if (msg.timeout) {
             statusEl.textContent = Game.i18n.t('advisory.timeout', { advisor: msg.advisorName });
+        } else if (msg.kind === 'help') {
+            statusEl.textContent = Game.i18n.t('help.declined', { advisor: msg.advisorName });
         } else {
             statusEl.textContent = Game.i18n.t('advisory.declined', { advisor: msg.advisorName });
         }
@@ -150,9 +189,11 @@ function showAdvisoryResult(msg) {
     }
 
     // Recusa por um motivo que não muda durante a pergunta (última área
-    // foco, sem recursos): o botão continua travado. Nos outros (ex.:
-    // assessor que caiu), quem responde pode chamar outro.
-    if (msg.invalid && msg.reason !== 'closing-focus-area' && msg.reason !== 'needs-resources') {
+    // foco, recursos de quem responde): o botão continua travado. Nos
+    // outros (ex.: quem foi chamado caiu ou não tem recursos para
+    // cobrir), quem responde pode chamar outro.
+    const lasting = ['closing-focus-area', 'needs-resources', 'has-resources'];
+    if (msg.invalid && !lasting.includes(msg.reason)) {
         const requestButton = document.getElementById('btnRequestAdvisory');
         if (requestButton && !state.currentRound.answered) requestButton.disabled = false;
 

@@ -16,13 +16,14 @@
    - Um **modal** mostra o evento para todos e, no Patrocinador Generoso e na Reestruturação, quem foi atingido
    - Um jogador **pergunta** (vê a resposta)
    - Outro jogador **responde** (escolhe entre 4 alternativas)
-   - O Respondedor pode, opcionalmente, **pedir Assessoria** a outro jogador antes de responder
-     (precisa ter 1 recurso ou mais e não estar na Área Foco Encerramento); seguiu a sugestão e
-     acertou, paga 1 recurso de honorário ao assessor
+   - O Respondedor pode, opcionalmente, chamar outro jogador antes de responder (um apoio por
+     pergunta, fora da Área Foco Encerramento): com 1 recurso ou mais, **pede Assessoria** (seguiu
+     a sugestão e acertou, paga 1 recurso de honorário ao assessor); com 0 ou menos, **pede Ajuda**
+     (quem ajuda cobre o erro e, acertando, ganha 2 recursos do patrocinador)
 5. **Acertar** = +10 KPI + 1 atividade, sem gastar recurso
 6. **Errar** = 0 KPI + 0 atividade + **-1 recurso** (protegido pelo evento 🛡️ Reserva de Contingência)
 7. Sem recursos não impede de tentar: errar com 0 recursos deixa o recurso **negativo** (estouro de orçamento), que desconta no KPI Final
-8. **Pedir Ajuda**: quem está com 0 recursos ou menos pode pedir; fila automática de quem tem mais recurso, por 10 KPI
+8. **Pedir Ajuda**: na vez de responder, quem está com 0 recursos ou menos chama um colega com recurso, que vira fiador da resposta (veja abaixo)
 9. O jogo termina quando o primeiro jogador completa o **Encerramento**
 10. Vence quem tiver o **maior KPI Final**. Empate: fica à frente quem avançou mais nas áreas foco e, se ainda empatar, quem tem mais KPI acumulado; empate em tudo divide a posição (🥇 🥇 🥉)
 
@@ -35,16 +36,18 @@
 | ✅ Acertou | +10 | +1 | 0 (nunca gasta) |
 | ❌ Errou | 0 | 0 | -1📦 (pode ficar negativo: estouro) |
 | 🛡️ Errou com Reserva de Contingência | 0 | 0 | 0 (protegido) |
-| 🆘 Deu ajuda (doador) | +10 | - | -1📦 |
-| 🆘 Pediu ajuda (recebeu) | -10 | - | +1📦 |
 | 🧭 Pediu assessoria, seguiu a sugestão e acertou | +10 | +1 | -1📦 (honorário ao assessor) |
 | 🧭 Assessorou: a sugestão foi seguida e estava certa | 0 | - | +1📦 (honorário) |
+| 🆘 Pediu ajuda, seguiu a sugestão e acertou | +10 | +1 | 0 |
+| 🆘 Pediu ajuda, seguiu a sugestão e errou | 0 | 0 | 0 (quem ajudou cobre) |
+| 🆘 Ajudou: a sugestão foi seguida e estava certa | 0 | - | +2📦 (do patrocinador) |
+| 🆘 Ajudou: a sugestão foi seguida e estava errada | 0 | - | -1📦 (cobre o erro; com 🛡️ Reserva, nada) |
 
 ### KPI Final
 ```
 KPI Final = KPI acumulado na partida + (Recursos × 5)
 ```
-O KPI acumulado já inclui acertos e ajudas dadas e recebidas (o honorário de assessoria é pago em recurso, e entra no KPI Final pelos recursos). Recurso negativo (estouro de orçamento) desconta: com −2 recursos, o KPI Final perde 10. No card do jogador e na lista de jogadores, o negativo aparece em vermelho (no card, com o rótulo "Estouro").
+O KPI acumulado vem só dos acertos (honorário, recompensa e cobertura são em recurso, e entram no KPI Final pelos recursos). Recurso negativo (estouro de orçamento) desconta: com −2 recursos, o KPI Final perde 10. No card do jogador e na lista de jogadores, o negativo aparece em vermelho (no card, com o rótulo "Estouro").
 
 ---
 
@@ -63,15 +66,28 @@ O KPI acumulado já inclui acertos e ajudas dadas e recebidas (o honorário de a
 
 ## 🆘 Pedido de Ajuda
 
-> Rede de segurança pra quem está sem recurso — não é um mercado livre.
+> Fiança na vez de responder: quem está sem orçamento chama um colega que arrisca o dele.
 
-- O botão "Pedir Ajuda" só aparece pra quem está com **0 recursos ou menos** (estouro)
-- Ao pedir, o jogo monta uma **fila automática**: jogadores ativos com recurso, do que tem mais pro que tem menos
-- Pergunta um de cada vez — se recusar (ou não responder em 20s), passa pro próximo da fila sozinho
-- Quem caiu (desconectado) é pulado na fila; se quem pediu cai, o pedido é cancelado sem transferir nada
-- Quem pediu precisa ter pelo menos **10 KPI** pra pedir
-- Doador: -1📦, +10 KPI. Quem recebeu: +1📦, -10 KPI
-- Se ninguém puder ajudar, o jogo avisa e sugere continuar ganhando KPI como Perguntador ou Assessor até ter os 10 KPI pra tentar de novo
+- Na vez de responder, quem está com **0 recursos ou menos** vê o botão **🆘 Pedir Ajuda** no
+  lugar do "Pedir Assessoria" (um apoio por pergunta; não vale na Área Foco Encerramento)
+- Escolhe quem ajuda: jogador ativo e conectado, que não seja o Perguntador, com **1 recurso ou
+  mais** (a lista só mostra quem pode)
+- Quem é chamado vê a pergunta (sem o gabarito) e tem **20 segundos** para sugerir ou recusar;
+  recusa ou prazo esgotado gastam o pedido, e quem pediu responde sozinho
+- Nada é pago no pedido. Depois da resposta:
+
+| Situação | Quem pediu | Quem ajudou |
+|---|---|---|
+| Seguiu a sugestão e **acertou** | +10 KPI, +1 atividade, recursos iguais | **+2📦** do patrocinador |
+| Seguiu a sugestão e **errou** | 0 KPI, **não perde recurso** | **-1📦** (cobre o erro) |
+| Seguiu, errou, com 🛡️ Reserva de Contingência | 0 KPI, não perde | nada |
+| **Ignorou** a sugestão | resultado normal | nada |
+| Recusa ou prazo esgotado | responde sozinho | nada |
+
+- A ajuda não tira ninguém do estouro; só impede que piore. A saída do estouro vem dos eventos e
+  dos honorários de assessoria.
+- Para quem ajuda, aceitar vale o mesmo que responder: acertando ganha 2📦 (10 no KPI Final),
+  errando perde 1📦 (5 no KPI Final).
 
 ---
 
@@ -91,7 +107,7 @@ do PMBOK em praticamente todos os domínios de desempenho.
 
 1. Ao ser escolhido como **Respondedor**, antes de selecionar uma alternativa, o jogador com
    **1 recurso ou mais** pode clicar em **📞 Pedir Assessoria**. Com 0 recursos ou menos, o
-   botão não aparece.
+   mesmo botão vira **🆘 Pedir Ajuda** (veja "Pedido de Ajuda").
 2. Ele escolhe **um jogador ativo** (exceto o Perguntador da rodada) para chamar como assessor.
 3. O assessor recebe a mesma pergunta e as 4 alternativas — **sem saber qual é a correta**. Ele
    raciocina do zero, como se estivesse respondendo.
@@ -119,7 +135,7 @@ Assessoria é trabalho de especialista, e especialista cobra: o recurso é o or�
 
 ### Restrição: Área Foco Encerramento
 
-Um Respondedor que estiver na Área Foco **Encerramento** **não pode pedir Assessoria**. Como o
+Um Respondedor que estiver na Área Foco **Encerramento** **não pode pedir Assessoria nem Ajuda**. Como o
 jogo termina assim que o primeiro jogador completa essa área, essa restrição evita que a
 mecânica de ajuda vire uma decisão sobre "ajudar o adversário a encerrar a partida para todo
 mundo". Fora dessa situação, a Assessoria funciona normalmente.
@@ -180,7 +196,8 @@ sugestão — ambos os casos têm o mesmo efeito.
 ```
 Respondedor recebe pergunta
         │
-        ├── Está na Área Foco Encerramento ou com 0 recursos ou menos? → Sim → não pode pedir Assessoria
+        ├── Está na Área Foco Encerramento? → Sim → não pode pedir Assessoria nem Ajuda
+        ├── Está com 0 recursos ou menos? → Sim → o botão é o de Pedir Ajuda (fiança)
         │        (validado no cliente E no host)
         │
         ├── (opcional) Pede Assessoria → escolhe jogador ativo (≠ Perguntador)
@@ -203,8 +220,8 @@ Respondedor recebe pergunta
 | Papel | O que vê | O que faz |
 |---|---|---|
 | 🗣️ **Perguntador** | Pergunta + resposta correta destacada | Somente leitura |
-| 🎯 **Respondedor** | Pergunta + 4 alternativas | Escolhe a resposta; pode pedir Assessoria (com 1 recurso ou mais, exceto no Encerramento) |
-| 🧭 **Assessor** | Pergunta + 4 alternativas (sem gabarito) | Aceita e sugere, ou recusa, se chamado |
+| 🎯 **Respondedor** | Pergunta + 4 alternativas | Escolhe a resposta; pode pedir Assessoria (com 1 recurso ou mais) ou Ajuda (com 0 ou menos), exceto no Encerramento |
+| 🧭 **Assessor** / 🆘 **quem ajuda** | Pergunta + 4 alternativas (sem gabarito) | Aceita e sugere, ou recusa, se chamado |
 | ⏳ **Espectador** | Quem está jogando | Aguarda sua vez |
 
 ---

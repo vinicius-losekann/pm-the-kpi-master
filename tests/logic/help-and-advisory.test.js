@@ -556,7 +556,7 @@ test('T119 Quem ajuda: precisa de RESOURCES.HELP_COVER recursos ou mais (helper-
     nobody.guest.player('B').resources = 0;
     ['A', 'C', 'Host'].forEach(n => { nobody.guest.player(n).resources = cover - 1; });
     nobody.guest.ctx.showAdvisorySelectModal();
-    check(nobody.alerts.includes('help.noHelperAvailable') && nobody.elements.modalAdvisorySelect.style.display !== 'flex',
+    check(nobody.alerts.includes('help.noHelperAvailable') && (nobody.elements.modalAdvisorySelect || { style: {} }).style.display !== 'flex',
         'sem ninguém com recurso, B deveria ver help.noHelperAvailable e a lista não abrir, viu: ' + JSON.stringify(nobody.alerts));
     // Na assessoria, a lista continua com todos (menos o Perguntador e quem pede), com o título dela.
     const advisory = answererGuest(use, env);

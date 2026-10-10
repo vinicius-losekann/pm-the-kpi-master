@@ -1,25 +1,33 @@
 // ============================================
-// PM: The KPI Master - Engine: Assessoria
+// PM: The KPI Master - Engine: Assessoria e pedido de ajuda
 // ============================================
-// Orquestra o fluxo de pedido de assessoria: solicitação, validação
-// (delegada a js/domain/advisoryRules.js), envio da pergunta ao
-// assessor e processamento da resposta/recusa/timeout.
+// Orquestra o apoio que o Respondedor pede a outro jogador (um por
+// pergunta): solicitação, validação (delegada a
+// js/domain/advisoryRules.js), envio da pergunta a quem foi chamado e
+// processamento da resposta/recusa/timeout. Com 1 recurso ou mais, é
+// assessoria (kind 'advisory'); com 0 ou menos, pedido de ajuda (kind
+// 'help'). Os dois seguem o mesmo caminho e ficam em
+// currentRound.advisory; o que muda é quem pode pedir, quem pode ser
+// chamado e o resultado depois da resposta (engine/answerEngine.js).
 // ============================================
 
 /**
- * Solicita assessoria a outro jogador (chamado pelo Respondedor).
+ * Pede assessoria ou ajuda a outro jogador (chamado pelo Respondedor).
  * Verifica se a rodada ainda está ativa, se o jogador não está na Área
- * Foco Encerramento e se tem 1 recurso ou mais.
+ * Foco Encerramento e se os recursos dele combinam com o tipo do pedido
+ * (assessoria com 1 ou mais; ajuda com 0 ou menos).
+ * @param {string} advisorName - jogador chamado
+ * @param {string} [kind] - 'advisory' (padrão) ou 'help'
  */
-function requestAdvisory(advisorName) {
+function requestAdvisory(advisorName, kind = 'advisory') {
     const state = Game.state;
 
     if (!state.currentRound || state.currentRound.advisory) {
-        console.warn('⚠️ Já existe um pedido de assessoria nesta rodada.');
+        console.warn('⚠️ Já existe um pedido de apoio nesta rodada.');
         return false;
     }
     if (state.currentRound.answered) {
-        console.warn('⚠️ Rodada já foi respondida — não é mais possível pedir assessoria.');
+        console.warn('⚠️ Rodada já foi respondida — não é mais possível pedir apoio.');
         return false;
     }
     const me = Game.getPlayerByName(state.playerName);
@@ -27,33 +35,42 @@ function requestAdvisory(advisorName) {
         alert(Game.i18n.t('advisory.closingFocusArea'));
         return false;
     }
-    // A assessoria tem honorário: com 0 recursos ou menos não se pede
-    // (o host também recusa, com 'needs-resources').
-    if (me && me.resources < 1) {
+    // A assessoria tem honorário: com 0 recursos ou menos não se pede; a
+    // ajuda é só para quem está com 0 ou menos (o host também recusa,
+    // com 'needs-resources' ou 'has-resources').
+    if (kind === 'help' && me && me.resources >= 1) {
+        alert(Game.i18n.t('help.hasResources'));
+        return false;
+    }
+    if (kind !== 'help' && me && me.resources < 1) {
         alert(Game.i18n.t('advisory.needsResources'));
         return false;
     }
 
+    const msg = { type: 'advisory-request', kind, advisorName: advisorName, requesterName: state.playerName };
     if (state.isHost) {
-        handleAdvisoryRequest({ advisorName: advisorName, requesterName: state.playerName });
+        handleAdvisoryRequest(msg);
     } else {
-        Game.network.sendToHost({ type: 'advisory-request', advisorName: advisorName, requesterName: state.playerName });
+        Game.network.sendToHost(msg);
     }
     return true;
 }
 
 /**
- * Host: processa o pedido de assessoria, valida e encaminha para o assessor.
+ * Host: processa o pedido de assessoria ou de ajuda, valida e encaminha
+ * para quem foi chamado. Pedido sem `kind` é assessoria.
  */
 function handleAdvisoryRequest(msg) {
     const state = Game.state;
     if (!state.isHost || !state.currentRound || state.currentRound.advisory) return;
     if (msg.requesterName !== state.currentRound.answerer) return;
+    const kind = msg.kind === 'help' ? 'help' : 'advisory';
     if (state.currentRound.answered) {
         const req = Game.getPlayerByName(msg.requesterName);
         if (req) {
             Game.network.sendToPlayer(req.peerId, {
                 type: 'advisory-result',
+                kind,
                 advisorName: msg.advisorName,
                 suggestion: null,
                 declined: true,
@@ -74,18 +91,23 @@ function handleAdvisoryRequest(msg) {
         advisorName: msg.advisorName,
         askerName: state.currentRound.asker,
         answererName: state.currentRound.answerer,
-        focusAreas: CONFIG.FOCUS_AREAS
+        focusAreas: CONFIG.FOCUS_AREAS,
+        kind,
+        config: CONFIG
     });
 
     if (validation.invalid) {
         const reasonNote = {
             'closing-focus-area': '(Respondedor na Área Foco Encerramento)',
-            'needs-resources': '(Respondedor sem recursos para o honorário)'
+            'needs-resources': '(Respondedor sem recursos para o honorário)',
+            'has-resources': '(Respondedor com recursos não pede ajuda)',
+            'helper-without-resources': '(quem ajuda está sem recursos para cobrir um erro)'
         }[validation.reason] || '';
-        console.warn('⚠️ Pedido de assessoria rejeitado pelo host:', msg.advisorName, reasonNote);
+        console.warn('⚠️ Pedido de ' + (kind === 'help' ? 'ajuda' : 'assessoria') + ' rejeitado pelo host:', msg.advisorName, reasonNote);
         if (requester) {
             Game.network.sendToPlayer(requester.peerId, {
                 type: 'advisory-result',
+                kind,
                 advisorName: msg.advisorName,
                 suggestion: null,
                 declined: true,
@@ -99,10 +121,11 @@ function handleAdvisoryRequest(msg) {
     state.currentRound.advisory = {
         advisorName: msg.advisorName,
         status: 'pending',
-        suggestion: null
+        suggestion: null,
+        kind
     };
 
-    // Pausa o timeout de resposta enquanto aguarda a assessoria
+    // Pausa o timeout de resposta enquanto aguarda o apoio
     if (state.answerTimeout) {
         clearTimeout(state.answerTimeout);
         state.answerTimeout = null;
@@ -110,6 +133,7 @@ function handleAdvisoryRequest(msg) {
 
     Game.network.broadcastAll({
         type: 'advisory-started',
+        kind,
         advisorName: msg.advisorName,
         requesterName: msg.requesterName
     });
@@ -119,6 +143,7 @@ function handleAdvisoryRequest(msg) {
 
     Game.network.sendToPlayer(advisor.peerId, {
         type: 'advisory-question',
+        kind,
         question: question.question,
         domain: domainName,
         alternatives: question.alternatives,
@@ -134,7 +159,7 @@ function handleAdvisoryRequest(msg) {
 }
 
 /**
- * Host: processa a resposta (ou recusa/timeout) do assessor.
+ * Host: processa a resposta (ou recusa/timeout) de quem foi chamado.
  */
 function handleAdvisoryAnswer(msg) {
     const state = Game.state;
@@ -151,6 +176,7 @@ function handleAdvisoryAnswer(msg) {
 
     const resultMsg = {
         type: 'advisory-result',
+        kind: state.currentRound.advisory.kind,
         advisorName: state.currentRound.advisory.advisorName,
         suggestion: state.currentRound.advisory.suggestion,
         declined: !!msg.declined,

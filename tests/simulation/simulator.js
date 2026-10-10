@@ -11,8 +11,8 @@
 // trocas de config ("cenário B") valem só dentro da partida simulada.
 //
 // No lugar dos jogadores, robôs: o host do jogo real recebe as
-// mensagens dos robôs (resposta, pedido de assessoria, resposta do
-// assessor, pedido de ajuda, resposta à oferta de ajuda) pelas mesmas
+// mensagens dos robôs (resposta, pedido de assessoria ou de ajuda e a
+// resposta de quem foi chamado) pelas mesmas
 // funções de Game.core que a rede chamaria. O tempo é falso (os prazos
 // e o relógio de 90 minutos andam sem esperar), e o sorteio usa uma
 // semente: a mesma semente repete as mesmas partidas.
@@ -39,12 +39,10 @@ const GAME_FILES = [
     'js/domain/eventRules.js',
     'js/domain/deckRules.js',
     'js/domain/rankingRules.js',
-    'js/domain/tradeRules.js',
     'js/domain/advisoryRules.js',
     'js/engine/sessionEngine.js',
     'js/engine/turnEngine.js',
     'js/engine/answerEngine.js',
-    'js/engine/tradeEngine.js',
     'js/engine/advisoryEngine.js',
     'js/main.js',
 ];
@@ -63,17 +61,16 @@ const DEFAULT_OPTIONS = Object.freeze({
     advisorAcceptChance: 0.9,        // o assessor responde (senão recusa)
     advisorSeconds: [5, 15],
     followSuggestionChance: 0.8,     // o Respondedor segue a sugestão
-    helpChance: 0.5,                 // quem chega a 0 recursos pede ajuda
-    helpAcceptChance: 0.5,           // cada jogador da fila aceita doar
-    helpOfferSeconds: [2, 8],
+    helpChance: 0.5,                 // o Respondedor com 0 recursos ou menos pede ajuda
+    helpAcceptChance: 0.5,           // quem é chamado para ajudar responde (senão recusa)
     timeoutChance: 0,                // o Respondedor deixa o prazo vencer
     overrides: {}                    // trocas do config, ex.: { 'KPI.FINAL_RESOURCE_VALUE': 3 }
 });
 
 // Chaves do config mostradas no relatório (as trocadas entram também).
 const REPORT_CONFIG_KEYS = [
-    'STARTING_RESOURCES', 'KPI.CORRECT_ANSWER', 'KPI.FINAL_RESOURCE_VALUE', 'KPI.RESOURCE_PRICE',
-    'RESOURCES.ADVISORY_FEE', 'GAME.SESSION_DURATION', 'GAME.ACTIVITIES_PER_FOCUS_AREA', 'GAME.ANSWER_TIMEOUT'
+    'STARTING_RESOURCES', 'KPI.CORRECT_ANSWER', 'KPI.FINAL_RESOURCE_VALUE', 'RESOURCES.ADVISORY_FEE', 'RESOURCES.HELP_REWARD',
+    'RESOURCES.HELP_COVER', 'GAME.SESSION_DURATION', 'GAME.ACTIVITIES_PER_FOCUS_AREA', 'GAME.ANSWER_TIMEOUT'
 ];
 
 // ============================================
@@ -231,7 +228,7 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
         questionIds: [],
         events: {},
         advisories: { requested: 0, accepted: 0, declined: 0, feeTotal: 0 },
-        help: { requested: 0, accepted: 0, kpiMoved: 0, noDonors: 0, insufficientKpi: 0, allDeclined: 0 },
+        help: { requested: 0, accepted: 0, declined: 0, rewardTotal: 0, coverTotal: 0 },
         config: null,
         players: []
     };
@@ -284,8 +281,8 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
     names.forEach(name => {
         stats[name] = {
             accuracy: pick(o.accuracies), answers: 0, correct: 0, minResources: Infinity, timesAtZero: 0,
-            feesReceived: 0, feesPaid: 0, advisoriesGiven: 0, helpsAsked: 0, helpsReceived: 0, helpsGiven: 0,
-            atZero: false, wantsHelp: false, askedThisTime: false
+            feesReceived: 0, feesPaid: 0, advisoriesGiven: 0, helpsAsked: 0, helpsGiven: 0, rewardsReceived: 0, coversPaid: 0,
+            atZero: false
         };
     });
     const byPeer = (peerId) => state.players.find(p => p.peerId === peerId);
@@ -327,8 +324,9 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
                 s.answers++;
                 if (msg.isCorrect) s.correct++;
             }
-            // Honorário de assessoria: vem no kpi-update de quem respondeu
-            // (pagou) e no do assessor (recebeu, sem isCorrect).
+            // Apoio: vem no kpi-update de quem respondeu (com isCorrect) e
+            // no de quem apoiou (sem isCorrect) — honorário de assessoria,
+            // recompensa do patrocinador ou cobertura do erro.
             if (msg.supportOutcome === 'fee') {
                 if (msg.isCorrect !== undefined) {
                     s.feesPaid += msg.supportAmount;
@@ -336,21 +334,32 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
                     s.feesReceived += msg.supportAmount;
                     result.advisories.feeTotal += msg.supportAmount;
                 }
+            } else if (msg.supportOutcome === 'reward' && msg.isCorrect === undefined) {
+                s.rewardsReceived += msg.supportAmount;
+                result.help.rewardTotal += msg.supportAmount;
+            } else if (msg.supportOutcome === 'cover' && msg.isCorrect === undefined) {
+                s.coversPaid += msg.supportAmount;
+                result.help.coverTotal += msg.supportAmount;
             }
         } else if (msg.type === 'advisory-started') {
-            result.advisories.requested++;
-        } else if (msg.type === 'advisory-result') {
-            if (msg.declined) {
-                result.advisories.declined++;
+            if (msg.kind === 'help') {
+                result.help.requested++;
+                stats[msg.requesterName].helpsAsked++;
             } else {
-                result.advisories.accepted++;
-                stats[msg.advisorName].advisoriesGiven++;
+                result.advisories.requested++;
             }
-        } else if (msg.type === 'help-confirmed') {
-            result.help.accepted++;
-            result.help.kpiMoved += msg.amount;
-            stats[msg.donor].helpsGiven++;
-            stats[msg.requester].helpsReceived++;
+        } else if (msg.type === 'advisory-result') {
+            const counts = msg.kind === 'help' ? result.help : result.advisories;
+            if (msg.declined) {
+                counts.declined++;
+            } else {
+                counts.accepted++;
+                if (msg.kind === 'help') {
+                    stats[msg.advisorName].helpsGiven++;
+                } else {
+                    stats[msg.advisorName].advisoriesGiven++;
+                }
+            }
         } else if (msg.type === 'round-ended') {
             // O host clica em "Nova Rodada" depois de um tempo.
             clock.setTimeout(() => {
@@ -368,35 +377,30 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
         if (msg.type === 'question' && msg.isAnswerer) {
             answererRobot(player);
         } else if (msg.type === 'advisory-question') {
-            advisorRobot(player);
-        } else if (msg.type === 'help-offer') {
-            clock.setTimeout(() => {
-                Game.core.handleHelpOfferResponse({ type: 'help-offer-response', candidateName: player.name, requesterName: msg.requesterName,
-                    accepted: botRandom() < o.helpAcceptChance });
-            }, between(o.helpOfferSeconds) * 1000);
-        } else if (msg.type === 'help-no-candidates') {
-            if (msg.reason === 'no-donors') result.help.noDonors++;
-            if (msg.reason === 'insufficient-kpi') result.help.insufficientKpi++;
-            if (msg.reason === 'all-declined') result.help.allDeclined++;
+            advisorRobot(player, msg.kind);
         }
     }
 
     /**
-     * Respondedor: talvez peça assessoria (só com 1 recurso ou mais, como
-     * no jogo: a assessoria tem honorário); responde (ou deixa o prazo vencer).
+     * Respondedor: talvez peça apoio, como no jogo — assessoria com 1
+     * recurso ou mais (tem honorário), ajuda com 0 ou menos (a quem pode
+     * cobrir um erro); responde (ou deixa o prazo vencer).
      */
     function answererRobot(player) {
         const round = state.currentRound;
         if (botRandom() < o.timeoutChance) return;   // o prazo de resposta do jogo encerra a pergunta
         const think = between(o.answerSeconds);
         const inClosing = Game.getFocusAreaIndex(player.focusArea) === CONFIG.FOCUS_AREAS.length - 1;
-        if (!inClosing && player.resources >= 1 && botRandom() < o.advisoryChance) {
-            const candidates = Game.getActivePlayers().filter(p => p.name !== round.asker && p.name !== round.answerer);
+        const kind = player.resources >= 1 ? 'advisory' : 'help';
+        const chance = kind === 'help' ? o.helpChance : o.advisoryChance;
+        if (!inClosing && botRandom() < chance) {
+            const candidates = Game.getActivePlayers().filter(p => p.name !== round.asker && p.name !== round.answerer &&
+                (kind !== 'help' || p.resources >= CONFIG.RESOURCES.HELP_COVER));
             if (candidates.length > 0) {
                 const advisor = pick(candidates);
                 clock.setTimeout(() => {
                     if (state.currentRound !== round || round.answered) return;
-                    Game.core.handleAdvisoryRequest({ type: 'advisory-request', advisorName: advisor.name, requesterName: player.name });
+                    Game.core.handleAdvisoryRequest({ type: 'advisory-request', kind, advisorName: advisor.name, requesterName: player.name });
                 }, Math.min(5, think / 2) * 1000);
             }
         }
@@ -410,12 +414,13 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
         }, think * 1000);
     }
 
-    /** Assessor: responde com a própria chance de acerto, ou recusa. */
-    function advisorRobot(player) {
+    /** Assessor ou quem ajuda: responde com a própria chance de acerto, ou recusa. */
+    function advisorRobot(player, kind) {
         const round = state.currentRound;
+        const acceptChance = kind === 'help' ? o.helpAcceptChance : o.advisorAcceptChance;
         clock.setTimeout(() => {
             if (state.currentRound !== round || !round.advisory || round.advisory.status !== 'pending') return;
-            if (botRandom() < o.advisorAcceptChance) {
+            if (botRandom() < acceptChance) {
                 Game.core.handleAdvisoryAnswer({ type: 'advisory-answer', alternative: guess(round.question, stats[player.name].accuracy), declined: false });
             } else {
                 Game.core.handleAdvisoryAnswer({ type: 'advisory-answer', alternative: null, declined: true });
@@ -423,31 +428,16 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
         }, between(o.advisorSeconds) * 1000);
     }
 
-    /**
-     * Depois de cada passo: mínimo de recursos e vezes em 0 de cada um;
-     * quem chegou a 0 decide (uma vez por vez em 0) se pede ajuda, e
-     * pede quando tem KPI para pagar e não há outro pedido em andamento.
-     */
+    /** Depois de cada passo: mínimo de recursos e vezes em 0 (ou menos) de cada um. */
     function afterStep() {
         for (const p of state.players) {
             const s = stats[p.name];
             s.minResources = Math.min(s.minResources, p.resources);
             if (p.resources > 0) {
                 s.atZero = false;
-                continue;
-            }
-            if (!s.atZero) {
+            } else if (!s.atZero) {
                 s.atZero = true;
                 s.timesAtZero++;
-                s.wantsHelp = botRandom() < o.helpChance;
-                s.askedThisTime = false;
-            }
-            if (s.wantsHelp && !s.askedThisTime && !state.helpQueue && !state.gameOver &&
-                p.kpi >= CONFIG.KPI.RESOURCE_PRICE) {
-                s.askedThisTime = true;
-                s.helpsAsked++;
-                result.help.requested++;
-                Game.core.handleHelpRequest({ type: 'help-request', requesterName: p.name });
             }
         }
     }
@@ -477,7 +467,7 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
             focusAreaIndex: Game.getFocusAreaIndex(r.focusArea), activities: r.activities,
             answers: s.answers, correct: s.correct, minResources: s.minResources, timesAtZero: s.timesAtZero,
             feesReceived: s.feesReceived, feesPaid: s.feesPaid, advisoriesGiven: s.advisoriesGiven,
-            helpsAsked: s.helpsAsked, helpsReceived: s.helpsReceived, helpsGiven: s.helpsGiven
+            helpsAsked: s.helpsAsked, helpsGiven: s.helpsGiven, rewardsReceived: s.rewardsReceived, coversPaid: s.coversPaid
         };
     });
     return result;
@@ -514,7 +504,6 @@ function optionsFromInputs(inputs = {}) {
         accuracies: [...DEFAULT_OPTIONS.accuracies],
         answerSeconds: [...DEFAULT_OPTIONS.answerSeconds],
         advisorSeconds: [...DEFAULT_OPTIONS.advisorSeconds],
-        helpOfferSeconds: [...DEFAULT_OPTIONS.helpOfferSeconds],
         overrides: {}
     };
     const text = (field) => (inputs[field] === undefined || inputs[field] === null ? '' : String(inputs[field]).trim());
@@ -651,7 +640,8 @@ function buildReport({ a, b = null, commit = '' }) {
         ['Espera até "Nova Rodada"', number(o.newRoundSeconds, 0) + ' s'],
         ['Pede assessoria', pct(o.advisoryChance) + ' (o assessor responde em ' + pct(o.advisorAcceptChance) +
             ', a sugestão é seguida em ' + pct(o.followSuggestionChance) + ')'],
-        ['Pede ajuda ao chegar a 0 recursos', pct(o.helpChance) + ' (cada jogador da fila aceita em ' + pct(o.helpAcceptChance) + ')'],
+        ['Pede ajuda na vez de responder, com 0 recursos ou menos', pct(o.helpChance) + ' (quem é chamado responde em ' +
+            pct(o.helpAcceptChance) + ', a sugestão é seguida em ' + pct(o.followSuggestionChance) + ')'],
         ['Deixa o prazo de resposta vencer', pct(o.timeoutChance)]
     ]);
 
@@ -699,13 +689,9 @@ function buildReport({ a, b = null, commit = '' }) {
         ['Assessorias respondidas', run => percentText(total(run.matches, m => m.advisories.accepted), total(run.matches, m => m.advisories.requested))],
         ['Honorário de assessoria pago por partida (recursos)', run => perMatch(run, m => m.advisories.feeTotal)],
         ['Pedidos de ajuda por partida', run => perMatch(run, m => m.help.requested)],
-        ['Pedidos de ajuda aceitos', run => percentText(total(run.matches, m => m.help.accepted), total(run.matches, m => m.help.requested))],
-        ['Pedidos sem ninguém para doar / todos recusaram (por partida)', run =>
-            perMatch(run, m => m.help.noDonors) + ' / ' + perMatch(run, m => m.help.allDeclined)],
-        ['KPI que trocou de mãos na ajuda (por partida)', run => perMatch(run, m => m.help.kpiMoved)],
-        ['Saldo de quem recebe 1 recurso de ajuda, no KPI Final', run =>
-            number(run.config.KPI.FINAL_RESOURCE_VALUE - run.config.KPI.RESOURCE_PRICE, 0) + ' KPI (recurso vale ' +
-            run.config.KPI.FINAL_RESOURCE_VALUE + ', custa ' + run.config.KPI.RESOURCE_PRICE + ')']
+        ['Pedidos de ajuda respondidos', run => percentText(total(run.matches, m => m.help.accepted), total(run.matches, m => m.help.requested))],
+        ['Recompensa do patrocinador por partida (recursos)', run => perMatch(run, m => m.help.rewardTotal)],
+        ['Erros cobertos por quem ajudou, por partida (recursos)', run => perMatch(run, m => m.help.coverTotal)]
     ]);
 
     lines.push('### 🎴 Eventos', '');
@@ -744,14 +730,15 @@ function buildReport({ a, b = null, commit = '' }) {
 function toCsv(run) {
     const header = ['partida', 'semente', 'fim', 'rodadas', 'perguntas', 'minutos', 'jogador', 'perfil_acerto', 'posicao',
         'kpi', 'recursos', 'kpi_final', 'area_final', 'respostas', 'acertos', 'min_recursos', 'vezes_em_zero',
-        'ajudas_pedidas', 'ajudas_recebidas', 'ajudas_dadas', 'assessorias_dadas', 'honorarios_recebidos', 'honorarios_pagos'];
+        'ajudas_pedidas', 'ajudas_dadas', 'rewards_received', 'covers_paid', 'assessorias_dadas', 'honorarios_recebidos',
+        'honorarios_pagos'];
     const rows = [header.join(';')];
     const cell = (v) => (typeof v === 'number' ? String(v).replace('.', ',') : String(v).replace(/[;\n]/g, ' '));
     run.matches.forEach((m, i) => m.players.forEach(p => {
         const area = m.config.FOCUS_AREAS[p.focusAreaIndex];
         rows.push([i + 1, m.seed, m.endReason, m.rounds, m.questions, Math.round(m.durationSeconds / 6) / 10, p.name, p.accuracy,
             p.position, p.kpi, p.resources, p.finalKpi, area ? area.name : '', p.answers, p.correct, p.minResources, p.timesAtZero,
-            p.helpsAsked, p.helpsReceived, p.helpsGiven, p.advisoriesGiven, p.feesReceived, p.feesPaid].map(cell).join(';'));
+            p.helpsAsked, p.helpsGiven, p.rewardsReceived, p.coversPaid, p.advisoriesGiven, p.feesReceived, p.feesPaid].map(cell).join(';'));
     }));
     return rows.join('\n') + '\n';
 }

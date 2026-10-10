@@ -37,10 +37,10 @@ on:
         description: '% das perguntas em que o Respondedor pede assessoria'
         default: '30'
       pedir_ajuda:
-        description: '% das vezes em que quem chega a 0 recursos pede ajuda'
+        description: '% das perguntas em que o Respondedor com 0 recursos ou menos pede ajuda'
         default: '50'
       aceitar_ajuda:
-        description: '% das vezes em que um jogador da fila aceita doar'
+        description: '% das vezes em que quem é chamado para ajudar responde (senão recusa)'
         default: '50'
       cenario_b:
         description: 'Cenário B: trocas do config para comparar (ex.: KPI.FINAL_RESOURCE_VALUE=3; STARTING_RESOURCES=5). Vazio = sem cenário B'

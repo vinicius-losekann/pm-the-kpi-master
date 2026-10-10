@@ -85,29 +85,40 @@ function handleAnswer(msg) {
     answerer.focusArea = result.newFocusArea;
     answerer.activities = result.newActivities;
 
+    // Resultado do apoio (sugestão aceita e seguida) — cálculo puro
+    // delegado a domain/advisoryRules.js: honorário de assessoria ('fee'),
+    // recompensa do patrocinador a quem ajudou ('reward') ou cobertura do
+    // erro por quem ajudou ('cover'). Quem apoiou e saiu da sala (fora da
+    // lista): nada muda; só desconectado, continua valendo.
+    const advisory = state.currentRound.advisory;
+    const advisor = advisory ? Game.getPlayerByName(advisory.advisorName) : null;
+    const support = advisor ? Game.domain.advisory.calculateSupportOutcome(advisory, msg.alternative, isCorrect, hasReserve, CONFIG) : null;
+
     // Sem piso: errar com 0 recursos vai a −1, com −1 a −2 (estouro de
     // orçamento). O negativo desconta no KPI Final (domain/rankingRules.js).
-    if (result.spendsResource) {
+    // Na cobertura, o erro sai de quem ajudou, não de quem respondeu.
+    if (result.spendsResource && !(support && support.outcome === 'cover')) {
         answerer.resources -= 1;
+    }
+
+    if (support && support.outcome === 'fee') {
+        answerer.resources -= support.amount;
+        advisor.resources += support.amount;
+        console.log('🧭 Honorário de assessoria: ' + answererName + ' pagou ' + support.amount + ' recurso(s) a ' + advisor.name);
+    } else if (support && support.outcome === 'reward') {
+        advisor.resources += support.amount;
+        console.log('🎁 Recompensa do patrocinador: ' + advisor.name + ' ajudou ' + answererName + ' e ganhou ' + support.amount + ' recurso(s)');
+    } else if (support && support.outcome === 'cover') {
+        advisor.resources -= support.amount;
+        console.log('🛡️ Cobertura: ' + advisor.name + ' cobriu o erro de ' + answererName + ' com ' + support.amount + ' recurso(s)');
     }
 
     const reserveNote = hasReserve ? ' (reserva de contingência)' : '';
     console.log('📊 ' + (isCorrect ? '✅ Acertou' : '❌ Errou') + ' | Recursos: ' + answerer.resources + reserveNote + ' | KPI: ' + answerer.kpi);
 
-    // Honorário de assessoria (sugestão seguida e certa): quem respondeu
-    // paga ao assessor, em recurso — cálculo puro delegado a
-    // domain/advisoryRules.js. Assessor que saiu da sala (fora da lista):
-    // ninguém paga; só desconectado, continua recebendo.
-    const advisory = state.currentRound.advisory;
-    const advisor = advisory ? Game.getPlayerByName(advisory.advisorName) : null;
-    const fee = advisor ? Game.domain.advisory.calculateAdvisoryFee(advisory, msg.alternative, isCorrect, CONFIG) : 0;
-    if (fee > 0) {
-        answerer.resources -= fee;
-        advisor.resources += fee;
-        console.log('🧭 Honorário de assessoria: ' + answererName + ' pagou ' + fee + ' recurso(s) a ' + advisor.name);
-    }
-    // Quem pagou a quem vai no kpi-update dos dois (supportOutcome 'fee').
-    const answererSupport = fee > 0 ? { supportOutcome: 'fee', supportAmount: fee, supportPartner: advisor.name } : {};
+    // O apoio vai no kpi-update dos dois (supportOutcome, supportAmount e
+    // supportPartner: o outro jogador do apoio).
+    const answererSupport = support ? { supportOutcome: support.outcome, supportAmount: support.amount, supportPartner: advisor.name } : {};
 
     // Quem respondeu entra no rodízio ANTES do aviso aos
     // guests — o 'kpi-update' leva a lista (`answeredThisRound`). Se o host
@@ -140,15 +151,15 @@ function handleAnswer(msg) {
         });
     }
 
-    if (fee > 0) {
+    if (support) {
         const advisorUpdate = {
             playerName: advisor.name,
             kpi: advisor.kpi,
             focusArea: advisor.focusArea,
             activities: advisor.activities,
             resources: advisor.resources,
-            supportOutcome: 'fee',
-            supportAmount: fee,
+            supportOutcome: support.outcome,
+            supportAmount: support.amount,
             supportPartner: answererName
         };
         Game.network.broadcastAll({ type: 'kpi-update', ...advisorUpdate });
@@ -158,7 +169,7 @@ function handleAnswer(msg) {
     }
 
     // Atualização de tela do host: cobre tanto o
-    // respondedor quanto o honorário de assessoria acima, para os casos em
+    // respondedor quanto o apoio acima, para os casos em
     // que nenhum dos dois é o próprio host (broadcastAll não se
     // auto-envia, então sem isso o ranking do host fica desatualizado).
     if (state.isHost) {
@@ -194,8 +205,8 @@ function updatePlayerKPI(msg) {
     Game.ui.syncPlayerViews({ ...msg, name: msg.playerName });
 
     if (msg.playerName === state.playerName) {
-        // Apoio (por enquanto, só o honorário de assessoria): quem
-        // respondeu vê junto do resultado; o assessor, num aviso próprio.
+        // Apoio (honorário, recompensa ou cobertura): quem respondeu vê
+        // junto do resultado; quem apoiou, num aviso próprio.
         const support = msg.supportOutcome
             ? { outcome: msg.supportOutcome, amount: msg.supportAmount, partner: msg.supportPartner }
             : undefined;

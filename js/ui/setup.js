@@ -60,7 +60,7 @@ function setupUI() {
         document.getElementById('btnLeaveMatch').style.display = 'block';
     }
 
-    // Botões de ação (ajuda, assessoria, sessão, partida, nova rodada)
+    // Botões de ação (assessoria ou ajuda, sessão, partida, nova rodada)
     // agora são responsabilidade de controlsComponent.js.
     Game.ui.bindControls();
 
@@ -93,18 +93,6 @@ function setupUI() {
         btn.addEventListener('click', function () {
             Game.ui.handleAlternativeClick(this.getAttribute('data-alt'), this);
         });
-    });
-
-    document.getElementById('btnCloseHelpRequest').addEventListener('click', () => {
-        Game.ui.closeHelpRequestModal();
-    });
-
-    document.getElementById('btnAcceptHelpOffer').addEventListener('click', () => {
-        Game.ui.respondToHelpOffer(true);
-    });
-
-    document.getElementById('btnDeclineHelpOffer').addEventListener('click', () => {
-        Game.ui.respondToHelpOffer(false);
     });
 
     document.getElementById('btnCloseAdvisorySelect').addEventListener('click', () => {

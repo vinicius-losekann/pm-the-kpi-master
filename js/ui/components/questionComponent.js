@@ -127,26 +127,36 @@ function displayQuestion(q) {
         const me = Game.getPlayerByName(Game.state.playerName);
         const inClosingFocusArea = me && Game.getFocusAreaIndex(me.focusArea) === CONFIG.FOCUS_AREAS.length - 1;
         const noAdvisorAvailable = Game.getActivePlayers().length < 3;
-        // A assessoria tem honorário: com 0 recursos ou menos não se pede.
-        const withoutResources = !!me && me.resources < 1;
+        // Um botão para os dois apoios: com 1 recurso ou mais, assessoria
+        // (com honorário); com 0 ou menos, pedido de ajuda (fiança).
+        const asksForHelp = !!me && me.resources < 1;
         const advisoryArea = document.getElementById('advisoryArea');
         if (advisoryArea) {
-            if (inClosingFocusArea || noAdvisorAvailable || alreadyAnswered || withoutResources) {
+            if (inClosingFocusArea || noAdvisorAvailable || alreadyAnswered) {
                 advisoryArea.style.display = round?.advisory ? 'block' : 'none';
             } else {
                 advisoryArea.style.display = 'block';
             }
-            document.getElementById('advisoryFeeHint').textContent =
-                Game.i18n.t('advisory.feeHint', { amount: CONFIG.RESOURCES.ADVISORY_FEE });
+            const requestButton = document.getElementById('btnRequestAdvisory');
+            const hint = document.getElementById('advisoryFeeHint');
+            if (asksForHelp) {
+                requestButton.textContent = Game.i18n.t('help.requestButton');
+                hint.textContent = Game.i18n.t('help.hint', { amount: CONFIG.RESOURCES.HELP_REWARD });
+            } else {
+                requestButton.textContent = Game.i18n.t('advisory.requestButton');
+                hint.textContent = Game.i18n.t('advisory.feeHint', { amount: CONFIG.RESOURCES.ADVISORY_FEE });
+            }
 
             if (round?.advisory) {
-                document.getElementById('btnRequestAdvisory').disabled = true;
+                requestButton.disabled = true;
                 const st = round.advisory;
                 const statusEl = document.getElementById('advisoryStatus');
                 if (st.status === 'pending') {
                     statusEl.textContent = Game.i18n.t('advisory.waitingForAnswer', { advisor: st.advisorName });
                 } else if (st.status === 'accepted') {
                     statusEl.textContent = Game.i18n.t('advisory.suggestion', { advisor: st.advisorName, suggestion: st.suggestion.toUpperCase() });
+                } else if (st.status === 'declined' && st.kind === 'help') {
+                    statusEl.textContent = Game.i18n.t('help.declined', { advisor: st.advisorName });
                 } else if (st.status === 'declined') {
                     statusEl.textContent = Game.i18n.t('advisory.declined', { advisor: st.advisorName });
                 }

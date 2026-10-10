@@ -166,7 +166,7 @@ function handleMessage(msg, fromPeerId) {
             Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
             break;
 
-        // --- ASSESSORIA ---
+        // --- ASSESSORIA E PEDIDO DE AJUDA (o campo kind diz qual) ---
         case 'advisory-request':
             if (state.isHost && isSenderVerified(msg.requesterName, fromPeerId)) {
                 Game.core.handleAdvisoryRequest(msg);
@@ -187,56 +187,13 @@ function handleMessage(msg, fromPeerId) {
                 if (advisorName && isSenderVerified(advisorName, fromPeerId)) {
                     Game.core.handleAdvisoryAnswer(msg);
                 } else {
-                    console.warn('⚠️ Resposta de assessoria rejeitada: remetente não é o assessor designado da rodada.');
+                    console.warn('⚠️ Resposta de assessoria/ajuda rejeitada: remetente não é quem foi chamado na rodada.');
                 }
             }
             break;
 
         case 'advisory-result':
             Game.ui.showAdvisoryResult(msg);
-            break;
-
-        // --- PEDIDO DE AJUDA ---
-        case 'help-request':
-            if (state.isHost && isSenderVerified(msg.requesterName, fromPeerId)) {
-                Game.core.handleHelpRequest(msg);
-            }
-            break;
-
-        case 'help-trying':
-            Game.ui.showHelpCandidate(msg);
-            break;
-
-        case 'help-offer':
-            Game.ui.showHelpOfferModal(msg);
-            break;
-
-        case 'help-offer-response':
-            if (state.isHost && isSenderVerified(msg.candidateName, fromPeerId)) {
-                Game.core.handleHelpOfferResponse(msg);
-            }
-            break;
-
-        case 'help-no-candidates':
-            Game.ui.showHelpNoCandidates(msg);
-            break;
-
-        case 'help-confirmed':
-            const donor = Game.getPlayerByName(msg.donor);
-            const requester = Game.getPlayerByName(msg.requester);
-            if (donor) {
-                donor.kpi = msg.donorKpi;
-                donor.resources = msg.donorResources;
-            }
-            if (requester) {
-                requester.kpi = msg.requesterKpi;
-                requester.resources = msg.requesterResources;
-            }
-            Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
-            if (state.playerName === msg.requester) {
-                Game.ui.closeHelpRequestModal();
-            }
-            console.log('🆘 Ajuda confirmada:', msg.donor, '→', msg.requester);
             break;
     }
 }

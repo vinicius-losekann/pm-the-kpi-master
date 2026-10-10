@@ -91,7 +91,8 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
             advisoryChance: 1, advisorAcceptChance: 1, followSuggestionChance: 1 }),
         noAdvisory: await simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 2, seed: 4, players: 4, advisoryChance: 0 }),
         help: await simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 6, seed: 9, players: 4, accuracies: [0.5],
-            advisoryChance: 0, helpChance: 1, helpAcceptChance: 1, followSuggestionChance: 1, overrides: { STARTING_RESOURCES: 1 } }),
+            advisoryChance: 0, advisorAcceptChance: 0, helpChance: 1, helpAcceptChance: 1, followSuggestionChance: 1,
+            overrides: { STARTING_RESOURCES: 1 } }),
         noHelp: await simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 2, seed: 9, players: 4, accuracies: [0.5],
             helpChance: 0, overrides: { STARTING_RESOURCES: 1 } }),
         timeout: await simulator.simulateMatch({ ...simulator.DEFAULT_OPTIONS, seed: 2, players: 2, timeoutChance: 1,
@@ -263,7 +264,11 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
         const R = C.RESOURCES;
         const helped = r.help.matches;
         const accepted = sum(helped, m => m.help.accepted);
-        check(accepted > 0, 'com helpChance 1 e STARTING_RESOURCES 1, deveria haver ajudas aceitas');
+        // Vale a chance de quem ajuda (1), não a do assessor (0). Só o
+        // pedido em andamento quando a partida acaba fica sem resposta.
+        check(accepted > 0 && helped.every(m => m.help.declined === 0 && m.help.accepted >= m.help.requested - 1),
+            'com helpAcceptChance 1 (e advisorAcceptChance 0), todo pedido de ajuda deveria ser respondido: ' +
+            JSON.stringify(helped.map(m => m.help)));
         check(sum(helped, m => m.help.rewardTotal) > 0 && sum(helped, m => m.help.coverTotal) > 0,
             'com acerto de 50%, deveria haver recompensas e coberturas: ' + JSON.stringify(helped.map(m => m.help)));
         check(helped.every(m => m.help.rewardTotal % R.HELP_REWARD === 0 && m.help.coverTotal % R.HELP_COVER === 0 &&
