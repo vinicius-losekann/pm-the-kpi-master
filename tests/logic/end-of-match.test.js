@@ -275,7 +275,7 @@ test('T68 Estado salvo guarda o fim de jogo e o ranking; estado antigo restaura 
 
 /**
  * Partida de 4 (Host, A, B, C) com a pergunta aberta para A (o host
- * pergunta) e B sem recursos, com um pedido de ajuda em andamento.
+ * pergunta), com o prazo de resposta armado.
  */
 function matchWithPendingDeadlines(use) {
     const env = use(createEnvironment());
@@ -289,30 +289,27 @@ function matchWithPendingDeadlines(use) {
     env.state.currentRound = { ...env.state.currentRound, asker: 'Host', answerer: 'A', answered: false };
     env.state.answeredThisRound = [];
     env.Game.core.armAnswerTimeout('A');
-    Object.assign(env.player('B'), { resources: 0, kpi: 20 });
-    env.Game.network.handleMessage({ type: 'help-request', requesterName: 'B' }, 'peer-b');
-    check(env.state.helpQueue && env.state.helpTimeout, 'pré-condição: pedido de ajuda em andamento');
     return { env, time };
 }
 
-test('T72 Fim de jogo, encerrar a partida e troca de dupla cancelam os prazos pendentes (resposta, assessoria, pedido de ajuda)', (use) => {
-    // Fim de jogo com a pergunta aberta e um pedido de ajuda em andamento.
+test('T72 Fim de jogo, encerrar a partida e troca de dupla cancelam os prazos pendentes (resposta e assessoria)', (use) => {
+    // Fim de jogo com a pergunta aberta.
     const gameOver = matchWithPendingDeadlines(use);
     check(gameOver.env.state.answerTimeout, 'pré-condição: prazo de resposta armado');
     gameOver.env.Game.core.endGame(gameOver.env.Game.core.buildRanking());
     const s1 = gameOver.env.state;
-    check(!s1.answerTimeout && !s1.advisoryTimeout && !s1.helpTimeout && !s1.helpQueue,
-        'o fim de jogo deveria zerar os prazos e o pedido de ajuda');
+    check(!s1.answerTimeout && !s1.advisoryTimeout,
+        'o fim de jogo deveria zerar os prazos');
     check(gameOver.time.pending() === 0, 'nenhum prazo antigo pode continuar agendado, sobraram: ' + gameOver.time.pending());
 
-    // Encerrar a partida com um pedido de assessoria pendente e o pedido de ajuda.
+    // Encerrar a partida com um pedido de assessoria pendente.
     const ended = matchWithPendingDeadlines(use);
     ended.env.Game.network.handleMessage({ type: 'advisory-request', advisorName: 'C', requesterName: 'A' }, 'peer-a');
     check(ended.env.state.advisoryTimeout, 'pré-condição: prazo do assessor armado');
     ended.env.Game.core.endMatch();
     const s2 = ended.env.state;
-    check(!s2.answerTimeout && !s2.advisoryTimeout && !s2.helpTimeout && !s2.helpQueue,
-        'encerrar a partida deveria zerar os prazos e o pedido de ajuda');
+    check(!s2.answerTimeout && !s2.advisoryTimeout,
+        'encerrar a partida deveria zerar os prazos');
     check(ended.time.pending() === 0, 'nenhum prazo antigo pode continuar agendado, sobraram: ' + ended.time.pending());
     ended.env.clearLog();
     ended.time.advance(ended.env.CONFIG.GAME.ANSWER_TIMEOUT * 2);
@@ -320,15 +317,14 @@ test('T72 Fim de jogo, encerrar a partida e troca de dupla cancelam os prazos pe
         'depois de encerrar, nada pode ser enviado por prazo antigo');
 
     // Troca de dupla (quem responde cai com a assessoria pendente): os prazos
-    // da rodada são cancelados, mas o pedido de ajuda continua.
+    // da pergunta descartada são cancelados.
     const swap = matchWithPendingDeadlines(use);
     swap.env.Game.network.handleMessage({ type: 'advisory-request', advisorName: 'C', requesterName: 'A' }, 'peer-a');
     swap.env.drop('peer-a');
     const s3 = swap.env.state;
     check(s3.currentRound && s3.currentRound.answerer !== 'A', 'pré-condição: nova dupla sem A');
     check(!s3.advisoryTimeout, 'o prazo do assessor da pergunta descartada deveria ser cancelado');
-    check(s3.helpQueue && s3.helpTimeout, 'o pedido de ajuda continua entre uma dupla e outra');
-    check(swap.time.pending() === 2, 'deveriam sobrar só o prazo de resposta da nova dupla e o do pedido de ajuda, sobraram: ' + swap.time.pending());
+    check(swap.time.pending() === 1, 'deveria sobrar só o prazo de resposta da nova dupla, sobraram: ' + swap.time.pending());
 });
 
 /**

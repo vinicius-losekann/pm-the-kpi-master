@@ -208,7 +208,6 @@ test('T110 KPI Final e ranking descontam o estouro; as telas mostram o recurso n
         'no estouro, myResources deveria ter as classes stat-value e resources-overrun, veio: "' + elements.myResources.className + '"');
     check(elements.myResourcesLabel && elements.myResourcesLabel.textContent === 'profile.overrunLabel',
         'no estouro, o rótulo (myResourcesLabel) deveria ser o de estouro (profile.overrunLabel), veio: ' + JSON.stringify(elements.myResourcesLabel));
-    check(elements.btnRequestHelp && elements.btnRequestHelp.style.display === 'block', 'no estouro, o botão de ajuda continua visível');
 
     // Voltou a 0: sai o destaque e volta o rótulo normal.
     env.ctx.renderProfileCard({ name: 'Ana', kpi: 5, resources: 0, focusArea: area, activities: 0 });

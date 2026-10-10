@@ -55,16 +55,15 @@ const OLD_CONFIG_KEYS = [
     'ASSESSORIA_ACERTO', 'ASSESSORIA_TIMEOUT', 'RESPOSTA_TIMEOUT', 'ACTIVITIES_PER_PHASE'
 ];
 
-test('T87 CONFIG em inglês: o jogo e os testes só usam chaves que existem no config real; prazo próprio para a oferta de ajuda', (use) => {
+test('T87 CONFIG em inglês: o jogo e os testes só usam chaves que existem no config real; o pedido de ajuda usa o prazo da assessoria', (use) => {
     const C = realConfig();
 
     // 1) O config real tem as chaves novas e nenhuma antiga.
     for (const keyPath of ['GAME.MAX_PLAYERS', 'GAME.MIN_PLAYERS', 'GAME.SESSION_DURATION', 'GAME.ACTIVITIES_PER_FOCUS_AREA',
-        'GAME.HOST_TIMEOUT', 'GAME.ADVISORY_TIMEOUT', 'GAME.HELP_OFFER_TIMEOUT', 'GAME.ANSWER_TIMEOUT', 'STARTING_RESOURCES',
-        'KPI.CORRECT_ANSWER', 'KPI.FINAL_RESOURCE_VALUE', 'KPI.RESOURCE_PRICE', 'RESOURCES.ADVISORY_FEE']) {
+        'GAME.HOST_TIMEOUT', 'GAME.ADVISORY_TIMEOUT', 'GAME.ANSWER_TIMEOUT', 'STARTING_RESOURCES',
+        'KPI.CORRECT_ANSWER', 'KPI.FINAL_RESOURCE_VALUE', 'RESOURCES.ADVISORY_FEE', 'RESOURCES.HELP_REWARD', 'RESOURCES.HELP_COVER']) {
         check(typeof valueAt(C, keyPath) === 'number', 'config/game-config.js deveria ter CONFIG.' + keyPath + ' (número)');
     }
-    check(C.GAME.HELP_OFFER_TIMEOUT === 20000, 'a oferta de ajuda deveria continuar com 20s, veio: ' + C.GAME.HELP_OFFER_TIMEOUT);
     check(Array.isArray(C.FOCUS_AREAS) && C.FOCUS_AREAS.length === 5 &&
         C.FOCUS_AREAS.every(f => typeof f.id === 'string' && typeof f.name === 'string' && typeof f.emoji === 'string'),
         'CONFIG.FOCUS_AREAS deveria ter as 5 áreas foco com id, name e emoji');
@@ -106,32 +105,28 @@ test('T87 CONFIG em inglês: o jogo e os testes só usam chaves que existem no c
     check(notInTest.length === 0, 'faltam no CONFIG de teste (environment.js) chaves do jogo, do KPI e dos recursos: ' + notInTest.join(', '));
     check(env.CONFIG.FOCUS_AREAS.every(f => f.id && f.name && f.emoji), 'as áreas foco do CONFIG de teste deveriam ter id, name e emoji');
 
-    // 4) A oferta de ajuda usa HELP_OFFER_TIMEOUT e a assessoria, ADVISORY_TIMEOUT.
-    env.createRoomAsHost();
-    env.join('A', 'peer-a');
-    env.join('B', 'peer-b');
-    env.startMatch();
-    env.CONFIG.GAME.ADVISORY_TIMEOUT = 25000;
-    env.CONFIG.GAME.HELP_OFFER_TIMEOUT = 35000;
-    const time = env.fakeTime();
-    const r = env.state.currentRound;
-    const third = ['Host', 'A', 'B'].find(n => n !== r.asker && n !== r.answerer);
-    env.Game.core.handleAdvisoryRequest({ type: 'advisory-request', advisorName: third, requesterName: r.answerer });
-    check(env.state.currentRound.advisory && env.state.currentRound.advisory.status === 'pending', 'a assessoria deveria ficar pendente');
-    time.advance(24999);
-    check(env.state.currentRound.advisory.status === 'pending', 'a assessoria não deveria vencer antes de ADVISORY_TIMEOUT');
-    time.advance(1);
-    check(env.state.currentRound.advisory.status === 'declined', 'a assessoria deveria vencer em ADVISORY_TIMEOUT (25s), veio: ' + env.state.currentRound.advisory.status);
-
-    Object.assign(env.player('A'), { resources: 0, kpi: 20 });
-    Object.assign(env.player('B'), { resources: 5 });
-    env.Game.network.handleMessage({ type: 'help-request', requesterName: 'A' }, 'peer-a');
-    check(env.state.helpQueue && JSON.stringify(env.state.helpQueue.candidates) === '["Host","B"]',
-        'a fila deveria ser Host (10 recursos) e B (5), veio: ' + JSON.stringify(env.state.helpQueue));
-    time.advance(34999);
-    check(env.state.helpQueue && env.state.helpQueue.index === 0, 'a oferta ao Host não deveria vencer antes de HELP_OFFER_TIMEOUT (ADVISORY_TIMEOUT é 25s)');
-    time.advance(1);
-    check(env.state.helpQueue && env.state.helpQueue.index === 1, 'a oferta deveria passar ao próximo em HELP_OFFER_TIMEOUT (35s), veio: ' + JSON.stringify(env.state.helpQueue));
+    // 4) A assessoria e o pedido de ajuda usam o mesmo prazo, ADVISORY_TIMEOUT.
+    for (const kind of ['advisory', 'help']) {
+        const match = use(createEnvironment());
+        match.createRoomAsHost();
+        match.join('A', 'peer-a');
+        match.join('B', 'peer-b');
+        match.startMatch();
+        match.CONFIG.GAME.ADVISORY_TIMEOUT = 25000;
+        const time = match.fakeTime();
+        const r = match.state.currentRound;
+        const third = ['Host', 'A', 'B'].find(n => n !== r.asker && n !== r.answerer);
+        match.player(r.answerer).resources = kind === 'help' ? 0 : 5;
+        match.player(third).resources = 5;
+        match.Game.core.handleAdvisoryRequest({ type: 'advisory-request', kind, advisorName: third, requesterName: r.answerer });
+        const advisory = match.state.currentRound.advisory;
+        check(advisory && advisory.status === 'pending' && (advisory.kind || 'advisory') === kind, kind + ': o pedido deveria ficar pendente, veio: ' + JSON.stringify(advisory));
+        time.advance(24999);
+        check(match.state.currentRound.advisory.status === 'pending', kind + ': o pedido não deveria vencer antes de ADVISORY_TIMEOUT');
+        time.advance(1);
+        check(match.state.currentRound.advisory.status === 'declined', kind + ': o pedido deveria vencer em ADVISORY_TIMEOUT (25s), veio: ' +
+            match.state.currentRound.advisory.status);
+    }
 });
 
 /** Dicionário do js/locales/pt-BR.js real. */
@@ -193,9 +188,6 @@ const I18N_RENAMES = {
     'advisory.invalido': 'advisory.invalid',
     'advisory.faseEncerramento': 'advisory.closingFocusArea',
     'advisory.tempoRestante': 'advisory.timeLeft',
-    'trade.pedidoRecebido': 'trade.helpOffer',
-    'trade.semKpiParaPedirAjuda': 'trade.insufficientKpi',
-    'trade.ninguemPodeAjudar': 'trade.noHelp',
     'result.acertou': 'result.correct',
     'result.errou': 'result.wrong',
     'result.kpiGanho': 'result.kpiGained',
@@ -219,10 +211,14 @@ const I18N_RENAMES = {
     'connection.naoFoiPossivelReconectar': 'connection.couldNotReconnect',
     'connection.falhaAssumirHost': 'connection.hostTakeoverFailed'
 };
-const OLD_I18N_KEYS = Object.keys(I18N_RENAMES);
+// Textos do pedido de ajuda antigo (fila e doação), que saíram com a economia de
+// recursos: nem o nome antigo nem o novo podem voltar.
+const REMOVED_I18N_KEYS = ['trade.pedidoRecebido', 'trade.semKpiParaPedirAjuda', 'trade.ninguemPodeAjudar',
+    'trade.helpOffer', 'trade.insufficientKpi', 'trade.noHelp', 'trade.helpBusy'];
+const OLD_I18N_KEYS = Object.keys(I18N_RENAMES).concat(REMOVED_I18N_KEYS);
 const OLD_I18N_MARKERS = ['assessor', 'sugestao', 'perguntador', 'respondedor', 'recursos', 'valor', 'kpiRecursos'];
-const I18N_MARKERS = ['advisor', 'amount', 'answerer', 'asker', 'attempt', 'count', 'giver', 'kpi', 'max', 'min', 'names',
-    'receiver', 'requester', 'resources', 'resourcesKpi', 'seconds', 'suggestion', 'value'];
+const I18N_MARKERS = ['advisor', 'amount', 'answerer', 'asker', 'attempt', 'count', 'cover', 'giver', 'helper', 'kpi', 'max', 'min', 'names',
+    'receiver', 'requester', 'resources', 'resourcesKpi', 'reward', 'seconds', 'suggestion', 'value'];
 
 test('T88 Textos da tela em inglês: toda chave pedida existe no pt-BR.js real, toda chave dele é usada e cada chamada passa os marcadores do texto', () => {
     const dict = realDictionary();
@@ -272,17 +268,11 @@ test('T88 Textos da tela em inglês: toda chave pedida existe no pt-BR.js real, 
 // IDs de elemento do game.html antes da tradução para inglês → nome novo.
 const ELEMENT_ID_RENAMES = {
     btnNovaRodada: 'btnNewRound',
-    btnPedirAjuda: 'btnRequestHelp',
     btnPedirAssessoria: 'btnRequestAdvisory',
-    btnAceitarAjudaOferta: 'btnAcceptHelpOffer',
-    btnRecusarAjudaOferta: 'btnDeclineHelpOffer',
     btnRecusarAssessoria: 'btnDeclineAdvisory',
     btnFecharEvento: 'btnCloseEvent',
-    btnFecharPedirAjuda: 'btnCloseHelpRequest',
     btnFecharAssessoriaSelect: 'btnCloseAdvisorySelect',
     modalEvento: 'modalEvent',
-    modalPedirAjuda: 'modalHelpRequest',
-    modalAjudaOferta: 'modalHelpOffer',
     modalAssessoriaSelect: 'modalAdvisorySelect',
     modalAssessoriaQuestion: 'modalAdvisoryQuestion',
     modalResponderPergunta: 'modalAnswerQuestion',
@@ -302,9 +292,6 @@ const ELEMENT_ID_RENAMES = {
     assessoriaModalRoundInfo: 'advisoryModalRoundInfo',
     assessoriaQuestionText: 'advisoryQuestionText',
     assessoriaTimerText: 'advisoryTimerText',
-    ajudaTentandoCom: 'helpTryingWith',
-    ajudaOfertaTexto: 'helpOfferText',
-    ajudaValorKPI: 'helpKpiCost',
     eventoModalTitulo: 'eventModalTitle',
     eventoModalDesc: 'eventModalDesc',
     myRecursos: 'myResources',
@@ -312,6 +299,12 @@ const ELEMENT_ID_RENAMES = {
     kpiFinalFormula: 'finalKpiFormula',
     resultTabuleiroReminder: 'resultBoardReminder'
 };
+// IDs antigos do pedido de ajuda da fila e da doação, que saiu com a
+// economia de recursos (o T123 confere que os nomes em inglês também saíram).
+const REMOVED_ELEMENT_IDS = [
+    'btnPedirAjuda', 'btnAceitarAjudaOferta', 'btnRecusarAjudaOferta', 'btnFecharPedirAjuda', 'modalPedirAjuda', 'modalAjudaOferta',
+    'ajudaTentandoCom', 'ajudaOfertaTexto', 'ajudaValorKPI'
+];
 // Classes antes da tradução → nome novo. As com regra no style.css:
 const STYLED_CLASS_RENAMES = {
     'phases-card': 'focus-areas-card',
@@ -401,7 +394,7 @@ test('T91 HTML e CSS em inglês: IDs, classes e atributos data-* com os nomes no
     // nome (id="x", #x, 'x', .x, class="... x", data-x, dataset.x).
     const scanned = { 'game.html': gameHtml, 'index.html': indexHtml, 'css/style.css': css, ...jsSources };
     const patterns = [
-        ...Object.keys(ELEMENT_ID_RENAMES).map(id => [id, new RegExp('(?:\\bid=["\']|#|[\'"`])' + id + '(?![\\w-])')]),
+        ...Object.keys(ELEMENT_ID_RENAMES).concat(REMOVED_ELEMENT_IDS).map(id => [id, new RegExp('(?:\\bid=["\']|#|[\'"`])' + id + '(?![\\w-])')]),
         ...Object.keys({ ...STYLED_CLASS_RENAMES, ...UNSTYLED_CLASS_RENAMES, ...REMOVED_CLASS_RENAMES, ...DATA_ATTRIBUTE_RENAMES })
             .map(name => [name, new RegExp('(?<![\\w-])' + escapeRegExp(name) + '(?![\\w-])')]),
         ...Object.keys(DATASET_RENAMES).map(name => ['dataset.' + name, new RegExp('\\.dataset\\.' + name + '\\b')])
@@ -452,8 +445,8 @@ test('T91 HTML e CSS em inglês: IDs, classes e atributos data-* com os nomes no
     const modalIds = [...gameHtml.matchAll(/<div id="([\w-]+)" class="modal"/g)].map(m => m[1]).sort();
     const closeAll = (jsSources['js/ui/screenManager.js'].match(/function closeAllModals\(\)[\s\S]*?\[([\s\S]*?)\]\.forEach/) || [])[1] || '';
     const closed = [...closeAll.matchAll(/'([\w-]+)'/g)].map(m => m[1]).sort();
-    check(modalIds.length === 7 && JSON.stringify(closed) === JSON.stringify(modalIds),
-        'closeAllModals deveria fechar exatamente os 7 modais do game.html (' + modalIds.join(', ') + '), fecha: ' + closed.join(', '));
+    check(modalIds.length > 0 && JSON.stringify(closed) === JSON.stringify(modalIds),
+        'closeAllModals deveria fechar exatamente os modais do game.html (' + modalIds.join(', ') + '), fecha: ' + closed.join(', '));
 
     // Os testes no navegador: todo #id dos seletores existe num dos HTML.
     for (const file of jsFilesIn('tests/browser')) {
@@ -486,9 +479,7 @@ test('T91 HTML e CSS em inglês: IDs, classes e atributos data-* com os nomes no
     const cardClasses = classTokens(card);
     const cardWithoutStyle = [...new Set(cardClasses)].filter(c => !styled.has(c));
     check(cardClasses.length > 0 && cardWithoutStyle.length === 0, 'classes do card sem regra no CSS: ' + cardWithoutStyle.join(', '));
-    check(elements.myResources && elements.myResources.textContent === 0 &&
-        elements.btnRequestHelp && elements.btnRequestHelp.style.display === 'block',
-        'o card deveria mostrar 0 recursos em myResources e o botão btnRequestHelp');
+    check(elements.myResources && elements.myResources.textContent === 0, 'o card deveria mostrar 0 recursos em myResources');
 
     env.state.players = [
         { name: 'Ana', kpi: 5, resources: 0, focusArea: second, activities: 1 },

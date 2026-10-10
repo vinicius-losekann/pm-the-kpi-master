@@ -231,3 +231,50 @@ test('E16 Sala cheia: o 7º nome é recusado no lobby; com 6 na partida, quem ca
     expect(await ana.state(() => Game.state.players.length), 'a lista continua com 6').toBe(6);
     expect(await ana.state(() => Game.state.players.filter(p => p.disconnected).length), 'todos conectados de novo').toBe(0);
 });
+test('E19 Pedido de ajuda com 3 jogadores: quem está sem recursos pede ajuda na vez de responder, segue a sugestão certa e quem ajudou ganha a recompensa do patrocinador', async ({ players }) => {
+    const code = roomCode();
+    const ana = await players.add('Ana');
+    const beto = await players.add('Beto');
+    const caio = await players.add('Caio');
+    await startMatch(ana, [beto, caio], code);
+
+    // Quando a pergunta abre para o Beto, o host zera os recursos dele (avisa a todos) e a tela é montada de novo.
+    await waitForOpenQuestion(ana, [ana, beto, caio], [beto]);
+    await ana.state(() => {
+        Game.state.players.find(p => p.name === 'Beto').resources = 0;
+        Game.network.broadcastAll({ type: 'player-list', players: Game.state.players });
+    });
+    await beto.waitFor(() => Game.getPlayerByName('Beto').resources === 0);
+    await beto.state(() => Game.ui.displayQuestion(Game.state.currentRound.question));
+    await expect(beto.page.locator('#btnRequestAdvisory'), 'com 0 recursos, o botão deveria ser o de pedir ajuda').toHaveText(/Pedir Ajuda/);
+
+    // Quem pode ajudar é quem não está na dupla.
+    const asker = await ana.state(() => Game.state.currentRound.asker);
+    const helper = asker === 'Ana' ? caio : ana;
+    const helperBefore = await ana.state((name) => Game.getPlayerByName(name).resources, helper.name);
+    const correct = await ana.state(() => Game.state.currentRound.question.correct);
+
+    await beto.click('#btnRequestAdvisory');
+    await beto.page.click('#advisoryPlayersList .advisor-select-btn[data-advisor-name="' + helper.name + '"]', { timeout: 10000 });
+    await ana.waitFor(() => !!Game.state.currentRound.advisory && Game.state.currentRound.advisory.kind === 'help' &&
+        Game.state.currentRound.advisory.status === 'pending');
+
+    // Quem ajuda recebe o convite de ajuda e sugere a alternativa certa.
+    await expect(helper.page.locator('#modalAdvisoryQuestion'), helper.name + ' deveria receber o pedido de ajuda').toBeVisible({ timeout: 10000 });
+    await expect(helper.page.locator('#modalAdvisoryQuestion')).toContainText('Pedido de Ajuda');
+    await helper.click('#advisoryAlternativesList button:nth-child(' + (['a', 'b', 'c', 'd'].indexOf(correct) + 1) + ')');
+
+    // Beto vê a sugestão e a segue.
+    await beto.waitFor(() => Game.state.currentRound.advisory && Game.state.currentRound.advisory.status === 'accepted');
+    await beto.click('#alternativesGrid .alternative-btn[data-alt="' + correct + '"]');
+
+    // Beto acerta sem mexer nos recursos; quem ajudou ganha a recompensa e vê o aviso.
+    await ana.waitFor(() => Game.state.answeredThisRound.includes('Beto'), { timeout: 10000 });
+    const reward = await ana.state(() => CONFIG.RESOURCES.HELP_REWARD);
+    expect(await ana.state(() => Game.getPlayerByName('Beto').resources), 'Beto deveria continuar com 0 recursos').toBe(0);
+    expect(await ana.state((name) => Game.getPlayerByName(name).resources, helper.name),
+        helper.name + ' deveria ganhar a recompensa do patrocinador').toBe(helperBefore + reward);
+    await expect(helper.page.locator('#modalResult'), helper.name + ' deveria ver o aviso da recompensa').toBeVisible({ timeout: 10000 });
+    await expect(helper.page.locator('#resultMessage')).toContainText('patrocinador');
+    await expect(beto.page.locator('#resultMessage'), 'Beto deveria ver quem ajudou').toContainText(helper.name);
+});

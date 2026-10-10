@@ -1,10 +1,12 @@
 // ============================================
 // PM: The KPI Master - Testes de lógica: Pedido de ajuda e assessoria
 // ============================================
-// Pedido de ajuda (fila automática de quem pode doar um recurso) e
-// pedido de assessoria (o Respondedor chama outro jogador para sugerir
-// uma alternativa; só com 1 recurso ou mais, e quem pediu paga o
-// honorário ao assessor quando segue a sugestão e acerta).
+// O Respondedor chama outro jogador para sugerir uma alternativa (um
+// apoio por pergunta). Com 1 recurso ou mais, é assessoria: quem pediu
+// paga o honorário ao assessor quando segue a sugestão e acerta. Com 0
+// ou menos, é pedido de ajuda (fiança): seguiu e acertou, quem ajudou
+// ganha a recompensa do patrocinador; seguiu e errou, quem ajudou cobre
+// o erro.
 // Ambiente simulado e ajudantes: environment.js. Rodar a partir da raiz:
 //     node tests/logic/help-and-advisory.test.js
 // ============================================
@@ -16,102 +18,10 @@ const {
 
 start('Pedido de ajuda e assessoria');
 
-/**
- * Partida de 4 (Host, A, B, C). A está sem recursos e com KPI para pedir
- * ajuda; a fila de quem pode doar fica B (5), C (3), Host (1).
- */
-function matchWithHelpQueue(use) {
-    const env = use(createEnvironment());
-    env.time = env.fakeTime();
-    env.createRoomAsHost();
-    env.join('A', 'peer-a');
-    env.join('B', 'peer-b');
-    env.join('C', 'peer-c');
-    env.startMatch();
-    Object.assign(env.player('A'), { resources: 0, kpi: 20 });
-    Object.assign(env.player('B'), { resources: 5, kpi: 0 });
-    Object.assign(env.player('C'), { resources: 3, kpi: 0 });
-    Object.assign(env.player('Host'), { resources: 1, kpi: 0 });
-    return env;
-}
-
-/** Ofertas de ajuda enviadas a um peer. */
-function offersTo(env, peerId) {
-    return env.record.sent.filter(e => e.to === peerId && e.msg.type === 'help-offer');
-}
-
 /** Mensagens de um tipo enviadas a um peer. */
 function sentTo(env, peerId, type) {
     return env.record.sent.filter(e => e.to === peerId && e.msg.type === type).map(e => e.msg);
 }
-
-/** Candidato responde à oferta de ajuda feita para requesterName. */
-function respond(env, candidateName, requesterName, accepted) {
-    const peerId = 'peer-' + candidateName.toLowerCase();
-    env.Game.network.handleMessage({ type: 'help-offer-response', candidateName, requesterName, accepted }, peerId);
-}
-
-/**
- * Modal do pedido de ajuda (tradeModal.js real) com tela, rede e
- * alerta falsos; o i18n falso devolve a chave pedida.
- */
-function helpModalWithFakes() {
-    const elements = {};
-    const record = { alerts: [], toHost: [], toCore: [] };
-    const ctx = vm.createContext({
-        console: { log: () => {}, warn: () => {}, error: () => {}, info: () => {} },
-        alert: (text) => record.alerts.push(text),
-        document: { getElementById: (id) => elements[id] || (elements[id] = { id, textContent: '', innerHTML: '', style: {} }) }
-    });
-    vm.runInContext("var window = this; window.Game = { i18n: { t: (key, v) => key + ':' + (v && v.requester) } };", ctx);
-    vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/utils/sanitize.js'), 'utf8'), ctx, { filename: 'sanitize.js' });
-    vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/ui/modals/tradeModal.js'), 'utf8'), ctx, { filename: 'tradeModal.js' });
-    const Game = vm.runInContext('Game', ctx);
-    Game.state = { isHost: false, playerName: 'B' };
-    Game.network = { sendToHost: (msg) => record.toHost.push(msg) };
-    Game.core = { handleHelpOfferResponse: (msg) => record.toCore.push(msg), requestHelp: () => {} };
-    return { Game, ui: Game.ui, elements, record };
-}
-
-test('T69 Pedido de ajuda: quem caiu é pulado na fila; se quem pediu cai, o pedido é cancelado', (use) => {
-    // C cai enquanto B decide; B recusa: o pedido vai direto ao Host.
-    const env = matchWithHelpQueue(use);
-    env.Game.network.handleMessage({ type: 'help-request', requesterName: 'A' }, 'peer-a');
-    check(offersTo(env, 'peer-b').length === 1, 'pré-condição: B (mais recursos) é o primeiro da fila');
-    env.drop('peer-c');
-    check(env.player('C').disconnected === true, 'pré-condição: C caiu');
-    respond(env, 'B', 'A', false);
-    check(offersTo(env, 'peer-c').length === 0, 'C caiu: não deveria receber o pedido de ajuda');
-    check(offersTo(env, 'peer-host').length === 1, 'depois de B, o pedido deveria ir direto ao Host');
-    const trying = env.record.sent.filter(e => e.to === 'peer-a' && e.msg.type === 'help-trying').pop();
-    check(trying && trying.msg.candidateName === 'Host', 'A deveria ver que o pedido está com o Host, veio: ' + JSON.stringify(trying && trying.msg));
-
-    // Quem pediu cai antes de B aceitar: nada é transferido e ninguém mais é consultado.
-    const env2 = matchWithHelpQueue(use);
-    env2.Game.network.handleMessage({ type: 'help-request', requesterName: 'A' }, 'peer-a');
-    env2.drop('peer-a');
-    env2.clearLog();
-    respond(env2, 'B', 'A', true);
-    check(env2.player('A').resources === 0 && env2.player('B').resources === 5 && env2.player('B').kpi === 0,
-        'quem pediu caiu: nenhum recurso pode ser transferido');
-    check(env2.broadcastsOfType('help-confirmed').length === 0, 'não deveria confirmar ajuda para quem caiu');
-    check(!env2.state.helpQueue, 'o pedido deveria ser cancelado');
-
-    // Mesmo caso, com B recusando: a fila não segue para C.
-    const env3 = matchWithHelpQueue(use);
-    env3.Game.network.handleMessage({ type: 'help-request', requesterName: 'A' }, 'peer-a');
-    env3.drop('peer-a');
-    env3.clearLog();
-    respond(env3, 'B', 'A', false);
-    check(offersTo(env3, 'peer-c').length === 0 && offersTo(env3, 'peer-host').length === 0, 'quem pediu caiu: ninguém mais deveria ser consultado');
-    check(!env3.state.helpQueue, 'o pedido deveria ser cancelado');
-
-    // Controle: sem ninguém cair, B aceita e a ajuda acontece.
-    const env4 = matchWithHelpQueue(use);
-    env4.Game.network.handleMessage({ type: 'help-request', requesterName: 'A' }, 'peer-a');
-    respond(env4, 'B', 'A', true);
-    check(env4.player('A').resources === 1 && env4.player('B').resources === 4, 'sem quedas, a ajuda deveria acontecer');
-});
 
 test('T70 Assessor que caiu é recusado na hora; quem responde pode chamar outro', (use) => {
     const env = use(createEnvironment());
@@ -140,152 +50,6 @@ test('T70 Assessor que caiu é recusado na hora; quem responde pode chamar outro
     const a = env.state.currentRound.advisory;
     check(a && a.status === 'pending' && a.advisorName === 'C', 'A deveria conseguir chamar C');
     check(env.record.sent.some(e => e.to === 'peer-c' && e.msg.type === 'advisory-question'), 'C deveria receber a pergunta');
-});
-
-test('T71 Aviso "pedindo ajuda para…" mostra o nome como foi digitado (sem "&amp;")', (use) => {
-    const elements = {};
-    const ctx = vm.createContext({
-        console: { log: () => {}, warn: () => {}, error: () => {}, info: () => {} },
-        document: { getElementById: (id) => elements[id] || (elements[id] = { id, textContent: '', innerHTML: '', style: {} }) }
-    });
-    vm.runInContext("var window = this; window.Game = { i18n: { t: (key, v) => key + ':' + (v && v.requester) } };", ctx);
-    vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/utils/sanitize.js'), 'utf8'), ctx, { filename: 'sanitize.js' });
-    vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/ui/modals/tradeModal.js'), 'utf8'), ctx, { filename: 'tradeModal.js' });
-    const ui = vm.runInContext('Game.ui', ctx);
-
-    ui.showHelpCandidate({ candidateName: 'Ana & Bia <3' });
-    check(elements['helpTryingWith'].textContent === 'Ana & Bia <3',
-        'o nome deveria aparecer como foi digitado, apareceu: ' + elements['helpTryingWith'].textContent);
-
-    // Controle: onde o nome entra como HTML, ele continua protegido.
-    ui.showHelpOfferModal({ requesterName: 'Ana & Bia <3' });
-    check(elements['helpOfferText'].innerHTML === 'trade.helpOffer:Ana &amp; Bia &lt;3',
-        'no pedido recebido (HTML), o nome deveria continuar protegido, veio: ' + elements['helpOfferText'].innerHTML);
-});
-
-test('T103 Pedido de ajuda durante o de outro jogador: é recusado com aviso, não apaga o primeiro e a doação vai para quem pediu primeiro', (use) => {
-    // A e C sem recursos; A pede primeiro e a oferta vai para B.
-    const env = matchWithHelpQueue(use);
-    Object.assign(env.player('C'), { resources: 0, kpi: 20 });
-    env.Game.network.handleMessage({ type: 'help-request', requesterName: 'A' }, 'peer-a');
-    check(offersTo(env, 'peer-b').length === 1, 'pré-condição: a oferta do pedido de A vai para B');
-    env.clearLog();
-
-    // C pede antes de B responder.
-    env.Game.network.handleMessage({ type: 'help-request', requesterName: 'C' }, 'peer-c');
-    const refusal = sentTo(env, 'peer-c', 'help-no-candidates').pop();
-    check(refusal && refusal.reason === 'request-in-progress',
-        'C deveria receber na hora a recusa com o motivo request-in-progress, veio: ' + JSON.stringify(refusal));
-    check(sentTo(env, 'peer-c', 'help-trying').length === 0, 'C não deveria ver "pedindo ajuda para…"');
-    check(env.record.sent.filter(e => e.msg.type === 'help-offer').length === 0, 'o pedido de C não deveria gerar oferta para ninguém');
-    const queue = env.state.helpQueue;
-    check(queue && queue.requesterName === 'A' && queue.index === 0 && queue.candidates[0] === 'B',
-        'o pedido de A deveria continuar como estava, veio: ' + JSON.stringify(queue));
-
-    // B aceita a oferta que recebeu (para A): o recurso vai para A, e só A paga.
-    respond(env, 'B', 'A', true);
-    const confirmed = env.broadcastsOfType('help-confirmed').pop();
-    check(confirmed && confirmed.donor === 'B' && confirmed.requester === 'A',
-        'a ajuda confirmada deveria ser de B para A, veio: ' + JSON.stringify(confirmed));
-    check(env.player('A').resources === 1 && env.player('A').kpi === 10 && env.player('B').resources === 4 && env.player('B').kpi === 10,
-        'A deveria receber 1 recurso e pagar 10 KPI a B');
-    check(env.player('C').resources === 0 && env.player('C').kpi === 20, 'C não deveria receber recurso nem pagar KPI');
-
-    // Terminado o pedido de A, C pede de novo e o pedido corre normalmente.
-    env.clearLog();
-    env.Game.network.handleMessage({ type: 'help-request', requesterName: 'C' }, 'peer-c');
-    check(sentTo(env, 'peer-c', 'help-no-candidates').length === 0, 'sem pedido em andamento, C não deveria ser recusado');
-    const offer = offersTo(env, 'peer-b').pop();
-    check(offer && offer.msg.requesterName === 'C', 'a oferta do pedido de C deveria ir para B, veio: ' + JSON.stringify(offer && offer.msg));
-});
-
-test('T104 Resposta à oferta de ajuda só vale para o pedido em andamento; o prazo vencido segue a fila do mesmo pedido', (use) => {
-    const env = matchWithHelpQueue(use);
-    check(env.Game.network.PROTOCOL_VERSION >= 7,
-        'a versão do protocolo deveria ser 7 ou mais (help-offer-response leva requesterName), veio: ' + env.Game.network.PROTOCOL_VERSION);
-    env.Game.network.handleMessage({ type: 'help-request', requesterName: 'A' }, 'peer-a');
-    env.clearLog();
-
-    // Resposta de B a uma oferta feita para outro jogador (C): ignorada.
-    respond(env, 'B', 'C', true);
-    check(env.broadcastsOfType('help-confirmed').length === 0 && env.player('A').resources === 0 &&
-        env.player('B').resources === 5 && env.player('B').kpi === 0,
-        'aceite de oferta feita para outro jogador não deveria transferir nada');
-    respond(env, 'B', 'C', false);
-    check(offersTo(env, 'peer-c').length === 0 && env.state.helpQueue && env.state.helpQueue.index === 0,
-        'recusa de oferta feita para outro jogador não deveria avançar a fila');
-
-    // Resposta sem quem pediu (versão antiga do jogo): ignorada.
-    env.Game.network.handleMessage({ type: 'help-offer-response', candidateName: 'B', accepted: true }, 'peer-b');
-    check(env.broadcastsOfType('help-confirmed').length === 0 && env.player('A').resources === 0,
-        'resposta sem requesterName não deveria transferir nada');
-
-    // O prazo de B vence: a oferta segue para C, ainda para A.
-    env.time.advance(env.CONFIG.GAME.HELP_OFFER_TIMEOUT);
-    const toC = offersTo(env, 'peer-c');
-    check(toC.length === 1 && toC[0].msg.requesterName === 'A',
-        'vencido o prazo de B, a oferta do pedido de A deveria ir para C, veio: ' + JSON.stringify(toC.map(e => e.msg)));
-
-    // Aceite atrasado de B (o prazo dele já venceu): ignorado.
-    respond(env, 'B', 'A', true);
-    check(env.player('B').resources === 5 && env.player('A').resources === 0, 'aceite de B depois do prazo não deveria transferir nada');
-
-    // C aceita: a ajuda acontece de C para A.
-    respond(env, 'C', 'A', true);
-    check(env.player('A').resources === 1 && env.player('C').resources === 2, 'C aceitou: a ajuda deveria ir de C para A');
-});
-
-test('T105 Quem pede ajuda de novo durante o próprio pedido: a fila continua de onde estava e o aviso mostra com quem está', (use) => {
-    const env = matchWithHelpQueue(use);
-    env.Game.network.handleMessage({ type: 'help-request', requesterName: 'A' }, 'peer-a');
-    respond(env, 'B', 'A', false);
-    check(offersTo(env, 'peer-c').length === 1, 'pré-condição: B recusou e a oferta foi para C');
-    env.clearLog();
-
-    env.Game.network.handleMessage({ type: 'help-request', requesterName: 'A' }, 'peer-a');
-    check(sentTo(env, 'peer-a', 'help-no-candidates').length === 0, 'A não deveria ser recusado no próprio pedido');
-    const trying = sentTo(env, 'peer-a', 'help-trying').pop();
-    check(trying && trying.candidateName === 'C', 'A deveria ver de novo que o pedido está com C, veio: ' + JSON.stringify(trying));
-    check(env.record.sent.filter(e => e.msg.type === 'help-offer').length === 0, 'ninguém deveria receber oferta de novo (a fila não recomeça)');
-    const queue = env.state.helpQueue;
-    check(queue && queue.requesterName === 'A' && queue.index === 1, 'a fila deveria continuar em C, veio: ' + JSON.stringify(queue));
-
-    respond(env, 'C', 'A', true);
-    check(env.player('A').resources === 1 && env.player('C').resources === 2 && env.player('B').resources === 5,
-        'C aceitou: a ajuda deveria ir de C para A');
-});
-
-test('T106 Tela do pedido de ajuda: a resposta à oferta leva quem pediu e o pedido recusado por outro em andamento tem aviso próprio', () => {
-    // Guest: a resposta vai ao host com o nome de quem pediu.
-    const guest = helpModalWithFakes();
-    guest.ui.showHelpOfferModal({ requesterName: 'A' });
-    guest.ui.respondToHelpOffer(true);
-    const sent = guest.record.toHost.pop();
-    check(sent && sent.type === 'help-offer-response' && sent.candidateName === 'B' && sent.requesterName === 'A' && sent.accepted === true,
-        'a resposta à oferta deveria levar requesterName, veio: ' + JSON.stringify(sent));
-
-    // Host como candidato: a mesma resposta vai direto ao engine.
-    const host = helpModalWithFakes();
-    host.Game.state = { isHost: true, playerName: 'Host' };
-    host.ui.showHelpOfferModal({ requesterName: 'C' });
-    host.ui.respondToHelpOffer(false);
-    const direct = host.record.toCore.pop();
-    check(direct && direct.candidateName === 'Host' && direct.requesterName === 'C' && direct.accepted === false,
-        'no host, a resposta deveria levar requesterName, veio: ' + JSON.stringify(direct));
-
-    // Recusa por pedido em andamento: aviso próprio, e a modal de status fecha.
-    const screen = helpModalWithFakes();
-    screen.elements['modalHelpRequest'] = { id: 'modalHelpRequest', style: { display: 'flex' } };
-    screen.ui.showHelpNoCandidates({ type: 'help-no-candidates', reason: 'request-in-progress' });
-    check(String(screen.record.alerts.pop()).startsWith('trade.helpBusy'),
-        'o pedido recusado por outro em andamento deveria usar o texto trade.helpBusy');
-    check(screen.elements['modalHelpRequest'].style.display === 'none', 'a modal "pedindo ajuda…" deveria fechar');
-
-    // Controle: os outros motivos continuam com os textos de antes.
-    screen.ui.showHelpNoCandidates({ type: 'help-no-candidates', reason: 'all-declined' });
-    check(String(screen.record.alerts.pop()).startsWith('trade.noHelp'), 'ninguém aceitou: deveria continuar o texto trade.noHelp');
-    screen.ui.showHelpNoCandidates({ type: 'help-no-candidates', reason: 'insufficient-kpi' });
-    check(String(screen.record.alerts.pop()).startsWith('trade.insufficientKpi'), 'sem KPI: deveria continuar o texto trade.insufficientKpi');
 });
 
 // ============================================
@@ -356,7 +120,7 @@ function guestReceives(use, env, name, msg) {
     return { guest, calls };
 }
 
-test('T114 Assessoria só com 1 recurso ou mais: com 0 ou menos o pedido é recusado no cliente e no host (needs-resources) e a área da assessoria some', (use) => {
+test('T114 Assessoria só com 1 recurso ou mais: com 0 ou menos o pedido de assessoria é recusado no cliente e no host (needs-resources)', (use) => {
     // 1) Host: B com 0 e com −1 pede a C → recusado na hora, sem pergunta para C.
     for (const resources of [0, -1]) {
         const env = advisoryMatch(use, { answererResources: resources });
@@ -403,15 +167,6 @@ test('T114 Assessoria só com 1 recurso ou mais: com 0 ou menos o pedido é recu
     check(b2.elements.advisoryStatus.textContent === 'advisory.needsResources',
         'a recusa por falta de recurso deveria mostrar advisory.needsResources, veio: ' + b2.elements.advisoryStatus.textContent);
     check(b2.elements.btnRequestAdvisory.disabled === true, 'a recusa por falta de recurso não deveria liberar o botão de pedir assessoria');
-
-    // 5) Pergunta na tela: com 0 recursos a área da assessoria fica escondida; com 1, aparece.
-    const b3 = answererGuest(use, env);
-    b3.guest.player('B').resources = 0;
-    b3.guest.ctx.displayQuestion(b3.guest.state.currentRound.question);
-    check(b3.elements.advisoryArea.style.display === 'none', 'com 0 recursos, a área da assessoria deveria ficar escondida, veio: ' + b3.elements.advisoryArea.style.display);
-    b3.guest.player('B').resources = 1;
-    b3.guest.ctx.displayQuestion(b3.guest.state.currentRound.question);
-    check(b3.elements.advisoryArea.style.display === 'block', 'com 1 recurso, a área da assessoria deveria aparecer, veio: ' + b3.elements.advisoryArea.style.display);
 });
 
 test('T115 Honorário: seguiu a sugestão e acertou → quem pediu paga RESOURCES.ADVISORY_FEE ao assessor, sem bônus de KPI; os kpi-update e as telas dizem quem pagou a quem', (use) => {
@@ -599,6 +354,573 @@ test('T117 Honorário no config, na tela e no protocolo: RESOURCES.ADVISORY_FEE 
         'quem responde deveria ver a dica do honorário (advisory.feeHint), veio: ' + JSON.stringify(b.elements.advisoryFeeHint));
     const html = fs.readFileSync(path.join(ROOT, 'game.html'), 'utf8');
     check(/id="advisoryFeeHint"/.test(html) && /id="advisoryFeeNotice"/.test(html), 'o game.html deveria ter os elementos advisoryFeeHint e advisoryFeeNotice');
+});
+
+// ============================================
+// PEDIDO DE AJUDA COMO FIANÇA (economia de recursos)
+// ============================================
+
+/**
+ * Partida de 4 (Host, A, B, C) com a pergunta aberta: A pergunta, B
+ * responde sem recursos (0, se não for dito) e C pode ajudar (5).
+ * Tempo falso em env.time; KPI e atividades de todos em 0.
+ */
+function helpMatch(use, { answererResources = 0, helperResources = 5, event } = {}) {
+    return advisoryMatch(use, { answererResources, advisorResources: helperResources, event });
+}
+
+/** B pede ajuda a `helper` pela rede. */
+function askHelp(env, helper = 'C') {
+    env.Game.network.handleMessage({ type: 'advisory-request', kind: 'help', advisorName: helper, requesterName: 'B' }, 'peer-b');
+}
+
+/** B pede ajuda a C pela rede; o pedido precisa ficar pendente, como ajuda. */
+function requestHelpFromBToC(env) {
+    askHelp(env);
+    const a = env.state.currentRound.advisory;
+    check(a && a.status === 'pending' && a.advisorName === 'C' && a.kind === 'help',
+        'pré-condição: ajuda de C pendente (kind help), veio: ' + JSON.stringify(a));
+}
+
+/** Última recusa (advisory-result inválido) mandada a B. */
+const refusalToB = (env) => sentTo(env, 'peer-b', 'advisory-result').pop();
+
+/**
+ * Modal do resultado real (ui/modals/resultModal.js) num ambiente novo,
+ * com DOM falso; o i18n devolve a chave seguida dos valores.
+ */
+function realResultModal(use) {
+    const env = use(createEnvironment());
+    const elements = {};
+    env.ctx.document = {
+        getElementById: (id) => elements[id] || (elements[id] = { id, textContent: '', innerHTML: '', className: '', style: {} }),
+        querySelectorAll: () => []
+    };
+    env.Game.i18n.t = (key, values) => key + (values ? ' ' + JSON.stringify(values) : '');
+    vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/ui/modals/resultModal.js'), 'utf8'), env.ctx, { filename: 'resultModal.js' });
+    elements.resultBoardReminder = { id: 'resultBoardReminder', style: { display: 'block' } };
+    return { ctx: env.ctx, elements };
+}
+
+test('T118 Pedido de ajuda só com 0 recursos ou menos e fora do Encerramento: com recurso o host recusa (has-resources) e o cliente nem manda; no Encerramento, closing-focus-area', (use) => {
+    // 1) Host: B com 1 e com 4 recursos pede ajuda → recusado na hora, sem pergunta para C.
+    for (const resources of [1, 4]) {
+        const env = helpMatch(use, { answererResources: resources });
+        env.clearLog();
+        askHelp(env);
+        const refusal = refusalToB(env);
+        check(refusal && refusal.invalid === true && refusal.declined === true && refusal.reason === 'has-resources' && refusal.kind === 'help',
+            'com ' + resources + ' recursos, B deveria receber a recusa has-resources (kind help), veio: ' + JSON.stringify(refusal));
+        check(!env.state.currentRound.advisory, 'com ' + resources + ' recursos, nenhum apoio deveria ficar na rodada, veio: ' +
+            JSON.stringify(env.state.currentRound.advisory));
+        check(sentTo(env, 'peer-c', 'advisory-question').length === 0 && env.broadcastsOfType('advisory-started').length === 0,
+            'com ' + resources + ' recursos, C não deveria receber a pergunta nem os outros o advisory-started');
+    }
+
+    // Com 0 e com −1, o pedido corre: a pergunta (sem o gabarito) e o aviso levam kind 'help'.
+    for (const resources of [0, -1]) {
+        const env = helpMatch(use, { answererResources: resources });
+        env.clearLog();
+        requestHelpFromBToC(env);
+        const question = sentTo(env, 'peer-c', 'advisory-question').pop();
+        const started = env.broadcastsOfType('advisory-started').pop();
+        check(question && question.kind === 'help' && question.correct === undefined,
+            'com ' + resources + ' recursos, C deveria receber a pergunta com kind help e sem o gabarito, veio: ' + JSON.stringify(question));
+        check(started && started.kind === 'help' && started.advisorName === 'C' && started.requesterName === 'B',
+            'com ' + resources + ' recursos, todos deveriam receber o advisory-started com kind help, veio: ' + JSON.stringify(started));
+        check(env.state.advisoryTimeout && !env.state.answerTimeout, 'o prazo de quem ajuda deveria correr, com o de resposta pausado');
+    }
+
+    // 2) No Encerramento, a ajuda também não se pede.
+    const closing = helpMatch(use);
+    const last = closing.CONFIG.FOCUS_AREAS[closing.CONFIG.FOCUS_AREAS.length - 1].id;
+    closing.player('B').focusArea = last;
+    closing.clearLog();
+    askHelp(closing);
+    const closingRefusal = refusalToB(closing);
+    check(closingRefusal && closingRefusal.invalid === true && closingRefusal.reason === 'closing-focus-area' && !closing.state.currentRound.advisory,
+        'no Encerramento, o pedido de ajuda deveria ser recusado com closing-focus-area, veio: ' + JSON.stringify(closingRefusal));
+
+    // 3) Cliente: com recurso não manda a ajuda (help.hasResources); no Encerramento também não; com 0, manda com kind 'help'.
+    const env = helpMatch(use);
+    const b = answererGuest(use, env);
+    const sentHelp = () => b.guest.record.toHost.filter(m => m.type === 'advisory-request');
+    b.guest.player('B').resources = 1;
+    check(b.guest.Game.core.requestAdvisory('C', 'help') === false && sentHelp().length === 0,
+        'B com 1 recurso não deveria mandar o pedido de ajuda, mandou: ' + JSON.stringify(b.guest.record.toHost));
+    check(b.alerts.includes('help.hasResources'), 'B deveria ver o aviso help.hasResources, viu: ' + JSON.stringify(b.alerts));
+    b.guest.player('B').resources = 0;
+    b.guest.player('B').focusArea = last;
+    check(b.guest.Game.core.requestAdvisory('C', 'help') === false && sentHelp().length === 0 && b.alerts.includes('advisory.closingFocusArea'),
+        'no Encerramento, B não deveria mandar o pedido de ajuda e deveria ver advisory.closingFocusArea, viu: ' + JSON.stringify(b.alerts));
+    b.guest.player('B').focusArea = env.CONFIG.FOCUS_AREAS[0].id;
+    check(b.guest.Game.core.requestAdvisory('C', 'help') === true &&
+        sentHelp().some(m => m.kind === 'help' && m.advisorName === 'C' && m.requesterName === 'B'),
+        'B com 0 recursos deveria mandar advisory-request com kind help, mandou: ' + JSON.stringify(b.guest.record.toHost));
+
+    // Pela tela: o jogador escolhe quem chamar e o tipo vem dos recursos dele.
+    for (const [resources, kind] of [[0, 'help'], [-2, 'help'], [2, 'advisory']]) {
+        const screen = answererGuest(use, env);
+        screen.guest.player('B').resources = resources;
+        screen.guest.ctx.chooseAdvisor('C');
+        const request = screen.guest.record.toHost.find(m => m.type === 'advisory-request');
+        check(request && request.kind === kind && request.advisorName === 'C',
+            'com ' + resources + ' recursos, a escolha na tela deveria mandar o pedido com kind ' + kind + ', mandou: ' + JSON.stringify(request));
+        const local = screen.guest.state.currentRound.advisory;
+        check(local && local.kind === kind && local.status === 'pending' && local.advisorName === 'C',
+            'com ' + resources + ' recursos, B deveria guardar o pedido pendente com kind ' + kind + ', veio: ' + JSON.stringify(local));
+    }
+
+    // 4) O host que responde, com 0 recursos, pede ajuda direto (sem rede).
+    const hostAnswers = helpMatch(use);
+    hostAnswers.state.currentRound.answerer = 'Host';
+    hostAnswers.player('Host').resources = 0;
+    hostAnswers.clearLog();
+    check(hostAnswers.Game.core.requestAdvisory('C', 'help') === true, 'o host com 0 recursos deveria conseguir pedir ajuda');
+    const hostRequest = hostAnswers.state.currentRound.advisory;
+    check(hostRequest && hostRequest.kind === 'help' && hostRequest.status === 'pending' &&
+        sentTo(hostAnswers, 'peer-c', 'advisory-question').some(m => m.kind === 'help'),
+        'o pedido de ajuda do host deveria ficar pendente e a pergunta ir para C, veio: ' + JSON.stringify(hostRequest));
+});
+
+test('T119 Quem ajuda: precisa de RESOURCES.HELP_COVER recursos ou mais (helper-without-resources), não pode ser o Perguntador nem estar fora da partida; recusado, quem pede chama outro; a lista mostra só quem pode ajudar', (use) => {
+    // 1) C sem recursos para cobrir: recusado na hora, sem pergunta para C.
+    const cover = helpMatch(use).CONFIG.RESOURCES.HELP_COVER;
+    for (const resources of [cover - 1, 0, -1]) {
+        const env = helpMatch(use, { helperResources: resources });
+        env.clearLog();
+        askHelp(env);
+        const refusal = refusalToB(env);
+        check(refusal && refusal.invalid === true && refusal.declined === true && refusal.reason === 'helper-without-resources' &&
+            refusal.kind === 'help' && refusal.advisorName === 'C',
+            'C com ' + resources + ' recursos: B deveria receber a recusa helper-without-resources, veio: ' + JSON.stringify(refusal));
+        check(!env.state.currentRound.advisory && sentTo(env, 'peer-c', 'advisory-question').length === 0,
+            'C com ' + resources + ' recursos não deveria receber a pergunta, veio: ' + JSON.stringify(env.state.currentRound.advisory));
+
+        // Recusado, B chama outro (o Host, com recursos) e o pedido corre.
+        askHelp(env, 'Host');
+        const again = env.state.currentRound.advisory;
+        check(again && again.advisorName === 'Host' && again.status === 'pending' && again.kind === 'help',
+            'depois da recusa, B deveria conseguir chamar o Host, veio: ' + JSON.stringify(again));
+    }
+    // Com exatamente RESOURCES.HELP_COVER, C pode ajudar.
+    requestHelpFromBToC(helpMatch(use, { helperResources: cover }));
+
+    // 2) O Perguntador (A), quem caiu e quem saiu da partida não podem ajudar; recusa na hora.
+    const cases = [
+        { label: 'o Perguntador', helper: 'A', prepare: () => {} },
+        { label: 'quem caiu', helper: 'C', prepare: (env) => env.drop('peer-c') },
+        { label: 'quem saiu da partida', helper: 'C', prepare: (env) => { env.player('C').waitingInLobby = true; } }
+    ];
+    for (const c of cases) {
+        const env = helpMatch(use);
+        env.player('A').resources = 5;
+        c.prepare(env);
+        env.clearLog();
+        askHelp(env, c.helper);
+        const refusal = refusalToB(env);
+        check(refusal && refusal.invalid === true && refusal.declined === true && !env.state.currentRound.advisory &&
+            !['closing-focus-area', 'has-resources'].includes(refusal.reason),
+            c.label + ': o pedido de ajuda deveria ser recusado na hora (podendo chamar outro), veio: ' + JSON.stringify(refusal));
+        check(!env.record.sent.some(e => e.msg.type === 'advisory-question'), c.label + ': ninguém deveria receber a pergunta');
+    }
+
+    // 3) Tela: a recusa por falta de recurso de quem ajuda avisa e libera o botão para chamar outro.
+    const env = helpMatch(use);
+    const b = answererGuest(use, env);
+    b.elements.btnRequestAdvisory = { id: 'btnRequestAdvisory', disabled: true, style: {}, textContent: '' };
+    b.guest.state.currentRound.advisory = { advisorName: 'C', status: 'pending', suggestion: null, kind: 'help' };
+    b.guest.ctx.showAdvisoryResult({ type: 'advisory-result', kind: 'help', advisorName: 'C', suggestion: null, declined: true, invalid: true,
+        reason: 'helper-without-resources' });
+    check(b.elements.advisoryStatus.textContent === 'help.helperWithoutResources {"advisor":"C"}',
+        'B deveria ver help.helperWithoutResources com o nome de C, veio: ' + b.elements.advisoryStatus.textContent);
+    check(b.elements.btnRequestAdvisory.disabled === false && b.guest.state.currentRound.advisory === null,
+        'depois da recusa, B deveria poder chamar outro (botão liberado, sem pedido guardado)');
+
+    // 4) Lista de quem chamar: na ajuda, só quem tem RESOURCES.HELP_COVER ou mais (fora o Perguntador e quem pede).
+    const list = answererGuest(use, env);
+    const players = (name) => list.guest.player(name);
+    players('B').resources = 0;
+    players('A').resources = 5;
+    players('C').resources = cover;
+    players('Host').resources = cover - 1;
+    list.guest.ctx.showAdvisorySelectModal();
+    const html = list.elements.advisoryPlayersList.innerHTML;
+    check(html.includes('data-advisor-name="C"') && !html.includes('data-advisor-name="Host"') && !html.includes('data-advisor-name="A"') &&
+        !html.includes('data-advisor-name="B"'),
+        'na ajuda, a lista deveria ter só C (com recurso para cobrir), veio: ' + html);
+    check(list.elements.advisorySelectTitle.textContent === 'help.selectTitle' && list.elements.modalAdvisorySelect.style.display === 'flex',
+        'a lista deveria abrir com o título help.selectTitle, veio: ' + list.elements.advisorySelectTitle.textContent);
+    // Ninguém com recurso: aviso, e a lista não abre.
+    const nobody = answererGuest(use, env);
+    nobody.guest.player('B').resources = 0;
+    ['A', 'C', 'Host'].forEach(n => { nobody.guest.player(n).resources = cover - 1; });
+    nobody.guest.ctx.showAdvisorySelectModal();
+    check(nobody.alerts.includes('help.noHelperAvailable') && nobody.elements.modalAdvisorySelect.style.display !== 'flex',
+        'sem ninguém com recurso, B deveria ver help.noHelperAvailable e a lista não abrir, viu: ' + JSON.stringify(nobody.alerts));
+    // Na assessoria, a lista continua com todos (menos o Perguntador e quem pede), com o título dela.
+    const advisory = answererGuest(use, env);
+    advisory.guest.player('B').resources = 3;
+    advisory.guest.player('Host').resources = 0;
+    advisory.guest.ctx.showAdvisorySelectModal();
+    const advisoryHtml = advisory.elements.advisoryPlayersList.innerHTML;
+    check(advisoryHtml.includes('data-advisor-name="C"') && advisoryHtml.includes('data-advisor-name="Host"') &&
+        advisory.elements.advisorySelectTitle.textContent === 'advisory.selectTitle',
+        'na assessoria, a lista deveria ter C e o Host (mesmo sem recurso), com o título advisory.selectTitle, veio: ' + advisoryHtml);
+});
+
+test('T120 Ajuda seguida e certa: quem pediu ganha o acerto sem mexer nos recursos e quem ajudou ganha RESOURCES.HELP_REWARD do patrocinador; os kpi-update e as telas dizem quem ajudou quem', (use) => {
+    // 1) Guest pede a guest: B (0) segue a sugestão certa de C (5).
+    const env = helpMatch(use, { answererResources: 0, helperResources: 5 });
+    const C = env.CONFIG;
+    const reward = C.RESOURCES.HELP_REWARD;
+    const correct = env.state.currentRound.question.correct;
+    const othersBefore = { A: env.player('A').resources, Host: env.player('Host').resources };
+    requestHelpFromBToC(env);
+    env.Game.network.handleMessage({ type: 'advisory-answer', alternative: correct, declined: false }, 'peer-c');
+    const result = env.broadcastsOfType('advisory-result').pop();
+    check(result && result.kind === 'help' && result.suggestion === correct && result.declined === false,
+        'o advisory-result da ajuda deveria levar kind help e a sugestão, veio: ' + JSON.stringify(result));
+    env.Game.network.handleMessage({ type: 'answer', alternative: correct, playerName: 'B' }, 'peer-b');
+    const b = env.player('B');
+    const c = env.player('C');
+    check(b.resources === 0 && b.kpi === C.KPI.CORRECT_ANSWER && b.activities === 1,
+        'B deveria ganhar o acerto e continuar com 0 recursos, veio: ' + JSON.stringify(b));
+    check(c.resources === 5 + reward && c.kpi === 0, 'C deveria ganhar a recompensa (' + (5 + reward) + ' recursos) e nenhum KPI, veio: ' + JSON.stringify(c));
+    check(env.player('A').resources === othersBefore.A && env.player('Host').resources === othersBefore.Host,
+        'a recompensa vem do patrocinador: ninguém mais deveria perder recurso');
+
+    const toB = lastUpdateOf(env, 'B');
+    check(toB && toB.isCorrect === true && toB.resources === 0 && toB.supportOutcome === 'reward' && toB.supportAmount === reward &&
+        toB.supportPartner === 'C',
+        'o kpi-update de B deveria dizer que C ajudou e ganhou a recompensa, veio: ' + JSON.stringify(toB));
+    const toC = lastUpdateOf(env, 'C');
+    check(toC && toC.isCorrect === undefined && toC.resources === 5 + reward && toC.kpi === 0 && toC.supportOutcome === 'reward' &&
+        toC.supportAmount === reward && toC.supportPartner === 'B',
+        'o kpi-update de C deveria levar a recompensa pela ajuda a B, veio: ' + JSON.stringify(toC));
+    env.Game.saveState();
+    const saved = JSON.parse(env.storage['pmKPI_roomState']);
+    check(saved.players.find(p => p.name === 'B').resources === 0 && saved.players.find(p => p.name === 'C').resources === 5 + reward,
+        'o estado salvo deveria guardar os recursos depois da recompensa');
+
+    // Em estouro (−1) e com a Reserva de Contingência: a recompensa é a mesma e quem pediu continua onde estava.
+    for (const [resources, event] of [[-1, undefined], [0, RESERVE]]) {
+        const other = helpMatch(use, { answererResources: resources, helperResources: 5, event });
+        requestHelpFromBToC(other);
+        other.Game.network.handleMessage({ type: 'advisory-answer', alternative: correct, declined: false }, 'peer-c');
+        other.Game.network.handleMessage({ type: 'answer', alternative: correct, playerName: 'B' }, 'peer-b');
+        check(other.player('B').resources === resources && other.player('C').resources === 5 + reward,
+            'com ' + resources + ' recursos' + (event ? ' e a Reserva' : '') + ', B deveria continuar em ' + resources + ' e C ganhar ' + reward +
+            ', veio: ' + JSON.stringify({ B: other.player('B').resources, C: other.player('C').resources }));
+    }
+
+    // 2) Guests: B vê o resultado com a ajuda de C; C vê a recompensa pela ajuda a B.
+    const seenByB = guestReceives(use, env, 'B', toB).calls.find(s => s.name === 'showResultModal');
+    const helped = seenByB && copy(seenByB.args[3]);
+    check(seenByB && seenByB.args[0] === true && seenByB.args[2] === 0 && helped && helped.outcome === 'reward' && helped.amount === reward &&
+        helped.partner === 'C',
+        'B deveria ver o resultado com a ajuda de C, viu: ' + JSON.stringify(seenByB && seenByB.args));
+    const fromC = guestReceives(use, env, 'C', toC);
+    const rewarded = fromC.calls.find(s => s.name === 'showSupportResultModal');
+    check(rewarded && rewarded.args[0] === 'reward' && rewarded.args[1] === reward && rewarded.args[2] === 'B',
+        'C deveria ver a recompensa pela ajuda a B, viu: ' + JSON.stringify(fromC.calls.map(s => s.name)));
+    check(fromC.guest.player('C').resources === 5 + reward, 'o guest C deveria aplicar os recursos do kpi-update');
+
+    // 3) O host como quem pede: a própria tela mostra a ajuda de C.
+    const hostAsks = helpMatch(use);
+    hostAsks.state.currentRound.answerer = 'Host';
+    hostAsks.player('Host').resources = 0;
+    const hostAskCalls = recordScreens(hostAsks);
+    check(hostAsks.Game.core.requestAdvisory('C', 'help') === true, 'pré-condição: o host com 0 recursos pede ajuda a C');
+    hostAsks.Game.network.handleMessage({ type: 'advisory-answer', alternative: correct, declined: false }, 'peer-c');
+    hostAsks.Game.core.handleAnswer({ type: 'answer', alternative: correct, playerName: 'Host' });
+    const hostResult = hostAskCalls.find(s => s.name === 'showResultModal');
+    const hostHelped = hostResult && copy(hostResult.args[3]);
+    check(hostAsks.player('Host').resources === 0 && hostAsks.player('C').resources === 5 + reward &&
+        hostHelped && hostHelped.outcome === 'reward' && hostHelped.amount === reward && hostHelped.partner === 'C',
+        'o host deveria ser ajudado por C e ver isso no resultado, viu: ' + JSON.stringify(hostResult && hostResult.args));
+
+    // 4) O host como quem ajuda: a própria tela mostra a recompensa.
+    const hostHelps = helpMatch(use);
+    hostHelps.player('Host').resources = 3;
+    const hostHelpCalls = recordScreens(hostHelps);
+    askHelp(hostHelps, 'Host');
+    hostHelps.Game.core.handleAdvisoryAnswer({ alternative: correct, declined: false });
+    hostHelps.Game.network.handleMessage({ type: 'answer', alternative: correct, playerName: 'B' }, 'peer-b');
+    const hostRewarded = hostHelpCalls.find(s => s.name === 'showSupportResultModal');
+    check(hostHelps.player('Host').resources === 3 + reward && hostHelps.player('Host').kpi === 0 &&
+        hostRewarded && hostRewarded.args[0] === 'reward' && hostRewarded.args[1] === reward && hostRewarded.args[2] === 'B',
+        'o host deveria ganhar a recompensa e ver o aviso, viu: ' + JSON.stringify(hostRewarded && hostRewarded.args));
+
+    // 5) Modal do resultado real: a ajuda recebida (quem pediu) e a recompensa (quem ajudou).
+    const modal = realResultModal(use);
+    modal.ctx.showResultModal(true, 10, 0, { outcome: 'reward', amount: 2, partner: 'Carla' });
+    const requesterText = String(modal.elements.resultMessage.textContent);
+    check(requesterText.includes('result.kpiGained') && requesterText.includes('result.helperRewarded') &&
+        requesterText.includes('"helper":"Carla"') && requesterText.includes('"amount":2'),
+        'o resultado de quem pediu deveria trazer o acerto e result.helperRewarded com helper e amount, veio: ' + requesterText);
+    modal.ctx.showSupportResultModal('reward', 2, 'Davi');
+    const helperText = String(modal.elements.resultMessage.textContent);
+    check(modal.elements.resultTitle.textContent === 'result.helpTitle' && helperText.startsWith('result.rewardReceived') &&
+        helperText.includes('"requester":"Davi"') && helperText.includes('"amount":2'),
+        'quem ajudou deveria ver result.helpTitle e result.rewardReceived com requester e amount, veio: ' +
+        modal.elements.resultTitle.textContent + ' / ' + helperText);
+    check(modal.elements.resultBoardReminder.style.display === 'none' && modal.elements.modalResult.style.display === 'flex',
+        'o aviso da recompensa abre o modal sem o lembrete do tabuleiro');
+});
+
+test('T121 Ajuda seguida e errada: quem ajudou cobre o erro com RESOURCES.HELP_COVER e quem pediu não perde; com a Reserva ninguém perde; ignorou, recusa e prazos: resultado normal', (use) => {
+    const cover = helpMatch(use).CONFIG.RESOURCES.HELP_COVER;
+    // Quem pediu começa com `start` recursos; quem ajuda, com 5.
+    const scenarios = [
+        { label: 'seguiu a sugestão e errou', suggestion: 'wrong', answer: 'wrong', start: 0, expectedB: 0, expectedC: 5 - cover, outcome: 'cover' },
+        { label: 'seguiu a sugestão e errou, em estouro', suggestion: 'wrong', answer: 'wrong', start: -1, expectedB: -1, expectedC: 5 - cover, outcome: 'cover' },
+        { label: 'seguiu a sugestão e errou, com a Reserva de Contingência', suggestion: 'wrong', answer: 'wrong', start: 0, event: RESERVE,
+            expectedB: 0, expectedC: 5 },
+        { label: 'ignorou a sugestão e acertou', suggestion: 'wrong', answer: 'correct', start: 0, expectedB: 0, expectedC: 5 },
+        { label: 'ignorou a sugestão e errou', suggestion: 'correct', answer: 'wrong', start: 0, expectedB: -1, expectedC: 5 },
+        { label: 'quem ajuda recusou', suggestion: 'declined', answer: 'wrong', start: 0, expectedB: -1, expectedC: 5 },
+        { label: 'o prazo de quem ajuda acabou', suggestion: 'timeout', answer: 'wrong', start: 0, expectedB: -1, expectedC: 5 },
+        { label: 'aceitou, mas o prazo de resposta acabou', suggestion: 'wrong', answer: 'timeout', start: 0, expectedB: -1, expectedC: 5 },
+        { label: 'quem ajudou caiu depois de sugerir (continua cobrindo)', suggestion: 'wrong', answer: 'wrong', start: 0, dropHelper: true,
+            expectedB: 0, expectedC: 5 - cover, outcome: 'cover' },
+        { label: 'quem ajudou saiu da sala depois de sugerir', suggestion: 'wrong', answer: 'wrong', start: 0, removeHelper: true,
+            expectedB: -1, expectedC: null }
+    ];
+    for (const s of scenarios) {
+        const env = helpMatch(use, { answererResources: s.start, helperResources: 5, event: s.event });
+        const round = env.state.currentRound;
+        const letter = (which) => (which === 'correct' ? round.question.correct : wrongFor(round));
+        requestHelpFromBToC(env);
+        if (s.suggestion === 'timeout') {
+            env.time.advance(env.CONFIG.GAME.ADVISORY_TIMEOUT);
+        } else if (s.suggestion === 'declined') {
+            env.Game.network.handleMessage({ type: 'advisory-answer', alternative: null, declined: true }, 'peer-c');
+        } else {
+            env.Game.network.handleMessage({ type: 'advisory-answer', alternative: letter(s.suggestion), declined: false }, 'peer-c');
+        }
+        check(round.advisory.status === (['timeout', 'declined'].includes(s.suggestion) ? 'declined' : 'accepted') && round.advisory.kind === 'help',
+            s.label + ': pré-condição: ajuda resolvida, veio: ' + JSON.stringify(round.advisory));
+        if (s.dropHelper) env.drop('peer-c');
+        if (s.removeHelper) env.state.players = env.state.players.filter(p => p.name !== 'C');
+        if (s.answer === 'timeout') {
+            env.time.advance(env.CONFIG.GAME.ANSWER_TIMEOUT);
+        } else {
+            env.Game.network.handleMessage({ type: 'answer', alternative: letter(s.answer), playerName: 'B' }, 'peer-b');
+        }
+
+        const toB = lastUpdateOf(env, 'B');
+        check(env.player('B').resources === s.expectedB && toB && toB.resources === s.expectedB,
+            s.label + ': B deveria ficar com ' + s.expectedB + ' recursos, veio: ' + JSON.stringify(toB));
+        const toC = lastUpdateOf(env, 'C');
+        if (s.outcome === 'cover') {
+            check(toB.supportOutcome === 'cover' && toB.supportAmount === cover && toB.supportPartner === 'C',
+                s.label + ': o kpi-update de B deveria dizer que C cobriu o erro, veio: ' + JSON.stringify(toB));
+            check(env.player('C').resources === s.expectedC && env.player('C').kpi === 0 && toC && toC.isCorrect === undefined &&
+                toC.resources === s.expectedC && toC.supportOutcome === 'cover' && toC.supportAmount === cover && toC.supportPartner === 'B',
+                s.label + ': C deveria cobrir o erro de B (' + s.expectedC + ' recursos), veio: ' + JSON.stringify({ player: env.player('C'), update: toC }));
+        } else {
+            check(toB.supportOutcome === undefined, s.label + ': o kpi-update de B não deveria falar de apoio, veio: ' + JSON.stringify(toB));
+            check(!toC && (s.expectedC === null || (env.player('C').resources === s.expectedC && env.player('C').kpi === 0)),
+                s.label + ': C não deveria ganhar nem perder nada (nem kpi-update), veio: ' + JSON.stringify({ player: env.player('C'), update: toC }));
+        }
+    }
+
+    // Telas: B vê que C cobriu o erro; C vê que cobriu.
+    const env = helpMatch(use);
+    requestHelpFromBToC(env);
+    const wrong = wrongFor(env.state.currentRound);
+    env.Game.network.handleMessage({ type: 'advisory-answer', alternative: wrong, declined: false }, 'peer-c');
+    env.Game.network.handleMessage({ type: 'answer', alternative: wrong, playerName: 'B' }, 'peer-b');
+    const seenByB = guestReceives(use, env, 'B', lastUpdateOf(env, 'B')).calls.find(s => s.name === 'showResultModal');
+    const covered = seenByB && copy(seenByB.args[3]);
+    check(seenByB && seenByB.args[0] === false && seenByB.args[2] === 0 && covered && covered.outcome === 'cover' && covered.amount === cover &&
+        covered.partner === 'C',
+        'B deveria ver o erro coberto por C, viu: ' + JSON.stringify(seenByB && seenByB.args));
+    const seenByC = guestReceives(use, env, 'C', lastUpdateOf(env, 'C')).calls.find(s => s.name === 'showSupportResultModal');
+    check(seenByC && seenByC.args[0] === 'cover' && seenByC.args[1] === cover && seenByC.args[2] === 'B',
+        'C deveria ver que cobriu o erro de B, viu: ' + JSON.stringify(seenByC && seenByC.args));
+
+    // Modal do resultado real: erro coberto (quem pediu) e cobertura (quem ajudou).
+    const modal = realResultModal(use);
+    modal.ctx.showResultModal(false, 0, 0, { outcome: 'cover', amount: 1, partner: 'Carla' });
+    const requesterText = String(modal.elements.resultMessage.textContent);
+    check(requesterText.includes('result.kpiZero') && requesterText.includes('result.errorCovered') && requesterText.includes('"helper":"Carla"'),
+        'o resultado de quem pediu deveria trazer o erro e result.errorCovered com helper, veio: ' + requesterText);
+    modal.ctx.showSupportResultModal('cover', 1, 'Davi');
+    const helperText = String(modal.elements.resultMessage.textContent);
+    check(modal.elements.resultTitle.textContent === 'result.helpTitle' && helperText.startsWith('result.coverPaid') &&
+        helperText.includes('"requester":"Davi"') && helperText.includes('"amount":1'),
+        'quem ajudou deveria ver result.helpTitle e result.coverPaid com requester e amount, veio: ' +
+        modal.elements.resultTitle.textContent + ' / ' + helperText);
+    check(modal.elements.resultBoardReminder.style.display === 'none', 'o aviso da cobertura não mostra o lembrete do tabuleiro');
+});
+
+test('T123 Um botão para os dois apoios: com recurso, "Pedir Assessoria" e a dica do honorário; com 0 ou menos, "Pedir Ajuda" e a dica da recompensa; textos da ajuda na pergunta, no convite e no resultado; o pedido de ajuda antigo sai da tela', (use) => {
+    const env = helpMatch(use);
+    const C = env.CONFIG;
+    const last = C.FOCUS_AREAS[C.FOCUS_AREAS.length - 1].id;
+
+    // 1) A pergunta na tela de quem responde: o botão e a dica dependem dos recursos.
+    const expected = [
+        [1, 'advisory.requestButton', 'advisory.feeHint {"amount":' + C.RESOURCES.ADVISORY_FEE + '}'],
+        [0, 'help.requestButton', 'help.hint {"amount":' + C.RESOURCES.HELP_REWARD + '}'],
+        [-2, 'help.requestButton', 'help.hint {"amount":' + C.RESOURCES.HELP_REWARD + '}']
+    ];
+    for (const [resources, button, hint] of expected) {
+        const b = answererGuest(use, env);
+        b.guest.player('B').resources = resources;
+        b.guest.ctx.displayQuestion(b.guest.state.currentRound.question);
+        check(b.elements.advisoryArea.style.display === 'block' && b.elements.btnRequestAdvisory.textContent === button &&
+            b.elements.btnRequestAdvisory.disabled === false,
+            'com ' + resources + ' recursos, a área deveria aparecer com o botão ' + button + ', veio: ' +
+            JSON.stringify({ area: b.elements.advisoryArea.style.display, button: b.elements.btnRequestAdvisory.textContent }));
+        check(b.elements.advisoryFeeHint.textContent === hint,
+            'com ' + resources + ' recursos, a dica deveria ser ' + hint + ', veio: ' + b.elements.advisoryFeeHint.textContent);
+    }
+    // No Encerramento, nenhum dos dois.
+    const closing = answererGuest(use, env);
+    closing.guest.player('B').resources = 0;
+    closing.guest.player('B').focusArea = last;
+    closing.guest.ctx.displayQuestion(closing.guest.state.currentRound.question);
+    check(closing.elements.advisoryArea.style.display === 'none', 'no Encerramento, a área do apoio deveria ficar escondida, veio: ' +
+        closing.elements.advisoryArea.style.display);
+
+    // 2) A situação da ajuda na pergunta reexibida: aguardando, sugestão e recusa.
+    const states = [
+        [{ advisorName: 'C', status: 'pending', suggestion: null, kind: 'help' }, 'advisory.waitingForAnswer {"advisor":"C"}'],
+        [{ advisorName: 'C', status: 'accepted', suggestion: 'b', kind: 'help' }, 'advisory.suggestion {"advisor":"C","suggestion":"B"}'],
+        [{ advisorName: 'C', status: 'declined', suggestion: null, kind: 'help' }, 'help.declined {"advisor":"C"}'],
+        [{ advisorName: 'C', status: 'declined', suggestion: null, kind: 'advisory' }, 'advisory.declined {"advisor":"C"}']
+    ];
+    for (const [advisory, text] of states) {
+        const b = answererGuest(use, env);
+        b.guest.player('B').resources = advisory.kind === 'help' ? 0 : 3;
+        b.guest.state.currentRound.advisory = advisory;
+        b.guest.ctx.displayQuestion(b.guest.state.currentRound.question);
+        check(b.elements.advisoryStatus.textContent === text && b.elements.btnRequestAdvisory.disabled === true,
+            JSON.stringify(advisory) + ': deveria mostrar ' + text + ' com o botão travado, veio: ' + b.elements.advisoryStatus.textContent);
+    }
+
+    // 3) Avisos da rede na tela de quem pediu: o advisory-started guarda o tipo; a recusa e o has-resources da ajuda.
+    const started = answererGuest(use, env);
+    started.guest.state.currentRound.advisory = null;
+    started.guest.ctx.showAdvisoryStarted({ type: 'advisory-started', kind: 'help', advisorName: 'C', requesterName: 'B' });
+    check(started.guest.state.currentRound.advisory && started.guest.state.currentRound.advisory.kind === 'help',
+        'o advisory-started da ajuda deveria guardar kind help, veio: ' + JSON.stringify(started.guest.state.currentRound.advisory));
+    const declined = answererGuest(use, env);
+    declined.guest.state.currentRound.advisory = { advisorName: 'C', status: 'pending', suggestion: null, kind: 'help' };
+    declined.guest.ctx.showAdvisoryResult({ type: 'advisory-result', kind: 'help', advisorName: 'C', suggestion: null, declined: true, timeout: false });
+    check(declined.elements.advisoryStatus.textContent === 'help.declined {"advisor":"C"}',
+        'a recusa da ajuda deveria mostrar help.declined, veio: ' + declined.elements.advisoryStatus.textContent);
+    const hasResources = answererGuest(use, env);
+    hasResources.elements.btnRequestAdvisory = { id: 'btnRequestAdvisory', disabled: true, style: {}, textContent: '' };
+    hasResources.guest.state.currentRound.advisory = { advisorName: 'C', status: 'pending', suggestion: null, kind: 'help' };
+    hasResources.guest.ctx.showAdvisoryResult({ type: 'advisory-result', kind: 'help', advisorName: 'C', suggestion: null, declined: true,
+        invalid: true, reason: 'has-resources' });
+    check(hasResources.elements.advisoryStatus.textContent === 'help.hasResources' && hasResources.elements.btnRequestAdvisory.disabled === true,
+        'a recusa has-resources deveria mostrar help.hasResources e manter o botão travado, veio: ' + hasResources.elements.advisoryStatus.textContent);
+
+    // 4) O convite de quem é chamado: título e aviso da ajuda, com a recompensa e a cobertura do CONFIG.
+    const question = { question: 'Pergunta?', domain: 'Domínio', alternatives: ['A) Um', 'B) Dois'], id: 'q1' };
+    const helper = guestWithScreens(use, env, 'C', ADVISORY_SCREENS);
+    helper.guest.state.currentRound = JSON.parse(JSON.stringify({ ...env.state.currentRound, question: null }));
+    helper.guest.ctx.showAdvisoryQuestionModal({ type: 'advisory-question', kind: 'help', ...question });
+    const notice = helper.elements.advisoryFeeNotice.textContent;
+    check(helper.elements.advisoryModalTitle.textContent === 'help.modalTitle' && notice.startsWith('help.notice') &&
+        notice.includes('"reward":' + C.RESOURCES.HELP_REWARD) && notice.includes('"cover":' + C.RESOURCES.HELP_COVER),
+        'o convite para ajudar deveria ter help.modalTitle e help.notice com reward e cover, veio: ' +
+        helper.elements.advisoryModalTitle.textContent + ' / ' + notice);
+    helper.guest.ctx.showAdvisoryQuestionModal({ type: 'advisory-question', kind: 'advisory', ...question });
+    check(helper.elements.advisoryModalTitle.textContent === 'advisory.modalTitle' &&
+        helper.elements.advisoryFeeNotice.textContent === 'advisory.feeNotice {"amount":' + C.RESOURCES.ADVISORY_FEE + '}',
+        'o convite para assessorar continua com advisory.modalTitle e advisory.feeNotice, veio: ' + helper.elements.advisoryModalTitle.textContent);
+
+    // 5) O card do perfil não tem mais o botão de ajuda; o game.html, nem o botão nem as modais da fila.
+    const card = guestWithScreens(use, env, 'B', ['js/ui/components/profileComponent.js']);
+    card.guest.ctx.renderProfileCard({ name: 'B', kpi: 0, resources: 0, focusArea: C.FOCUS_AREAS[0].id, activities: 0 });
+    check(card.elements.myResources && card.elements.myResources.textContent === 0 && !('btnRequestHelp' in card.elements),
+        'o card do perfil não deveria mexer em btnRequestHelp (o pedido de ajuda fica na pergunta)');
+    const html = fs.readFileSync(path.join(ROOT, 'game.html'), 'utf8');
+    const gone = ['btnRequestHelp', 'modalHelpRequest', 'modalHelpOffer', 'helpTryingWith', 'helpKpiCost', 'helpOfferText',
+        'btnCloseHelpRequest', 'btnAcceptHelpOffer', 'btnDeclineHelpOffer'].filter(id => html.includes('id="' + id + '"'));
+    check(gone.length === 0, 'o game.html não deveria ter mais os elementos do pedido de ajuda antigo: ' + gone.join(', '));
+    check(/id="advisoryModalTitle"/.test(html) && /id="advisorySelectTitle"/.test(html),
+        'o game.html deveria ter os títulos que trocam entre assessoria e ajuda (advisoryModalTitle, advisorySelectTitle)');
+});
+
+test('T124 Fim da fila de ajuda: as mensagens help-* são ignoradas; sem tradeEngine, tradeRules, tradeModal, KPI.RESOURCE_PRICE e GAME.HELP_OFFER_TIMEOUT; RESOURCES.HELP_REWARD e HELP_COVER no config real; protocolo 8; textos da ajuda no pt-BR.js', (use) => {
+    // 1) Host: help-request e help-offer-response antigos não fazem nada.
+    const env = helpMatch(use);
+    const before = JSON.stringify(env.state.players);
+    env.clearLog();
+    env.Game.network.handleMessage({ type: 'help-request', requesterName: 'B' }, 'peer-b');
+    env.Game.network.handleMessage({ type: 'help-offer-response', candidateName: 'C', requesterName: 'B', accepted: true }, 'peer-c');
+    check(env.record.sent.length === 0 && env.record.broadcasts.length === 0 && JSON.stringify(env.state.players) === before,
+        'o host deveria ignorar as mensagens help-*, mandou: ' + JSON.stringify([...env.record.sent.map(e => e.msg), ...env.record.broadcasts]));
+    check(env.state.helpQueue === undefined && env.state.helpTimeout === undefined, 'não deveria existir mais fila de ajuda (helpQueue, helpTimeout)');
+    check(!('requestHelp' in env.Game.core) && !('handleHelpRequest' in env.Game.core) && !('trade' in env.Game.domain),
+        'não deveria existir mais o engine nem a regra do pedido de ajuda antigo');
+
+    // Guest: help-trying, help-offer, help-no-candidates e help-confirmed antigos não mexem na tela nem nos jogadores.
+    const guest = use(createEnvironment());
+    guest.state.playerName = 'B';
+    guest.state.players = JSON.parse(before);
+    const calls = recordScreens(guest);
+    for (const msg of [
+        { type: 'help-trying', candidateName: 'C' },
+        { type: 'help-offer', requesterName: 'A' },
+        { type: 'help-no-candidates', reason: 'no-donors' },
+        { type: 'help-confirmed', donor: 'C', requester: 'B', amount: 10, donorKpi: 10, donorResources: 4, requesterKpi: 0, requesterResources: 1 }
+    ]) {
+        guest.Game.network.handleMessage(msg, 'sala');
+    }
+    check(calls.length === 0 && JSON.stringify(guest.state.players) === before,
+        'o guest deveria ignorar as mensagens help-*, chamou: ' + calls.map(c => c.name).join(', '));
+
+    // 2) Arquivos e nomes antigos fora do jogo.
+    const files = ['js/engine/tradeEngine.js', 'js/domain/tradeRules.js', 'js/ui/modals/tradeModal.js'];
+    const still = files.filter(f => fs.existsSync(path.join(ROOT, f)));
+    check(still.length === 0, 'os arquivos do pedido de ajuda antigo deveriam sair: ' + still.join(', '));
+    const html = fs.readFileSync(path.join(ROOT, 'game.html'), 'utf8');
+    check(!/trade(Engine|Rules|Modal)\.js/.test(html), 'o game.html não deveria carregar os arquivos do pedido de ajuda antigo');
+    const jsDir = (dir) => fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })
+        .flatMap(e => (e.isDirectory() ? jsDir(dir + '/' + e.name) : e.name.endsWith('.js') ? [dir + '/' + e.name] : []));
+    const oldTypes = /['"]help-(request|trying|offer|offer-response|no-candidates|confirmed)['"]/;
+    const withOld = jsDir('js').filter(f => oldTypes.test(fs.readFileSync(path.join(ROOT, f), 'utf8')));
+    check(withOld.length === 0, 'o jogo não deveria mandar nem tratar mais as mensagens help-*: ' + withOld.join(', '));
+
+    // 3) Config real: recompensa e cobertura em RESOURCES; o preço do recurso e o prazo da oferta saíram.
+    const configCtx = vm.createContext({});
+    vm.runInContext('var window = this;' + fs.readFileSync(path.join(ROOT, 'config/game-config.js'), 'utf8'), configCtx);
+    const real = JSON.parse(JSON.stringify(vm.runInContext('CONFIG', configCtx)));
+    check(real.RESOURCES.HELP_REWARD === 2 && real.RESOURCES.HELP_COVER === 1,
+        'o config real deveria ter RESOURCES.HELP_REWARD = 2 e RESOURCES.HELP_COVER = 1, veio: ' + JSON.stringify(real.RESOURCES));
+    check(!('RESOURCE_PRICE' in real.KPI) && !('HELP_OFFER_TIMEOUT' in real.GAME),
+        'KPI.RESOURCE_PRICE e GAME.HELP_OFFER_TIMEOUT deveriam sair do config, veio: ' + JSON.stringify({ KPI: real.KPI, GAME: real.GAME }));
+
+    // 4) A ajuda não sobe o protocolo: continua o 8 da economia de recursos.
+    check(env.Game.network.PROTOCOL_VERSION === 8, 'a versão do protocolo deveria continuar 8, veio: ' + env.Game.network.PROTOCOL_VERSION);
+
+    // 5) Textos no pt-BR.js real, com os marcadores; os do pedido de ajuda antigo saíram.
+    const localeCtx = vm.createContext({});
+    vm.runInContext('var window = this;' + fs.readFileSync(path.join(ROOT, 'js/locales/pt-BR.js'), 'utf8'), localeCtx);
+    const dict = JSON.parse(JSON.stringify(vm.runInContext("Game.locales['pt-BR']", localeCtx)));
+    const markers = (text) => [...new Set([...String(text).matchAll(/\{\{(\w+)\}\}/g)].map(m => m[1]))].sort().join();
+    const expectedTexts = {
+        'advisory.requestButton': '', 'advisory.selectTitle': '', 'advisory.modalTitle': '',
+        'help.requestButton': '', 'help.hint': 'amount', 'help.selectTitle': '', 'help.modalTitle': '', 'help.notice': 'cover,reward',
+        'help.declined': 'advisor', 'help.hasResources': '', 'help.helperWithoutResources': 'advisor', 'help.noHelperAvailable': '',
+        'result.helpTitle': '', 'result.helperRewarded': 'amount,helper', 'result.errorCovered': 'helper',
+        'result.rewardReceived': 'amount,requester', 'result.coverPaid': 'amount,requester'
+    };
+    for (const [key, keyMarkers] of Object.entries(expectedTexts)) {
+        const [section, name] = key.split('.');
+        const text = dict[section] && dict[section][name];
+        check(typeof text === 'string' && text.length > 0 && markers(text) === keyMarkers,
+            'o pt-BR.js deveria ter ' + key + ' com os marcadores [' + keyMarkers + '], veio: ' + JSON.stringify(text));
+    }
+    check(!('trade' in dict), 'os textos do pedido de ajuda antigo (trade.*) deveriam sair do pt-BR.js');
 });
 
 finish('Pedido de ajuda e assessoria');

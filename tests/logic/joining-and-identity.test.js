@@ -609,27 +609,6 @@ test('T83 Versão do jogo 3: jogadores e ranking só com os nomes novos (resourc
     check(kpiA && kpiA.isCorrect === false && kpiA.resources === C.STARTING_RESOURCES - 1 && env.player('A').resources === C.STARTING_RESOURCES - 1,
         'errar deveria gastar 1 recurso, em resources, veio: ' + JSON.stringify(kpiA));
 
-    // Pedido de ajuda: só quem está sem recursos pede; a fila começa por quem tem mais.
-    Object.assign(env.player('A'), { resources: 0, kpi: 20 });
-    Object.assign(env.player('B'), { resources: 5 });
-    Object.assign(env.player('Host'), { resources: 1 });
-    env.Game.network.handleMessage({ type: 'help-request', requesterName: 'B' }, 'peer-b');
-    check(!env.record.sent.some(e => e.msg.type === 'help-offer'), 'quem ainda tem recursos não pode pedir ajuda');
-    env.Game.network.handleMessage({ type: 'help-request', requesterName: 'A' }, 'peer-a');
-    const offer = env.record.sent.find(e => e.msg.type === 'help-offer');
-    check(offer && offer.to === 'peer-b', 'a primeira oferta deveria ir para B (mais recursos), foi para: ' + (offer && offer.to));
-    env.Game.network.handleMessage({ type: 'help-offer-response', candidateName: 'B', requesterName: 'A', accepted: true }, 'peer-b');
-    const confirmed = env.broadcastsOfType('help-confirmed')[0];
-    check(env.player('A').resources === 1 && env.player('B').resources === 4 &&
-        confirmed && confirmed.donorResources === 4 && confirmed.requesterResources === 1,
-        'a ajuda deveria passar 1 recurso de B para A, veio: ' + JSON.stringify(confirmed));
-    guest.Game.network.handleMessage(confirmed, 'sala');
-    check(guest.player('A').resources === 1 && guest.player('B').resources === 4, 'o guest deveria aplicar os recursos da ajuda confirmada');
-    const trade = env.Game.domain.trade;
-    check(trade.validateResourceTransfer({ name: 'X', resources: 0 }, { name: 'Y', kpi: 50 }, C) !== null &&
-        trade.validateResourceTransfer({ name: 'X', resources: 1 }, { name: 'Y', kpi: 50 }, C) === null,
-        'a validação da ajuda deveria olhar os resources de quem doa');
-
     // Efeitos de evento (domain/eventRules.js real) sobre resources.
     const eventCtx = vm.createContext({});
     vm.runInContext('var window = this;', eventCtx);
@@ -700,12 +679,11 @@ test('T83 Versão do jogo 3: jogadores e ranking só com os nomes novos (resourc
         vm.runInContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), ui.ctx);
     }
     ui.ctx.renderProfileCard({ name: 'Ana', kpi: 5, resources: 0, focusArea: last, activities: 1 });
-    check(elements.myResources && elements.myResources.textContent === 0 && elements.btnRequestHelp && elements.btnRequestHelp.style.display === 'block',
-        'o card deveria mostrar 0 recursos e o botão de pedir ajuda');
+    check(elements.myResources && elements.myResources.textContent === 0, 'o card deveria mostrar 0 recursos em myResources');
     check(elements.focusAreasList && elements.focusAreasList.innerHTML.includes('focus-area-current" data-focus-area="' + last + '"'),
         'o card deveria marcar a área foco atual, veio: ' + (elements.focusAreasList && elements.focusAreasList.innerHTML));
     ui.ctx.renderProfileCard({ name: 'Ana', kpi: 5, resources: 3, focusArea: first, activities: 0 });
-    check(elements.myResources.textContent === 3 && elements.btnRequestHelp.style.display === 'none', 'com recursos, o botão de pedir ajuda some');
+    check(elements.myResources.textContent === 3, 'o card deveria mostrar 3 recursos em myResources');
 
     ui.state.players = [
         { name: 'Ana', kpi: 30, resources: 7, focusArea: last, activities: 0 },
@@ -725,7 +703,7 @@ test('T83 Versão do jogo 3: jogadores e ranking só com os nomes novos (resourc
         'o ranking final deveria mostrar a posição (#4) e o KPI final de cada um, veio: ' + finalHtml);
 });
 
-test('T86 Versão do jogo 4: assessoria e pedido de ajuda só com os nomes novos (advisory-*, help-*) no estado, no estado salvo, nas mensagens e nas telas', (use) => {
+test('T86 Versão do jogo 4: assessoria só com os nomes novos (advisory-*) no estado, no estado salvo, nas mensagens e nas telas', (use) => {
     const first = use(createEnvironment());
     check(first.Game.network.PROTOCOL_VERSION >= 4, 'a versão do protocolo deveria ser 4 ou mais (nomes novos da assessoria e do pedido de ajuda), veio: ' + first.Game.network.PROTOCOL_VERSION);
     const C = first.CONFIG;
@@ -733,7 +711,6 @@ test('T86 Versão do jogo 4: assessoria e pedido de ajuda só com os nomes novos
     const hosts = [];
     const guests = [];
     const advisoryScreens = ['js/ui/modals/advisoryModal.js', 'js/ui/components/questionComponent.js'];
-    const helpScreens = ['js/utils/sanitize.js', 'js/ui/modals/tradeModal.js'];
     const text = (key, values) => key + (values ? ' ' + JSON.stringify(values) : '');
 
     /** Partida de 4 (Host, A, B, C) com a pergunta aberta: A pergunta, B responde. */
@@ -905,89 +882,6 @@ test('T86 Versão do jogo 4: assessoria e pedido de ajuda só com os nomes novos
     check(answered && answered.msg.invalid === true && answered.msg.declined === true && answered.msg.reason === 'already-answered' && answered.msg.advisorName === 'C',
         'pedido depois da resposta: o motivo deveria ser already-answered, veio: ' + JSON.stringify(answered && answered.msg));
 
-    // 7) Pedido de ajuda de ponta a ponta: A (sem recursos) pede pela tela;
-    // B recusa, C não responde no prazo, o Host aceita.
-    const { m: h, time: ht } = matchOfFour();
-    Object.assign(h.player('A'), { resources: 0, kpi: 20 });
-    Object.assign(h.player('B'), { resources: 5, kpi: 0 });
-    Object.assign(h.player('C'), { resources: 3, kpi: 0 });
-    Object.assign(h.player('Host'), { resources: 1, kpi: 0 });
-    const amount = C.KPI.RESOURCE_PRICE;
-    const a = guestWithScreens(use, h, 'A', helpScreens);
-    guests.push(a.guest);
-    a.guest.ctx.startHelpRequest();
-    const helpRequest = a.guest.record.toHost.find(m => m.type === 'help-request');
-    check(helpRequest && helpRequest.requesterName === 'A', 'A deveria mandar help-request, veio: ' + JSON.stringify(a.guest.record.toHost));
-    h.Game.network.handleMessage(helpRequest, 'peer-a');
-    const queue = h.state.helpQueue;
-    check(queue && queue.requesterName === 'A' && JSON.stringify(queue.candidates) === '["B","C","Host"]' && queue.index === 0 && h.state.helpTimeout,
-        'a fila deveria ficar em state.helpQueue (candidates, index) e o prazo em state.helpTimeout, veio: ' + JSON.stringify(queue));
-    const trying = h.record.sent.filter(e => e.to === 'peer-a' && e.msg.type === 'help-trying').pop();
-    check(trying && trying.msg.candidateName === 'B', 'A deveria receber help-trying com candidateName, veio: ' + JSON.stringify(trying && trying.msg));
-    a.guest.Game.network.handleMessage(trying.msg, 'sala');
-    check(a.guest.record.ui.includes('showHelpCandidate'), 'A deveria tratar o help-trying');
-    a.guest.ctx.showHelpCandidate(trying.msg);
-    check(a.elements.helpTryingWith.textContent === 'B', 'A deveria ver que o pedido está com B, veio: ' + a.elements.helpTryingWith.textContent);
-
-    const offer = h.record.sent.find(e => e.to === 'peer-b' && e.msg.type === 'help-offer');
-    check(offer && offer.msg.requesterName === 'A', 'B deveria receber help-offer, veio: ' + JSON.stringify(offer && offer.msg));
-    const bh = guestWithScreens(use, h, 'B', helpScreens);
-    guests.push(bh.guest);
-    bh.guest.Game.network.handleMessage(offer.msg, 'sala');
-    check(bh.guest.record.ui.includes('showHelpOfferModal'), 'B deveria tratar o help-offer');
-    bh.guest.ctx.showHelpOfferModal(offer.msg);
-    bh.guest.ctx.respondToHelpOffer(false);
-    const refusal = bh.guest.record.toHost.find(m => m.type === 'help-offer-response');
-    check(refusal && refusal.candidateName === 'B' && refusal.accepted === false,
-        'B deveria mandar help-offer-response com candidateName e accepted, veio: ' + JSON.stringify(bh.guest.record.toHost));
-    h.Game.network.handleMessage(refusal, 'peer-b');
-    check(h.state.helpQueue.index === 1 && h.record.sent.some(e => e.to === 'peer-c' && e.msg.type === 'help-offer'),
-        'com a recusa de B, a oferta deveria ir para C, veio: ' + JSON.stringify(h.state.helpQueue));
-    ht.advance(C.GAME.HELP_OFFER_TIMEOUT);
-    check(h.state.helpQueue && h.state.helpQueue.index === 2 && h.record.sent.some(e => e.to === 'peer-host' && e.msg.type === 'help-offer'),
-        'sem resposta de C no prazo, a oferta deveria ir para o Host, veio: ' + JSON.stringify(h.state.helpQueue));
-    h.Game.core.handleHelpOfferResponse({ type: 'help-offer-response', candidateName: 'Host', requesterName: 'A', accepted: true });
-    const confirmed = h.broadcastsOfType('help-confirmed')[0];
-    check(confirmed && confirmed.donor === 'Host' && confirmed.requester === 'A' && confirmed.amount === amount &&
-        confirmed.donorKpi === amount && confirmed.donorResources === 0 && confirmed.requesterKpi === 20 - amount && confirmed.requesterResources === 1,
-        'help-confirmed deveria levar donor, amount, donorKpi, donorResources, requesterKpi e requesterResources, veio: ' + JSON.stringify(confirmed));
-    check(h.player('A').resources === 1 && h.player('A').kpi === 20 - amount && h.player('Host').resources === 0 && h.player('Host').kpi === amount,
-        'a ajuda deveria passar 1 recurso do Host para A');
-    check(h.state.helpQueue === null && h.state.helpTimeout === null, 'o pedido deveria terminar (helpQueue e helpTimeout zerados)');
-    a.guest.Game.network.handleMessage(confirmed, 'sala');
-    const ga = a.guest.player('A');
-    const gh = a.guest.player('Host');
-    check(ga.resources === 1 && ga.kpi === 20 - amount && gh.resources === 0 && gh.kpi === amount && a.guest.record.ui.includes('closeHelpRequestModal'),
-        'A deveria aplicar a ajuda confirmada e fechar o aviso, veio: ' + JSON.stringify([ga, gh]));
-
-    // Motivos de "ninguém pôde ajudar": KPI insuficiente, ninguém com recurso, todos recusaram.
-    const noCandidates = () => h.record.sent.filter(e => e.to === 'peer-a' && e.msg.type === 'help-no-candidates').pop();
-    Object.assign(h.player('A'), { resources: 0, kpi: amount - 1 });
-    h.Game.network.handleMessage({ type: 'help-request', requesterName: 'A' }, 'peer-a');
-    const lowKpi = noCandidates();
-    check(lowKpi && lowKpi.msg.reason === 'insufficient-kpi', 'sem KPI para pedir, o motivo deveria ser insufficient-kpi, veio: ' + JSON.stringify(lowKpi && lowKpi.msg));
-    a.guest.ctx.showHelpNoCandidates(lowKpi.msg);
-    check(a.alerts.pop() === 'trade.insufficientKpi', 'A deveria ver o aviso de KPI insuficiente');
-    Object.assign(h.player('A'), { kpi: 20 });
-    ['B', 'C', 'Host'].forEach(n => { h.player(n).resources = 0; });
-    h.Game.network.handleMessage({ type: 'help-request', requesterName: 'A' }, 'peer-a');
-    const noDonors = noCandidates();
-    check(noDonors && noDonors.msg.reason === 'no-donors', 'sem ninguém com recurso, o motivo deveria ser no-donors, veio: ' + JSON.stringify(noDonors && noDonors.msg));
-    a.guest.ctx.showHelpNoCandidates(noDonors.msg);
-    check(a.alerts.pop() === 'trade.noHelp', 'A deveria ver o aviso de que ninguém pôde ajudar');
-    h.player('B').resources = 2;
-    h.Game.network.handleMessage({ type: 'help-request', requesterName: 'A' }, 'peer-a');
-    h.Game.network.handleMessage({ type: 'help-offer-response', candidateName: 'B', requesterName: 'A', accepted: false }, 'peer-b');
-    const allDeclined = noCandidates();
-    check(allDeclined && allDeclined.msg.reason === 'all-declined', 'com todos recusando, o motivo deveria ser all-declined, veio: ' + JSON.stringify(allDeclined && allDeclined.msg));
-    // Quem pediu fica sem KPI enquanto B decide: a troca é recusada na validação final.
-    h.Game.network.handleMessage({ type: 'help-request', requesterName: 'A' }, 'peer-a');
-    h.player('A').kpi = amount - 1;
-    h.Game.network.handleMessage({ type: 'help-offer-response', candidateName: 'B', requesterName: 'A', accepted: true }, 'peer-b');
-    const failed = noCandidates();
-    check(failed && failed.msg.reason === 'no-donors' && failed !== noDonors && h.broadcastsOfType('help-confirmed').length === 1 && h.player('B').resources === 2,
-        'recusada na validação final, A deveria receber no-donors, sem troca, veio: ' + JSON.stringify(failed && failed.msg));
-
     // Nada com os nomes, tipos e motivos antigos nas mensagens, nos estados e no estado salvo.
     const messages = [
         ...hosts.flatMap(x => [...x.record.broadcasts, ...x.record.sent.map(e => e.msg)]),
@@ -998,8 +892,7 @@ test('T86 Versão do jogo 4: assessoria e pedido de ajuda só com os nomes novos
     const types = messages.map(m => m.type);
     const oldTypes = [...new Set(types.filter(t => OLD_ADVISORY_TYPES.includes(t)))];
     check(oldTypes.length === 0, 'nenhum tipo de mensagem antigo deveria ser enviado, veio: ' + oldTypes.join(', '));
-    const newTypes = ['advisory-request', 'advisory-started', 'advisory-question', 'advisory-answer', 'advisory-result',
-        'help-request', 'help-trying', 'help-offer', 'help-offer-response', 'help-no-candidates', 'help-confirmed'];
+    const newTypes = ['advisory-request', 'advisory-started', 'advisory-question', 'advisory-answer', 'advisory-result'];
     const missing = newTypes.filter(t => !types.includes(t));
     check(missing.length === 0, 'todos os tipos novos deveriam ter sido usados, faltaram: ' + missing.join(', '));
     const oldReasons = messages.filter(m => OLD_ADVISORY_REASONS.includes(m.reason)).map(m => m.reason);
@@ -1220,7 +1113,7 @@ test('T89 Versão do jogo 5: eventos só com os nomes novos (events, title, desc
 test('T90 Versão do jogo 6: áreas foco com os IDs novos (initiating...) no CONFIG, no JSON das perguntas (focusAreas), no sorteio, no estado salvo e nas mensagens', (use) => {
     const env = use(createEnvironment());
     check(env.Game.network.PROTOCOL_VERSION >= 6, 'a versão do protocolo deveria ser 6 ou mais (IDs novos das áreas foco), veio: ' + env.Game.network.PROTOCOL_VERSION);
-    check(env.Game.persistence.STATE_VERSION === 6, 'a versão do estado salvo deveria ser 6 (IDs novos das áreas foco), veio: ' + env.Game.persistence.STATE_VERSION);
+    check(env.Game.persistence.STATE_VERSION >= 6, 'a versão do estado salvo deveria ser 6 ou mais (IDs novos das áreas foco), veio: ' + env.Game.persistence.STATE_VERSION);
     const copy = (x) => JSON.parse(JSON.stringify(x));
     /** Mesmos campos e valores, em qualquer ordem. */
     const fields = (o) => JSON.stringify(Object.entries(o || {}).sort());
@@ -1333,8 +1226,8 @@ test('T90 Versão do jogo 6: áreas foco com os IDs novos (initiating...) no CON
     env.Game.saveState();
     const saved = JSON.parse(env.storage['pmKPI_roomState']);
     const mine = JSON.parse(env.storage['pmKPI_myData']);
-    check(saved.stateVersion === 6 && saved.players.find(p => p.name === 'B').focusArea === 'planning' && mine.focusArea === 'initiating',
-        'o estado salvo deveria ficar na versão 6, com os IDs novos, veio: ' + JSON.stringify({ v: saved.stateVersion, players: saved.players, mine }));
+    check(saved.stateVersion === env.Game.persistence.STATE_VERSION && saved.players.find(p => p.name === 'B').focusArea === 'planning' && mine.focusArea === 'initiating',
+        'o estado salvo deveria ficar na versão atual, com os IDs novos, veio: ' + JSON.stringify({ v: saved.stateVersion, players: saved.players, mine }));
     const messages = [...env.record.broadcasts, ...env.record.sent.map(e => e.msg)];
     const found = oldFocusAreaIdsIn([messages, env.state, saved, mine]);
     check(found.length === 0, 'nenhum ID antigo deveria sobrar nas mensagens e no estado, sobraram: ' + found.join(', '));
@@ -1425,8 +1318,8 @@ test('T90 Versão do jogo 6: áreas foco com os IDs novos (initiating...) no CON
     reloaded.Game.saveState();
     const resaved = JSON.parse(old.storage['pmKPI_roomState']);
     const remine = JSON.parse(old.storage['pmKPI_myData']);
-    check(resaved.stateVersion === 6 && oldFocusAreaIdsIn([resaved, remine]).length === 0 && remine.focusArea === 'initiating',
-        'ao salvar de novo, o estado deveria ficar na versão 6 sem IDs antigos, veio: ' + JSON.stringify({ players: resaved.players, mine: remine }));
+    check(resaved.stateVersion === reloaded.Game.persistence.STATE_VERSION && oldFocusAreaIdsIn([resaved, remine]).length === 0 && remine.focusArea === 'initiating',
+        'ao salvar de novo, o estado deveria ficar na versão atual sem IDs antigos, veio: ' + JSON.stringify({ players: resaved.players, mine: remine }));
 });
 
 /**

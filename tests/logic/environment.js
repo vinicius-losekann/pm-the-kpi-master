@@ -43,8 +43,6 @@ const FILES = [
     'js/engine/turnEngine.js',
     'js/engine/answerEngine.js',
     'js/engine/advisoryEngine.js',
-    'js/domain/tradeRules.js',
-    'js/engine/tradeEngine.js',
     'js/network/peerService.js',
     'js/network/messageHandler.js',
     'js/network/hostMigration.js',
@@ -60,7 +58,6 @@ var CONFIG = {
         SESSION_DURATION: 3600,
         ANSWER_TIMEOUT: 60000,
         ADVISORY_TIMEOUT: 20000,
-        HELP_OFFER_TIMEOUT: 20000,
         HOST_TIMEOUT: 10000,
         ACTIVITIES_PER_FOCUS_AREA: 2
     },
@@ -69,8 +66,9 @@ var CONFIG = {
         { id: 'planning', name: 'Planejamento', emoji: '📋' }
     ],
     STARTING_RESOURCES: 10,
-    KPI: { FINAL_RESOURCE_VALUE: 2, CORRECT_ANSWER: 10, RESOURCE_PRICE: 10 },
-    RESOURCES: { ADVISORY_FEE: 2 },          // diferente do real (1): o jogo tem de ler o CONFIG, não um 1 fixo
+    KPI: { FINAL_RESOURCE_VALUE: 2, CORRECT_ANSWER: 10 },
+    // Diferentes dos reais (1, 2 e 1): o jogo tem de ler o CONFIG, não um número fixo.
+    RESOURCES: { ADVISORY_FEE: 2, HELP_REWARD: 3, HELP_COVER: 2 },
     PEER: { debug: 0 }
 };
 `;

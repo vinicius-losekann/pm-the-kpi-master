@@ -11,7 +11,7 @@ const {
     fs, path, vm, ROOT, createEnvironment, tokenOf, test, check, start, finish,
     syncTo, roundScreens, unavailable, roomToReload, reloadHost, tryReloadHost, recordScreens,
     savedStateV1, savedStateV2, finalRankingV2, oldNamesIn, oldPlayerNamesIn,
-    savedStateV3, oldAdvisoryNamesIn
+    savedStateV3, oldAdvisoryNamesIn, savedStateV4
 } = require('./environment');
 
 start('Estado salvo');
@@ -375,6 +375,78 @@ test('T84 Estado salvo 3 → 4: a assessoria da rodada passa para os nomes novos
     const adv = all.roomState.currentRound.advisory;
     check(adv && adv.advisorName === 'A' && adv.status === 'accepted' && adv.suggestion === 'b' && all.roomState.currentRound.answerer === 'A',
         'da versão 1, a assessoria deveria chegar com os mesmos valores, veio: ' + JSON.stringify(all.roomState.currentRound));
+});
+
+test('T125 Estado salvo 6 → 7: a assessoria da rodada ganha kind "advisory" (o pedido de ajuda passou a usar o mesmo campo), com os mesmos valores', (use) => {
+    const env = use(createEnvironment());
+    const P = env.Game.persistence;
+    check(P.STATE_VERSION === 7, 'a versão atual do estado salvo deveria ser 7 (tipo do apoio na rodada), veio: ' + P.STATE_VERSION);
+
+    /** Estado na versão 6 (migrado da 4, escrito à mão), com a assessoria indicada na rodada. */
+    function savedStateV6(advisory) {
+        const v4 = savedStateV4();
+        if (advisory !== undefined) v4.roomState.currentRound.advisory = advisory;
+        return P.migrateSavedState(v4.roomState, v4.myData, 6);
+    }
+
+    // Só o passo 6 → 7 (alvo 7): pendente (com a resposta guardada), aceita e recusada.
+    const cases = [
+        { advisorName: 'B', status: 'pending', suggestion: null },
+        { advisorName: 'B', status: 'accepted', suggestion: 'c' },
+        { advisorName: 'B', status: 'declined', suggestion: null }
+    ];
+    for (const advisory of cases) {
+        const v6 = savedStateV6(advisory);
+        if (advisory.status === 'pending') v6.roomState.currentRound.pendingAnswer = { type: 'answer', alternative: 'b', playerName: 'A' };
+        check(v6.roomState.stateVersion === 6 && !('kind' in v6.roomState.currentRound.advisory), 'pré-condição: estado na versão 6, sem kind');
+        const input = JSON.parse(JSON.stringify(v6));
+
+        const r = P.migrateSavedState(v6.roomState, v6.myData, 7);
+        const s = r.roomState;
+        const where = ' (assessoria ' + advisory.status + ')';
+        check(s.stateVersion === 7, 'o estado migrado deveria estar na versão 7' + where + ', veio: ' + s.stateVersion);
+        check(sameFields(s.currentRound.advisory, { ...advisory, kind: 'advisory' }),
+            'a assessoria deveria ganhar kind "advisory" e manter o resto' + where + ', veio: ' + JSON.stringify(s.currentRound.advisory));
+        const { advisory: migrated, ...roundRest } = s.currentRound;
+        const { advisory: original, ...inputRest } = input.roomState.currentRound;
+        check(sameFields(roundRest, inputRest), 'o resto da rodada não deveria mudar' + where + ', veio: ' + JSON.stringify(roundRest));
+        for (const key of Object.keys(input.roomState).filter(k => !['currentRound', 'stateVersion'].includes(k))) {
+            check(JSON.stringify(s[key]) === JSON.stringify(input.roomState[key]), key + ' não deveria mudar' + where + ', veio: ' + JSON.stringify(s[key]));
+        }
+        check(Object.keys(s).length === Object.keys(input.roomState).length,
+            'nenhum campo do estado deveria ser criado nem perdido' + where + ', veio: ' + Object.keys(s).join(', '));
+        check(JSON.stringify(r.myData) === JSON.stringify(input.myData), 'pmKPI_myData não muda nesta versão' + where);
+    }
+
+    // Assessoria cancelada (null), rodada sem assessoria e sem rodada: nada muda.
+    const cancelled = P.migrateSavedState(savedStateV6(null).roomState, {}, 7).roomState.currentRound;
+    check(cancelled.advisory === null, 'assessoria cancelada (null) deveria continuar null, veio: ' + JSON.stringify(cancelled.advisory));
+    const none = P.migrateSavedState(savedStateV6(undefined).roomState, {}, 7).roomState.currentRound;
+    check(!('advisory' in none), 'rodada sem assessoria não deveria ganhar o campo, veio: ' + JSON.stringify(none));
+    const noRound = P.migrateSavedState({ ...savedStateV6(undefined).roomState, currentRound: null }, {}, 7).roomState;
+    check(noRound.currentRound === null && noRound.stateVersion === 7, 'sem rodada, continua sem rodada');
+    const bare = P.migrateSavedState({ stateVersion: 6, roomName: 'sala' }, {}, 7);
+    check(bare.roomState.roomName === 'sala' && bare.roomState.stateVersion === 7 && !('currentRound' in bare.roomState),
+        'estado da versão 6 sem rodada deveria migrar sem erro, veio: ' + JSON.stringify(bare.roomState));
+
+    // F5 com o estado salvo na versão 6 e a sugestão aceita: depois do F5, é assessoria e o honorário vale.
+    const old = use(createEnvironment());
+    roomToReload(old);
+    const v6 = savedStateV6({ advisorName: 'B', status: 'accepted', suggestion: 'b' });
+    old.storage['pmKPI_roomState'] = JSON.stringify({ ...v6.roomState, timestamp: new Date().toISOString() });
+    old.storage['pmKPI_myData'] = JSON.stringify(v6.myData);
+    const reloaded = use(reloadHost(old));
+    reloaded.fakeTime();
+    const restored = reloaded.state.currentRound.advisory;
+    check(restored && restored.kind === 'advisory' && restored.status === 'accepted' && restored.suggestion === 'b',
+        'depois do F5, a assessoria salva na versão 6 deveria voltar com kind "advisory", veio: ' + JSON.stringify(restored));
+    reloaded.Game.core.resumeMatchAfterReload();
+    reloaded.join('A', 'peer-a2');
+    const fee = reloaded.CONFIG.RESOURCES.ADVISORY_FEE;
+    const before = { A: reloaded.player('A').resources, B: reloaded.player('B').resources };
+    reloaded.Game.network.handleMessage({ type: 'answer', alternative: 'b', playerName: 'A' }, 'peer-a2');
+    check(reloaded.player('A').resources === before.A - fee && reloaded.player('B').resources === before.B + fee,
+        'seguindo a sugestão certa, A deveria pagar o honorário a B, veio: ' + JSON.stringify({ A: reloaded.player('A').resources, B: reloaded.player('B').resources }));
 });
 
 finish('Estado salvo');

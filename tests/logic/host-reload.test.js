@@ -430,6 +430,95 @@ test('T60 F5 do host com a assessoria já resolvida: a sugestão (ou a recusa) c
 });
 
 /**
+ * Partida de 3 (Host, A, B) com a dupla fixada (o host pergunta, A
+ * responde sem recursos) e um pedido de ajuda de A a B (com 5 recursos)
+ * ainda sem resposta. Devolve a rodada.
+ */
+function preparePendingHelp(env) {
+    roomToReload(env);
+    env.join('A', 'peer-a');
+    env.join('B', 'peer-b');
+    env.startMatch();
+    // O sorteio da dupla é aleatório: fixa os papéis (mesma pergunta e evento).
+    env.state.currentRound = { ...env.state.currentRound, asker: 'Host', answerer: 'A', answered: false };
+    env.state.answeredThisRound = [];
+    env.player('A').resources = 0;
+    env.player('B').resources = 5;
+    env.Game.network.handleMessage({ type: 'advisory-request', kind: 'help', advisorName: 'B', requesterName: 'A' }, 'peer-a');
+    const h = env.state.currentRound.advisory;
+    check(h && h.status === 'pending' && h.advisorName === 'B' && h.kind === 'help', 'pré-condição: ajuda de B pendente, veio: ' + JSON.stringify(h));
+    return env.state.currentRound;
+}
+
+test('T122 F5 do host com pedido de ajuda: o pendente é cancelado (quem responde pode pedir de novo), o já aceito continua valendo com a recompensa ou a cobertura; quem ajuda cai sem responder e o prazo libera quem responde', (use) => {
+    // 1) Ajuda pendente no F5: cancelada, a resposta atrasada é ignorada e A pede de novo.
+    const env = use(createEnvironment());
+    const r = preparePendingHelp(env);
+    const reloaded = use(reloadHost(env));
+    reloaded.fakeTime();
+    reloaded.Game.core.resumeMatchAfterReload();
+    check(reloaded.state.currentRound && reloaded.state.currentRound.question.id === r.question.id && !reloaded.state.currentRound.advisory,
+        'a mesma pergunta deveria continuar, sem o pedido de ajuda pendente, veio: ' + JSON.stringify(reloaded.state.currentRound.advisory));
+    reloaded.clearLog();
+    reloaded.Game.network.handleMessage({ type: 'advisory-answer', alternative: r.question.correct, declined: false }, 'peer-b');
+    check(reloaded.broadcastsOfType('advisory-result').length === 0 && !reloaded.state.currentRound.advisory,
+        'a resposta atrasada de quem ia ajudar deveria ser ignorada');
+    reloaded.join('A', 'peer-a2');
+    reloaded.join('B', 'peer-b2');
+    reloaded.clearLog();
+    reloaded.Game.network.handleMessage({ type: 'advisory-request', kind: 'help', advisorName: 'B', requesterName: 'A' }, 'peer-a2');
+    const started = reloaded.broadcastsOfType('advisory-started').pop();
+    check(started && started.kind === 'help' &&
+        reloaded.record.sent.some(e => e.to === 'peer-b2' && e.msg.type === 'advisory-question' && e.msg.kind === 'help'),
+        'depois do F5, A deveria conseguir pedir ajuda de novo, e B receber a pergunta, veio: ' + JSON.stringify(started));
+
+    // 2) Ajuda já aceita antes do F5: o tipo vai no estado salvo e a recompensa ou a cobertura valem depois.
+    for (const follows of ['correct', 'wrong']) {
+        const before = use(createEnvironment());
+        const round = preparePendingHelp(before);
+        const suggestion = follows === 'correct' ? round.question.correct : ['A', 'B', 'C', 'D'].find(x => x !== round.question.correct);
+        before.Game.network.handleMessage({ type: 'advisory-answer', alternative: suggestion, declined: false }, 'peer-b');
+        const saved = JSON.parse(before.storage['pmKPI_roomState']);
+        check(saved.currentRound.advisory && saved.currentRound.advisory.kind === 'help' && saved.currentRound.advisory.status === 'accepted',
+            'o estado salvo deveria guardar a ajuda aceita com kind help, veio: ' + JSON.stringify(saved.currentRound.advisory));
+
+        const after = use(reloadHost(before));
+        after.fakeTime();
+        after.Game.core.resumeMatchAfterReload();
+        const kept = after.state.currentRound.advisory;
+        check(kept && kept.kind === 'help' && kept.status === 'accepted' && kept.suggestion === suggestion,
+            'depois do F5, a ajuda aceita deveria continuar, veio: ' + JSON.stringify(kept));
+        after.join('A', 'peer-a2');
+        after.Game.network.handleMessage({ type: 'answer', alternative: suggestion, playerName: 'A' }, 'peer-a2');
+        const C = after.CONFIG.RESOURCES;
+        const expectedB = follows === 'correct' ? 5 + C.HELP_REWARD : 5 - C.HELP_COVER;
+        const toB = after.broadcastsOfType('kpi-update').find(m => m.playerName === 'B');
+        check(after.player('A').resources === 0 && after.player('B').resources === expectedB &&
+            toB && toB.supportOutcome === (follows === 'correct' ? 'reward' : 'cover') && toB.supportPartner === 'A',
+            'seguindo a sugestão ' + (follows === 'correct' ? 'certa' : 'errada') + ' depois do F5, A deveria continuar com 0 e B ficar com ' +
+            expectedB + ', veio: ' + JSON.stringify({ A: after.player('A').resources, B: after.player('B').resources, toB }));
+    }
+
+    // 3) Quem ajuda cai sem responder: o prazo (ADVISORY_TIMEOUT) libera A, que responde sozinho com o resultado normal.
+    const drop = use(createEnvironment());
+    const time = drop.fakeTime();
+    const dropRound = preparePendingHelp(drop);
+    drop.drop('peer-b');
+    check(drop.state.currentRound.advisory && drop.state.currentRound.advisory.status === 'pending',
+        'pré-condição: a ajuda continua pendente depois da queda de B (até o prazo)');
+    time.advance(drop.CONFIG.GAME.ADVISORY_TIMEOUT);
+    const late = drop.broadcastsOfType('advisory-result').pop();
+    check(late && late.declined === true && late.timeout === true && late.kind === 'help' && drop.state.currentRound.advisory.status === 'declined',
+        'no fim do prazo, a ajuda deveria ser recusada por tempo (kind help), veio: ' + JSON.stringify(late));
+    check(drop.state.answerTimeout, 'o prazo de resposta de A deveria voltar a correr');
+    const wrong = ['A', 'B', 'C', 'D'].find(x => x !== dropRound.question.correct);
+    drop.Game.network.handleMessage({ type: 'answer', alternative: wrong, playerName: 'A' }, 'peer-a');
+    check(drop.player('A').resources === -1 && drop.player('B').resources === 5,
+        'sem a ajuda, o erro de A deveria custar 1 recurso e B ficar como estava, veio: ' +
+        JSON.stringify({ A: drop.player('A').resources, B: drop.player('B').resources }));
+});
+
+/**
  * Partida de 3 (Host, A, B) com a dupla fixada e a pergunta aberta;
  * o host dá F5 e a partida é retomada. Devolve o host recarregado, o
  * tempo controlado e as telas que ele montou na retomada.
