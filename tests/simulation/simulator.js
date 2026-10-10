@@ -17,9 +17,16 @@
 // e o relógio de 90 minutos andam sem esperar), e o sorteio usa uma
 // semente: a mesma semente repete as mesmas partidas.
 //
+// Os robôs decidem pelo que "sabem": a cada pergunta, o robô sabe a
+// resposta com a chance tirada do perfil (knowChance); sem saber, chuta
+// 1 em 4 — assim, sozinho, acerta a chance do perfil. Só quem não sabe
+// pede apoio (assessoria com 1 recurso ou mais, ajuda com 0 ou menos) e
+// chama de preferência quem acerta mais, com ruído (chooseSupporter).
+// Quem é chamado aceita quando sabe; sem saber, aceita só às vezes.
+//
 // Roda no GitHub Actions (workflow "Simulação de partidas", botão "Run
-// workflow"), por tests/simulation/run.js. Testes: T93–T99 em
-// tests/logic/simulation.test.js.
+// workflow"), por tests/simulation/run.js. Testes: T93–T99, T102 e
+// T126–T129 em tests/logic/simulation.test.js.
 // ============================================
 
 const fs = require('fs');
@@ -54,15 +61,16 @@ const DEFAULT_OPTIONS = Object.freeze({
     matches: 200,                    // partidas por cenário
     players: 4,
     seed: 1,
-    accuracies: [0.4, 0.6, 0.8],     // perfis de chance de acerto; cada jogador sorteia um
+    accuracies: [0.4, 0.6, 0.8],     // perfis de chance de acerto sozinho; cada jogador sorteia um
     answerSeconds: [20, 50],         // tempo para responder (mín, máx)
     newRoundSeconds: 10,             // espera até o host clicar em "Nova Rodada"
-    advisoryChance: 0.3,             // o Respondedor pede assessoria
-    advisorAcceptChance: 0.9,        // o assessor responde (senão recusa)
+    advisoryChance: 0.5,             // quem não sabe, com 1 recurso ou mais, pede assessoria
+    advisorUnsureAcceptChance: 0.5,  // o assessor que não sabe aceita mesmo assim (e chuta)
     advisorSeconds: [5, 15],
-    followSuggestionChance: 0.8,     // o Respondedor segue a sugestão
-    helpChance: 0.5,                 // o Respondedor com 0 recursos ou menos pede ajuda
-    helpAcceptChance: 0.5,           // quem é chamado para ajudar responde (senão recusa)
+    followSuggestionChance: 1,       // quem pediu segue a sugestão
+    helpChance: 0.8,                 // quem não sabe, com 0 recursos ou menos, pede ajuda
+    helperUnsureAcceptChance: 0.2,   // quem é chamado para ajudar e não sabe aceita mesmo assim
+    callNoise: 0.2,                  // ruído (±) na chance de acerto ao escolher quem chamar
     timeoutChance: 0,                // o Respondedor deixa o prazo vencer
     overrides: {}                    // trocas do config, ex.: { 'KPI.FINAL_RESOURCE_VALUE': 3 }
 });
@@ -202,6 +210,36 @@ function createClock() {
 }
 
 // ============================================
+// DECISÕES DOS ROBÔS
+// ============================================
+
+/**
+ * Chance de "saber" a resposta para quem acerta `accuracy` sozinho:
+ * quem não sabe chuta 1 em 4, então saber + (1 − saber) ÷ 4 = accuracy.
+ */
+function knowChance(accuracy) {
+    return Math.min(1, Math.max(0, (4 * accuracy - 1) / 3));
+}
+
+/**
+ * Quem chamar para apoiar: a maior chance de acerto, somada a um ruído
+ * entre −noise e +noise (na sala se sabe quem é bom, mas não exatamente).
+ * @returns {object|null} o escolhido, ou null se a lista estiver vazia
+ */
+function chooseSupporter(candidates, accuracyOf, noise, random) {
+    let best = null;
+    let bestScore = -Infinity;
+    for (const candidate of candidates) {
+        const score = accuracyOf(candidate) + (random() * 2 - 1) * noise;
+        if (score > bestScore) {
+            best = candidate;
+            bestScore = score;
+        }
+    }
+    return best;
+}
+
+// ============================================
 // UMA PARTIDA
 // ============================================
 
@@ -281,17 +319,21 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
     names.forEach(name => {
         stats[name] = {
             accuracy: pick(o.accuracies), answers: 0, correct: 0, minResources: Infinity, timesAtZero: 0,
-            feesReceived: 0, feesPaid: 0, advisoriesGiven: 0, helpsAsked: 0, helpsGiven: 0, rewardsReceived: 0, coversPaid: 0,
-            atZero: false
+            feesReceived: 0, feesPaid: 0, advisoriesAsked: 0, advisoriesGiven: 0, helpsAsked: 0, helpsGiven: 0, rewardsReceived: 0,
+            coversPaid: 0, unsureAnswers: 0, atZero: false
         };
     });
     const byPeer = (peerId) => state.players.find(p => p.peerId === peerId);
     let resourcesBeforeEvent = null;
 
-    /** Alternativa marcada por quem tem a chance de acerto `accuracy`. */
-    function guess(question, accuracy) {
-        if (botRandom() < accuracy) return question.correct;
-        return pick(['a', 'b', 'c', 'd'].filter(letter => letter !== question.correct));
+    /** O robô sabe a resposta desta pergunta? (chance tirada do perfil) */
+    function knows(player) {
+        return botRandom() < knowChance(stats[player.name].accuracy);
+    }
+
+    /** Alternativa marcada por quem sabe (a certa) ou não sabe (chute, 1 em 4). */
+    function mark(question, knowsIt) {
+        return knowsIt ? question.correct : pick(['a', 'b', 'c', 'd']);
     }
 
     function spread(resources) {
@@ -347,6 +389,7 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
                 stats[msg.requesterName].helpsAsked++;
             } else {
                 result.advisories.requested++;
+                stats[msg.requesterName].advisoriesAsked++;
             }
         } else if (msg.type === 'advisory-result') {
             const counts = msg.kind === 'help' ? result.help : result.advisories;
@@ -382,46 +425,53 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
     }
 
     /**
-     * Respondedor: talvez peça apoio, como no jogo — assessoria com 1
-     * recurso ou mais (tem honorário), ajuda com 0 ou menos (a quem pode
-     * cobrir um erro); responde (ou deixa o prazo vencer).
+     * Respondedor: sabendo, responde certo sem pedir apoio. Sem saber,
+     * talvez peça apoio, como no jogo — assessoria com 1 recurso ou mais
+     * (tem honorário), ajuda com 0 ou menos (a quem pode cobrir um erro) —
+     * a quem acerta mais; segue a sugestão ou chuta (ou deixa o prazo vencer).
      */
     function answererRobot(player) {
         const round = state.currentRound;
         if (botRandom() < o.timeoutChance) return;   // o prazo de resposta do jogo encerra a pergunta
         const think = between(o.answerSeconds);
-        const inClosing = Game.getFocusAreaIndex(player.focusArea) === CONFIG.FOCUS_AREAS.length - 1;
-        const kind = player.resources >= 1 ? 'advisory' : 'help';
-        const chance = kind === 'help' ? o.helpChance : o.advisoryChance;
-        if (!inClosing && botRandom() < chance) {
-            const candidates = Game.getActivePlayers().filter(p => p.name !== round.asker && p.name !== round.answerer &&
-                (kind !== 'help' || p.resources >= CONFIG.RESOURCES.HELP_COVER));
-            if (candidates.length > 0) {
-                const advisor = pick(candidates);
-                clock.setTimeout(() => {
-                    if (state.currentRound !== round || round.answered) return;
-                    Game.core.handleAdvisoryRequest({ type: 'advisory-request', kind, advisorName: advisor.name, requesterName: player.name });
-                }, Math.min(5, think / 2) * 1000);
+        const knowsIt = knows(player);
+        if (!knowsIt) {
+            stats[player.name].unsureAnswers++;
+            const inClosing = Game.getFocusAreaIndex(player.focusArea) === CONFIG.FOCUS_AREAS.length - 1;
+            const kind = player.resources >= 1 ? 'advisory' : 'help';
+            const chance = kind === 'help' ? o.helpChance : o.advisoryChance;
+            if (!inClosing && botRandom() < chance) {
+                const candidates = Game.getActivePlayers().filter(p => p.name !== round.asker && p.name !== round.answerer &&
+                    (kind !== 'help' || p.resources >= CONFIG.RESOURCES.HELP_COVER));
+                const advisor = chooseSupporter(candidates, p => stats[p.name].accuracy, o.callNoise, botRandom);
+                if (advisor) {
+                    clock.setTimeout(() => {
+                        if (state.currentRound !== round || round.answered) return;
+                        Game.core.handleAdvisoryRequest({ type: 'advisory-request', kind, advisorName: advisor.name, requesterName: player.name });
+                    }, Math.min(5, think / 2) * 1000);
+                }
             }
         }
         clock.setTimeout(() => {
             if (state.gameOver || state.currentRound !== round || round.answered || round.pendingAnswer) return;
             const advisory = round.advisory;
-            const alternative = advisory && advisory.status === 'accepted' && advisory.suggestion && botRandom() < o.followSuggestionChance
+            const alternative = !knowsIt && advisory && advisory.status === 'accepted' && advisory.suggestion &&
+                botRandom() < o.followSuggestionChance
                 ? advisory.suggestion
-                : guess(round.question, stats[player.name].accuracy);
+                : mark(round.question, knowsIt);
             Game.core.handleAnswer({ type: 'answer', playerName: player.name, alternative });
         }, think * 1000);
     }
 
-    /** Assessor ou quem ajuda: responde com a própria chance de acerto, ou recusa. */
+    /** Assessor ou quem ajuda: sabendo, aceita e sugere a certa; sem saber, às vezes aceita e chuta, senão recusa. */
     function advisorRobot(player, kind) {
         const round = state.currentRound;
-        const acceptChance = kind === 'help' ? o.helpAcceptChance : o.advisorAcceptChance;
+        const unsureAcceptChance = kind === 'help' ? o.helperUnsureAcceptChance : o.advisorUnsureAcceptChance;
         clock.setTimeout(() => {
             if (state.currentRound !== round || !round.advisory || round.advisory.status !== 'pending') return;
-            if (botRandom() < acceptChance) {
-                Game.core.handleAdvisoryAnswer({ type: 'advisory-answer', alternative: guess(round.question, stats[player.name].accuracy), declined: false });
+            const knowsIt = knows(player);
+            if (knowsIt || botRandom() < unsureAcceptChance) {
+                Game.core.handleAdvisoryAnswer({ type: 'advisory-answer', alternative: mark(round.question, knowsIt), declined: false });
             } else {
                 Game.core.handleAdvisoryAnswer({ type: 'advisory-answer', alternative: null, declined: true });
             }
@@ -466,8 +516,9 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
             name: r.name, accuracy: s.accuracy, position: r.position, kpi: r.kpi, resources: r.resources, finalKpi: r.finalKpi,
             focusAreaIndex: Game.getFocusAreaIndex(r.focusArea), activities: r.activities,
             answers: s.answers, correct: s.correct, minResources: s.minResources, timesAtZero: s.timesAtZero,
-            feesReceived: s.feesReceived, feesPaid: s.feesPaid, advisoriesGiven: s.advisoriesGiven,
-            helpsAsked: s.helpsAsked, helpsGiven: s.helpsGiven, rewardsReceived: s.rewardsReceived, coversPaid: s.coversPaid
+            feesReceived: s.feesReceived, feesPaid: s.feesPaid, advisoriesAsked: s.advisoriesAsked, advisoriesGiven: s.advisoriesGiven,
+            helpsAsked: s.helpsAsked, helpsGiven: s.helpsGiven, rewardsReceived: s.rewardsReceived, coversPaid: s.coversPaid,
+            unsureAnswers: s.unsureAnswers
         };
     });
     return result;
@@ -544,7 +595,7 @@ function optionsFromInputs(inputs = {}) {
     }
     set('advisoryChance', chance('assessoria'));
     set('helpChance', chance('pedir_ajuda'));
-    set('helpAcceptChance', chance('aceitar_ajuda'));
+    set('helperUnsureAcceptChance', chance('aceitar_ajuda'));
 
     let overridesB = null;
     if (text('cenario_b')) {
@@ -635,13 +686,17 @@ function buildReport({ a, b = null, commit = '' }) {
 
     lines.push('### 🤖 Robôs', '');
     table(['Parâmetro', 'Valor'], [
-        ['Chance de acerto (cada jogador sorteia um perfil)', o.accuracies.map(pct).join(', ')],
+        ['Chance de acerto sozinho (cada jogador sorteia um perfil)', o.accuracies.map(pct).join(', ')],
+        ['Sabe a resposta (pelo perfil; sem saber, chuta 1 em 4)', o.accuracies.map(acc => pct(knowChance(acc))).join(', ')],
         ['Tempo para responder', seconds(o.answerSeconds)],
         ['Espera até "Nova Rodada"', number(o.newRoundSeconds, 0) + ' s'],
-        ['Pede assessoria', pct(o.advisoryChance) + ' (o assessor responde em ' + pct(o.advisorAcceptChance) +
-            ', a sugestão é seguida em ' + pct(o.followSuggestionChance) + ')'],
-        ['Pede ajuda na vez de responder, com 0 recursos ou menos', pct(o.helpChance) + ' (quem é chamado responde em ' +
-            pct(o.helpAcceptChance) + ', a sugestão é seguida em ' + pct(o.followSuggestionChance) + ')'],
+        ['Pede assessoria quando não sabe (com 1 recurso ou mais)', pct(o.advisoryChance) +
+            ' (o assessor que não sabe aceita mesmo assim em ' + pct(o.advisorUnsureAcceptChance) + ')'],
+        ['Pede ajuda quando não sabe (com 0 recursos ou menos)', pct(o.helpChance) +
+            ' (quem é chamado e não sabe aceita mesmo assim em ' + pct(o.helperUnsureAcceptChance) + ')'],
+        ['Quem é chamado e sabe', 'aceita e sugere a alternativa certa'],
+        ['Segue a sugestão', pct(o.followSuggestionChance)],
+        ['Escolha de quem chamar', 'a maior chance de acerto, com ruído de ±' + number(100 * o.callNoise) + ' pontos'],
         ['Deixa o prazo de resposta vencer', pct(o.timeoutChance)]
     ]);
 
@@ -677,6 +732,9 @@ function buildReport({ a, b = null, commit = '' }) {
         ['Recursos no fim (por jogador)', run => spreadText(allPlayers(run).map(p => p.resources))],
         ['Jogadores que chegaram a 0 recursos', run => percentText(allPlayers(run).filter(p => p.timesAtZero > 0).length, allPlayers(run).length)],
         ['Vezes em 0 recursos (por jogador)', run => spreadText(allPlayers(run).map(p => p.timesAtZero))],
+        ['Jogadores que entraram em estouro (recurso negativo)', run => percentText(allPlayers(run).filter(p => p.minResources < 0).length, allPlayers(run).length)],
+        ['Menor recurso na partida (por jogador)', run => spreadText(allPlayers(run).map(p => p.minResources))],
+        ['Jogadores que terminaram abaixo de −5 recursos', run => percentText(allPlayers(run).filter(p => p.resources < -5).length, allPlayers(run).length)],
         ['Parte do KPI Final que vem dos recursos', run => percentText(
             total(allPlayers(run), p => p.resources * p.config.KPI.FINAL_RESOURCE_VALUE), total(allPlayers(run), p => p.finalKpi))],
         ['KPI Final do vencedor', run => spreadText(run.matches.map(m => m.players[0].finalKpi))]
@@ -684,15 +742,43 @@ function buildReport({ a, b = null, commit = '' }) {
 
     lines.push('### 💱 Economia', '');
     const perMatch = (run, fn) => number(mean(run.matches.map(fn)));
+    const wonByTopFee = (run) => {
+        const withFees = run.matches.filter(m => m.advisories.feeTotal > 0);
+        const won = withFees.filter(m => m.players[0].feesReceived === Math.max(...m.players.map(p => p.feesReceived))).length;
+        return percentText(won, withFees.length);
+    };
     compare([
+        ['Perguntas em que quem respondia não sabia, por partida', run => perMatch(run, m => total(m.players, p => p.unsureAnswers))],
+        ['Dessas, com apoio pedido', run => percentText(total(allPlayers(run), p => p.advisoriesAsked + p.helpsAsked),
+            total(allPlayers(run), p => p.unsureAnswers))],
         ['Assessorias pedidas por partida', run => perMatch(run, m => m.advisories.requested)],
         ['Assessorias respondidas', run => percentText(total(run.matches, m => m.advisories.accepted), total(run.matches, m => m.advisories.requested))],
         ['Honorário de assessoria pago por partida (recursos)', run => perMatch(run, m => m.advisories.feeTotal)],
         ['Pedidos de ajuda por partida', run => perMatch(run, m => m.help.requested)],
         ['Pedidos de ajuda respondidos', run => percentText(total(run.matches, m => m.help.accepted), total(run.matches, m => m.help.requested))],
         ['Recompensa do patrocinador por partida (recursos)', run => perMatch(run, m => m.help.rewardTotal)],
-        ['Erros cobertos por quem ajudou, por partida (recursos)', run => perMatch(run, m => m.help.coverTotal)]
+        ['Erros cobertos por quem ajudou, por partida (recursos)', run => perMatch(run, m => m.help.coverTotal)],
+        ['Partidas com pelo menos uma ajuda aceita', run => percentText(run.matches.filter(m => m.help.accepted > 0).length, run.matches.length)],
+        ['Partidas vencidas por quem mais recebeu honorários', wonByTopFee]
     ]);
+    lines.push('"Partidas vencidas por quem mais recebeu honorários": entre as partidas com algum honorário pago.', '');
+
+    lines.push('### 🤝 Apoio por perfil', '');
+    lines.push('Médias por jogador. Saldo do apoio = honorários e recompensas recebidos − honorários pagos − erros cobertos.', '');
+    perScenario(run => {
+        const players = allPlayers(run);
+        const profiles = [...new Set(players.map(p => p.accuracy))].sort((x, y) => x - y);
+        table(['Perfil (chance de acerto)', 'Assessorias pedidas', 'Assessorias dadas', 'Ajudas pedidas', 'Ajudas dadas',
+            'Honorários recebidos', 'Recompensas recebidas', 'Coberturas pagas', 'Saldo do apoio (recursos)', 'Entraram em estouro'],
+        profiles.map(acc => {
+            const group = players.filter(p => p.accuracy === acc);
+            const average = (fn) => number(mean(group.map(fn)));
+            return [pct(acc), average(p => p.advisoriesAsked), average(p => p.advisoriesGiven), average(p => p.helpsAsked),
+                average(p => p.helpsGiven), average(p => p.feesReceived), average(p => p.rewardsReceived), average(p => p.coversPaid),
+                average(p => p.feesReceived + p.rewardsReceived - p.feesPaid - p.coversPaid),
+                percentText(group.filter(p => p.minResources < 0).length, group.length)];
+        }));
+    });
 
     lines.push('### 🎴 Eventos', '');
     lines.push('Δ = mudança média a cada vez que o evento sai: na soma dos recursos de todos e na diferença entre quem tem mais e quem tem menos.', '');
@@ -711,10 +797,10 @@ function buildReport({ a, b = null, commit = '' }) {
     perScenario(run => {
         const players = allPlayers(run);
         const profiles = [...new Set(players.map(p => p.accuracy))].sort((x, y) => x - y);
-        table(['Perfil (chance de acerto)', 'Jogadores', 'Vitórias', 'Posição média'], profiles.map(acc => {
+        table(['Perfil (chance de acerto)', 'Jogadores', 'Vitórias', 'Posição média', 'KPI Final médio'], profiles.map(acc => {
             const group = players.filter(p => p.accuracy === acc);
             return [pct(acc), String(group.length), percentText(group.filter(p => p.position === 1).length, group.length),
-                number(mean(group.map(p => p.position)))];
+                number(mean(group.map(p => p.position))), number(mean(group.map(p => p.finalKpi)))];
         }));
     });
     compare([
@@ -731,14 +817,15 @@ function toCsv(run) {
     const header = ['partida', 'semente', 'fim', 'rodadas', 'perguntas', 'minutos', 'jogador', 'perfil_acerto', 'posicao',
         'kpi', 'recursos', 'kpi_final', 'area_final', 'respostas', 'acertos', 'min_recursos', 'vezes_em_zero',
         'ajudas_pedidas', 'ajudas_dadas', 'rewards_received', 'covers_paid', 'assessorias_dadas', 'honorarios_recebidos',
-        'honorarios_pagos'];
+        'honorarios_pagos', 'advisories_asked', 'unsure_answers'];
     const rows = [header.join(';')];
     const cell = (v) => (typeof v === 'number' ? String(v).replace('.', ',') : String(v).replace(/[;\n]/g, ' '));
     run.matches.forEach((m, i) => m.players.forEach(p => {
         const area = m.config.FOCUS_AREAS[p.focusAreaIndex];
         rows.push([i + 1, m.seed, m.endReason, m.rounds, m.questions, Math.round(m.durationSeconds / 6) / 10, p.name, p.accuracy,
             p.position, p.kpi, p.resources, p.finalKpi, area ? area.name : '', p.answers, p.correct, p.minResources, p.timesAtZero,
-            p.helpsAsked, p.helpsGiven, p.rewardsReceived, p.coversPaid, p.advisoriesGiven, p.feesReceived, p.feesPaid].map(cell).join(';'));
+            p.helpsAsked, p.helpsGiven, p.rewardsReceived, p.coversPaid, p.advisoriesGiven, p.feesReceived, p.feesPaid,
+            p.advisoriesAsked, p.unsureAnswers].map(cell).join(';'));
     }));
     return rows.join('\n') + '\n';
 }
@@ -746,6 +833,8 @@ function toCsv(run) {
 module.exports = {
     DEFAULT_OPTIONS,
     realConfig,
+    knowChance,
+    chooseSupporter,
     simulateMatch,
     simulateMany,
     optionsFromInputs,

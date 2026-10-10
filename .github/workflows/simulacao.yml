@@ -28,20 +28,20 @@ on:
         description: 'Semente do sorteio (a mesma semente repete as mesmas partidas)'
         default: '1'
       acertos:
-        description: 'Chance de acerto de cada perfil, em %, separadas por vírgula (cada jogador sorteia um perfil)'
+        description: 'Chance de acerto sozinho de cada perfil, em %, separadas por vírgula (cada jogador sorteia um perfil)'
         default: '40,60,80'
       tempo_resposta:
         description: 'Segundos para responder, mínimo-máximo'
         default: '20-50'
       assessoria:
-        description: '% das perguntas em que o Respondedor pede assessoria'
-        default: '30'
+        description: '% das perguntas em que quem não sabe a resposta, com 1 recurso ou mais, pede assessoria'
+        default: '50'
       pedir_ajuda:
-        description: '% das perguntas em que o Respondedor com 0 recursos ou menos pede ajuda'
-        default: '50'
+        description: '% das perguntas em que quem não sabe a resposta, com 0 recursos ou menos, pede ajuda'
+        default: '80'
       aceitar_ajuda:
-        description: '% das vezes em que quem é chamado para ajudar responde (senão recusa)'
-        default: '50'
+        description: '% das vezes em que quem é chamado para ajudar e não sabe a resposta aceita mesmo assim (quem sabe sempre aceita)'
+        default: '20'
       cenario_b:
         description: 'Cenário B: trocas do config para comparar (ex.: KPI.FINAL_RESOURCE_VALUE=3; STARTING_RESOURCES=5). Vazio = sem cenário B'
         default: ''
