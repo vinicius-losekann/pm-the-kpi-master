@@ -56,8 +56,8 @@ test('T70 Assessor que caiu é recusado na hora; quem responde pode chamar outro
 // ASSESSORIA COM HONORÁRIO (economia de recursos)
 // ============================================
 
-/** Telas reais usadas por quem responde e pelo assessor. */
-const ADVISORY_SCREENS = ['js/ui/modals/advisoryModal.js', 'js/ui/components/questionComponent.js'];
+/** Telas reais usadas por quem responde e pelo assessor (a lista de quem chamar usa o sanitize.js). */
+const ADVISORY_SCREENS = ['js/utils/sanitize.js', 'js/ui/modals/advisoryModal.js', 'js/ui/components/questionComponent.js'];
 
 /** Evento de Reserva de Contingência (protege o erro). */
 const RESERVE = { id: 'e4', title: 'Reserva de Contingência', contingencyReserve: true };
