@@ -7,7 +7,8 @@
 // jogadores e um tempo falso. Estes testes conferem que ele usa as
 // regras reais (trocar um valor do config muda o resultado), que as
 // contas fecham, que a mesma semente repete as partidas, que as
-// decisões dos robôs passam pelos engines e que o relatório sai
+// decisões dos robôs passam pelos engines, que os robôs decidem pelo que
+// "sabem" (pedir apoio, quem chamar, aceitar) e que o relatório sai
 // completo.
 // Ambiente e ajudantes: environment.js. Rodar a partir da raiz:
 //     node tests/logic/simulation.test.js
@@ -64,6 +65,18 @@ const matchesOf = (...runs) => runs.flatMap(r => r.matches);
 
 const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
 
+/** Números entre 0 e 1 a partir de uma semente (para o sorteio da escolha de quem chamar). */
+function seededRandom(seed) {
+    let a = seed >>> 0;
+    return () => {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
 (async () => {
     const C = realConfig();
     const configTextBefore = fs.readFileSync(path.join(ROOT, 'config/game-config.js'), 'utf8');
@@ -72,7 +85,7 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
     const accounts = await attempt(() => Promise.all([
         simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 4, seed: 11, players: 5 }),
         simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 4, seed: 21, players: 4,
-            helpChance: 1, helpAcceptChance: 1, advisoryChance: 0.5, overrides: { STARTING_RESOURCES: 1 } })
+            helpChance: 1, helperUnsureAcceptChance: 1, advisoryChance: 0.5, overrides: { STARTING_RESOURCES: 1 } })
     ]));
     const sameSeed = await attempt(async () => [
         await simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 3, seed: 42, players: 3 }),
@@ -87,11 +100,12 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
     const unknownKey = await attempt(() => simulator.simulateMatch({ ...simulator.DEFAULT_OPTIONS, seed: 1, players: 2,
         overrides: { 'KPI.NAO_EXISTE': 1 } }));
     const robots = await attempt(async () => ({
-        advisory: await simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 3, seed: 3, players: 4, accuracies: [1],
-            advisoryChance: 1, advisorAcceptChance: 1, followSuggestionChance: 1 }),
+        // Perfil 25% nunca sabe (sempre pede); perfil 100% sempre sabe.
+        advisory: await simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 6, seed: 3, players: 4, accuracies: [0.25, 1],
+            advisoryChance: 1, advisorUnsureAcceptChance: 0, followSuggestionChance: 1 }),
         noAdvisory: await simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 2, seed: 4, players: 4, advisoryChance: 0 }),
         help: await simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 6, seed: 9, players: 4, accuracies: [0.5],
-            advisoryChance: 0, advisorAcceptChance: 0, helpChance: 1, helpAcceptChance: 1, followSuggestionChance: 1,
+            advisoryChance: 0, advisorUnsureAcceptChance: 0, helpChance: 1, helperUnsureAcceptChance: 1, followSuggestionChance: 1,
             overrides: { STARTING_RESOURCES: 1 } }),
         noHelp: await simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 2, seed: 9, players: 4, accuracies: [0.5],
             helpChance: 0, overrides: { STARTING_RESOURCES: 1 } }),
@@ -112,6 +126,28 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
     const tieRun = await attempt(async () => {
         const run = await simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 20, seed: 5, players: 6 });
         return { run, report: simulator.buildReport({ a: run, b: null, commit: 'abc1234' }) };
+    });
+    const deciding = await attempt(async () => ({
+        alwaysKnows: await simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 3, seed: 13, players: 4, accuracies: [1],
+            advisoryChance: 1, helpChance: 1 }),
+        neverKnows: await simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 3, seed: 14, players: 4, accuracies: [0.25],
+            advisoryChance: 1, helpChance: 1, helperUnsureAcceptChance: 1 }),
+        alone: await simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 30, seed: 17, players: 4,
+            accuracies: [0.4, 0.6, 0.8], advisoryChance: 0, helpChance: 0 })
+    }));
+    const calling = await attempt(() => simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 8, seed: 23, players: 4,
+        accuracies: [0.4, 0.9], advisoryChance: 1, advisorUnsureAcceptChance: 1, callNoise: 0 }));
+    const accepting = await attempt(async () => ({
+        help: await simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 6, seed: 9, players: 4, accuracies: [0.5],
+            advisoryChance: 0, helpChance: 1, helperUnsureAcceptChance: 0, followSuggestionChance: 1,
+            overrides: { STARTING_RESOURCES: 1, 'RESOURCES.HELP_REWARD': 5 } }),
+        advisory: await simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 4, seed: 27, players: 4, accuracies: [0.5],
+            advisoryChance: 1, advisorUnsureAcceptChance: 0, helpChance: 0, followSuggestionChance: 1 })
+    }));
+    const economyRun = await attempt(async () => {
+        const run = await simulator.simulateMany({ ...simulator.DEFAULT_OPTIONS, matches: 6, seed: 31, players: 4,
+            overrides: { STARTING_RESOURCES: 2 } });
+        return { run, report: simulator.buildReport({ a: run, b: null, commit: 'abc1234' }), csv: simulator.toCsv(run) };
     });
     const configTextAfter = fs.readFileSync(path.join(ROOT, 'config/game-config.js'), 'utf8');
 
@@ -180,6 +216,11 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
                 sum(m.players, p => p.helpsGiven) !== m.help.accepted) problems.push('partida ' + i + ': ajudas não batem');
             if (sum(m.players, p => p.rewardsReceived) !== m.help.rewardTotal ||
                 sum(m.players, p => p.coversPaid) !== m.help.coverTotal) problems.push('partida ' + i + ': recompensas e coberturas não batem');
+            if (sum(m.players, p => p.advisoriesAsked) !== m.advisories.requested) problems.push('partida ' + i + ': assessorias pedidas não batem');
+            // Só quem não sabe pede apoio.
+            if (m.players.some(p => p.advisoriesAsked + p.helpsAsked > p.unsureAnswers)) {
+                problems.push('partida ' + i + ': mais pedidos de apoio que perguntas sem saber');
+            }
         });
         // Efeito medido de cada evento (o que o relatório mostra): "+N para
         // todos" soma N por jogador; a troca entre quem tem mais e quem tem
@@ -242,17 +283,20 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
         const r = valueOf(robots);
         const K = C.KPI;
 
-        // Assessoria sempre pedida, aceita e seguida, com acerto 100%: todo
-        // pedido vira honorário (quem pediu paga em recurso ao assessor).
+        // Quem não sabe (perfil 25%) sempre pede; o assessor só aceita
+        // quando sabe, e a sugestão é sempre seguida: toda assessoria
+        // aceita vira honorário (quem pediu paga em recurso ao assessor).
+        // Só a aceita quando a partida acaba pode ficar sem resposta.
         const fee = C.RESOURCES.ADVISORY_FEE;
         const adv = r.advisory.matches;
         const requested = sum(adv, m => m.advisories.requested);
         const accepted = sum(adv, m => m.advisories.accepted);
-        check(requested > 0, 'com advisoryChance 1, deveria haver pedidos de assessoria');
-        check(accepted === requested, 'com advisorAcceptChance 1, todo pedido deveria ser aceito: ' + accepted + ' de ' + requested);
-        check(sum(adv, m => m.advisories.feeTotal) === accepted * fee,
+        check(requested > 0 && accepted > 0, 'com advisoryChance 1 e perfis 25% e 100%, deveria haver assessorias pedidas e aceitas: ' +
+            JSON.stringify(adv.map(m => m.advisories)));
+        check(adv.every(m => m.advisories.feeTotal % fee === 0 && m.advisories.feeTotal <= m.advisories.accepted * fee &&
+            m.advisories.feeTotal >= (m.advisories.accepted - 1) * fee),
             'cada assessoria aceita, seguida e certa deveria pagar o honorário (RESOURCES.ADVISORY_FEE = ' + fee + '), veio: ' +
-            sum(adv, m => m.advisories.feeTotal) + ' para ' + accepted);
+            JSON.stringify(adv.map(m => m.advisories)));
         check(adv.every(m => m.players.every(p => p.kpi === K.CORRECT_ANSWER * p.correct)),
             'a assessoria não deveria dar KPI a ninguém (sem bônus do assessor)');
         check(r.noAdvisory.matches.every(m => m.advisories.requested === 0 && m.advisories.feeTotal === 0),
@@ -267,7 +311,7 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
         // Vale a chance de quem ajuda (1), não a do assessor (0). Só o
         // pedido em andamento quando a partida acaba fica sem resposta.
         check(helpsAccepted > 0 && helped.every(m => m.help.declined === 0 && m.help.accepted >= m.help.requested - 1),
-            'com helpAcceptChance 1 (e advisorAcceptChance 0), todo pedido de ajuda deveria ser respondido: ' +
+            'com helperUnsureAcceptChance 1 (e advisorUnsureAcceptChance 0), todo pedido de ajuda deveria ser respondido: ' +
             JSON.stringify(helped.map(m => m.help)));
         check(sum(helped, m => m.help.rewardTotal) > 0 && sum(helped, m => m.help.coverTotal) > 0,
             'com acerto de 50%, deveria haver recompensas e coberturas: ' + JSON.stringify(helped.map(m => m.help)));
@@ -325,8 +369,14 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
             'partidas, jogadores e semente deveriam virar números, veio: ' + JSON.stringify(options));
         check(JSON.stringify(options.accuracies) === '[0.4,0.6,0.8]', 'acertos em % deveriam virar [0.4,0.6,0.8], veio: ' + JSON.stringify(options.accuracies));
         check(JSON.stringify(options.answerSeconds) === '[20,50]', 'tempo de resposta deveria virar [20,50], veio: ' + JSON.stringify(options.answerSeconds));
-        check(options.advisoryChance === 0.3 && options.helpChance === 0.5 && options.helpAcceptChance === 0.4,
-            'as chances em % deveriam virar frações, veio: ' + JSON.stringify(options));
+        check(options.advisoryChance === 0.3 && options.helpChance === 0.5 && options.helperUnsureAcceptChance === 0.4,
+            'as chances em % deveriam virar frações (aceitar_ajuda → helperUnsureAcceptChance), veio: ' + JSON.stringify(options));
+        const D = simulator.DEFAULT_OPTIONS;
+        check(D.advisoryChance === 0.5 && D.helpChance === 0.8 && D.helperUnsureAcceptChance === 0.2 &&
+            D.advisorUnsureAcceptChance === 0.5 && D.followSuggestionChance === 1 && D.callNoise === 0.2 &&
+            !('advisorAcceptChance' in D) && !('helpAcceptChance' in D),
+            'padrões dos robôs: assessoria 50%, ajuda 80%, aceitar ajuda sem saber 20%, assessorar sem saber 50%, segue a sugestão 100%, ' +
+            'ruído na escolha 0,2, sem advisorAcceptChance/helpAcceptChance; veio: ' + JSON.stringify(D));
         check(JSON.stringify(overridesB) === JSON.stringify({ 'KPI.FINAL_RESOURCE_VALUE': 3, STARTING_RESOURCES: 5 }),
             'o cenário B deveria virar as trocas do config, veio: ' + JSON.stringify(overridesB));
 
@@ -383,6 +433,145 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
         check(tieRow.includes(pct(tiedAtTop)), 'o relatório deveria mostrar o empate no KPI Final do 1º lugar (' + pct(tiedAtTop) + '), veio: ' + tieRow);
         check(sharedRow.includes(pct(shared)), 'o relatório deveria mostrar o empate que sobra depois do desempate (' + pct(shared) + '), veio: ' + sharedRow);
         check(!/(^|[^\d,])-0(?![\d,])/.test(report), 'o relatório não deveria mostrar "-0"');
+    });
+
+    test('T126 Simulador: o robô "sabe" pela chance do perfil — quem sabe não pede apoio, quem não sabe pede ou chuta, e sozinho acerta o perfil', () => {
+        const k = simulator && simulator.knowChance;
+        check(typeof k === 'function', 'o simulador deveria exportar knowChance (chance de saber a partir do perfil)');
+        const close = (x, y) => Math.abs(x - y) < 1e-9;
+        check(close(k(0.4), 0.2) && close(k(0.8), 2.2 / 3) && close(k(1), 1) && k(0.25) === 0 && k(0.1) === 0,
+            'knowChance = (4 × perfil − 1) ÷ 3, entre 0 e 1: 40% → 0,2; 80% → 0,733; 100% → 1; 25% e 10% → 0; veio: ' +
+            [0.4, 0.8, 1, 0.25, 0.1].map(k).join(' | '));
+
+        const { alwaysKnows, neverKnows, alone } = valueOf(deciding);
+        check(alwaysKnows.matches.every(m => m.advisories.requested === 0 && m.help.requested === 0 &&
+            m.players.every(p => p.unsureAnswers === 0 && p.correct === p.answers)),
+            'com perfil 100%, o robô sempre sabe: acerta tudo e nunca pede apoio (mesmo com advisoryChance e helpChance 1), veio: ' +
+            JSON.stringify(alwaysKnows.matches.map(m => [m.advisories, m.help])));
+
+        // Perfil 25%: nunca sabe. Só a pergunta em andamento quando a partida acaba fica sem resposta.
+        check(neverKnows.matches.every(m => sum(m.players, p => p.unsureAnswers) >= sum(m.players, p => p.answers) &&
+            sum(m.players, p => p.unsureAnswers) <= sum(m.players, p => p.answers) + 1),
+            'com perfil 25%, toda pergunta deveria contar como sem saber, veio: ' +
+            JSON.stringify(neverKnows.matches.map(m => [sum(m.players, p => p.unsureAnswers), sum(m.players, p => p.answers)])));
+        check(sum(neverKnows.matches, m => m.advisories.requested + m.help.requested) > 0,
+            'com perfil 25% e chances de pedir 1, deveria haver pedidos de apoio');
+
+        // Sem apoio, quem não sabe chuta 1 em 4: o acerto observado fica no perfil.
+        const alonePlayers = alone.matches.flatMap(m => m.players);
+        const off = [];
+        for (const accuracy of [0.4, 0.6, 0.8]) {
+            const group = alonePlayers.filter(p => p.accuracy === accuracy);
+            const answered = sum(group, p => p.answers);
+            const rate = answered ? sum(group, p => p.correct) / answered : NaN;
+            if (!(answered >= 200 && Math.abs(rate - accuracy) <= 0.08)) {
+                off.push('perfil ' + accuracy + ': ' + answered + ' respostas, acerto ' + rate);
+            }
+        }
+        check(off.length === 0, 'sem apoio, o acerto observado de cada perfil deveria ficar a até 8 pontos do perfil (com 200 respostas ou mais): ' +
+            off.join('; '));
+    });
+
+    test('T127 Simulador: quem pede apoio chama de preferência quem acerta mais, com ruído', () => {
+        const choose = simulator && simulator.chooseSupporter;
+        check(typeof choose === 'function', 'o simulador deveria exportar chooseSupporter(candidates, accuracyOf, noise, random)');
+        const candidates = [{ name: 'A' }, { name: 'B' }, { name: 'C' }];
+        const accuracyOf = (c) => ({ A: 0.4, B: 0.8, C: 0.6 })[c.name];
+        const random = seededRandom(99);
+        const exact = Array.from({ length: 50 }, () => choose(candidates, accuracyOf, 0, random).name);
+        check(exact.every(name => name === 'B'), 'sem ruído, deveria chamar sempre quem acerta mais (B), veio: ' + exact.join(','));
+        const counts = { A: 0, B: 0, C: 0 };
+        for (let i = 0; i < 400; i++) counts[choose(candidates, accuracyOf, 0.2, random).name]++;
+        check(counts.B > 300 && counts.C > 0 && counts.A === 0,
+            'com ruído ±0,2 (80% contra 60% e 40%), B deveria ser chamado na maioria das vezes, C às vezes e A nunca, veio: ' + JSON.stringify(counts));
+        check(choose([], accuracyOf, 0.2, random) === null, 'sem ninguém para chamar, deveria devolver null');
+
+        // Na partida, sem ruído: nas partidas com os dois perfis, quem tem 90% assessora muito mais que quem tem 40%.
+        const run = valueOf(calling);
+        const mixed = run.matches.filter(m => m.players.some(p => p.accuracy === 0.9) && m.players.some(p => p.accuracy === 0.4));
+        const mixedPlayers = mixed.flatMap(m => m.players);
+        const givenPerPlayer = (accuracy) => {
+            const group = mixedPlayers.filter(p => p.accuracy === accuracy);
+            return sum(group, p => p.advisoriesGiven) / group.length;
+        };
+        check(mixed.length > 0 && sum(mixedPlayers, p => p.advisoriesGiven) > 0,
+            'pré-condição: deveria haver partidas com os perfis 40% e 90% e assessorias dadas');
+        check(givenPerPlayer(0.9) > 3 * givenPerPlayer(0.4),
+            'sem ruído, quem tem 90% deveria dar mais que o triplo das assessorias de quem tem 40% (por jogador), veio: ' +
+            givenPerPlayer(0.9) + ' contra ' + givenPerPlayer(0.4));
+    });
+
+    test('T128 Simulador: quem é chamado aceita quando sabe — sem aceitar sem saber, toda ajuda aceita acerta e toda assessoria aceita paga honorário (HELP_REWARD trocado vale)', () => {
+        const { help, advisory } = valueOf(accepting);
+        const reward = 5;
+        const fee = C.RESOURCES.ADVISORY_FEE;
+        const h = help.matches;
+        check(h.every(m => m.config.RESOURCES.HELP_REWARD === reward), 'a troca RESOURCES.HELP_REWARD=5 deveria valer na partida');
+        check(sum(h, m => m.help.accepted) > 0 && sum(h, m => m.help.declined) > 0,
+            'com acerto 50%, quem é chamado para ajudar deveria aceitar (quando sabe) e recusar (quando não sabe), veio: ' +
+            JSON.stringify(h.map(m => m.help)));
+        check(h.every(m => m.help.coverTotal === 0), 'sem aceitar sem saber, nenhuma ajuda aceita deveria errar (sem cobertura), veio: ' +
+            JSON.stringify(h.map(m => m.help)));
+        check(h.every(m => m.help.rewardTotal % reward === 0 && m.help.rewardTotal <= m.help.accepted * reward &&
+            m.help.rewardTotal >= (m.help.accepted - 1) * reward),
+            'cada ajuda aceita deveria dar a recompensa trocada (5), veio: ' + JSON.stringify(h.map(m => m.help)));
+
+        const a = advisory.matches;
+        check(sum(a, m => m.advisories.accepted) > 0 && sum(a, m => m.advisories.declined) > 0,
+            'com acerto 50%, o assessor deveria aceitar (quando sabe) e recusar (quando não sabe), veio: ' + JSON.stringify(a.map(m => m.advisories)));
+        check(a.every(m => m.advisories.feeTotal % fee === 0 && m.advisories.feeTotal <= m.advisories.accepted * fee &&
+            m.advisories.feeTotal >= (m.advisories.accepted - 1) * fee),
+            'sem assessorar sem saber, cada assessoria aceita deveria pagar o honorário (RESOURCES.ADVISORY_FEE = ' + fee + '), veio: ' +
+            JSON.stringify(a.map(m => m.advisories)));
+    });
+
+    test('T129 Simulador: relatório com estouro, menor recurso, apoio sem saber, ajuda por partida, honorários do vencedor e apoio por perfil; CSV com as colunas novas', () => {
+        const { run, report: text, csv: sheet } = valueOf(economyRun);
+        const n = simulator.formatNumber;
+        const players = run.matches.flatMap(m => m.players);
+        const pctOf = (part, whole) => n(100 * part / whole, 1) + '%';
+        const avg = (list) => list.reduce((t, v) => t + v, 0) / list.length;
+        const reportLines = text.split('\n');
+        const rowOf = (label) => reportLines.find(l => l.startsWith('| ' + label + ' |')) || '';
+
+        const overrun = players.filter(p => p.minResources < 0).length;
+        check(overrun > 0, 'pré-condição: com STARTING_RESOURCES 2, alguém deveria entrar em estouro');
+        const withFees = run.matches.filter(m => m.advisories.feeTotal > 0);
+        const wonByTopFee = withFees.filter(m => m.players[0].feesReceived === Math.max(...m.players.map(p => p.feesReceived))).length;
+        const expected = [
+            ['Jogadores que entraram em estouro (recurso negativo)', pctOf(overrun, players.length)],
+            ['Menor recurso na partida (por jogador)', 'média ' + n(avg(players.map(p => p.minResources)))],
+            ['Jogadores que terminaram abaixo de −5 recursos', pctOf(players.filter(p => p.resources < -5).length, players.length)],
+            ['Perguntas em que quem respondia não sabia, por partida', n(avg(run.matches.map(m => sum(m.players, p => p.unsureAnswers))))],
+            ['Dessas, com apoio pedido', pctOf(sum(players, p => p.advisoriesAsked + p.helpsAsked), sum(players, p => p.unsureAnswers))],
+            ['Partidas com pelo menos uma ajuda aceita', pctOf(run.matches.filter(m => m.help.accepted > 0).length, run.matches.length)],
+            ['Partidas vencidas por quem mais recebeu honorários', withFees.length ? pctOf(wonByTopFee, withFees.length) : '—']
+        ];
+        const wrong = expected.filter(([label, value]) => !rowOf(label).includes(value))
+            .map(([label, value]) => label + ' (esperado ' + value + '): "' + rowOf(label) + '"');
+        check(wrong.length === 0, 'linhas do relatório: ' + wrong.join('; '));
+
+        check(text.includes('### 🤝 Apoio por perfil'), 'o relatório deveria ter a seção "Apoio por perfil"');
+        const supportHeader = reportLines.find(l => l.startsWith('| Perfil (chance de acerto) |') && l.includes('Honorários recebidos')) || '';
+        const columns = ['Assessorias pedidas', 'Assessorias dadas', 'Ajudas pedidas', 'Ajudas dadas', 'Honorários recebidos',
+            'Recompensas recebidas', 'Coberturas pagas', 'Saldo do apoio (recursos)', 'Entraram em estouro'];
+        check(columns.every(c => supportHeader.includes(c)), 'a tabela de apoio por perfil deveria ter as colunas ' + columns.join(', ') + ', veio: ' + supportHeader);
+        check(reportLines.some(l => l.startsWith('| Perfil (chance de acerto) |') && l.includes('KPI Final médio')),
+            'a tabela de justiça deveria ter a coluna "KPI Final médio"');
+        const profiles = [...new Set(players.map(p => p.accuracy))];
+        check(profiles.every(acc => reportLines.filter(l => l.startsWith('| ' + n(100 * acc) + '% |')).length === 2),
+            'cada perfil deveria ter uma linha na justiça e uma no apoio por perfil');
+        check(text.includes('Pede assessoria quando não sabe') && text.includes('Escolha de quem chamar'),
+            'a tabela dos robôs deveria mostrar as decisões novas');
+
+        const sheetLines = sheet.trim().split('\n');
+        const csvHeader = sheetLines[0].split(';');
+        const col = (name) => csvHeader.indexOf(name);
+        check(col('advisories_asked') >= 0 && col('unsure_answers') >= 0, 'o CSV deveria ter as colunas advisories_asked e unsure_answers, veio: ' + sheetLines[0]);
+        const columnTotal = (name) => sheetLines.slice(1).reduce((t, l) => t + Number(l.split(';')[col(name)].replace(',', '.')), 0);
+        check(columnTotal('advisories_asked') === sum(run.matches, m => m.advisories.requested) &&
+            columnTotal('unsure_answers') === sum(players, p => p.unsureAnswers),
+            'as colunas novas do CSV deveriam somar os totais das partidas');
     });
 
     finish('Simulador de partidas');
