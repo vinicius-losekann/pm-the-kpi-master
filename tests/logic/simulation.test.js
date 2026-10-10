@@ -263,10 +263,10 @@ const sum = (list, fn) => list.reduce((total, item) => total + fn(item), 0);
         // cobertura (errou), em recurso; nenhum KPI muda de mãos.
         const R = C.RESOURCES;
         const helped = r.help.matches;
-        const accepted = sum(helped, m => m.help.accepted);
+        const helpsAccepted = sum(helped, m => m.help.accepted);
         // Vale a chance de quem ajuda (1), não a do assessor (0). Só o
         // pedido em andamento quando a partida acaba fica sem resposta.
-        check(accepted > 0 && helped.every(m => m.help.declined === 0 && m.help.accepted >= m.help.requested - 1),
+        check(helpsAccepted > 0 && helped.every(m => m.help.declined === 0 && m.help.accepted >= m.help.requested - 1),
             'com helpAcceptChance 1 (e advisorAcceptChance 0), todo pedido de ajuda deveria ser respondido: ' +
             JSON.stringify(helped.map(m => m.help)));
         check(sum(helped, m => m.help.rewardTotal) > 0 && sum(helped, m => m.help.coverTotal) > 0,
