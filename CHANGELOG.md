@@ -26,7 +26,7 @@
   regras reais do jogo (`tests/simulation/`). Mostra duração, recursos,
   economia, eventos e justiça, e compara com uma troca do config
   ("cenário B"). Não muda o jogo publicado. Testes T93–T99.
-- São 122 testes de lógica em 11 arquivos e 18 cenários no navegador.
+- São 126 testes de lógica em 11 arquivos e 18 cenários no navegador.
 
 ### Changed
 - **Estouro de orçamento:** o recurso pode ficar negativo. Errar com 0
@@ -62,6 +62,13 @@
   recurso por 10 KPI (e, com elas, o caso do BUG-024): o KPI agora só vem
   dos acertos. O estado salvo passou da versão 6 para a 7; o protocolo
   continua na 8. Testes T118–T125 e o cenário E19 no navegador.
+- **Simulador com robôs que decidem:** cada robô "sabe" ou não a resposta
+  pela chance do perfil (sozinho, continua acertando a chance do perfil);
+  só quem não sabe pede apoio, chama de preferência quem acerta mais, e
+  quem é chamado aceita quando sabe. O relatório passa a medir estouro de
+  orçamento, menor recurso, apoio pedido nas perguntas difíceis, partidas
+  com ajuda, honorários do vencedor e o apoio por perfil. Antes, os robôs
+  pediam apoio por sorteio, sem olhar se sabiam. Testes T126–T129.
 - **Documentação reorganizada:** cada documento abre com o que contém e
   o que não contém; os nomes dos arquivos passaram para o inglês
   (`_docs/connection-tests.md`, `_docs/issues.md`); os roteiros dos
