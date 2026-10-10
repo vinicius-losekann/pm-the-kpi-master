@@ -109,7 +109,7 @@ A regra geral: **nome é em inglês; texto é em português.** Nome é tudo que 
 - **Comentários**: sempre em português. Explicam o que o código faz e por quê — sem fase, número de bug ou item do roadmap e sem a história do "antes era assim": isso fica no `roadmap.md`, no `issues.md`, no `CHANGELOG.md` e no histórico do Git. Os títulos dos testes continuam com os números (T…, E…, BUG-…), que ligam o teste ao registro.
 - **Tipos de mensagem de rede** (`msg.type`) e seus campos: em inglês, kebab-case para o tipo, com os sufixos do padrão acima (`match-paused`, `show-event`, `round-start`, `advisory-request`, `advisory-result`); os valores de motivo (`reason`) também em inglês, kebab-case (`already-answered`, `helper-without-resources`). Mudar o nome de um tipo ou campo exige aumentar `PROTOCOL_VERSION` (acima).
 - **IDs de elemento HTML e classes CSS**: em inglês, com o glossário acima; camelCase pra IDs (`btnRequestAdvisory`, `modalAdvisoryQuestion`), kebab-case pra classes e atributos `data-*` (`.focus-area-item`, `.stat-chip`, `data-advisor-name`). O T91 confere que todo ID, seletor e `dataset` pedido pelo jogo e pelos testes no navegador existe no HTML e no CSS; o T92, que toda classe com regra no CSS é usada pelo HTML ou pelo `js/` e todo `#id` do CSS existe no HTML (classe montada por concatenação entra na lista `BUILT_CLASSES` do teste).
-- **Nomes de arquivo `.js`**: camelCase (`profileComponent.js`, `tradeEngine.js`, `deckRules.js`). Exceção antiga: `config/game-config.js`.
+- **Nomes de arquivo `.js`**: camelCase (`profileComponent.js`, `advisoryEngine.js`, `deckRules.js`). Exceção antiga: `config/game-config.js`.
 
 ### Formato dos nomes
 

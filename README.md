@@ -10,7 +10,7 @@
 
 1. **Host** cria uma sala e compartilha o código
 2. **Jogadores** (2-6) entram na sala
-3. Host inicia a partida (90 minutos)
+3. Host inicia a partida (90 minutos); cada jogador começa com **10 recursos** (📦, o orçamento do projeto)
 4. A cada rodada:
    - Um **evento** é sorteado (afeta recursos)
    - Um **modal** mostra o evento para todos e, no Patrocinador Generoso e na Reestruturação, quem foi atingido
@@ -173,7 +173,7 @@ sugestão — ambos os casos têm o mesmo efeito.
 
 | Situação | Respondedor | Assessor |
 |---|---|---|
-| Pediu assessoria, assessor aceitou, seguiu a sugestão, **acertou** | +10 KPI, **-1📦 de honorário** | **+1📦 de honorário** |
+| Pediu assessoria, assessor aceitou, seguiu a sugestão, **acertou** | +10 KPI, +1 atividade, **-1📦 de honorário** | **+1📦 de honorário** |
 | Pediu assessoria, assessor aceitou, seguiu a sugestão, **errou** | 0 KPI, -1📦 (regra padrão de erro) | nada |
 | Pediu assessoria, mas **ignorou** a sugestão recebida | Resultado normal, sem honorário | nada |
 | Assessor **recusou** ou não respondeu a tempo | Resultado normal, sem honorário | — |
@@ -292,9 +292,9 @@ Localmente, com Node.js: `node tests/simulation/run.js`.
 | ⭐ KPI fixo (10 por acerto) | ✅ |
 | 📋 6 eventos | ✅ |
 | 🪟 Modal de evento | ✅ |
-| 📦 Sistema de recursos | ✅ |
-| 🆘 Pedido de Ajuda (recursos) | ✅ |
-| 🧭 Sistema de Assessoria (com recusa) | ✅ |
+| 📦 Sistema de recursos (com estouro de orçamento) | ✅ |
+| 🆘 Pedido de Ajuda (fiança na vez de responder) | ✅ |
+| 🧭 Sistema de Assessoria (com honorário e recusa) | ✅ |
 | ⏱️ Timer 90min | ✅ |
 | 🏆 Ranking com KPI Final | ✅ |
 | 🚪 Sair/Encerrar | ✅ |

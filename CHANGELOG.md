@@ -69,6 +69,11 @@
   orçamento, menor recurso, apoio pedido nas perguntas difíceis, partidas
   com ajuda, honorários do vencedor e o apoio por perfil. Antes, os robôs
   pediam apoio por sorteio, sem olhar se sabiam. Testes T126–T129.
+- **Economia calibrada pelo simulador:** cada jogador continua começando
+  com 10 recursos, e a recompensa de quem ajuda fica em 2. Com 10, o
+  estouro e o pedido de ajuda acontecem com quem erra muito: a ajuda é
+  rede de segurança, não algo de toda partida. Com menos recursos
+  iniciais, um em cada três jogadores entraria em estouro.
 - **Documentação reorganizada:** cada documento abre com o que contém e
   o que não contém; os nomes dos arquivos passaram para o inglês
   (`_docs/connection-tests.md`, `_docs/issues.md`); os roteiros dos
@@ -87,7 +92,9 @@
   entrar na sala e vê o aviso para recarregar. Testes T103–T106.
 - **Detalhe do ranking final (NOTA-008):** o KPI acumulado de cada
   jogador é descrito como "acertos, ajudas e assessorias"; antes citava
-  vendas e compras, do mercado de recursos que não existe mais.
+  vendas e compras, do mercado de recursos que não existe mais. Com o
+  pedido de ajuda como fiança, o texto passou a "acertos", porque o KPI
+  acumulado só vem do acerto.
 
 ---
 
