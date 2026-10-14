@@ -73,6 +73,9 @@ automatizado — os números (T…, E…) são os de `tests/logic` e
 | BUG-022 | Pedido de ajuda e assessoria com quem caiu: quem pediu esperava 20s por cada jogador caído na fila, e a fila seguia (podendo transferir recurso) mesmo depois de quem pediu cair; o assessor caído recebia a pergunta e quem respondia ficava 20s com os botões travados | `tradeEngine` e `validarPedidoAssessoria()` olhavam só `waitingInLobby`, não `disconnected` | Quem caiu é pulado na fila; se quem pediu cai, o pedido é cancelado sem transferir nada; assessor caído é recusado na hora — T69, T70 |
 | BUG-023 | O aviso "pedindo ajuda para…" mostrava nomes com `&` ou `<` como "Ana &amp; Bia" | `showHelpCandidate()` escapava o nome para HTML e o mostrava com `textContent` (escape duplo) | Nome mostrado direto com `textContent` — T71 |
 | BUG-024 | Dois pedidos de ajuda ao mesmo tempo: o segundo apagava o primeiro sem aviso, e a doação aceita para o primeiro ia para o segundo (que pagava os 10 KPI) | `handleHelpRequest()` (`engine/tradeEngine.js`) montava uma fila nova sem olhar a que estava em andamento; `handleHelpOfferResponse()` conferia só quem respondia, não para quem era a oferta | Um pedido por vez: quem pede durante o de outro é recusado na hora com aviso (`request-in-progress`, texto `trade.helpBusy`); quem pede de novo durante o próprio vê com quem o pedido está, sem a fila recomeçar; a resposta à oferta leva `requesterName` e só vale para o pedido em andamento (protocolo 7) — T103–T106 |
+| BUG-025 | Entre 769 e 1200 px de largura, os chips de KPI e de recursos (com o rótulo "Estouro" e o valor negativo) saíam do card do jogador; acima de 1200 px já encostavam na borda (achado em 14/10/2026, ao redimensionar a janela) | `.stats-row` (`css/style.css`) era flex sem quebra de linha, e os chips não encolhem abaixo do conteúdo; a coluna do card encolhe para 220 px nessa faixa | `.stats-row` com `flex-wrap: wrap`: o chip que não cabe desce para a linha de baixo — E20 |
+| BUG-026 | No celular (e em notebook com pouca altura), a janela "Sua vez de responder!" ficava mais alta que a tela, sem rolagem: topo e fim cortados, e o botão de assessoria ou de ajuda podia ficar fora do alcance | `.modal-card` é `position: fixed` centralizada, sem altura máxima nem rolagem | Toda janela (`.modal-card`) fica no máximo da altura da tela (`100dvh`, com `100vh` para navegador antigo) menos 32 px e rola por dentro — E21 |
+| BUG-027 | No celular, o detalhe de cada jogador no ranking final dividia a linha com posição, nome e KPI Final: virava uma coluna estreita, e o nome quebrava em três linhas | `.final-rank-item` era flex sem quebra de linha, e o `.final-rank-detail` entrava como quarto item da linha | `.final-rank-item` com `flex-wrap: wrap` e o detalhe com `flex-basis: 100%`: fica numa linha própria, abaixo do nome — E22 |
 
 ## Limpezas concluídas
 
@@ -100,5 +103,5 @@ automatizado — os números (T…, E…) são os de `tests/logic` e
 - **Numeração:** BUG-xxx (bug), SEC-xxx (segurança), REGRESSÃO-xxx (algo
   que funcionava e quebrou numa mudança), NOTA-xxx (limpeza ou decisão que
   não é bug). Cada série continua do maior número já usado (próximos:
-  BUG-025, SEC-005, REGRESSÃO-004, NOTA-010). NOTA-003 a NOTA-005 são
+  BUG-028, SEC-005, REGRESSÃO-004, NOTA-010). NOTA-003 a NOTA-005 são
   decisões de arquitetura e ficam em `architecture.md`.

@@ -46,6 +46,9 @@ test('E21 Janela de resposta num celular baixo (375×480): a janela cabe na tela
     const answerer = await waitForOpenQuestion(ana, [ana, beto], [ana, beto]);
 
     await answerer.page.setViewportSize({ width: 375, height: 480 });
+    // A janela abre com animação de escala (começa em 30% do tamanho):
+    // medir antes de ela terminar daria uma janela menor que a real.
+    await answerer.waitFor(() => document.querySelector('#modalAnswerQuestion .modal-card').getAnimations().length === 0);
     const card = await answerer.state(() => {
         const r = document.querySelector('#modalAnswerQuestion .modal-card').getBoundingClientRect();
         return { top: r.top, bottom: r.bottom, viewport: window.innerHeight };

@@ -26,7 +26,7 @@
   regras reais do jogo (`tests/simulation/`). Mostra duração, recursos,
   economia, eventos e justiça, e compara com uma troca do config
   ("cenário B"). Não muda o jogo publicado. Testes T93–T99.
-- São 126 testes de lógica em 11 arquivos e 18 cenários no navegador.
+- São 126 testes de lógica em 11 arquivos e 21 cenários no navegador.
 
 ### Changed
 - **Estouro de orçamento:** o recurso pode ficar negativo. Errar com 0
@@ -83,6 +83,13 @@
   ideias 8.6 a 8.8.
 
 ### Fixed
+- **Telas pequenas (BUG-025 a BUG-027):** com a janela entre 769 e
+  1200 px, os números de KPI e de recursos ("Estouro") saíam do card do
+  jogador; agora descem para uma segunda linha. No celular, a janela
+  "Sua vez de responder!" ficava maior que a tela e cortava o fim (com o
+  botão de assessoria ou de ajuda); agora toda janela cabe na tela e
+  rola por dentro. No ranking final, o detalhe de cada jogador fica numa
+  linha própria, abaixo do nome. Cenários E20–E22 no navegador.
 - **Dois pedidos de ajuda ao mesmo tempo (BUG-024):** o segundo apagava o
   primeiro, e a doação aceita para o primeiro ia para o segundo. Agora é
   um pedido por vez: quem pede enquanto outro jogador está pedindo vê um

@@ -792,8 +792,11 @@ body {
     font-weight: 600;
 }
 
+/* Quebra de linha: com a coluna estreita (769–1200 px) e o rótulo
+   "Estouro", os dois chips não cabem lado a lado (BUG-025). */
 .stats-row {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     gap: 10px;
     margin-bottom: 16px;
@@ -1217,8 +1220,11 @@ body {
     margin-bottom: 24px;
 }
 
+/* O detalhe (KPI acumulado e recursos) vai para uma linha própria,
+   abaixo de posição, nome e KPI Final (BUG-027). */
 .final-rank-item {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 12px;
     padding: 12px 16px;
@@ -1261,6 +1267,10 @@ body {
     color: var(--gold);
 }
 
+.final-rank-detail {
+    flex-basis: 100%;
+}
+
 /* ============================================ */
 /* MODAL                                        */
 /* ============================================ */
@@ -1294,6 +1304,12 @@ body {
     width: 90%;
     text-align: center;
     padding: 40px;
+    /* Nunca maior que a tela: no celular, a janela rola por dentro até
+       a última alternativa e o botão de apoio (BUG-026). O dvh desconta
+       as barras do navegador do celular; o vh fica para quem não tem. */
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
     animation: bounceIn 0.5s ease;
     border-color: var(--purple);
     box-shadow: var(--shadow-glow-purple);

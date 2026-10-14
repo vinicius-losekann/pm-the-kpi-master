@@ -227,6 +227,9 @@ não mudam: o teste só aponta o PeerJS para o servidor local.
 | E17 | Guest sai (pausa), depois o host; o host reabre: continua pausada com o mesmo evento, sem mostrar outro; retoma quando o guest volta | M13, M16 (até 5 min) |
 | E18 | Todos saem e voltam depois de 5 min: lobby novo, quem volta entra como jogador novo e uma partida nova começa | M16 (depois de 5 min) |
 | E19 | 3 jogadores; o guest que responde está sem recursos, pede ajuda ao colega fora da dupla, que sugere a certa; seguindo, ele acerta sem mexer nos recursos e quem ajudou ganha a recompensa e vê o aviso | — |
+| E20 | Janela de 1000 px com o card do jogador em estouro (−12): os chips de KPI e de recursos ficam dentro do card | BUG-025 (layout) |
+| E21 | Celular baixo (375×480) com a pergunta aberta: a janela de resposta cabe na tela e rola até a última alternativa | BUG-026 (layout) |
+| E22 | Celular (375 px) no fim de partida: o detalhe de cada jogador no ranking fica abaixo do nome | BUG-027 (layout) |
 
 Queda de rede (M7) não entrou: a simulação de "sem rede" do navegador
 não derruba a conexão direta entre janelas na mesma máquina (conferido —
