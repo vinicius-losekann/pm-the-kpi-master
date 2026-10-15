@@ -16,7 +16,24 @@ glossário de `conventions.md` dá o nome atual.
 
 ## Em investigação
 
-Nenhum bug em investigação.
+**BUG-028 — o contador de quem responde não para durante a assessoria
+ou o pedido de ajuda.** Relatado em partida de teste (15/10/2026: "pausar
+o relógio do respondedor quando o assessor está respondendo").
+- **Sintoma:** com o apoio pendente, o contador "tempo restante" continua
+  descendo na tela de quem responde, podendo chegar a 0; quando o apoio
+  termina, ele não volta a contar. Quem responde acha que perdeu a vez.
+- **Causa:** o host pausa o prazo de verdade (`handleAdvisoryRequest()`,
+  `engine/advisoryEngine.js`) e, ao fim do apoio, rearma o prazo inteiro
+  (`handleAdvisoryAnswer()`). Mas `showAdvisoryStarted()`
+  (`ui/modals/advisoryModal.js`) não para o contador visível
+  (`stopAnswerCountdown()`, `ui/components/questionComponent.js`), e
+  `showAdvisoryResult()` não o religa. A tela e o host ficam com tempos
+  diferentes.
+- **Como reproduzir:** 3 jogadores; quem responde pede assessoria e o
+  assessor demora: o contador de quem responde continua descendo.
+- **Correção decidida (titular, 15/10/2026):** o tempo para enquanto o
+  apoio está pendente e continua de onde parou (não volta ao inteiro), na
+  tela e no host.
 
 ---
 
@@ -103,5 +120,5 @@ automatizado — os números (T…, E…) são os de `tests/logic` e
 - **Numeração:** BUG-xxx (bug), SEC-xxx (segurança), REGRESSÃO-xxx (algo
   que funcionava e quebrou numa mudança), NOTA-xxx (limpeza ou decisão que
   não é bug). Cada série continua do maior número já usado (próximos:
-  BUG-028, SEC-005, REGRESSÃO-004, NOTA-010). NOTA-003 a NOTA-005 são
+  BUG-029, SEC-005, REGRESSÃO-004, NOTA-010). NOTA-003 a NOTA-005 são
   decisões de arquitetura e ficam em `architecture.md`.

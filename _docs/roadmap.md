@@ -25,8 +25,8 @@
 | 2.4 | **Validação de dados recebidos via rede** | Mensagens de outros peers podem estar malformadas; validar com esquemas (ex: JSON Schema) para evitar crashes. |
 | 2.5 | **Fallback para quando o host migra** | Garantir que a migração de host seja atômica e que o novo host sincronize completamente o estado com todos os peers. Grande parte feita na **Fase D** (`../CHANGELOG.md`): prazo de 10s, sala encontrada em qualquer versão do host, host antigo volta como jogador comum, rodízio da rodada preservado. Resta: janela de menos de 1s com dois hosts, se o host antigo recarregar exatamente enquanto o outro assume. |
 | 2.6 | **Relógio pela hora de término** | Guests que reconectam ficam ~1s diferentes do host (a contagem é local, corrigida a cada 10s). Mandar a hora de término em vez do tempo restante acabaria com a diferença, mas exige estimar a diferença entre os relógios dos aparelhos (que podem divergir em vários segundos) — sem isso, fica pior que hoje. Baixa prioridade: a diferença atual é imperceptível no jogo. |
-| 2.7 | **Servidor de retransmissão (TURN) para redes restritivas** | Redes de instituição podem bloquear a conexão direta entre navegadores. Um servidor TURN resolve, mas as credenciais não podem ir para os arquivos do site (o GitHub Pages é público) — exige um serviço com credenciais temporárias. A biblioteca PeerJS (1.5.1) já usa por padrão um TURN público e gratuito do próprio PeerJS, sem garantia de disponibilidade. Validar antes com o teste manual M9 de `manual-test-scripts.md` (o roteiro anota se a conexão foi direta ou passou pelo TURN). |
 | 2.8 | **Travamento do Edge no Windows** | Relatado em teste (uma vez travou o computador inteiro; outra, ~5s ao criar sala). Não reproduz no Chromium. Investigar: Chrome na mesma máquina, Edge sem aceleração de hardware, Gerenciador de Tarefas aberto antes. |
+| 2.9 | **Sincronia pelo Firebase no lugar do P2P** | Em partida de teste na UFSM (10/2026), um celular no 5G não achou a sala, e jogadores que caíram não conseguiram voltar. A conexão direta entre navegadores (WebRTC, via PeerJS) esbarra no bloqueio das redes de instituição e na tradução de endereços das operadoras móveis. Pelo Firebase (Realtime Database), tudo passa por HTTPS, que as redes não bloqueiam, e o estado da partida fica fora do navegador do host, o que também simplifica o F5 e a troca de host. A configuração web do Firebase é pública por natureza; a proteção vem das regras de segurança do banco. Começa por um protótipo num branch próprio (criar sala, entrar, trocar mensagens) para medir o trabalho antes de trocar a camada `network/`. |
 
 ---
 
@@ -113,6 +113,7 @@ números não são reaproveitados.
 
 | # | Item | Saiu em | Motivo |
 |---|---|---|---|
+| 2.7 | Servidor de retransmissão (TURN) para redes restritivas | 15/10/2026 | Substituído pelo 2.9: em vez de um TURN com credenciais temporárias para remendar o P2P, a sincronia passa pelo Firebase (titular, 15/10/2026) |
 | 4.3 | Criptografia de ponta a ponta | 05/10/2026 | A conexão WebRTC entre os navegadores já é sempre criptografada (DTLS), e a opção `secure` do PeerJS trata só da conexão com o servidor de sinalização, que no servidor público já é HTTPS |
 | 6.2 | Virtualização de listas | 05/10/2026 | Com no máximo 6 jogadores, as listas são pequenas demais para ganhar algo com isso |
 | 7.5 | Separar helpers (ex.: `buildRanking`) | 05/10/2026 | Já estava feito: o ranking fica em `js/domain/rankingRules.js` |

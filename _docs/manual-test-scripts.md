@@ -56,7 +56,7 @@ instituição. O jogo usa dois serviços externos: o servidor público de
 sinalização do PeerJS (só para os navegadores se acharem) e, quando a
 conexão direta não passa, um servidor de retransmissão (TURN) público
 que já vem na biblioteca PeerJS. Esse TURN é gratuito e sem garantia:
-se o jogo só funcionar por ele, é um risco para a aula (roadmap 2.7).
+se o jogo só funcionar por ele, é um risco para a aula (roadmap 2.9, que troca o P2P pelo Firebase).
 
 **O que precisa:**
 - notebook no Wi-Fi da instituição (host), com Chrome;
@@ -97,7 +97,7 @@ tipo de conexão de cada jogador em cada variante, quedas (hora).
 - só `host`/`srflx`/`prflx`: a conexão direta passa nessa rede; o TURN
   não foi necessário;
 - `relay`: funciona, mas depende do TURN público do PeerJS — registrar
-  em `issues.md` como risco e levar ao roadmap 2.7;
+  em `issues.md` como risco e levar ao roadmap 2.9;
 - não conecta: ver abaixo.
 
 **Se falhar:**
