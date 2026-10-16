@@ -204,6 +204,19 @@ async function createPlayer(browser, name) {
             await player.page.waitForFunction(fn, options.arg, { timeout: options.timeout || 20000, polling: 200 });
         },
 
+        /**
+         * Se for a vez deste jogador perguntar (botão "Fazer a pergunta"
+         * visível e liberado), clica nele.
+         */
+        async askIfMyTurn() {
+            return player.page.evaluate(() => {
+                const button = document.getElementById('btnAskQuestion');
+                if (!button || button.disabled || !button.offsetParent) return false;
+                button.click();
+                return true;
+            });
+        },
+
         /** Se for a vez deste jogador responder, clica na alternativa A. */
         async answerIfMyTurn() {
             return player.page.evaluate(() => {
@@ -259,13 +272,15 @@ async function startMatch(host, guests, code) {
 }
 
 /**
- * Responde (sempre a alternativa A) a cada vez que alguém do grupo é o
- * Respondedor, até o host marcar a rodada como encerrada.
+ * Faz a pergunta e responde (sempre a alternativa A) a cada vez que
+ * alguém do grupo é o Perguntador ou o Respondedor, até o host marcar a
+ * rodada como encerrada.
  */
 async function answerUntilRoundEnds(host, everyone) {
     const deadline = Date.now() + 60000;
     while (Date.now() < deadline) {
         if (await host.state(() => Game.state.roundEnded === true)) return;
+        for (const p of everyone) await p.askIfMyTurn();
         for (const p of everyone) await p.answerIfMyTurn();
         await host.page.waitForTimeout(500);
     }
@@ -274,13 +289,14 @@ async function answerUntilRoundEnds(host, everyone) {
 
 /**
  * Faz a partida andar (o host clica em "Nova Rodada" quando a rodada
- * acaba e quem tiver pergunta aberta fora de `targets` responde) até um
- * dos jogadores de `targets` estar com a pergunta aberta. Devolve esse
- * jogador.
+ * acaba, o Perguntador faz a pergunta e quem tiver pergunta aberta fora
+ * de `targets` responde) até um dos jogadores de `targets` estar com a
+ * pergunta aberta. Devolve esse jogador.
  */
 async function waitForOpenQuestion(host, everyone, targets) {
     const deadline = Date.now() + 60000;
     while (Date.now() < deadline) {
+        for (const p of everyone) await p.askIfMyTurn();
         for (const p of targets) {
             if (await p.hasOpenQuestion()) return p;
         }

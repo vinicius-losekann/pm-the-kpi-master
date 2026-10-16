@@ -58,6 +58,10 @@ var CONFIG = {
         SESSION_DURATION: 3600,
         ANSWER_TIMEOUT: 60000,
         ADVISORY_TIMEOUT: 20000,
+        // 0 = sem a etapa "Fazer a pergunta": a pergunta vai direto para
+        // quem responde. Os testes dessa etapa (question-pace.test.js)
+        // trocam por outro valor.
+        ASK_TIMEOUT: 0,
         HOST_TIMEOUT: 10000,
         ACTIVITIES_PER_FOCUS_AREA: 2
     },

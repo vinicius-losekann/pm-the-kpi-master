@@ -296,9 +296,9 @@ test('T117 Honorário no config, na tela e no protocolo: RESOURCES.ADVISORY_FEE 
     check(real.RESOURCES && real.RESOURCES.ADVISORY_FEE === 1, 'o config real deveria ter RESOURCES.ADVISORY_FEE = 1, veio: ' + JSON.stringify(real.RESOURCES));
     check(!('ADVISOR_BONUS' in real.KPI), 'o bônus de KPI do assessor deveria sair do config, veio: ' + JSON.stringify(real.KPI));
 
-    // 2) Protocolo 8: kpi-update sem advisorBonus e com o honorário; recusa needs-resources.
+    // 2) Protocolo 8 ou mais: kpi-update sem advisorBonus e com o honorário; recusa needs-resources.
     const env = use(createEnvironment());
-    check(env.Game.network.PROTOCOL_VERSION === 8, 'a versão do protocolo deveria ser 8 (honorário de assessoria), veio: ' + env.Game.network.PROTOCOL_VERSION);
+    check(env.Game.network.PROTOCOL_VERSION >= 8, 'a versão do protocolo deveria ser 8 ou mais (honorário de assessoria), veio: ' + env.Game.network.PROTOCOL_VERSION);
 
     // 3) Textos no pt-BR.js real, com os marcadores.
     const localeCtx = vm.createContext({});
@@ -899,8 +899,8 @@ test('T124 Fim da fila de ajuda: as mensagens help-* são ignoradas; sem tradeEn
     check(!('RESOURCE_PRICE' in real.KPI) && !('HELP_OFFER_TIMEOUT' in real.GAME),
         'KPI.RESOURCE_PRICE e GAME.HELP_OFFER_TIMEOUT deveriam sair do config, veio: ' + JSON.stringify({ KPI: real.KPI, GAME: real.GAME }));
 
-    // 4) A ajuda não sobe o protocolo: continua o 8 da economia de recursos.
-    check(env.Game.network.PROTOCOL_VERSION === 8, 'a versão do protocolo deveria continuar 8, veio: ' + env.Game.network.PROTOCOL_VERSION);
+    // 4) A ajuda veio com o protocolo 8 da economia de recursos (ou um mais novo).
+    check(env.Game.network.PROTOCOL_VERSION >= 8, 'a versão do protocolo deveria ser 8 ou mais, veio: ' + env.Game.network.PROTOCOL_VERSION);
 
     // 5) Textos no pt-BR.js real, com os marcadores; os do pedido de ajuda antigo saíram.
     const localeCtx = vm.createContext({});
