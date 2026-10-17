@@ -19,9 +19,19 @@
 //   feed/<id>       { payload } — aviso do host para todos
 //   inbox/<uid>/<id> { payload } — aviso do host para um jogador
 //   requests/<id>   { from, payload } — pedido de um jogador ao host
+//   presence/<uid>  { online } — sinal mínimo de presença: o aparelho
+//                   grava online e deixa com o servidor (onDisconnect) o
+//                   offline de quando cair ou fechar a aba
 // Todo conteúdo viaja como texto JSON: o banco apaga null e listas
 // vazias de um objeto gravado. Quem pode ler e gravar cada parte está
 // em database.rules.json.
+//
+// Cursor dos avisos para todos: o estado de quem entra (ou volta) chega
+// pela inbox e os avisos para todos pelo feed — caminhos separados. Um
+// aviso gravado entre os dois se perderia. Por isso o guest pode pedir
+// para segurar o feed (holdFeed) antes de pedir para entrar; o host diz,
+// junto com o estado, até que aviso ele já vale (feedCursor), e o guest
+// libera o feed a partir dali (releaseFeed).
 // ============================================
 
 // Mesmo formato do código de sala da tela inicial (js/entry/roomEntry.js);
@@ -38,6 +48,12 @@ const ROOM_PARTS = ['roster', 'public', 'secret', 'hands', 'feed', 'inbox', 'req
 
 function isValidRoomCode(code) {
     return typeof code === 'string' && ROOM_CODE_PATTERN.test(code);
+}
+
+/** Maior chave de um objeto do banco (a do aviso mais novo); null se vazio. */
+function lastKeyOf(value) {
+    const keys = Object.keys(value || {}).sort();
+    return keys.length ? keys[keys.length - 1] : null;
 }
 
 /** Texto JSON → valor; undefined se o texto não é JSON válido. */
@@ -65,6 +81,11 @@ function parseJson(text) {
  * @param {Function} [options.onHand] - guest aceito: o que só ele vê (ou null)
  * @param {Function} [options.onAdmitted] - guest: foi aceito na sala
  * @param {Function} [options.onDismissed] - guest: saiu do roster
+ * @param {Function} [options.onPresence] - host: (uid, online) a cada
+ *   mudança da presença de outro aparelho (e a atual, ao entrar)
+ * @param {Function} [options.onHostPresence] - guest aceito: (online) do host
+ * @param {Function} [options.onReconnected] - a conexão com o banco voltou
+ *   (nunca na primeira conexão)
  */
 function create(options) {
     const db = options.db;
@@ -78,13 +99,30 @@ function create(options) {
         onState: options.onState || noop,
         onHand: options.onHand || noop,
         onAdmitted: options.onAdmitted || noop,
-        onDismissed: options.onDismissed || noop
+        onDismissed: options.onDismissed || noop,
+        onPresence: options.onPresence || noop,
+        onHostPresence: options.onHostPresence || noop,
+        onReconnected: options.onReconnected || noop
     };
 
     let code = null;
     let base = null;          // 'rooms/<código>'
     let isHost = false;
     let isAdmitted = false;
+    let hostUid = null;
+    // Host: chave do último aviso para todos (feedCursor).
+    let lastFeedKey = null;
+    // Host: presença conhecida de cada outro aparelho (uid → online).
+    let knownPresence = {};
+    // Última situação da conexão com o banco (undefined = ainda não sabe)
+    // e se já esteve conectado nesta sala.
+    let lastConnected;
+    let everConnected = false;
+    // Guest: avisos para todos guardados enquanto segura o feed, e o
+    // cursor depois do qual os avisos chegam (null = todos).
+    let holding = false;
+    let held = [];
+    let skipUpTo = null;
     // Conta as entradas no roster: um aviso que chega depois de o
     // aparelho sair (ou de ser tirado e aceito de novo) é descartado.
     let admission = 0;
@@ -142,6 +180,65 @@ function create(options) {
         }
     }
 
+    // Guest: aviso para todos. Segurando, fica guardado; depois do
+    // releaseFeed, os que saíram até o cursor são descartados.
+    function onFeedAdded(snap) {
+        if (!code || seen.has('feed:' + snap.key)) return;
+        if (holding) {
+            held.push(snap);
+            return;
+        }
+        if (skipUpTo !== null && snap.key <= skipUpTo) {
+            seen.add('feed:' + snap.key);
+            return;
+        }
+        onMessageAdded('feed:', snap);
+    }
+
+    function presenceRef() {
+        return db.ref(base + '/presence/' + uid);
+    }
+
+    // Grava online e deixa com o servidor o offline de quando cair. O
+    // onDisconnect é registrado de novo a cada volta da conexão: o
+    // anterior já foi executado pelo servidor na queda.
+    function announcePresence() {
+        const ref = presenceRef();
+        ref.onDisconnect().set({ online: false });
+        return ref.set({ online: true });
+    }
+
+    // Host: avisa cada mudança da presença dos outros. Presença apagada
+    // (o próprio host tirou da sala) não é queda: só sai da lista.
+    function onPresenceList(snap) {
+        if (!code) return;
+        const list = snap.val() || {};
+        Object.keys(knownPresence).forEach(who => {
+            if (!(who in list)) delete knownPresence[who];
+        });
+        Object.keys(list).forEach(who => {
+            if (who === uid) return;
+            const online = !!list[who] && list[who].online === true;
+            if (knownPresence[who] === online) return;
+            knownPresence[who] = online;
+            call('onPresence', who, online);
+        });
+    }
+
+    // Volta = conectado depois de ter estado conectado e caído. O
+    // Firebase pode avisar "desconectado" antes da primeira conexão: isso
+    // não é volta.
+    function onConnected(snap) {
+        if (!code) return;
+        const connected = snap.val() === true;
+        const cameBack = connected && lastConnected === false && everConnected;
+        lastConnected = connected;
+        if (connected) everConnected = true;
+        if (!cameBack) return;
+        if (isHost || isAdmitted) announcePresence();
+        call('onReconnected');
+    }
+
     function deliverJson(name, snap) {
         const raw = snap.val();
         if (raw === null || raw === undefined) {
@@ -158,16 +255,26 @@ function create(options) {
 
     // Guest: só depois de aceito (roster) começa a ouvir o estado e os
     // avisos para todos — antes disso as regras recusariam a leitura e o
-    // Firebase cancelaria o ouvinte.
+    // Firebase cancelaria o ouvinte. Aceito, grava a própria presença e
+    // passa a ouvir a do host.
     async function startAdmitted() {
         isAdmitted = true;
         const id = ++admission;
         call('onAdmitted');
+        announcePresence();
+        listen(admittedListeners, db.ref(base + '/presence/' + hostUid), 'value', snap => {
+            const value = snap.val();
+            call('onHostPresence', !!value && value.online === true);
+        });
         const feed = db.ref(base + '/feed');
-        const existing = await feed.once('value');
-        if (id !== admission || !isAdmitted) return;
-        markExisting('feed:', existing);
-        listen(admittedListeners, feed, 'child_added', snap => onMessageAdded('feed:', snap));
+        // Segurando o feed, os avisos que já existiam também ficam
+        // guardados: o cursor do host diz quais descartar.
+        if (!holding) {
+            const existing = await feed.once('value');
+            if (id !== admission || !isAdmitted) return;
+            markExisting('feed:', existing);
+        }
+        listen(admittedListeners, feed, 'child_added', onFeedAdded);
         listen(admittedListeners, db.ref(base + '/public/state'), 'value', snap => deliverJson('onState', snap));
         listen(admittedListeners, db.ref(base + '/hands/' + uid), 'value', snap => deliverJson('onHand', snap));
     }
@@ -175,6 +282,8 @@ function create(options) {
     function stopAdmitted() {
         isAdmitted = false;
         admission++;
+        held = [];
+        skipUpTo = null;
         stopListening(admittedListeners);
     }
 
@@ -185,24 +294,35 @@ function create(options) {
             startAdmitted();
         } else if (!admitted && isAdmitted) {
             stopAdmitted();
+            // Tirado da sala: o offline deixado com o servidor não vale mais.
+            presenceRef().onDisconnect().cancel();
             call('onDismissed');
         }
     }
 
-    async function enter(roomCode, asHost) {
+    async function enter(roomCode, asHost, roomHostUid) {
         code = roomCode;
         base = 'rooms/' + roomCode;
         isHost = asHost;
         isAdmitted = false;
+        hostUid = roomHostUid;
+        knownPresence = {};
+        lastConnected = undefined;
+        everConnected = false;
         seen = new Set();
         if (asHost) {
             listen(roomListeners, db.ref(base + '/requests'), 'child_added', onRequestAdded);
+            // Depois de um F5, o cursor continua o do último aviso no banco.
+            lastFeedKey = lastKeyOf((await db.ref(base + '/feed').once('value')).val());
+            listen(roomListeners, db.ref(base + '/presence'), 'value', onPresenceList);
+            announcePresence();
         } else {
             const inbox = db.ref(base + '/inbox/' + uid);
             markExisting('inbox:', await inbox.once('value'));
             listen(roomListeners, inbox, 'child_added', snap => onMessageAdded('inbox:', snap));
             listen(roomListeners, db.ref(base + '/roster/' + uid), 'value', onRoster);
         }
+        listen(roomListeners, db.ref('.info/connected'), 'value', onConnected);
         console.log('🔗 Canal da sala: ' + roomCode + (asHost ? ' (host)' : ''));
     }
 
@@ -213,6 +333,9 @@ function create(options) {
         code = null;
         base = null;
         isHost = false;
+        hostUid = null;
+        lastFeedKey = null;
+        holding = false;
     }
 
     function isIdle(meta) {
@@ -246,7 +369,7 @@ function create(options) {
             ROOM_PARTS.forEach(part => { leftovers[part] = null; });
             await db.ref(roomBase).update(leftovers);
         }
-        await enter(roomCode, true);
+        await enter(roomCode, true, uid);
         return { ok: true, isHost: true };
     }
 
@@ -263,7 +386,7 @@ function create(options) {
         const meta = snap.val() || {};
         if (meta.protocolVersion !== opts.protocolVersion) return { ok: false, reason: 'version-mismatch' };
         const asHost = meta.hostUid === uid;
-        await enter(roomCode, asHost);
+        await enter(roomCode, asHost, meta.hostUid);
         return { ok: true, isHost: asHost };
     }
 
@@ -280,7 +403,37 @@ function create(options) {
     /** Host: aviso para todos os aceitos. */
     function broadcast(msg) {
         if (!code || !isHost) return Promise.resolve();
-        return push(base + '/feed', { payload: JSON.stringify(msg) });
+        const ref = db.ref(base + '/feed').push();
+        lastFeedKey = ref.key;
+        return ref.set({ payload: JSON.stringify(msg) });
+    }
+
+    /**
+     * Host: chave do último aviso para todos — vai junto com o estado de
+     * quem entra, para ele saber a partir de qual aviso receber. null sem
+     * avisos.
+     */
+    function feedCursor() {
+        return code && isHost ? lastFeedKey : null;
+    }
+
+    /** Guest: passa a guardar os avisos para todos até o releaseFeed(). */
+    function holdFeed() {
+        holding = true;
+        held = [];
+    }
+
+    /**
+     * Guest: entrega os avisos guardados que saíram depois do cursor (null
+     * = todos), na ordem, e volta a receber normalmente; os de até o
+     * cursor nunca chegam.
+     */
+    function releaseFeed(cursor) {
+        holding = false;
+        skipUpTo = typeof cursor === 'string' ? cursor : null;
+        const pending = held;
+        held = [];
+        pending.forEach(onFeedAdded);
     }
 
     /** Host: aviso para um jogador (aceito ou não, ex.: a recusa de entrada). */
@@ -294,9 +447,10 @@ function create(options) {
         return db.ref(base + '/roster/' + targetUid).set(true);
     }
 
+    /** Host: tira da sala — do roster e da presença. */
     function dismiss(targetUid) {
         if (!code || !isHost) return Promise.resolve();
-        return db.ref(base + '/roster/' + targetUid).remove();
+        return db.ref(base).update({ ['roster/' + targetUid]: null, ['presence/' + targetUid]: null });
     }
 
     /**
@@ -330,11 +484,17 @@ function create(options) {
         return db.ref(base).update({ feed: null, inbox: null });
     }
 
-    /** Sai da sala: para de ouvir; o host apaga a sala inteira. */
+    /**
+     * Sai da sala: para de ouvir; o host apaga a sala inteira (antes,
+     * cancela o offline deixado com o servidor, que recriaria a presença
+     * na sala apagada). O guest deixa o offline: é por ele que o host fica
+     * sabendo da saída quando a página fecha.
+     */
     async function leave() {
         if (!code) return;
         const wasHost = isHost;
         const roomBase = base;
+        if (wasHost) presenceRef().onDisconnect().cancel();
         detach();
         if (wasHost) await db.ref(roomBase).remove();
     }
@@ -348,6 +508,9 @@ function create(options) {
         joinRoom,
         sendToHost,
         broadcast,
+        feedCursor,
+        holdFeed,
+        releaseFeed,
         sendTo,
         admit,
         dismiss,

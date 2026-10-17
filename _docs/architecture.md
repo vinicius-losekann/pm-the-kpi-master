@@ -86,7 +86,7 @@ pm-the-kpi-master/
 │   │   ├── config-and-texts.test.js # chaves do CONFIG, textos da tela e nomes do HTML/CSS (só o que existe é pedido; CSS sem regra sem uso)
 │   │   ├── simulation.test.js   # simulador de partidas: regras reais, contas, semente, relatório
 │   │   ├── connection-check.test.js # teste de conexão pelo Firebase: sala, presença, F5, mensagens, regras do banco
-│   │   ├── room-channel.test.js # canal da sala pelo Firebase: sala parada, roster, pedidos, avisos, estado, regras de rooms/
+│   │   ├── room-channel.test.js # canal da sala pelo Firebase: sala parada, roster, pedidos, avisos, estado, presença, cursor dos avisos, volta da conexão, regras de rooms/
 │   │   └── fakeFirebase.js      # Realtime Database simulado em memória, com vários aparelhos, queda e volta
 │   ├── simulation/              # simulador de partidas para balanceamento (Node, sem dependências)
 │   │   ├── simulator.js         # partidas com robôs, regras reais, relatório e CSV
@@ -144,7 +144,7 @@ pm-the-kpi-master/
     │   ├── messageHandler.js    # roteamento de mensagens (switch/case)
     │   ├── hostMigration.js     # becomeHost, reconexão, handleHostDisconnect
     │   ├── connectionCheck.js   # teste de conexão pelo Firebase: sala, presença, mensagem de teste com eco (não usado pelo jogo)
-    │   └── roomChannel.js       # canal da sala pelo Firebase: sala, roster, pedidos ao host, avisos, estado público/secreto (ainda não usado pelo jogo)
+    │   └── roomChannel.js       # canal da sala pelo Firebase: sala, roster, pedidos ao host, avisos (com cursor para quem entra), estado público/secreto, presença mínima e volta da conexão (ainda não usado pelo jogo)
     │
     ├── ui/
     │   ├── screenManager.js     # showScreen, closeAllModals, status de conexão

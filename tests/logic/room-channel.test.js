@@ -346,6 +346,9 @@ asyncTest('T158 Aceitar e tirar da sala: quem não foi aceito não recebe estado
     await flush();
     check(ana.got.admitted === 2 && same(ana.got.states[ana.got.states.length - 1], { after: true }),
         'aceita de novo, Ana deveria voltar a receber o estado atual, veio: ' + JSON.stringify(ana.got.states));
+    const anaOnline = host.got.presence.filter(p => p.uid === 'uid-ana' && p.online === true).length;
+    check(anaOnline === 2 && same(host.got.presence[host.got.presence.length - 1], { uid: 'uid-ana', online: true }),
+        'aceita de novo, Ana deveria aparecer online outra vez para o host, veio: ' + JSON.stringify(host.got.presence));
 });
 
 asyncTest('T159 Avisos do host: para todos (feed) e para um (inbox) chegam na ordem em que saíram, com o conteúdo exato; inbox só ao destinatário, também a quem ainda não foi aceito (recusa de entrada); o host não recebe os próprios; depois de um F5, os avisos antigos não chegam de novo', async () => {
@@ -457,7 +460,7 @@ asyncTest('T161 Limpar e sair: limpar apaga só os avisos (feed e inbox); quem s
 // PRESENÇA, CURSOR DOS AVISOS E VOLTA DA CONEXÃO (etapa 1b-α)
 // ============================================
 
-asyncTest('T163 Sinal mínimo de presença: o host grava a própria ao entrar; quem é aceito grava a sua (quem só entrou, não); o servidor grava offline quando o aparelho cai; o host é avisado de cada mudança dos outros (não da própria; ao voltar de um F5, da situação atual) e quem foi aceito, da do host; tirar da sala apaga a presença e o aparelho tirado não grava mais nada ao cair', async () => {
+asyncTest('T163 Sinal mínimo de presença: o host grava a própria ao entrar; quem é aceito grava a sua (quem só entrou, não); o servidor grava offline quando o aparelho cai; o host é avisado de cada mudança dos outros (não da própria; ao voltar de um F5, da situação atual) e quem foi aceito, da do host; tirar da sala apaga a presença e o aparelho tirado não grava mais nada ao cair; o host que encerra a sala não a recria ao cair', async () => {
     const { fake, clock, host, ana } = await roomWithGuest();
     const presenceOf = (who) => fake.read('rooms/sala01/presence/' + who);
     check(same(presenceOf('uid-host'), { online: true }), 'o host deveria gravar a própria presença ao criar a sala, veio: ' + JSON.stringify(fake.read('rooms/sala01/presence')));
@@ -500,6 +503,13 @@ asyncTest('T163 Sinal mínimo de presença: o host grava a própria ao entrar; q
     ana.device.goOffline();
     await flush();
     check(presenceOf('uid-ana') === undefined, 'tirada da sala, Ana não deveria deixar offline para o servidor gravar, veio: ' + JSON.stringify(presenceOf('uid-ana')));
+
+    // O host encerra a sala e depois a página fecha: nada da sala volta a existir.
+    await hostAgain.channel.leave();
+    await flush();
+    hostAgain.device.goOffline();
+    await flush();
+    check(fake.read('rooms/sala01') === undefined, 'depois de o host encerrar, o offline dele não deveria recriar a sala, sobrou: ' + JSON.stringify(fake.read('rooms/sala01')));
 });
 
 asyncTest('T164 Cursor dos avisos para todos: quem pede para segurar (holdFeed) recebe a inbox na hora, mas os avisos para todos só depois de releaseFeed(cursor) — os que saíram até o cursor nunca chegam, os depois dele chegam uma vez, na ordem; null libera todos os guardados; o host diz o cursor (feedCursor: null sem avisos, avança a cada aviso, o mesmo depois de um F5); segurar de novo, já aceito, vale para a volta', async () => {
@@ -567,7 +577,7 @@ asyncTest('T164 Cursor dos avisos para todos: quem pede para segurar (holdFeed) 
         'com cursor null, Beto deveria receber todos os guardados e os novos, na ordem, veio: ' + JSON.stringify(beto.got.messages));
 });
 
-asyncTest('T165 Volta da conexão: quem perde a conexão e volta é avisado (onReconnected, uma vez por volta, nunca na primeira conexão), grava a presença de novo e deixa outra vez o offline com o servidor; vale para o host e para quem foi aceito; quem não foi aceito é avisado mas não grava presença; quem saiu da sala não é mais avisado', async () => {
+asyncTest('T165 Volta da conexão: quem perde a conexão e volta é avisado (onReconnected, uma vez por volta, nunca na primeira conexão, nem depois de um "desconectado" inicial), grava a presença de novo e deixa outra vez o offline com o servidor; vale para o host e para quem foi aceito; quem não foi aceito é avisado mas não grava presença; quem saiu da sala não é mais avisado', async () => {
     const { fake, clock, host, ana } = await roomWithGuest();
     const presenceOf = (who) => fake.read('rooms/sala01/presence/' + who);
     const caio = openDevice(fake, 'uid-caio', clock);
@@ -616,6 +626,15 @@ asyncTest('T165 Volta da conexão: quem perde a conexão e volta é avisado (onR
     ana.device.goOnline();
     await flush();
     check(ana.got.reconnected === 2, 'quem saiu da sala não deveria ser avisado da volta, veio: ' + ana.got.reconnected);
+
+    // O Firebase pode dizer "desconectado" antes da primeira conexão: isso não é volta.
+    const dani = openDevice(fake, 'uid-dani', clock);
+    dani.device.goOffline();
+    await dani.channel.joinRoom('sala01', { protocolVersion: VERSION });
+    await flush();
+    dani.device.goOnline();
+    await flush();
+    check(dani.got.reconnected === 0, 'a primeira conexão, mesmo depois de um "desconectado" inicial, não deveria contar como volta, veio: ' + dani.got.reconnected);
 });
 
 // ============================================
