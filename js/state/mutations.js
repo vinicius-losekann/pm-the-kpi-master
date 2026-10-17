@@ -32,6 +32,7 @@ function resetGameState(state, config) {
     state.currentRound = null;
     state.answeredThisRound = [];
     state.timer = config.GAME.SESSION_DURATION;
+    state.endsAt = null;
     clearInterval(state.timerInterval);
     state.timerInterval = null;
     // Uma pausa por falta de conexão não sobrevive ao fim da

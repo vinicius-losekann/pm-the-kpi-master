@@ -69,8 +69,9 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         // --- PARTIDA ---
+        // Hora de término da partida (hora do servidor), marcada pelo host.
         case 'game-start':
-            state.timer = msg.timer;
+            state.endsAt = msg.endsAt;
             Game.core.startGame();
             break;
 
@@ -159,11 +160,6 @@ function handleMessage(msg, fromPeerId) {
         case 'kpi-update':
             storeAnsweredThisRound(msg.answeredThisRound);
             Game.core.updatePlayerKPI(msg);
-            break;
-
-        case 'timer-update':
-            state.timer = msg.remaining;
-            Game.ui.updateTimerDisplay();
             break;
 
         // --- EVENTO ---
@@ -349,7 +345,8 @@ function addPlayer(msg, fromPeerId) {
         fullState: {
             players: state.players,
             decks: state.decks,
-            timer: state.timer,
+            // Hora de término da partida: quem volta calcula o que falta.
+            endsAt: state.endsAt ?? null,
             currentRound: currentRoundForSync,
             gameStarted: state.gameStarted,
             roundEnded: !!state.roundEnded,
@@ -450,8 +447,8 @@ function storeAnsweredThisRound(answered) {
 /**
  * Restaura o estado completo vindo do host (usado após reconexão).
  *
- * (1) Religa a contagem local do relógio (sem ela, o relógio de quem
- * volta só andaria a cada 'timer-update'); (2) escolhe a tela pela
+ * (1) Religa o relógio pela hora de término da partida (`endsAt`, hora
+ * do servidor); (2) escolhe a tela pela
  * situação: fim de jogo → tela final com o ranking que veio do host, sem
  * relógio; partida pausada → aviso de pausa; ciclo encerrado → "rodada
  * encerrada, aguardando o host"; pergunta já respondida (intervalo até a
@@ -462,7 +459,7 @@ function restoreState(fullState) {
     const state = Game.state;
     state.players = fullState.players;
     state.decks = fullState.decks;
-    state.timer = fullState.timer;
+    state.endsAt = fullState.endsAt ?? null;
     state.currentRound = fullState.currentRound;
     state.gameStarted = fullState.gameStarted;
     state.roundEnded = !!fullState.roundEnded;

@@ -12,8 +12,13 @@
 // ============================================
 
 /**
- * Inicia uma nova partida: reseta todos os jogadores, inicia o timer e
- * dá início à primeira rodada (se for o host).
+ * Inicia uma nova partida: reseta todos os jogadores, liga o relógio e dá
+ * início à primeira rodada (se for o host).
+ *
+ * Host (botão "Iniciar"): marca a hora de término da partida, em hora do
+ * servidor, e avisa os guests ('game-start' com `endsAt`) antes da
+ * primeira rodada. Guest: chamada pelo 'game-start', com `state.endsAt`
+ * já guardado (network/messageHandler.js).
  */
 function startGame() {
     const state = Game.state;
@@ -22,6 +27,11 @@ function startGame() {
     state.answeredThisRound = [];
 
     Game.resetAllPlayers();
+
+    if (state.isHost) {
+        state.endsAt = Game.network.serverNow() + CONFIG.GAME.SESSION_DURATION * 1000;
+        Game.network.broadcastAll({ type: 'game-start', endsAt: state.endsAt });
+    }
 
     startClock();
 
@@ -34,35 +44,45 @@ function startGame() {
 }
 
 /**
- * Liga a contagem regressiva local da partida (1 segundo por vez), a
- * partir de `state.timer`. Substitui qualquer contagem anterior.
+ * Milissegundos que faltam até `endsAt` (hora do servidor). Hora ausente:
+ * `fallback` (o prazo inteiro, para rodada salva antes da hora de término).
+ */
+function msUntil(endsAt, fallback) {
+    return typeof endsAt === 'number' ? endsAt - Game.network.serverNow() : fallback;
+}
+
+/**
+ * Liga o relógio da partida: a cada segundo, `state.timer` (só para a
+ * tela) recebe os segundos que faltam até `state.endsAt`, a hora de
+ * término em hora do servidor — cada aparelho calcula o próprio, então
+ * todos mostram o mesmo tempo e um tique atrasado não perde segundos.
+ * Calcula também na hora, ao ligar. Substitui qualquer contagem anterior;
+ * sem hora de término, não liga.
  *
- * Host: a cada 10 segundos avisa os guests do tempo restante e, no
- * zero, encerra a partida. Guest: só conta — o 'timer-update' do host
- * corrige qualquer diferença e o 'game-over' do host encerra.
+ * No zero, o host encerra a partida (também se a hora já passou, ex.: F5
+ * depois do fim); o guest só para — o 'game-over' do host encerra.
  *
  * Usada também quando um guest volta para uma partida em andamento
- * (restoreState(), em network/messageHandler.js) — sem ela, o relógio
- * de quem volta só andaria de 10 em 10 segundos, a cada
- * 'timer-update'.
+ * (restoreState(), em network/messageHandler.js) e no F5 do host.
  */
 function startClock() {
     const state = Game.state;
 
     clearInterval(state.timerInterval);
-    state.timerInterval = setInterval(() => {
-        state.timer--;
+    state.timerInterval = null;
+    if (typeof state.endsAt !== 'number') return;
+
+    const tick = () => {
+        state.timer = Math.max(0, Math.ceil(msUntil(state.endsAt) / 1000));
         Game.ui.updateTimerDisplay();
-
-        if (state.timer % 10 === 0 && state.isHost) {
-            Game.network.broadcastAll({ type: 'timer-update', remaining: state.timer });
-        }
-
-        if (state.timer <= 0) {
-            clearInterval(state.timerInterval);
-            if (state.isHost) endGame(buildRanking());
-        }
-    }, 1000);
+        if (state.timer > 0) return false;
+        clearInterval(state.timerInterval);
+        state.timerInterval = null;
+        if (state.isHost) endGame(buildRanking());
+        return true;
+    };
+    if (tick()) return;
+    state.timerInterval = setInterval(tick, 1000);
 }
 
 /**
@@ -81,11 +101,16 @@ function startClock() {
  *     ou segue com nextTurn() (próxima dupla ou fim da rodada). "Já
  *     respondida" = `answered` ou o Respondedor já no rodízio;
  *   - pergunta em aberto → reexibe a mesma pergunta (ou, com o host fora
- *     da dupla, a tela de espectador) e rearma o prazo de resposta — ou,
- *     com a pergunta ainda por fazer, o prazo do Perguntador; a
- *     pergunta não pode ser trocada pelo F5. Um pedido de assessoria ou
- *     de ajuda ainda sem resposta é cancelado antes (ver
+ *     da dupla, a tela de espectador) e o prazo de resposta continua de
+ *     onde estava — ou, com a pergunta ainda por fazer, o prazo do
+ *     Perguntador; a pergunta não pode ser trocada pelo F5. Um pedido de
+ *     assessoria ou de ajuda ainda sem resposta é cancelado antes (ver
  *     cancelPendingAdvisory()).
+ *
+ * O relógio e os prazos contam pelas horas de término guardadas (hora do
+ * servidor): continuam do mesmo ponto, e o que venceu durante o F5 tem o
+ * efeito na hora (fim da partida, pergunta enviada sozinha, vez pulada).
+ * Rodada salva sem a hora de um prazo ganha o prazo inteiro.
  */
 function resumeMatchAfterReload() {
     const state = Game.state;
@@ -97,6 +122,7 @@ function resumeMatchAfterReload() {
     Game.ui.syncPlayerViews(Game.getPlayerByName(state.playerName));
     Game.ui.updateTimerDisplay();
     startClock();
+    if (state.gameOver) return; // o tempo da partida acabou durante o F5
 
     Game.network.broadcastAll({ type: 'player-list', players: state.players });
 
@@ -125,6 +151,17 @@ function resumeMatchAfterReload() {
         }
     } else {
         if (cancelPendingAdvisory(round)) return;
+        // Os prazos são armados antes das telas: a tela do host conta pela
+        // hora de término do prazo. Pergunta ainda por fazer: o prazo do
+        // Perguntador; feita, o de resposta — o que faltava quando o apoio
+        // cancelado começou, se ele estava parado.
+        if (round.asked === false) {
+            Game.engine.turn.armAskTimeout(msUntil(round.askEndsAt, CONFIG.GAME.ASK_TIMEOUT));
+        } else {
+            const paused = round.answerTimeLeft ?? CONFIG.GAME.ANSWER_TIMEOUT;
+            round.answerTimeLeft = null;
+            Game.engine.turn.armAnswerTimeout(round.answerer, msUntil(round.answerEndsAt, paused));
+        }
         // Fora da dupla, o host vê a tela de espectador, como veria sem
         // o F5 (pickNewPair() faz a mesma escolha).
         const inPair = state.playerName === round.asker || state.playerName === round.answerer;
@@ -136,13 +173,6 @@ function resumeMatchAfterReload() {
         } else {
             Game.ui.displaySpectatorView(round.asker, round.answerer);
         }
-        // Pergunta ainda por fazer: o Perguntador ganha o prazo dele de
-        // novo; feita, o Respondedor ganha o prazo de resposta inteiro.
-        if (round.asked === false) {
-            Game.engine.turn.armAskTimeout();
-        } else {
-            Game.engine.turn.armAnswerTimeout(round.answerer);
-        }
         Game.ui.refreshNewRoundButton();
     }
 }
@@ -153,7 +183,8 @@ function resumeMatchAfterReload() {
  * advisoryEngine.handleAdvisoryRequest()) se perde com a página, e o
  * chamado perde a pergunta (a reconexão fecha os modais) — sem cancelar,
  * a rodada ficaria presa esperando uma resposta que não vem. Quem
- * responde pode pedir de novo; é o mesmo resultado de uma troca de host.
+ * responde pode pedir de novo, e o prazo de resposta continua do que
+ * faltava quando o apoio começou (resumeMatchAfterReload()).
  *
  * Se a resposta já tinha chegado e esperava o apoio, ela é processada
  * agora (answerEngine.handleAnswer() segue para a próxima dupla).

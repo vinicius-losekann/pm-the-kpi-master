@@ -47,9 +47,10 @@ Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` o
 |---|---|---|
 | `player-join` | guest → host | `playerName`, `peerId` (o uid do aparelho, que também chega ao host como remetente do pedido), `protocolVersion` (versão do formato das mensagens; sem o campo conta como 1). Montada só em `sendPlayerJoin()` (`network/roomLink.js`), ao entrar e a cada volta da conexão |
 | `join-rejected` | host → quem tentou entrar (pela caixa de avisos dele) | `reason`: `version-mismatch` (outra versão do jogo — conferida antes de tudo), `device-in-use` (o aparelho já está na sala com outro nome), `room-full`, `room-locked` (partida em andamento, nome novo), `name-taken` (nome de quem está conectado), `identity-mismatch` (nome de quem caiu, vindo de outro aparelho). O aviso de cada motivo fica em `handleJoinRejected()` (`network/messageHandler.js`), que também mostra as recusas da abertura da sala no jogo (`room-not-found`, `tab-in-use`) |
-| `state-sync` | host → quem entra ou volta | `fullState` com os jogadores (`players`), a rodada (`currentRound`: `event`, `asker`, `answerer`, `question`, `answered`, `asked` — a pergunta já foi feita; sem o campo, já foi), os baralhos (`decks`), o relógio, `roundEnded`, `matchPaused`, `answeredThisRound` (quem já respondeu na rodada), `gameOver` e `finalRanking` (fim de jogo), `feedCursor` (o último aviso para todos que o estado já inclui) |
+| `state-sync` | host → quem entra ou volta | `fullState` com os jogadores (`players`), a rodada (`currentRound`: `event`, `asker`, `answerer`, `question`, `answered`, `asked` — a pergunta já foi feita; sem o campo, já foi), os baralhos (`decks`), `endsAt` (hora de término da partida), `roundEnded`, `matchPaused`, `answeredThisRound` (quem já respondeu na rodada), `gameOver` e `finalRanking` (fim de jogo), `feedCursor` (o último aviso para todos que o estado já inclui) |
+| `game-start` | host → todos | `endsAt` — a partida começou; hora de término dela |
 | `round-start` | host → todos | `event`, `asker`, `answerer`, `answeredThisRound` |
-| `question` | host → Perguntador (no início da rodada) e Respondedor (quando a pergunta é feita) | a pergunta; `isAsker` (com o gabarito `correct`) ou `isAnswerer` (sem o gabarito) |
+| `question` | host → Perguntador (no início da rodada) e Respondedor (quando a pergunta é feita) | a pergunta; `isAsker` (com o gabarito `correct`) ou `isAnswerer` (sem o gabarito, com `answerEndsAt`, a hora de término do prazo de resposta) |
 | `ask-question` | Perguntador → host | `playerName` — clicou em "Fazer a pergunta" |
 | `question-asked` | host → todos | a pergunta foi feita; `auto` (true quando foi o prazo do Perguntador, `ASK_TIMEOUT`, e não o clique) |
 | `answer` | Respondedor → host | `alternative`, `playerName` |
@@ -60,9 +61,11 @@ Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` o
 | `round-ended` | host → todos | rodada encerrada, aguardando o "Nova Rodada" |
 | `match-paused` | host → todos | faltam jogadores conectados; retoma sozinha quando alguém volta |
 | `advisory-request` | Respondedor → host | `kind` (`advisory`: assessoria; `help`: pedido de ajuda; sem o campo, assessoria), `advisorName` (quem é chamado), `requesterName`. O apoio fica na rodada: `currentRound.advisory` (`advisorName`, `status` `pending`/`accepted`/`declined`, `suggestion`, `kind`) |
-| `advisory-started` / `advisory-question` | host → todos / host → quem é chamado | `kind`, `advisorName`, `requesterName`, `answerTimeLeft` (ms do prazo de resposta que faltavam, pausado durante o apoio) / `kind` e a pergunta (sem o gabarito) |
+| `advisory-started` / `advisory-question` | host → todos / host → quem é chamado | `kind`, `advisorName`, `requesterName`, `endsAt` (hora de término do prazo de quem foi chamado), `answerTimeLeft` (ms do prazo de resposta que faltavam, pausado durante o apoio) / `kind`, a pergunta (sem o gabarito) e `endsAt` |
 | `advisory-answer` | quem é chamado → host | `alternative`, `declined` |
-| `advisory-result` | host → todos (ou só a quem pediu, se o pedido é inválido) | `kind`, `advisorName`, `suggestion`, `declined`, `timeout`, `answerTimeLeft` (ms de onde o prazo de resposta continua; só quando ele volta a correr); pedido inválido: `invalid` e `reason` (`closing-focus-area`; `needs-resources` — assessoria com 0 recursos ou menos; `has-resources` — ajuda com 1 ou mais; `helper-without-resources` — quem ajuda sem `HELP_COVER` recursos; `already-answered`; ou nenhum) |
+| `advisory-result` | host → todos (ou só a quem pediu, se o pedido é inválido) | `kind`, `advisorName`, `suggestion`, `declined`, `timeout`, `answerEndsAt` (a nova hora de término do prazo de resposta; só quando ele volta a correr); pedido inválido: `invalid` e `reason` (`closing-focus-area`; `needs-resources` — assessoria com 0 recursos ou menos; `has-resources` — ajuda com 1 ou mais; `helper-without-resources` — quem ajuda sem `HELP_COVER` recursos; `already-answered`; ou nenhum) |
+
+Os campos `endsAt`, `askEndsAt` e `answerEndsAt` (nas mensagens, na rodada e no estado salvo) são horas de término em milissegundos do relógio do servidor (`Game.network.serverNow()`); cada aparelho calcula o que falta — ver `architecture.md`, seção "Relógio e prazos pela hora do servidor".
 
 Mensagem que chega sem um campo novo (de uma versão anterior do jogo) mantém o comportamento antigo (ex.: `advisory-request` sem `kind` é assessoria), salvo quando o campo veio com uma versão nova do protocolo e o host precisa dele: aí o host exige o campo.
 
@@ -108,6 +111,7 @@ A regra geral: **nome é em inglês; texto é em português.** Nome é tudo que 
   | relógio / prazo | clock / timeout |
   | fazer a pergunta (etapa do Perguntador) / pergunta feita / prazo do Perguntador | ask (`ask-question`, `askQuestion`) / asked (`question-asked`) / `askTimeout` (`ASK_TIMEOUT`) |
   | tempo que resta para responder / tempo esgotado | answer time left (`answerTimeLeft`) / timed out (`timedOut`) |
+  | hora do servidor / hora de término (da partida, do prazo do Perguntador, do prazo de resposta, do prazo do apoio) | server now (`serverNow`, `serverTimeOffset`) / ends at (`endsAt`, `askEndsAt`, `answerEndsAt`, `advisory.endsAt`) |
   | troca de host / host antigo / backup | host migration / old host / backup |
   | identidade do aparelho (uid do login anônimo, no campo `peerId`) / estado salvo | uid / saved state |
   | ligação do jogo ao canal da sala / login anônimo / cursor dos avisos para todos / aba com a sala aberta | room link (`roomLink`) / Firebase login (`firebaseLogin`) / feed cursor (`feedCursor`) / room tab (`tab-in-use`) |

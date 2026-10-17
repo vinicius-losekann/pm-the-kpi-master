@@ -61,9 +61,8 @@ function bindControls() {
     // --- Ações exclusivas do host (botões ficam ocultos para guests,
     // então é seguro ligar o listener sempre — sem clique visível não
     // há como acionar) ---
+    // startGame() do host marca a hora de término e avisa os guests.
     document.getElementById('btnStartGame').addEventListener('click', () => {
-        Game.state.timer = CONFIG.GAME.SESSION_DURATION;
-        Game.network.broadcastAll({ type: 'game-start', timer: Game.state.timer });
         Game.core.startGame();
     });
 

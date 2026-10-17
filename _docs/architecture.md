@@ -79,14 +79,14 @@ pm-the-kpi-master/
 │   │   ├── end-of-match.test.js
 │   │   ├── help-and-advisory.test.js # pedido de ajuda e assessoria (só com recurso; honorário ao assessor)
 │   │   ├── economy.test.js          # economia de recursos: estouro de orçamento (erro e corte sem piso), KPI Final com negativo, eventos pelo tabuleiro e aviso com os nomes
-│   │   ├── question-pace.test.js    # ritmo da pergunta: "Fazer a pergunta", prazo de resposta pausado no apoio, tempo esgotado
+│   │   ├── question-pace.test.js    # ritmo da pergunta: "Fazer a pergunta", prazo de resposta pausado no apoio, tempo esgotado, prazos pela hora do servidor
 │   │   ├── questions.test.js        # banco de perguntas: formato, gabarito equilibrado
 │   │   ├── config-and-texts.test.js # chaves do CONFIG, textos da tela e nomes do HTML/CSS (só o que existe é pedido; CSS sem regra sem uso)
 │   │   ├── simulation.test.js   # simulador de partidas: regras reais, contas, semente, relatório
 │   │   ├── connection-check.test.js # teste de conexão pelo Firebase: sala, presença, F5, mensagens, regras do banco
 │   │   ├── room-channel.test.js # canal da sala pelo Firebase: sala parada, roster, pedidos, avisos, estado, presença, cursor dos avisos, volta da conexão, regras de rooms/
-│   │   ├── room-link.test.js    # o jogo pelo canal da sala: papel pelo banco, pedidos e avisos, cursor, recusa, queda e volta, F5, host que cai, aba duplicada, login anônimo
-│   │   └── fakeFirebase.js      # Realtime Database simulado em memória, com vários aparelhos, queda e volta
+│   │   ├── room-link.test.js    # o jogo pelo canal da sala: papel pelo banco, pedidos e avisos, cursor, recusa, queda e volta, F5, host que cai, aba duplicada, login anônimo e hora do servidor
+│   │   └── fakeFirebase.js      # Realtime Database simulado em memória, com vários aparelhos, queda e volta e a diferença do relógio do servidor
 │   ├── simulation/              # simulador de partidas para balanceamento (Node, sem dependências)
 │   │   ├── simulator.js         # partidas com robôs, regras reais, relatório e CSV
 │   │   └── run.js               # lê o formulário do workflow e grava o relatório
@@ -137,7 +137,7 @@ pm-the-kpi-master/
     │   └── advisoryEngine.js    # assessoria e pedido de ajuda: requestAdvisory, handleAdvisoryAnswer
     │
     ├── network/
-    │   ├── firebaseLogin.js     # Firebase e login anônimo (emulador nos testes)
+    │   ├── firebaseLogin.js     # Firebase, login anônimo e hora do servidor (emulador nos testes)
     │   ├── roomChannel.js       # canal da sala pelo Firebase: sala, roster, pedidos ao host, avisos (com cursor para quem entra), estado público/secreto, presença mínima e volta da conexão
     │   ├── roomLink.js          # liga o jogo ao canal: abrir a sala (papel pelo banco), enviar, receber, aba duplicada, sair; PROTOCOL_VERSION
     │   ├── messageHandler.js    # roteamento de mensagens (switch/case), entrada e queda de jogador
@@ -192,9 +192,18 @@ O botão `btnNewRound`, ligado em `ui/setup.js`, aparece só para o host durante
 No início de cada dupla (`pickNewPair()`, `engine/turnEngine.js`), só o Perguntador recebe a pergunta (com o gabarito), com o botão "Fazer a pergunta" (`btnAskQuestion`); quem responde vê só o aviso de que ele vai perguntar (`question.waitingToBeAsked`), sem as alternativas. A rodada guarda `asked: false`. O Perguntador lê a pergunta em voz alta e clica (`ask-question`, `handleAskQuestion()`), ou ela vai sozinha no prazo dele (`CONFIG.GAME.ASK_TIMEOUT`, `armAskTimeout()`); nos dois casos, `askQuestion()` marca `asked: true`, avisa todos (`question-asked`), manda a pergunta sem o gabarito ao Respondedor e liga o prazo de resposta (`ANSWER_TIMEOUT`), que conta dali. `ASK_TIMEOUT` 0 desliga a etapa: a pergunta vai direto para quem responde.
 
 - **Sem o campo `asked`** (estado salvo ou cópia de uma versão anterior), a pergunta conta como já feita — por isso o estado salvo não mudou de versão.
-- **F5 do host e volta à partida** com a pergunta ainda por fazer: a rodada continua esperando o clique; o prazo do Perguntador recomeça (`resumeMatchAfterReload()`); quem volta como Respondedor vê o aviso, não as alternativas (`displayQuestion()` olha `asked`).
-- **Prazo de resposta pausado no apoio:** quando um apoio começa, `pauseAnswerTimeout()` para o prazo e guarda o que faltava em `currentRound.answerTimeLeft` (ms); no fim do apoio (resposta, recusa ou prazo de quem foi chamado), o prazo continua desse valor, não do inteiro. O tempo que resta vai no `advisory-started` (o contador da tela de quem responde para) e no `advisory-result` (o contador volta dele).
+- **F5 do host e volta à partida** com a pergunta ainda por fazer: a rodada continua esperando o clique; o prazo do Perguntador continua de onde estava (`resumeMatchAfterReload()`, pela `askEndsAt`); quem volta como Respondedor vê o aviso, não as alternativas (`displayQuestion()` olha `asked`).
+- **Prazo de resposta pausado no apoio:** quando um apoio começa, `pauseAnswerTimeout()` para o prazo, apaga a hora de término dele (`answerEndsAt`) e guarda o que faltava em `currentRound.answerTimeLeft` (ms); no fim do apoio (resposta, recusa ou prazo de quem foi chamado), o prazo continua desse valor, não do inteiro. O tempo que resta vai no `advisory-started` (o contador da tela de quem responde para) e a nova hora de término, no `advisory-result` (o contador volta por ela).
 - **Tempo esgotado** conta como erro (gasta recurso e entra no rodízio, como antes); o `kpi-update` leva `timedOut` e a tela de resultado mostra "Tempo esgotado" no lugar de "Errou".
+
+### Relógio e prazos pela hora do servidor
+
+O relógio da partida e os prazos (do Perguntador, de resposta e de quem foi chamado para o apoio) são guardados como **hora de término**, em milissegundos do relógio do servidor; cada aparelho calcula o que falta. Assim todos mostram o mesmo tempo, mesmo com o relógio do computador errado, e um F5 do host continua do mesmo ponto.
+
+- **Hora do servidor:** `firebaseLogin.start()` devolve `serverNow()` = relógio do aparelho + a diferença que o Firebase mede ao conectar (`.info/serverTimeOffset`, medida de novo a cada reconexão). O `main.js` passa esse relógio ao abrir a sala, e o resto do jogo lê `Game.network.serverNow()` (`network/roomLink.js`; sem sala aberta, o relógio do aparelho).
+- **Partida:** o `startGame()` do host grava `state.endsAt` (hora do servidor + `SESSION_DURATION`) e manda o `game-start` com ela. `startClock()` (`engine/sessionEngine.js`) calcula, na hora e a cada segundo, `state.timer` = segundos até `endsAt` (só para a tela; um tique atrasado não perde segundos). No zero, o host encerra a partida; o guest só para. Não há aviso periódico de tempo. A pausa por falta de conexão não para o relógio. Quem entra ou volta recebe `endsAt` no `state-sync`.
+- **Prazos da rodada:** `armAskTimeout()` grava `currentRound.askEndsAt`, `armAnswerTimeout()` grava `currentRound.answerEndsAt` (vazio com o apoio pendente) e o pedido de apoio grava `currentRound.advisory.endsAt`. A pergunta de quem responde leva `answerEndsAt`; o `advisory-started` e o `advisory-question` levam `endsAt` do apoio; o `advisory-result`, a nova `answerEndsAt`. Os contadores da tela (`ui/components/questionComponent.js`, `ui/modals/advisoryModal.js`) contam por essas horas.
+- **F5 do host:** `resumeMatchAfterReload()` arma cada prazo com o que falta até a hora gravada; o que venceu durante o F5 tem o efeito na retomada (a partida termina, a pergunta vai sozinha, a vez é pulada). Rodada salva sem a hora de um prazo ganha o prazo inteiro. Um apoio pendente ainda é cancelado no F5, e o prazo de resposta continua do que faltava quando ele começou.
 
 ### NOTA-004 — logger: mantido, religamento planejado
 
@@ -281,7 +290,7 @@ O projeto usa `<script>` simples + namespace global `window.Game`. ES Modules ex
 
 ### Versão do estado salvo
 
-O estado salvo no `localStorage` (`pmKPI_roomState` e `pmKPI_myData`, gravados juntos por `utils/persistence.js`) tem um número de versão, no campo `stateVersion` de `pmKPI_roomState` (`STATE_VERSION`, hoje 8). Antes de restaurar, `migrateSavedState()` aplica em ordem os passos da tabela `STATE_MIGRATIONS` (passo N converte da versão N para N+1) até a versão atual. Regras:
+O estado salvo no `localStorage` (`pmKPI_roomState` e `pmKPI_myData`, gravados juntos por `utils/persistence.js`) tem um número de versão, no campo `stateVersion` de `pmKPI_roomState` (`STATE_VERSION`, hoje 9). Antes de restaurar, `migrateSavedState()` aplica em ordem os passos da tabela `STATE_MIGRATIONS` (passo N converte da versão N para N+1) até a versão atual. Regras:
 
 - **Sem versão**: conta como versão 1 — o formato é o mesmo. No próximo salvamento passa a ter `stateVersion: 1`.
 - **Versão mais nova que o código** (ex.: arquivos antigos em cache logo depois de um deploy): não restaura e não apaga — a versão nova do código ainda consegue usar.
@@ -298,6 +307,7 @@ Passos existentes:
 - **5 → 6** (`migrateFocusAreaIdsToEnglish()`): os IDs das áreas foco em inglês — o **valor** de `focusArea` (não o nome do campo) nos jogadores, em cada linha de `finalRanking` e em `pmKPI_myData`: `iniciacao` → `initiating`, `planejamento` → `planning`, `execucao` → `executing`, `monitoramento_controle` → `monitoringControlling`, `encerramento` → `closing`. Valor fora da tabela fica como está. A pergunta da rodada guarda o nome da área (`area`: "Iniciação"), não o ID, e não muda; rodada e baralhos não mudam.
 - **6 → 7** (`addSupportKind()`): o pedido de ajuda passou a usar o campo da assessoria (`currentRound.advisory`), com o tipo em `kind`; a assessoria salva antes disso ganha `kind: 'advisory'`. Assessoria cancelada (`null`), rodada sem ela, jogadores, baralhos e `pmKPI_myData` não mudam.
 - **7 → 8** (`removePeerConnectionFields()`): saem os campos da conexão pelo PeerJS — `hostPeerId`, `backupPeerId`, `baseRoomPeerId`, `hostVersion` e o `tokenHash` de cada jogador (a identidade passou a ser o uid do aparelho, no `peerId`). O ranking final, o resto dos jogadores e `pmKPI_myData` não mudam.
+- **8 → 9** (`timerToEndsAt()`): o relógio da partida passou a contar pela hora de término — o tempo que faltava (`timer`, em segundos) vira `endsAt` = hora da gravação (`timestamp`) + `timer`. Sem `timer`, fica sem `endsAt`. Os prazos da rodada (`askEndsAt`, `answerEndsAt`) não existiam: no F5, ausentes valem inteiros. O resto e `pmKPI_myData` não mudam.
 
 ---
 
@@ -317,10 +327,10 @@ Resumo dos mecanismos; detalhes nos comentários de cada arquivo e no checklist 
 - **Sala travada:** com a partida em andamento, nome novo é recusado (`join-rejected` com `room-locked`); só volta quem já estava na partida.
 - **Pausa:** se faltam jogadores *conectados* mas não jogadores da partida, a partida pausa (`match-paused`) e retoma sozinha quando alguém volta, com o mesmo evento. Se todos os conectados já tinham respondido, a rodada é encerrada em vez de recomeçar (D3e).
 - **Sair da sala:** o guest para de ouvir (o host fica sabendo pela presença quando a página fecha); o host apaga a sala (fim da sessão).
-- **Versão do jogo:** a sala guarda a versão do protocolo no `meta` (`PROTOCOL_VERSION` em `network/roomLink.js`, hoje 10), conferida pela tela inicial e ao abrir o jogo, e o `player-join` leva `protocolVersion`. O host confere antes de tudo e recusa quem vem com outra versão (`join-rejected` com `version-mismatch`; o aviso pede para recarregar a página). Motivo: logo depois de um deploy, quem dá F5 passa a rodar o código novo e os outros continuam no antigo; com nomes de campo diferentes nas mensagens, a partida travaria sem aviso. Sem o campo (jogo de antes da versão) conta como 1.
+- **Versão do jogo:** a sala guarda a versão do protocolo no `meta` (`PROTOCOL_VERSION` em `network/roomLink.js`, hoje 11), conferida pela tela inicial e ao abrir o jogo, e o `player-join` leva `protocolVersion`. O host confere antes de tudo e recusa quem vem com outra versão (`join-rejected` com `version-mismatch`; o aviso pede para recarregar a página). Motivo: logo depois de um deploy, quem dá F5 passa a rodar o código novo e os outros continuam no antigo; com nomes de campo diferentes nas mensagens, a partida travaria sem aviso. Sem o campo (jogo de antes da versão) conta como 1.
 - **F5 do guest:** mesmo uid → abre a sala, pede para entrar de novo e volta ao lugar.
-- **F5 do host:** o `meta` continua com ele, então volta como host; os pedidos feitos durante o F5 esperam no banco e são tratados depois da retomada. O estado salvo (`utils/persistence.js`) inclui se a rodada está encerrada e se a partida está pausada (com o evento). Ao recarregar, `main.js` só chama `Game.core.resumeMatchAfterReload()` (`engine/sessionEngine.js`), que faz o que aconteceria sem o F5: pausa e rodada encerrada continuam; pergunta já respondida segue para a próxima dupla (ou encerra a partida, se a resposta completou a última área foco); pergunta aberta é reexibida (com o host fora da dupla, a tela de espectador — BUG-020) com o prazo de resposta rearmado (ou, com a pergunta ainda por fazer, o prazo do Perguntador). A pergunta guardada na rodada leva os nomes de domínio e área (as etiquetas da tela), para o F5 e o `state-sync` mostrarem as etiquetas. O estado salvo também guarda o fim de jogo e o ranking final (`gameOver`, `finalRanking`): um F5 na tela final volta a ela (`Game.core.showGameOver()`) — BUG-021.
-- **O que quem entra ou volta recebe:** `state-sync` com a rodada, o relógio (a contagem local é religada), se a rodada está encerrada ou pausada, quem já respondeu nesta rodada, no fim de jogo o ranking final, e o cursor dos avisos. Depois do fim de jogo a sala não fica travada: quem caiu na tela final pode voltar (BUG-021).
+- **F5 do host:** o `meta` continua com ele, então volta como host; os pedidos feitos durante o F5 esperam no banco e são tratados depois da retomada. O estado salvo (`utils/persistence.js`) inclui se a rodada está encerrada e se a partida está pausada (com o evento). Ao recarregar, `main.js` só chama `Game.core.resumeMatchAfterReload()` (`engine/sessionEngine.js`), que faz o que aconteceria sem o F5: pausa e rodada encerrada continuam; pergunta já respondida segue para a próxima dupla (ou encerra a partida, se a resposta completou a última área foco); pergunta aberta é reexibida (com o host fora da dupla, a tela de espectador — BUG-020) com o relógio e o prazo de resposta continuando de onde estavam (ou, com a pergunta ainda por fazer, o prazo do Perguntador) — seção "Relógio e prazos pela hora do servidor". A pergunta guardada na rodada leva os nomes de domínio e área (as etiquetas da tela), para o F5 e o `state-sync` mostrarem as etiquetas. O estado salvo também guarda o fim de jogo e o ranking final (`gameOver`, `finalRanking`): um F5 na tela final volta a ela (`Game.core.showGameOver()`) — BUG-021.
+- **O que quem entra ou volta recebe:** `state-sync` com a rodada (com as horas de término dos prazos), a hora de término da partida (o relógio é religado por ela), se a rodada está encerrada ou pausada, quem já respondeu nesta rodada, no fim de jogo o ranking final, e o cursor dos avisos. Depois do fim de jogo a sala não fica travada: quem caiu na tela final pode voltar (BUG-021).
 - **Voltar ao lobby:** zera os jogadores (inclusive quem tinha saído da partida) e tira da lista quem estava desconectado.
 
 ## Testes automatizados

@@ -103,7 +103,8 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 | Volta da conexão: o guest manda o player-join de novo e retoma o lugar; nenhum aviso de antes do estado chega depois dele | 🤖 T171 | ⬜ (M7) |
 | Quem entra ou volta recebe o estado com o cursor dos avisos: nada de antes dele, os de depois uma vez, na ordem | 🤖 T168, T177 | — |
 | F5 de guest: volta ao mesmo lugar pelo uid | 🤖 T171 · 🌐 E6 | — |
-| Guest volta com o relógio andando e sem reabrir pergunta já respondida | 🤖 T30–T34 | 👤 (diferença de ~1s entre relógios, esperada) |
+| Guest volta com o relógio andando e sem reabrir pergunta já respondida | 🤖 T30–T34 | — |
+| Relógio e prazos pela hora do servidor: todos mostram o mesmo tempo, mesmo com o relógio do aparelho errado; quem volta à pergunta vê o que falta do prazo, não o prazo inteiro | 🤖 T179–T182 · 🌐 E28 | — |
 | Sala cheia: 7º nome recusado no lobby; quem caiu consegue voltar | 🤖 T9 · 🌐 E16 | — (coberto por E16) |
 
 ### Host: F5 e queda
@@ -111,14 +112,14 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 |---|---|---|
 | Host cai: os outros veem "Host desconectado"; ninguém assume; com o host de volta, "Conectado" | 🤖 T172 | ⬜ |
 | F5 do host: continua host pelo meta da sala; os pedidos feitos durante o F5 esperam no banco e são tratados depois da retomada; quem ficou na sala pede o estado de novo quando o host volta | 🤖 T172 · 🌐 E1, E9, E12 | — (coberto por E1) |
-| F5 do host com a pergunta aberta: a mesma pergunta continua; relógio e prazo de resposta religados | 🤖 T56 · 🌐 E1 | — (coberto por E1) |
-| Pergunta ainda por fazer (o Perguntador não clicou em "Fazer a pergunta"): no F5 do host e na volta à partida, a rodada continua esperando o clique, com o prazo do Perguntador de novo; quem volta como Respondedor vê o aviso, não as alternativas | 🤖 T138, T139 | — |
+| F5 do host com a pergunta aberta: a mesma pergunta continua; relógio e prazo de resposta continuam de onde estavam; prazo vencido durante o F5 tem o efeito na retomada | 🤖 T56, T182 · 🌐 E1, E28 | ⬜ (contador da tela do host que responde, depois do F5 dele) |
+| Pergunta ainda por fazer (o Perguntador não clicou em "Fazer a pergunta"): no F5 do host e na volta à partida, a rodada continua esperando o clique, com o prazo do Perguntador continuando de onde estava (vencido: a pergunta vai na retomada); quem volta como Respondedor vê o aviso, não as alternativas | 🤖 T138, T139, T181 | — |
 | F5 do host fora da dupla com a pergunta aberta: o host vê a tela de espectador; etiquetas de domínio e área aparecem depois do F5 e para quem volta (BUG-020) | 🤖 T64, T65 | — |
 | F5 do host com a rodada encerrada: continua encerrada para todos, nada começa sozinho | 🤖 T53, T57 · 🌐 E9 | — (coberto por E9) |
 | F5 do host logo depois de uma resposta: segue para a próxima dupla ou encerra a rodada; se a resposta completou a última área foco, a partida termina | 🤖 T54, T58 · 🌐 E10 | — (coberto por E10) |
 | F5 do host com a partida pausada: continua pausada com o mesmo evento e retoma quando alguém volta | 🤖 T55, T57 · 🌐 E11 | — (coberto por E11) |
 | F5 do host com um pedido de assessoria ou de ajuda sem resposta: o pedido é cancelado, quem responde pode pedir de novo e a rodada segue; apoio já respondido continua valendo (com o honorário, a recompensa ou a cobertura) | 🤖 T59, T60, T122 · 🌐 E12 | — (coberto por E12) |
-| F5 do host logo depois de o jogo ser atualizado (estado salvo pela versão anterior): o estado é migrado e a partida continua de onde estava (pergunta aberta, pausa, rodada encerrada); recursos, área foco e ranking final dos jogadores e a assessoria da rodada (pendente é cancelada; sugestão ou recusa continuam) chegam iguais; os campos da conexão antiga saem | 🤖 T78, T79, T81, T82, T84, T85, T125, T178 | — |
+| F5 do host logo depois de o jogo ser atualizado (estado salvo pela versão anterior): o estado é migrado e a partida continua de onde estava (pergunta aberta, pausa, rodada encerrada); recursos, área foco e ranking final dos jogadores e a assessoria da rodada (pendente é cancelada; sugestão ou recusa continuam) chegam iguais; os campos da conexão antiga saem; o tempo que faltava vira a hora de término da partida | 🤖 T78, T79, T81, T82, T84, T85, T125, T178, T183 | — |
 | Todos recebem quem já respondeu na rodada (resposta, nova dupla, volta) | 🤖 T49 | — |
 | Sair da sala: o guest para de ouvir; o host apaga a sala | 🤖 T174 | — |
 
@@ -221,6 +222,7 @@ o teste só aponta o Firebase para o emulador.
 | E25 | Regras do banco no emulador: sem login não lê; fora da sala, sala de outro, aparelho de outro, mensagem em nome de outro e conteúdo grande demais são recusados; ler a sala e gravar o próprio aparelho e a própria mensagem passam | — (segurança do banco) |
 | E26 | Regras do banco para as salas do jogo (`rooms/`): o host grava tudo; quem foi aceito lê o estado público e o próprio, nunca o secreto, e não grava o que é do host; quem não foi aceito só lê a sala, a própria caixa de avisos e manda pedido em nome próprio; presença: cada um grava só a própria (estando no roster ou sendo o host), o host lê todas e quem foi aceito só a do host; sala parada há 2 h pode ser criada de novo por outro, e o host antigo perde o acesso | — (segurança do banco; lógica do canal em 🤖 T154–T166) |
 | E27 | Outro navegador com o nome de quem caiu é recusado e a vaga continua reservada; o dono volta ao lugar pelo mesmo navegador, com KPI e recursos | — |
+| E28 | Um navegador com o relógio 30 s adiantado (`page.clock`) mostra o mesmo tempo do host; o F5 do host ~12 s depois do início continua o relógio do mesmo ponto | — (relógio pela hora do servidor) |
 
 No E18, os 5 minutos não são esperados de verdade (cada cenário tem
 limite de 2 minutos): antes de reabrir, o teste muda a hora gravada no

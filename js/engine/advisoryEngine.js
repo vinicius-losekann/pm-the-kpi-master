@@ -118,15 +118,19 @@ function handleAdvisoryRequest(msg) {
         return;
     }
 
+    // Hora de término do prazo de quem foi chamado (hora do servidor): o
+    // contador dele conta por ela.
+    const endsAt = Game.network.serverNow() + CONFIG.GAME.ADVISORY_TIMEOUT;
     state.currentRound.advisory = {
         advisorName: msg.advisorName,
         status: 'pending',
         suggestion: null,
-        kind
+        kind,
+        endsAt
     };
 
-    // Pausa o prazo de resposta enquanto aguarda o apoio; no fim, ele
-    // continua do que faltava (handleAdvisoryAnswer()).
+    // Pausa o prazo de resposta enquanto aguarda o apoio (sem hora de
+    // término); no fim, ele continua do que faltava (handleAdvisoryAnswer()).
     state.currentRound.answerTimeLeft = Game.engine.turn.pauseAnswerTimeout();
 
     const startedMsg = {
@@ -134,6 +138,7 @@ function handleAdvisoryRequest(msg) {
         kind,
         advisorName: msg.advisorName,
         requesterName: msg.requesterName,
+        endsAt,
         answerTimeLeft: state.currentRound.answerTimeLeft
     };
     Game.network.broadcastAll(startedMsg);
@@ -150,7 +155,8 @@ function handleAdvisoryRequest(msg) {
         question: question.question,
         domain: domainName,
         alternatives: question.alternatives,
-        id: question.id
+        id: question.id,
+        endsAt
     });
 
     if (state.advisoryTimeout) clearTimeout(state.advisoryTimeout);
@@ -179,10 +185,14 @@ function handleAdvisoryAnswer(msg) {
     round.advisory.suggestion = msg.declined ? null : msg.alternative;
 
     // O prazo de resposta volta do que faltava quando o apoio começou
-    // (se ele não estava correndo naquela hora, volta o prazo inteiro).
+    // (se ele não estava correndo naquela hora, volta o prazo inteiro). É
+    // armado antes do aviso: o advisory-result leva a nova hora de término.
     const resumes = !round.answered && !round.pendingAnswer;
     const answerTimeLeft = round.answerTimeLeft ?? CONFIG.GAME.ANSWER_TIMEOUT;
     round.answerTimeLeft = null;
+    if (resumes) {
+        Game.engine.turn.armAnswerTimeout(round.answerer, answerTimeLeft);
+    }
 
     const resultMsg = {
         type: 'advisory-result',
@@ -191,15 +201,11 @@ function handleAdvisoryAnswer(msg) {
         suggestion: round.advisory.suggestion,
         declined: !!msg.declined,
         timeout: !!msg.timeout,
-        answerTimeLeft: resumes ? answerTimeLeft : undefined
+        answerEndsAt: resumes ? round.answerEndsAt : undefined
     };
 
     Game.network.broadcastAll(resultMsg);
     Game.ui.showAdvisoryResult(resultMsg);
-
-    if (resumes) {
-        Game.engine.turn.armAnswerTimeout(round.answerer, answerTimeLeft);
-    }
 
     // Se o Respondedor já tinha enviado uma resposta, processa agora
     if (state.currentRound.pendingAnswer) {

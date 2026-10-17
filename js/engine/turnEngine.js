@@ -209,16 +209,19 @@ function pickNewPair(event = null, depth = 0, showModal = true, eventEffect = nu
 
 /**
  * Arma o prazo do Perguntador: se ele não clicar em "Fazer a pergunta"
- * até CONFIG.GAME.ASK_TIMEOUT, a pergunta vai sozinha. Também usada no
- * F5 do host e na troca de host com a pergunta ainda por fazer.
+ * até CONFIG.GAME.ASK_TIMEOUT, a pergunta vai sozinha. A hora de término
+ * fica na rodada (`askEndsAt`, hora do servidor), para o F5 do host
+ * continuar do mesmo ponto. `ms` é o prazo que resta (no F5); sem ele, o
+ * prazo inteiro; zero ou menos, a pergunta vai na hora.
  */
-function armAskTimeout() {
+function armAskTimeout(ms = CONFIG.GAME.ASK_TIMEOUT) {
     const state = Game.state;
     clearAskTimeout();
+    if (state.currentRound) state.currentRound.askEndsAt = Game.network.serverNow() + ms;
     state.askTimeout = setTimeout(() => {
         console.log('⌛ O Perguntador não clicou a tempo — a pergunta vai sozinha.');
         askQuestion(true);
-    }, CONFIG.GAME.ASK_TIMEOUT);
+    }, Math.max(0, ms));
 }
 
 /** Cancela o prazo do Perguntador, se estiver armado. */
@@ -260,6 +263,10 @@ function askQuestion(auto) {
     Game.network.broadcastAll({ type: 'question-asked', auto });
     if (state.playerName === round.asker) Game.ui.showQuestionAsked();
 
+    // O prazo de resposta é armado antes do envio: a pergunta leva a hora
+    // de término dele, pela qual conta o contador de quem responde.
+    armAnswerTimeout(round.answerer);
+
     const answerer = Game.getPlayerByName(round.answerer);
     const q = round.question;
     if (answerer) {
@@ -270,18 +277,20 @@ function askQuestion(auto) {
             area: q.area,
             alternatives: q.alternatives,
             id: q.id,
-            isAnswerer: true
+            isAnswerer: true,
+            answerEndsAt: round.answerEndsAt
         });
     }
 
-    armAnswerTimeout(round.answerer);
     Game.saveState();
 }
 
 /**
  * Arma um timeout para evitar que a rodada fique travada se o Respondedor
- * não responder (desconexão, travamento, etc.). `ms` é o prazo que resta
- * (depois de um apoio, continua de onde parou); sem ele, o prazo inteiro.
+ * não responder (desconexão, travamento, etc.). A hora de término fica na
+ * rodada (`answerEndsAt`, hora do servidor). `ms` é o prazo que resta
+ * (depois de um apoio ou de um F5 do host, continua de onde parou); sem
+ * ele, o prazo inteiro; zero ou menos, a vez é pulada na hora.
  */
 function armAnswerTimeout(answererName, ms = CONFIG.GAME.ANSWER_TIMEOUT) {
     const state = Game.state;
@@ -289,23 +298,29 @@ function armAnswerTimeout(answererName, ms = CONFIG.GAME.ANSWER_TIMEOUT) {
         clearTimeout(state.answerTimeout);
         state.answerTimeout = null;
     }
-    state.answerDeadline = Date.now() + ms;
+    if (state.currentRound) state.currentRound.answerEndsAt = Game.network.serverNow() + ms;
     state.answerTimeout = setTimeout(() => {
         console.warn('⌛ Timeout: ' + answererName + ' não respondeu a tempo. Pulando vez automaticamente.');
         Game.engine.answer.handleAnswer({ alternative: null, playerName: answererName, timeout: true });
-    }, ms);
+    }, Math.max(0, ms));
 }
 
 /**
- * Para o prazo de resposta (apoio pendente) e devolve quanto faltava, em
- * ms — ou undefined, se o prazo não estava correndo.
+ * Para o prazo de resposta (apoio pendente), apaga a hora de término da
+ * rodada e devolve quanto faltava, em ms — ou undefined, se o prazo não
+ * estava correndo.
  */
 function pauseAnswerTimeout() {
     const state = Game.state;
     if (!state.answerTimeout) return undefined;
     clearTimeout(state.answerTimeout);
     state.answerTimeout = null;
-    return Math.max(0, state.answerDeadline - Date.now());
+    const round = state.currentRound;
+    const left = round && typeof round.answerEndsAt === 'number'
+        ? Math.max(0, round.answerEndsAt - Game.network.serverNow())
+        : CONFIG.GAME.ANSWER_TIMEOUT;
+    if (round) round.answerEndsAt = null;
+    return left;
 }
 
 /**

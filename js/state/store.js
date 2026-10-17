@@ -18,7 +18,8 @@ const gameState = {
     players: [],
     currentRound: null,
     decks: {},
-    timer: CONFIG.GAME.SESSION_DURATION,
+    timer: CONFIG.GAME.SESSION_DURATION, // segundos que faltam (só para a tela)
+    endsAt: null,                // hora de término da partida, em hora do servidor (ms)
     timerInterval: null,
     gameStarted: false,
     gameOver: false,

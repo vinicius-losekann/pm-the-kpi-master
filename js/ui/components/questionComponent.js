@@ -5,35 +5,38 @@
 // o contador de tempo visível do Respondedor e a captura do clique na
 // alternativa escolhida.
 //
-// 🆕 Contador do Respondedor: puramente visual/local — o timeout real
-// que decide quando pular a vez continua em
-// js/engine/turnEngine.js → armAnswerTimeout() (autoridade do
-// host). Este contador só espelha a mesma duração
-// (CONFIG.GAME.ANSWER_TIMEOUT) na tela de quem está respondendo,
-// igual já existia para o contador da assessoria em advisoryModal.js.
+// Contador do Respondedor: só visual — o timeout real que decide quando
+// pular a vez continua em js/engine/turnEngine.js → armAnswerTimeout()
+// (autoridade do host). O contador mostra o que falta até a hora de
+// término do prazo (`answerEndsAt`, em hora do servidor), que vem na
+// pergunta, no state-sync e no advisory-result — igual ao contador da
+// assessoria em advisoryModal.js.
 // ============================================
 
 let answerCountdownInterval = null;
 
 /**
- * Inicia (ou reinicia) o contador visível de tempo do Respondedor.
- * @param {number} [seconds] - de quanto contar (depois de um apoio, o
- *   que faltava); sem ele, o prazo inteiro
+ * Inicia (ou reinicia) o contador visível de tempo do Respondedor: a cada
+ * segundo, os segundos que faltam até `endsAt` pela hora do servidor.
+ * @param {number} [endsAt] - hora de término do prazo de resposta (ms,
+ *   hora do servidor); sem ela, o prazo inteiro a partir de agora
  */
-function startAnswerCountdown(seconds = Math.floor(CONFIG.GAME.ANSWER_TIMEOUT / 1000)) {
+function startAnswerCountdown(endsAt) {
     const timerEl = document.getElementById('answerTimerText');
     if (!timerEl) return;
+    if (typeof endsAt !== 'number') endsAt = Game.network.serverNow() + CONFIG.GAME.ANSWER_TIMEOUT;
+
+    const show = () => {
+        const seconds = Math.max(0, Math.ceil((endsAt - Game.network.serverNow()) / 1000));
+        timerEl.textContent = Game.i18n.t('question.timeLeft', { seconds });
+        return seconds;
+    };
 
     timerEl.style.display = 'block';
-    timerEl.textContent = Game.i18n.t('question.timeLeft', { seconds });
-
     clearInterval(answerCountdownInterval);
+    show();
     answerCountdownInterval = setInterval(() => {
-        seconds--;
-        timerEl.textContent = Game.i18n.t('question.timeLeft', { seconds: Math.max(seconds, 0) });
-        if (seconds <= 0) {
-            clearInterval(answerCountdownInterval);
-        }
+        if (show() <= 0) clearInterval(answerCountdownInterval);
     }, 1000);
 }
 
@@ -181,7 +184,7 @@ function displayQuestion(q) {
         if (alreadyAnswered || advisoryPending) {
             stopAnswerCountdown();
         } else {
-            startAnswerCountdown();
+            startAnswerCountdown(round?.answerEndsAt ?? q.answerEndsAt);
         }
 
         const me = Game.getPlayerByName(Game.state.playerName);

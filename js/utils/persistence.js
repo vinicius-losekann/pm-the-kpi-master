@@ -16,7 +16,7 @@ const RESTORE_WINDOW_MS = 5 * 60 * 1000;
 // em STATE_MIGRATIONS o passo que converte da versão anterior. Estado
 // salvo sem versão (antes do 3.1) é a versão 1. O número vale para as
 // duas chaves (são sempre gravadas juntas).
-const STATE_VERSION = 8;
+const STATE_VERSION = 9;
 
 /**
  * Cópia de `obj` com os campos renomeados conforme `names`
@@ -188,6 +188,21 @@ function removePeerConnectionFields(roomState, myData) {
     return { roomState: room, myData };
 }
 
+/**
+ * Versão 8 → 9: o relógio da partida passou a contar pela hora de término
+ * (`endsAt`, em ms). O tempo que faltava (`timer`, em segundos) vira
+ * endsAt = hora da gravação (`timestamp`) + timer. Sem timer (ou com a
+ * hora da gravação ilegível), fica sem endsAt. Os prazos da rodada
+ * (askEndsAt, answerEndsAt) não existiam: no F5, ausentes valem inteiros.
+ * O resto, inclusive pmKPI_myData, não muda.
+ */
+function timerToEndsAt(roomState, myData) {
+    const { timer, ...room } = roomState;
+    const savedAt = Date.parse(room.timestamp);
+    if (typeof timer === 'number' && !Number.isNaN(savedAt)) room.endsAt = savedAt + timer * 1000;
+    return { roomState: room, myData };
+}
+
 // Passo N: converte da versão N para N+1. Recebe (roomState, myData) e
 // devolve { roomState, myData }.
 const STATE_MIGRATIONS = {
@@ -197,7 +212,8 @@ const STATE_MIGRATIONS = {
     4: migrateEventFieldsToEnglish,
     5: migrateFocusAreaIdsToEnglish,
     6: addSupportKind,
-    7: removePeerConnectionFields
+    7: removePeerConnectionFields,
+    8: timerToEndsAt
 };
 
 /**
@@ -221,7 +237,9 @@ function migrateSavedState(roomState, myData, targetVersion = STATE_VERSION, mig
 }
 
 /**
- * Salva o estado completo no localStorage.
+ * Salva o estado completo no localStorage. A rodada vai com as horas de
+ * término dos prazos (askEndsAt, answerEndsAt, advisory.endsAt) e a
+ * partida com a dela (endsAt): o F5 continua do mesmo ponto.
  */
 function saveState() {
     const state = Game.state;
@@ -231,7 +249,7 @@ function saveState() {
         players: state.players,
         currentRound: state.currentRound,
         decks: state.decks,
-        timer: state.timer,
+        endsAt: state.endsAt ?? null,
         gameStarted: state.gameStarted,
         answeredThisRound: state.answeredThisRound,
         // Sem estes dois, um F5 do host com a rodada encerrada
@@ -309,7 +327,7 @@ function tryRestoreState() {
 
         Game.state.roomName = saved.roomName;
         Game.state.players = saved.players || [];
-        Game.state.timer = saved.timer ?? CONFIG.GAME.SESSION_DURATION;
+        Game.state.endsAt = typeof saved.endsAt === 'number' ? saved.endsAt : null;
         Game.state.gameStarted = !!saved.gameStarted;
         Game.state.currentRound = saved.currentRound || null;
         Game.state.decks = saved.decks || {};

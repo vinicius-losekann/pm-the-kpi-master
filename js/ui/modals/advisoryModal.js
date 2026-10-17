@@ -123,14 +123,19 @@ function showAdvisoryQuestionModal(msg) {
                     style="text-align:left; padding:10px 14px;">${alt}</button>`;
     }).join('');
 
-    let seconds = Math.floor(CONFIG.GAME.ADVISORY_TIMEOUT / 1000);
-    document.getElementById('advisoryTimerText').textContent = Game.i18n.t('advisory.timeLeft', { seconds });
+    // O contador mostra o que falta até a hora de término do prazo de quem
+    // foi chamado (`endsAt`, hora do servidor); sem ela, o prazo inteiro.
+    const endsAt = typeof msg.endsAt === 'number' ? msg.endsAt : Game.network.serverNow() + CONFIG.GAME.ADVISORY_TIMEOUT;
+    const show = () => {
+        const seconds = Math.max(0, Math.ceil((endsAt - Game.network.serverNow()) / 1000));
+        document.getElementById('advisoryTimerText').textContent = Game.i18n.t('advisory.timeLeft', { seconds });
+        return seconds;
+    };
 
     clearInterval(advisoryCountdownInterval);
+    show();
     advisoryCountdownInterval = setInterval(() => {
-        seconds--;
-        document.getElementById('advisoryTimerText').textContent = Game.i18n.t('advisory.timeLeft', { seconds: Math.max(seconds, 0) });
-        if (seconds <= 0) {
+        if (show() <= 0) {
             clearInterval(advisoryCountdownInterval);
             document.getElementById('modalAdvisoryQuestion').style.display = 'none';
         }
@@ -189,10 +194,12 @@ function showAdvisoryResult(msg) {
 
     if (!state.currentRound.answered) {
         document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = false);
-        // Fim do apoio: o contador volta do tempo que faltava. Recusa na
-        // hora (o apoio nem começou) não traz o campo: o contador seguiu.
-        if (typeof msg.answerTimeLeft === 'number') {
-            Game.ui.startAnswerCountdown(Math.ceil(msg.answerTimeLeft / 1000));
+        // Fim do apoio: o contador volta pela nova hora de término do prazo
+        // de resposta. Recusa na hora (o apoio nem começou) não traz o
+        // campo: o contador seguiu.
+        if (typeof msg.answerEndsAt === 'number') {
+            state.currentRound.answerEndsAt = msg.answerEndsAt;
+            Game.ui.startAnswerCountdown(msg.answerEndsAt);
         }
     }
 

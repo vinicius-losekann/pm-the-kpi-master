@@ -206,6 +206,21 @@ test('T56 F5 do host com a pergunta aberta e sem rodada: a mesma pergunta; reló
     check(reloaded.state.currentRound.answered === true && reloaded.broadcastsOfType('kpi-update').some(m => m.playerName === r.answerer),
         'no fim do prazo que faltava, a vez deveria ser pulada (sem prazo inteiro de novo)');
 
+    // O tempo da partida acabou durante o F5: a partida termina na retomada, sem dupla nova nem prazo armado.
+    const over = use(createEnvironment());
+    over.time = over.fakeTime();
+    roomToReload(over);
+    over.join('A', 'peer-a');
+    over.startMatch();
+    const overReloaded = use(reloadHost(over));
+    const overTime = overReloaded.fakeTime(over.time.now() + D * 1000 + 1000);
+    overReloaded.clearLog();
+    overReloaded.Game.core.resumeMatchAfterReload();
+    check(overReloaded.state.gameOver === true && overReloaded.broadcastsOfType('game-over').length === 1,
+        'com o tempo da partida vencido durante o F5, a retomada deveria encerrar a partida');
+    check(overReloaded.broadcastsOfType('round-start').length === 0 && overTime.pending() === 0,
+        'depois do fim, a retomada não deveria começar dupla nova nem armar prazo, sobraram: ' + overTime.pending());
+
     // Partida em andamento sem rodada (nem pausada, nem encerrada): começa uma.
     const env2 = use(createEnvironment());
     roomToReload(env2);

@@ -100,6 +100,7 @@ async function connectToRoom(restored) {
             db: login.db,
             uid: login.uid,
             code: state.roomName,
+            now: login.serverNow,
             timestamp: login.timestamp,
             onOpen: () => showRoom(restored)
         });

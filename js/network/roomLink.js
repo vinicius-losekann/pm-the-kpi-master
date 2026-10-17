@@ -29,7 +29,7 @@
 // novo e os outros, o antigo — com nomes de campo diferentes, a partida
 // travaria sem aviso. Aumentar ao mudar o nome ou o formato de um campo
 // de mensagem.
-const PROTOCOL_VERSION = 10;
+const PROTOCOL_VERSION = 11;
 
 // Quanto a aba espera a resposta de outra aba do mesmo navegador que já
 // esteja com a sala aberta (as duas teriam o mesmo uid).
@@ -39,6 +39,8 @@ const TAB_CHECK_MS = 200;
 const roomLinkState = {
     channel: null,
     hostUid: null,
+    // Hora do servidor em ms, passada ao abrir a sala (login.serverNow).
+    now: null,
     // Até a sala abrir (papel conhecido, tela montada), o que chega do
     // canal espera na fila.
     isReady: false,
@@ -138,12 +140,14 @@ function whenReady(fn) {
  * Abre a sala no jogo (também depois de um F5). O papel vem do meta:
  * host ou guest. `onOpen(result)` roda com o papel já no estado e antes
  * de qualquer pedido ou aviso ser tratado (o main.js monta a tela ali).
- * O guest pede para entrar em seguida. Devolve { ok, isHost } ou { ok:
- * false, reason } (`tab-in-use`, `invalid-code`, `room-not-found`,
- * `version-mismatch`).
+ * O guest pede para entrar em seguida. `now` é a hora do servidor
+ * (login.serverNow), que passa a valer em serverNow(). Devolve { ok,
+ * isHost } ou { ok: false, reason } (`tab-in-use`, `invalid-code`,
+ * `room-not-found`, `version-mismatch`).
  */
 async function openRoom({ db, uid, code, now, timestamp, onOpen }) {
     if (!(await claimRoomTab(code))) return { ok: false, reason: 'tab-in-use' };
+    roomLinkState.now = now || null;
 
     const ready = (fn) => (...args) => whenReady(() => fn(...args));
     const channel = Game.network.roomChannel.create({
@@ -303,6 +307,15 @@ function feedCursor() {
     return roomLinkState.channel ? roomLinkState.channel.feedCursor() : null;
 }
 
+/**
+ * Hora do servidor agora, em ms: o relógio da partida e os prazos contam
+ * por ela (ver engine/sessionEngine.js, startClock()). Sem sala aberta, o
+ * relógio do aparelho.
+ */
+function serverNow() {
+    return roomLinkState.now ? roomLinkState.now() : Date.now();
+}
+
 /** Situação da ligação (os testes no navegador esperam por ela). */
 function linkStatus() {
     const channel = roomLinkState.channel;
@@ -346,6 +359,7 @@ Object.assign(window.Game.network, {
     admitPlayer,
     dismissPlayer,
     feedCursor,
+    serverNow,
     receiveRequest,
     receivePresence,
     linkStatus,
