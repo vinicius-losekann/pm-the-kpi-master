@@ -157,7 +157,7 @@ asyncTest('T146 Entrar em sala que não existe: recusado (room-not-found), nada 
 });
 
 asyncTest('T147 Entrar: os dois aparelhos se veem na lista, com os nomes, na ordem de entrada; quem entra não é o dono', async () => {
-    const { ana, beto } = await roomWithTwo();
+    const { fake, clock, ana, beto } = await roomWithTwo();
 
     check(deviceNames(ana) === 'Ana,Beto', 'a página da Ana deveria mostrar Ana e Beto, veio: ' + deviceNames(ana));
     check(deviceNames(beto) === 'Ana,Beto', 'a página do Beto deveria mostrar Ana e Beto, veio: ' + deviceNames(beto));
@@ -165,6 +165,13 @@ asyncTest('T147 Entrar: os dois aparelhos se veem na lista, com os nomes, na ord
     check(s.code === 'sala01' && s.isHost === false && s.connected === true,
         'Beto deveria estar na sala, conectado e sem ser o dono, veio: ' + JSON.stringify(s));
     check(beto.changes.length > 0, 'a página do Beto deveria ser avisada (onChange)');
+
+    // Ordem de entrada, não alfabética: Aaron entra por último.
+    clock.now = 3000;
+    const aaron = openDevice(fake, 'uid-aaron', 'Aaron', clock);
+    await aaron.check.joinRoom('sala01');
+    await flush();
+    check(deviceNames(ana) === 'Ana,Beto,Aaron', 'a lista deveria seguir a ordem de entrada, veio: ' + deviceNames(ana));
 });
 
 asyncTest('T148 Queda sem aviso: o servidor tira o aparelho da lista e o outro vê sair; ao voltar a conexão, ele se recoloca sozinho — e uma nova queda tira de novo', async () => {
@@ -209,6 +216,12 @@ asyncTest('T149 F5: o mesmo aparelho (mesmo uid) entra de novo — continua um r
     const echoesAfter = messagesOf(fake, 'sala01').filter(m => m.kind === 'echo').length;
     check(echoesAfter === 1, 'o Beto não deveria responder de novo à mensagem antiga, respostas: ' + echoesAfter);
     check(betoAgain.check.snapshot().pings.length === 0, 'a página do Beto não deveria mostrar a mensagem antiga como nova');
+
+    // O aviso de queda da aba anterior chega atrasado e apaga o registro
+    // novo: com a conexão no ar, a página se recoloca na lista.
+    fake.write('connectionChecks/sala01/devices/uid-beto', null);
+    await flush();
+    check(deviceNames(ana) === 'Ana,Beto', 'o Beto deveria voltar sozinho à lista depois do aviso de queda atrasado, a Ana vê: ' + deviceNames(ana));
 });
 
 asyncTest('T150 Mensagem de teste: chega ao outro com o nome de quem mandou; volta um eco e o tempo de ida e volta é medido pelo relógio de quem mandou; tráfego contado', async () => {

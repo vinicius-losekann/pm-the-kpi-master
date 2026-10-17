@@ -1,0 +1,31 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "connectionChecks": {
+      "$code": {
+        ".read": "auth !== null",
+        ".write": "auth !== null && data.child('meta/hostUid').val() === auth.uid && !newData.exists()",
+        "meta": {
+          ".write": "auth !== null && ((!data.exists() && newData.child('hostUid').val() === auth.uid) || (data.child('hostUid').val() === auth.uid && !newData.exists()))",
+          ".validate": "newData.hasChildren(['hostUid', 'createdAt']) && newData.child('createdAt').isNumber()"
+        },
+        "devices": {
+          "$uid": {
+            ".write": "auth !== null && $uid === auth.uid",
+            ".validate": "newData.hasChildren(['name', 'joinedAt']) && newData.child('name').isString() && newData.child('name').val().length <= 40 && newData.child('joinedAt').isNumber()"
+          }
+        },
+        "messages": {
+          "$messageId": {
+            ".write": "auth !== null && !data.exists() && newData.child('from').val() === auth.uid",
+            ".validate": "newData.hasChildren(['from', 'kind']) && (newData.child('kind').val() === 'ping' || newData.child('kind').val() === 'echo')",
+            "payload": {
+              ".validate": "newData.isString() && newData.val().length <= 20000"
+            }
+          }
+        }
+      }
+    }
+  }
+}

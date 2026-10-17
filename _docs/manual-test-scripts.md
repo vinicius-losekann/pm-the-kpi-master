@@ -1,4 +1,4 @@
-# Roteiros dos testes manuais P1 (M9, M7, M8)
+# Roteiros dos testes manuais P1 (M21, M9, M7, M8)
 
 > **Contém:** os roteiros `M` passo a passo dos testes de conexão que não
 > dá para automatizar (rede real, celular), o que anotar, o que fazer se
@@ -48,6 +48,54 @@ Passos: 1 ok · 2 ok · 3 falhou (o que aconteceu, hora)
 Tempos medidos:
 Observações:
 ```
+
+## M21 — Teste de conexão pelo Firebase em redes reais
+
+**O que testa:** se a página de teste de conexão
+(`firebase-check.html`, endereço do site + `/firebase-check.html`)
+consegue criar sala, entrar e trocar mensagens pelo Firebase em redes
+reais. É o que decide o roadmap 2.9. A página não faz parte do jogo;
+o jogo continua com o P2P.
+
+**Precisa de:** um computador e um celular. Duas partes: em casa
+(computador no Wi-Fi, celular **com o Wi-Fi desligado**, nos dados
+móveis) e na instituição (celular no 5G; computador na rede da
+instituição). Na instituição, repetir com o celular também na rede
+dela, se houver.
+
+**Passos (em cada parte):**
+
+1. Abrir a página nos dois aparelhos. **Esperado:** em até ~5s, o
+   status "⚪ Login feito — fora de sala" e os botões liberados. Anotar a
+   linha "Rede:" do celular.
+2. No computador: nome "PC", código novo (ex.: `casa1`), "Criar sala".
+   **Esperado:** "🟢 Conectado", sala `casa1` (você criou), "PC" na lista.
+3. No celular: nome "Celular", o mesmo código, "Entrar". **Esperado:** os
+   dois aparelhos na lista dos dois lados.
+4. No celular, "Enviar teste" três vezes; depois, no computador, três
+   vezes. **Esperado:** o outro lado mostra "📩 ... enviou uma mensagem
+   de teste"; quem enviou, "↩️ ... respondeu em N ms". Anotar os seis
+   tempos.
+5. No celular, F5 (ou fechar a aba e abrir de novo pelo mesmo endereço).
+   **Esperado:** volta sozinho à sala, "🟢 Conectado"; o computador
+   continua vendo os dois.
+6. No celular, modo avião por 30s e depois desligar. **Esperado:** em
+   algum momento o computador mostra só "PC" (pode levar até ~1 min) e,
+   ao desligar o modo avião, o celular volta sozinho à lista e ao
+   "🟢 Conectado". Anotar quanto tempo o computador levou para ver a
+   saída e a volta.
+7. No celular, bloquear a tela por 2 min e desbloquear. **Esperado:**
+   volta ao "🟢 Conectado" sozinho ou com um F5.
+8. No computador, "Sair da sala". **Esperado:** a sala some; no celular,
+   "Entrar" com o mesmo código diz que a sala não existe.
+
+**Se falhar:** anotar o aviso em vermelho da página (ele diz em que
+ponto parou: arquivos do Firebase, login ou banco), a rede e o
+aparelho, e o console do computador (F12). Se o celular não sair do
+"Fazendo login...", o aviso aparece em 15s.
+
+**Registrar** com o modelo acima; no campo "Tempos medidos", os tempos
+de ida e volta do passo 4 e os tempos de saída e volta do passo 6.
 
 ## M9 — Redes diferentes
 

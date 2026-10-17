@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PM: The KPI Master - Teste de conexão</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔌</text></svg>" />
+
+    <!--
+        Página de teste de conexão pelo Firebase (roadmap 2.9). Não faz parte
+        do jogo e não tem link nele: serve para conferir, num aparelho e numa
+        rede, se criar sala, entrar e trocar mensagens funciona. Estilo
+        próprio, para não mexer no css/style.css do jogo.
+    -->
+    <style>
+        :root {
+            --bg: #0f0f1a;
+            --card: #1a1a2e;
+            --border: rgba(255, 255, 255, 0.1);
+            --text: #e8e8f0;
+            --muted: #a0a0b8;
+            --purple: #6c63ff;
+            --green: #00ff88;
+            --red: #ff4757;
+            --yellow: #ffa502;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.5;
+        }
+        #checkPage { max-width: 560px; margin: 0 auto; padding: 16px; }
+        h1 { font-size: 1.4rem; margin: 8px 0; }
+        h2 { font-size: 1rem; margin: 16px 0 6px; color: var(--muted); }
+        section {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin: 12px 0;
+        }
+        label { display: block; font-size: 0.9rem; color: var(--muted); margin-top: 8px; }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-top: 4px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+            font-size: 1rem;
+        }
+        button {
+            padding: 10px 16px;
+            margin: 12px 8px 0 0;
+            border: 0;
+            border-radius: 8px;
+            background: var(--purple);
+            color: #fff;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        button:disabled { opacity: 0.4; cursor: default; }
+        #checkFeedback { margin: 12px 0 0; padding: 10px; border-radius: 8px; background: rgba(255, 71, 87, 0.15); color: var(--red); }
+        #checkStatus[data-state="connected"] { color: var(--green); }
+        #checkStatus[data-state="disconnected"] { color: var(--red); }
+        #checkStatus[data-state="idle"] { color: var(--muted); }
+        ul { list-style: none; padding: 0; margin: 0; }
+        li { padding: 6px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+        li[data-kind="echo"] { color: var(--green); }
+        p { margin: 6px 0; }
+        .hint { color: var(--muted); font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <main id="checkPage">
+        <h1>🔌 Teste de conexão</h1>
+        <p class="hint">Confere se este aparelho, nesta rede, consegue criar uma sala, entrar e trocar mensagens pelo Firebase. Não faz parte do jogo.</p>
+
+        <section>
+            <label for="checkName">Seu nome</label>
+            <input type="text" id="checkName" maxlength="20" autocomplete="off" placeholder="Ex.: Ana (celular 5G)" />
+            <label for="checkCode">Código da sala</label>
+            <input type="text" id="checkCode" maxlength="20" autocomplete="off" placeholder="Ex.: teste1" />
+            <div>
+                <button type="button" id="btnCheckCreate" disabled>Criar sala</button>
+                <button type="button" id="btnCheckJoin" disabled>Entrar</button>
+            </div>
+            <p id="checkFeedback" data-reason="" hidden></p>
+        </section>
+
+        <section>
+            <p>Status: <strong id="checkStatus" data-state="idle">⚪ Carregando...</strong></p>
+            <p>Sala: <strong id="checkRoom">—</strong> <span id="checkRole"></span></p>
+            <p id="checkNetwork" class="hint"></p>
+
+            <h2>Aparelhos na sala</h2>
+            <ul id="checkDevices"></ul>
+
+            <div>
+                <button type="button" id="btnCheckPing" disabled>Enviar teste</button>
+                <button type="button" id="btnCheckLeave" disabled>Sair da sala</button>
+            </div>
+
+            <h2>Mensagens</h2>
+            <ul id="checkLog"></ul>
+            <p id="checkTraffic" class="hint"></p>
+        </section>
+    </main>
+
+    <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-database-compat.js"></script>
+    <script src="config/game-config.js"></script>
+    <script src="js/network/connectionCheck.js"></script>
+    <script src="js/entry/connectionCheckPage.js"></script>
+</body>
+</html>

@@ -50,6 +50,17 @@ const CONFIG = {
         debug: 0,                             // 0 = sem logs do PeerJS no console (3 = todos)
     },
 
+    // Configuração web do projeto do Firebase, usada pela página de teste
+    // de conexão (firebase-check.html, roadmap 2.9). É pública por natureza
+    // (vai para o navegador de quem abre a página); a proteção vem das
+    // regras do banco (database.rules.json). Nunca colocar aqui chave de
+    // conta de serviço. null = ainda não configurado (a página avisa).
+    FIREBASE: null,
+
+    // Só os testes no navegador ligam: aponta o login e o banco para o
+    // emulador local, ex: { host, authPort, databasePort }.
+    FIREBASE_EMULATOR: null,
+
     TIMER: {
         WARNING: 1800,                        // 30 min – alerta amarelo
         DANGER: 600,                          // 10 min – alerta vermelho
