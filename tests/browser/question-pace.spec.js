@@ -27,6 +27,6 @@ test('E23 Fazer a pergunta: quem responde espera o Perguntador; com o clique, a 
     await asker.click('#btnAskQuestion');
     await answerer.waitFor(() => document.getElementById('modalAnswerQuestion').style.display === 'flex');
     expect(await answerer.hasOpenQuestion(), 'depois do clique, quem responde deveria poder escolher a alternativa').toBe(true);
-    await expect(answerer.page.locator('#answerTimerText')).toContainText(/\b(8[5-9]|90)\b/);
+    await expect(answerer.page.locator('#answerTimerText')).toContainText(/\b(8[5-9]|90)s/);
     await expect(asker.page.locator('#btnAskQuestion')).toBeHidden();
 });
