@@ -14,7 +14,7 @@ const {
     savedStateV1, oldNamesIn, oldPlayerNamesIn,
     oldAdvisoryNamesIn, OLD_ADVISORY_TYPES, OLD_ADVISORY_REASONS,
     savedStateV4, oldEventNamesIn, OLD_EVENT_NAMES,
-    finalRankingV2, oldFocusAreaIdsIn, OLD_FOCUS_AREA_IDS
+    finalRankingV2, oldFocusAreaIdsIn, OLD_FOCUS_AREA_IDS, savedState, storeSavedState
 } = require('./environment');
 
 start('Entrada na sala e identidade');
@@ -262,7 +262,7 @@ test('T80 Versão do jogo 2: as mensagens da rodada e da partida, o estado e o e
     check(endSync && endSync.gameOver === true && JSON.stringify(endSync.finalRanking) === JSON.stringify(env.state.finalRanking),
         'quem volta no fim de jogo deveria receber o ranking em finalRanking');
     env.Game.saveState();
-    const saved = JSON.parse(env.storage['pmKPI_roomState']);
+    const saved = savedState(env);
     check(saved.stateVersion >= 2 && ['decks', 'answeredThisRound', 'roundEnded', 'matchPaused', 'finalRanking'].every(k => k in saved),
         'o estado salvo deveria usar os nomes novos, veio: ' + Object.keys(saved).join(', '));
     env.Game.core.backToLobby();
@@ -299,7 +299,7 @@ test('T80 Versão do jogo 2: as mensagens da rodada e da partida, o estado e o e
     // Nada com os nomes antigos nas mensagens, nos estados e no estado salvo.
     const messages = [...env.record.broadcasts, ...env.record.sent.map(e => e.msg), ...guest.record.toHost,
         ...paused.record.broadcasts, ...paused.record.sent.map(e => e.msg)];
-    const found = oldNamesIn([messages, env.state, guest.state, guestA.state, paused.state, saved, JSON.parse(paused.storage['pmKPI_roomState'])]);
+    const found = oldNamesIn([messages, env.state, guest.state, guestA.state, paused.state, saved, savedState(paused)]);
     check(found.length === 0, 'nenhum nome antigo deveria sobrar nas mensagens e no estado, sobraram: ' + found.join(', '));
     const oldTypes = messages.filter(m => ['partida-pausada', 'show-evento'].includes(m.type)).map(m => m.type);
     check(oldTypes.length === 0, 'nenhum tipo de mensagem antigo deveria ser enviado, veio: ' + oldTypes.join(', '));
@@ -458,13 +458,13 @@ test('T83 Versão do jogo 3: jogadores e ranking só com os nomes novos (resourc
     guestA.receiveSync('A', sync);
     check(JSON.stringify(guestA.state.finalRanking) === JSON.stringify(ranking), 'quem volta deveria guardar o ranking final');
 
-    // Estado salvo: versão atual, pmKPI_myData com focusArea.
+    // Estado salvo: versão atual, o host com focusArea.
     env.player('Host').focusArea = last;
     env.Game.saveState();
-    const saved = JSON.parse(env.storage['pmKPI_roomState']);
-    const mine = JSON.parse(env.storage['pmKPI_myData']);
+    const saved = savedState(env);
+    const mine = saved.players.find(p => p.name === 'Host');
     check(saved.stateVersion === env.Game.persistence.STATE_VERSION && mine.focusArea === last && !('phase' in mine),
-        'o estado salvo deveria ficar na versão atual, com focusArea no pmKPI_myData, veio: ' + JSON.stringify({ v: saved.stateVersion, mine }));
+        'o estado salvo deveria ficar na versão atual, com focusArea no host, veio: ' + JSON.stringify({ v: saved.stateVersion, mine }));
 
     // Encerrar a partida: todos voltam ao lobby com resources e focusArea iniciais.
     Object.assign(env.player('B'), { resources: 0, focusArea: last, activities: 1 });
@@ -600,7 +600,7 @@ test('T86 Versão do jogo 4: assessoria só com os nomes novos (advisory-*) no e
 
     // Estado salvo com a sugestão.
     env.Game.saveState();
-    const saved = JSON.parse(env.storage['pmKPI_roomState']);
+    const saved = savedState(env);
     check(saved.stateVersion === env.Game.persistence.STATE_VERSION && saved.currentRound.advisory &&
         saved.currentRound.advisory.advisorName === 'C' && saved.currentRound.advisory.suggestion === correct,
         'o estado salvo deveria levar a assessoria com os nomes novos, veio: ' + JSON.stringify(saved.currentRound));
@@ -799,7 +799,7 @@ test('T89 Versão do jogo 5: eventos só com os nomes novos (events, title, desc
 
     // Estado salvo com o evento da rodada nos nomes novos.
     env.Game.saveState();
-    const saved = JSON.parse(env.storage['pmKPI_roomState']);
+    const saved = savedState(env);
     check(saved.stateVersion >= 5 && saved.currentRound && fields(saved.currentRound.event) === fields(byId('e1')),
         'o estado salvo deveria ficar na versão 5 ou mais, com o evento da rodada nos nomes novos, veio: ' + JSON.stringify(saved.currentRound && saved.currentRound.event));
 
@@ -902,8 +902,7 @@ test('T89 Versão do jogo 5: eventos só com os nomes novos (events, title, desc
     const old = use(createEnvironment());
     roomToReload(old);
     const v4 = savedStateV4();
-    old.storage['pmKPI_roomState'] = JSON.stringify(v4.roomState);
-    old.storage['pmKPI_myData'] = JSON.stringify(v4.myData);
+    storeSavedState(old, v4);
     const reloaded = use(reloadHost(old));
     const restoredEvent = reloaded.state.currentRound && reloaded.state.currentRound.event;
     check(restoredEvent && restoredEvent.title === 'Reserva de Contingência' && restoredEvent.contingencyReserve === true,
@@ -912,7 +911,7 @@ test('T89 Versão do jogo 5: eventos só com os nomes novos (events, title, desc
     check(reloaded.state.currentRound.answered === true && reloaded.player('A').resources === 7,
         'A errou com a reserva de contingência salva antes da atualização: não deveria gastar recurso, veio: ' + reloaded.player('A').resources);
     reloaded.Game.saveState();
-    const resaved = JSON.parse(old.storage['pmKPI_roomState']);
+    const resaved = savedState(old);
     check(resaved.stateVersion >= 5 && resaved.currentRound.event.contingencyReserve === true && oldEventNamesIn(resaved).length === 0,
         'ao salvar de novo, o evento deveria ficar na versão 5 ou mais, com os nomes novos, veio: ' + JSON.stringify(resaved.currentRound.event));
 });
@@ -1031,12 +1030,12 @@ test('T90 Versão do jogo 6: áreas foco com os IDs novos (initiating...) no CON
     check(kpi && kpi.isCorrect === true && kpi.focusArea === 'planning' && kpi.activities === 0 && env.player('B').focusArea === 'planning',
         'completando as atividades, B deveria passar de initiating para planning, veio: ' + JSON.stringify(kpi));
     env.Game.saveState();
-    const saved = JSON.parse(env.storage['pmKPI_roomState']);
-    const mine = JSON.parse(env.storage['pmKPI_myData']);
-    check(saved.stateVersion === env.Game.persistence.STATE_VERSION && saved.players.find(p => p.name === 'B').focusArea === 'planning' && mine.focusArea === 'initiating',
-        'o estado salvo deveria ficar na versão atual, com os IDs novos, veio: ' + JSON.stringify({ v: saved.stateVersion, players: saved.players, mine }));
+    const saved = savedState(env);
+    check(saved.stateVersion === env.Game.persistence.STATE_VERSION && saved.players.find(p => p.name === 'B').focusArea === 'planning' &&
+        saved.players.find(p => p.name === 'Host').focusArea === 'initiating',
+        'o estado salvo deveria ficar na versão atual, com os IDs novos, veio: ' + JSON.stringify({ v: saved.stateVersion, players: saved.players }));
     const messages = [...env.record.broadcasts, ...env.record.sent.map(e => e.msg)];
-    const found = oldFocusAreaIdsIn([messages, env.state, saved, mine]);
+    const found = oldFocusAreaIdsIn([messages, env.state, saved]);
     check(found.length === 0, 'nenhum ID antigo deveria sobrar nas mensagens e no estado, sobraram: ' + found.join(', '));
 
     // 6) Estado salvo 5 → 6: cada ID antigo vira o novo, nos jogadores, no
@@ -1113,8 +1112,7 @@ test('T90 Versão do jogo 6: áreas foco com os IDs novos (initiating...) no CON
     const stored = P.migrateSavedState(v4.roomState, v4.myData, 5);
     check(stored.roomState.players.find(p => p.name === 'A').focusArea === 'iniciacao' && stored.myData.focusArea === 'iniciacao',
         'pré-condição: estado da versão 5 com os IDs antigos');
-    old.storage['pmKPI_roomState'] = JSON.stringify(stored.roomState);
-    old.storage['pmKPI_myData'] = JSON.stringify(stored.myData);
+    storeSavedState(old, stored);
     const reloaded = use(reloadHost(old));
     check(reloaded.player('A').focusArea === 'initiating' && reloaded.player('A').activities === 1 && reloaded.player('Host').focusArea === 'initiating',
         'o F5 deveria restaurar as áreas foco com os IDs novos, veio: ' + JSON.stringify(reloaded.state.players));
@@ -1123,10 +1121,10 @@ test('T90 Versão do jogo 6: áreas foco com os IDs novos (initiating...) no CON
     check(kpiA && kpiA.isCorrect === true && kpiA.focusArea === 'planning' && kpiA.activities === 0 && reloaded.player('A').focusArea === 'planning',
         'A acertou com 1 atividade salva antes da atualização: deveria passar para planning, veio: ' + JSON.stringify(kpiA));
     reloaded.Game.saveState();
-    const resaved = JSON.parse(old.storage['pmKPI_roomState']);
-    const remine = JSON.parse(old.storage['pmKPI_myData']);
-    check(resaved.stateVersion === reloaded.Game.persistence.STATE_VERSION && oldFocusAreaIdsIn([resaved, remine]).length === 0 && remine.focusArea === 'initiating',
-        'ao salvar de novo, o estado deveria ficar na versão atual sem IDs antigos, veio: ' + JSON.stringify({ players: resaved.players, mine: remine }));
+    const resaved = savedState(old);
+    check(resaved.stateVersion === reloaded.Game.persistence.STATE_VERSION && oldFocusAreaIdsIn(resaved).length === 0 &&
+        resaved.players.find(p => p.name === 'Host').focusArea === 'initiating',
+        'ao salvar de novo, o estado deveria ficar na versão atual sem IDs antigos, veio: ' + JSON.stringify({ players: resaved.players }));
 });
 
 test('T175 Entrada pelo uid: quem volta com o mesmo uid retoma o lugar; o mesmo nome em outro aparelho é recusado (name-taken com o dono conectado, identity-mismatch com ele fora), sem entrar no roster', (use) => {
@@ -1232,6 +1230,61 @@ test('T177 Protocolo 10: o player-join leva o uid e não leva token; o state-syn
     check(withHash.length === 0, 'o host não deveria guardar tokenHash, guarda de: ' + withHash.join(', '));
     const list = host.broadcastsOfType('player-list').pop();
     check(list && list.players.every(p => !('tokenHash' in p)), 'a lista de jogadores não deveria levar tokenHash');
+});
+
+test('T186 SEC-005: o state-sync leva a visão pública e a mão de quem entra — sem os baralhos e sem a resposta guardada (pendingAnswer); o gabarito só para o Perguntador; o estado do host continua inteiro; quem recebe continua com baralhos', (use) => {
+    const env = use(createEnvironment());
+    env.createRoomAsHost();
+    env.join('A', 'peer-a');
+    env.join('B', 'peer-b');
+    env.join('C', 'peer-c');
+    // No lobby: quem entra já recebe o estado sem os baralhos.
+    const lobbySync = syncTo(env, 'peer-c');
+    check(lobbySync && !('decks' in lobbySync), 'no lobby, o state-sync não deveria levar os baralhos, levou: ' + JSON.stringify(lobbySync && Object.keys(lobbySync)));
+
+    // Baralho com uma pergunta marcada: o texto e o gabarito dela não podem sair do host.
+    env.state.decks = { d1: { questions: [{ id: 'q-guardada', question: 'Pergunta guardada no baralho', alternatives: ['A', 'B', 'C', 'D'], correct: 'C', used: false }], available: 1, total: 1 } };
+    env.startMatch();
+    // Dupla fixada: A pergunta, B responde; B pediu assessoria a C e já respondeu (a resposta espera C).
+    env.state.currentRound = { ...env.state.currentRound, asker: 'A', answerer: 'B', answered: false };
+    env.state.answeredThisRound = [];
+    env.Game.network.handleMessage({ type: 'advisory-request', advisorName: 'C', requesterName: 'B' }, 'peer-b');
+    env.Game.network.handleMessage({ type: 'answer', alternative: 'B', playerName: 'B' }, 'peer-b');
+    const round = env.state.currentRound;
+    check(round.advisory && round.advisory.status === 'pending' && round.pendingAnswer && round.pendingAnswer.alternative === 'B',
+        'pré-condição: assessoria pendente e a resposta de B guardada');
+
+    for (const [name, peerId] of [['A', 'peer-a'], ['B', 'peer-b'], ['C', 'peer-c']]) {
+        env.clearLog();
+        env.join(name, peerId);
+        const sync = syncTo(env, peerId);
+        check(sync && !('decks' in sync), name + ': o state-sync não deveria levar os baralhos, levou: ' + JSON.stringify(sync && Object.keys(sync)));
+        const text = JSON.stringify(sync);
+        check(!text.includes('q-guardada') && !text.includes('Pergunta guardada no baralho'),
+            name + ': nenhuma pergunta do baralho deveria ir no state-sync');
+        const cr = sync.currentRound;
+        check(cr && !cr.pendingAnswer && !text.includes('pendingAnswer'), name + ': o state-sync não deveria levar a resposta guardada, veio: ' + JSON.stringify(cr));
+        check(cr.question && cr.question.id === round.question.id && cr.advisory && cr.advisory.status === 'pending',
+            name + ': a rodada deveria ir com a pergunta da vez e o apoio pendente, veio: ' + JSON.stringify(cr));
+        if (name === 'A') {
+            check(cr.question.correct === round.question.correct, 'o Perguntador (A) deveria receber o gabarito da pergunta da vez');
+        } else {
+            check(cr.question.correct === undefined, name + ' não pode receber o gabarito');
+        }
+        check(sync.players.length === 4 && sync.gameStarted === true && sync.endsAt === env.state.endsAt && 'feedCursor' in sync,
+            name + ': o resto do estado continua no state-sync (jogadores, partida, relógio, cursor)');
+    }
+
+    // O estado do host não perde nada ao montar o state-sync.
+    check(env.state.decks.d1 && env.state.decks.d1.questions[0].correct === 'C' && env.state.currentRound.pendingAnswer &&
+        env.state.currentRound.question.correct === round.question.correct,
+        'o host deveria continuar com os baralhos, a resposta guardada e o gabarito, veio: ' + JSON.stringify({ decks: env.state.decks, round: env.state.currentRound }));
+
+    // Quem recebe o estado sem os baralhos continua com um objeto de baralhos (ex.: para voltar ao lobby).
+    const guest = use(createEnvironment());
+    guest.receiveSync('C', syncTo(env, 'peer-c'));
+    check(guest.state.decks && typeof guest.state.decks === 'object',
+        'depois do state-sync sem baralhos, o guest deveria continuar com um objeto de baralhos, veio: ' + JSON.stringify(guest.state.decks));
 });
 
 finish('Entrada na sala e identidade');

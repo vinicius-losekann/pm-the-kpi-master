@@ -1,8 +1,8 @@
 // ============================================
 // PM: The KPI Master - Testes de lógica: Estado salvo
 // ============================================
-// O que vai no estado salvo (localStorage), a versão do formato e a
-// migração entre versões (roadmap 3.1).
+// O que vai no estado salvo (o secret/state que o host grava no banco), a
+// versão do formato e a migração entre versões (roadmap 3.1).
 // Ambiente simulado e ajudantes: environment.js. Rodar a partir da raiz:
 //     node tests/logic/saved-state.test.js
 // ============================================
@@ -11,7 +11,7 @@ const {
     fs, path, vm, ROOT, createEnvironment, test, check, start, finish,
     syncTo, roundScreens, roomToReload, reloadHost, tryReloadHost, recordScreens,
     savedStateV1, savedStateV2, finalRankingV2, oldNamesIn, oldPlayerNamesIn,
-    savedStateV3, oldAdvisoryNamesIn, savedStateV4
+    savedStateV3, oldAdvisoryNamesIn, savedStateV4, savedState, storeSavedState
 } = require('./environment');
 
 start('Estado salvo');
@@ -21,7 +21,7 @@ function sameFields(a, b) {
     return JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
 }
 
-test('T57 Estado salvo leva "rodada encerrada" e a pausa (com o evento); estado salvo antigo restaura sem eles', (use) => {
+test('T57 Estado salvo no banco (secret/state), não no localStorage: leva "rodada encerrada" e a pausa (com o evento); estado salvo antigo restaura sem eles', (use) => {
     const env = use(createEnvironment());
     roomToReload(env);
     env.join('A', 'peer-a');
@@ -29,7 +29,10 @@ test('T57 Estado salvo leva "rodada encerrada" e a pausa (com o evento); estado 
     env.state.roundEnded = true;
     env.state.matchPaused = { event: { id: 'e-x', title: 'Evento X' } };
     env.Game.saveState();
-    const saved = JSON.parse(env.storage['pmKPI_roomState']);
+    check(Object.keys(env.storage).length === 0,
+        'o estado da partida deveria ir só para o banco, nada para o localStorage, gravou: ' + Object.keys(env.storage).join(', '));
+    const saved = savedState(env);
+    check(saved && saved.stateVersion === env.Game.persistence.STATE_VERSION, 'o estado salvo deveria estar no banco, na versão atual');
     check(saved.roundEnded === true, 'o estado salvo deveria ter roundEnded');
     check(saved.matchPaused && saved.matchPaused.event && saved.matchPaused.event.id === 'e-x', 'o estado salvo deveria ter a pausa com o evento');
 
@@ -45,65 +48,79 @@ test('T57 Estado salvo leva "rodada encerrada" e a pausa (com o evento); estado 
     check(reloaded2.state.roundEnded === false && reloaded2.state.matchPaused === null, 'sem pausa nem rodada encerrada, restaura zerado');
 
     // Estado salvo por uma versão anterior (sem os campos): restaura como antes.
-    const old = JSON.parse(env.storage['pmKPI_roomState']);
+    const old = savedState(env);
     delete old.roundEnded;
     delete old.matchPaused;
-    env.storage['pmKPI_roomState'] = JSON.stringify(old);
+    storeSavedState(env, { roomState: old });
     const reloaded3 = use(reloadHost(env));
     check(reloaded3.state.roundEnded === false && reloaded3.state.matchPaused === null, 'estado salvo antigo: sem pausa e sem rodada encerrada');
     check(reloaded3.state.gameStarted === true && reloaded3.state.players.length === 2, 'o resto do estado continua sendo restaurado');
 });
 
-test('T62 Estado salvo tem versão: sem versão restaura como hoje; versão mais nova é guardada sem restaurar; inválida é apagada', (use) => {
+test('T62 Estado salvo vale enquanto a sala existir (sem a janela de 5 min) e tem versão: sem versão restaura como a 1; versão mais nova não restaura e fica no banco; versão inválida, texto ilegível ou sem estado: ignorado', (use) => {
     const env = use(createEnvironment());
     roomToReload(env);
     env.join('A', 'peer-a');
     env.startMatch();
     env.Game.saveState();
     const current = env.Game.persistence.STATE_VERSION;
-    const saved = JSON.parse(env.storage['pmKPI_roomState']);
-    check(saved.stateVersion === current, 'o estado salvo deveria ter stateVersion: ' + current + ', veio: ' + JSON.stringify(saved.stateVersion));
-    const myData = env.storage['pmKPI_myData'];
+    const saved = savedState(env);
+    check(saved && saved.stateVersion === current, 'o estado salvo deveria ter stateVersion: ' + current + ', veio: ' + JSON.stringify(saved && saved.stateVersion));
+
+    // Sem prazo de validade: gravado há 10 min, há 3 h ou sem a hora da gravação, restaura.
+    const hour = 60 * 60 * 1000;
+    for (const [label, timestamp] of [['há 10 min', new Date(Date.now() - hour / 6).toISOString()], ['há 3 h', new Date(Date.now() - 3 * hour).toISOString()], ['sem a hora', undefined]]) {
+        storeSavedState(env, { roomState: { ...saved, timestamp } });
+        const t = tryReloadHost(env);
+        use(t.reloaded);
+        check(t.restored === true && t.reloaded.state.gameStarted === true && t.reloaded.state.players.length === 2,
+            'o estado gravado ' + label + ' deveria ser restaurado (vale enquanto a sala existir), restaurou: ' + t.restored);
+    }
 
     // Sem versão (salvo antes do 3.1): é o formato da versão 1 — migra,
     // restaura e, ao salvar, ganha a versão atual.
     const noVersion = savedStateV1().roomState;
     delete noVersion.stateVersion;
-    env.storage['pmKPI_roomState'] = JSON.stringify(noVersion);
+    storeSavedState(env, { roomState: noVersion });
     const reloaded = use(reloadHost(env));
     check(reloaded.state.gameStarted === true && reloaded.state.players.length === 2 &&
         reloaded.state.currentRound && reloaded.state.currentRound.question && reloaded.state.currentRound.question.id === 'q7',
         'estado sem versão deveria ser migrado da versão 1 e restaurado');
     reloaded.Game.saveState();
-    check(JSON.parse(env.storage['pmKPI_roomState']).stateVersion === current, 'ao salvar de novo, o estado deveria passar a ter a versão atual (' + current + ')');
+    check(savedState(env).stateVersion === current, 'ao salvar de novo, o estado deveria passar a ter a versão atual (' + current + ')');
 
     // Gravado com o nome provisório do campo (`version`, só no 4ac5ac8): conta como sem versão.
-    env.storage['pmKPI_roomState'] = JSON.stringify({ ...noVersion, version: 1 });
+    storeSavedState(env, { roomState: { ...noVersion, version: 1 } });
     const provisional = use(reloadHost(env));
     check(provisional.state.gameStarted === true && provisional.state.players.length === 2 &&
         provisional.state.currentRound && provisional.state.currentRound.question,
         'estado com o campo `version` deveria ser migrado da versão 1 e restaurado');
 
-    // Versão mais nova que o código: não restaura e continua guardado.
-    const newer = JSON.stringify({ ...saved, stateVersion: current + 1 });
-    env.storage['pmKPI_roomState'] = newer;
-    env.storage['pmKPI_myData'] = myData;
+    // Versão mais nova que o código: não restaura e continua no banco.
+    storeSavedState(env, { roomState: { ...saved, stateVersion: current + 1 } });
     const t1 = tryReloadHost(env);
     use(t1.reloaded);
     check(t1.restored === false, 'versão mais nova não deveria ser restaurada');
     check(t1.reloaded.state.gameStarted === false && t1.reloaded.state.players.length === 0, 'nada do estado mais novo deveria ser copiado');
-    check(env.storage['pmKPI_roomState'] === newer && env.storage['pmKPI_myData'] === myData,
-        'o estado de versão mais nova deveria continuar guardado (a versão nova do código ainda o usa)');
+    check(savedState(env) && savedState(env).stateVersion === current + 1,
+        'o estado de versão mais nova deveria continuar no banco (a versão nova do código ainda o usa)');
 
-    // Versão inválida: tratada como estado corrompido (apagado).
+    // Versão inválida: não restaura e nada é copiado.
     for (const version of ['x', '1', 0, -1, 1.5, null]) {
-        env.storage['pmKPI_roomState'] = JSON.stringify({ ...saved, stateVersion: version });
-        env.storage['pmKPI_myData'] = myData;
+        storeSavedState(env, { roomState: { ...saved, stateVersion: version } });
         const t = tryReloadHost(env);
         use(t.reloaded);
         check(t.restored === false, 'versão ' + JSON.stringify(version) + ' não deveria ser restaurada');
-        check(!('pmKPI_roomState' in env.storage) && !('pmKPI_myData' in env.storage),
-            'versão ' + JSON.stringify(version) + ' deveria ser apagada, como estado corrompido');
+        check(t.reloaded.state.gameStarted === false && t.reloaded.state.players.length === 0,
+            'versão ' + JSON.stringify(version) + ': nada do estado deveria ser copiado');
+    }
+
+    // Texto ilegível no banco ou sala sem estado gravado: abre sem restaurar.
+    for (const [label, text] of [['texto ilegível', '{"stateVersion": '], ['sem estado', undefined]]) {
+        env.bank.secret = text;
+        const t = tryReloadHost(env);
+        use(t.reloaded);
+        check(t.restored === false && t.reloaded.state.gameStarted === false, label + ': não deveria restaurar nada, restaurou: ' + t.restored);
     }
 });
 
@@ -147,32 +164,26 @@ test('T63 Migração do estado salvo: passos em ordem até a versão atual, e a 
     const r4 = P.migrateSavedState({ stateVersion: P.STATE_VERSION, roomName: 'sala' }, { kpi: 3 });
     check(r4.roomState.roomName === 'sala' && r4.roomState.stateVersion === P.STATE_VERSION && r4.myData.kpi === 3, 'na versão atual, a tabela real não muda nada');
 
-    // A restauração usa o resultado da migração (antes de conferir sala e jogador).
+    // A restauração usa o resultado da migração.
     roomToReload(env);
     env.join('A', 'peer-a');
     env.startMatch();
     env.Game.saveState();
-    const saved = JSON.parse(env.storage['pmKPI_roomState']);
-    const mine = JSON.parse(env.storage['pmKPI_myData']);
+    const saved = savedState(env);
     const { roomName, ...withoutName } = saved;
-    env.storage['pmKPI_roomState'] = JSON.stringify({ ...withoutName, oldRoomName: roomName });
-    env.storage['pmKPI_myData'] = JSON.stringify({ ...mine, kpi: undefined, points: 42 });
-    const { reloaded, restored } = (() => {
-        // Ambiente novo com a migração trocada por uma que desfaz o nome trocado.
-        const n = createEnvironment({ storage: env.storage });
+    storeSavedState(env, { roomState: { ...withoutName, oldRoomName: roomName } });
+    // F5 com a migração trocada por uma que desfaz o nome trocado e muda o KPI do host.
+    const { reloaded, restored } = tryReloadHost(env, (n) => {
         n.Game.persistence.migrateSavedState = (roomState, myData) => {
             const { oldRoomName, ...rest } = roomState;
-            const { points, ...myRest } = myData;
-            return { roomState: { ...rest, roomName: oldRoomName }, myData: { ...myRest, kpi: points } };
+            const players = rest.players.map(p => (p.name === 'Host' ? { ...p, kpi: 42 } : p));
+            return { roomState: { ...rest, roomName: oldRoomName, players }, myData: { ...myData, kpi: 42 } };
         };
-        n.ctx.location.search = '?' + new URLSearchParams({ host: 'true', room: 'sala', playerName: 'Host', peerId: 'sala' }).toString();
-        Object.assign(n.state, { isHost: true, roomName: 'sala', playerName: 'Host', hostPeerId: 'sala', baseRoomPeerId: 'sala', hostVersion: 0 });
-        return { reloaded: n, restored: n.Game.persistence.tryRestoreState() };
-    })();
+    });
     use(reloaded);
     check(restored === true, 'com a migração trazendo o nome da sala de volta, o estado deveria ser restaurado');
     check(reloaded.state.roomName === 'sala' && reloaded.state.players.length === 2, 'a restauração deveria usar a sala migrada');
-    check(reloaded.player('Host').kpi === 42, 'os dados do próprio jogador deveriam vir da migração');
+    check(reloaded.player('Host').kpi === 42, 'os jogadores deveriam vir da migração');
 });
 
 test('T78 Estado salvo 1 → 2: rodada, baralhos, rodízio, pausa e ranking final passam para os nomes novos, com os mesmos valores', (use) => {
@@ -433,8 +444,7 @@ test('T125 Estado salvo 6 → 7: a assessoria da rodada ganha kind "advisory" (o
     const old = use(createEnvironment());
     roomToReload(old);
     const v6 = savedStateV6({ advisorName: 'B', status: 'accepted', suggestion: 'b' });
-    old.storage['pmKPI_roomState'] = JSON.stringify({ ...v6.roomState, timestamp: new Date().toISOString() });
-    old.storage['pmKPI_myData'] = JSON.stringify(v6.myData);
+    storeSavedState(old, { roomState: { ...v6.roomState, timestamp: new Date().toISOString() }, myData: v6.myData });
     const reloaded = use(reloadHost(old));
     reloaded.fakeTime();
     const restored = reloaded.state.currentRound.advisory;
@@ -494,7 +504,7 @@ test('T178 Estado salvo 7 → 8: saem os campos da conexão antiga (hostPeerId, 
     env.join('A', 'peer-a');
     env.startMatch();
     env.Game.saveState();
-    const saved = JSON.parse(env.storage['pmKPI_roomState']);
+    const saved = savedState(env);
     const written = PEER_FIELDS.filter(k => k in saved);
     check(saved.stateVersion === P.STATE_VERSION && written.length === 0,
         'o estado salvo não deveria gravar os campos da conexão antiga, gravou: ' + written.join(', '));
@@ -503,8 +513,7 @@ test('T178 Estado salvo 7 → 8: saem os campos da conexão antiga (hostPeerId, 
     // F5 do host com o estado salvo na versão 7: a partida continua, sem os campos antigos.
     const old = use(createEnvironment());
     roomToReload(old);
-    old.storage['pmKPI_roomState'] = JSON.stringify({ ...input.roomState, timestamp: new Date().toISOString() });
-    old.storage['pmKPI_myData'] = JSON.stringify(input.myData);
+    storeSavedState(old, { roomState: { ...input.roomState, timestamp: new Date().toISOString() }, myData: input.myData });
     const reloaded = use(reloadHost(old));
     check(reloaded.state.gameStarted === true && reloaded.state.players.length === 3 &&
         reloaded.state.players.every(p => !('tokenHash' in p)) && reloaded.player('A').peerId === 'peer-a',
@@ -549,7 +558,7 @@ test('T183 Estado salvo 8 → 9: o tempo que faltava (timer) vira a hora de tér
     env.join('A', 'peer-a');
     env.startMatch();
     env.Game.saveState();
-    const saved = JSON.parse(env.storage['pmKPI_roomState']);
+    const saved = savedState(env);
     check(saved.stateVersion === P.STATE_VERSION && saved.endsAt === env.state.endsAt && typeof saved.endsAt === 'number' && !('timer' in saved),
         'o estado salvo deveria gravar endsAt, sem timer, veio: ' + JSON.stringify({ endsAt: saved.endsAt, timer: saved.timer }));
     check(typeof env.state.currentRound.answerEndsAt === 'number' && saved.currentRound.answerEndsAt === env.state.currentRound.answerEndsAt,
@@ -559,8 +568,7 @@ test('T183 Estado salvo 8 → 9: o tempo que faltava (timer) vira a hora de tér
     const old = use(createEnvironment());
     roomToReload(old);
     const savedAt = Date.now() - 10000;
-    old.storage['pmKPI_roomState'] = JSON.stringify({ ...input.roomState, timestamp: new Date(savedAt).toISOString() });
-    old.storage['pmKPI_myData'] = JSON.stringify(input.myData);
+    storeSavedState(old, { roomState: { ...input.roomState, timestamp: new Date(savedAt).toISOString() }, myData: input.myData });
     const reloaded = use(reloadHost(old));
     check(reloaded.state.endsAt === savedAt + 3000 * 1000,
         'o F5 deveria restaurar a hora de término calculada da gravação, veio: ' + JSON.stringify({ endsAt: reloaded.state.endsAt, expected: savedAt + 3000 * 1000 }));

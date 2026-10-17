@@ -13,7 +13,7 @@
 
 const {
     fs, path, vm, ROOT, createEnvironment, test, check, start, finish,
-    roomToReload, reloadHost, recordScreens, guestWithScreens
+    roomToReload, reloadHost, recordScreens, guestWithScreens, savedState, storeSavedState
 } = require('./environment');
 
 start('Ritmo da pergunta');
@@ -373,9 +373,9 @@ test('T138 F5 do host antes da pergunta: a rodada continua esperando o Perguntad
 
     // 2) Rodada salva por uma versão sem a etapa (sem o campo asked): a pergunta já tinha sido feita.
     const old = askingMatch(use, { reload: true });
-    const saved = JSON.parse(old.storage['pmKPI_roomState']);
+    const saved = savedState(old);
     delete saved.currentRound.asked;
-    old.storage['pmKPI_roomState'] = JSON.stringify(saved);
+    storeSavedState(old, { roomState: saved });
     const reloadedOld = use(reloadHost(old));
     reloadedOld.CONFIG.GAME.ASK_TIMEOUT = ASK;
     const timeOld = reloadedOld.fakeTime();
@@ -449,7 +449,7 @@ test('T181 Prazo do Perguntador em hora do servidor (askEndsAt): gravado na roda
     const r = env.state.currentRound;
     check(r.askEndsAt === env.time.now() + 45000 + ASK,
         'a rodada deveria guardar askEndsAt = hora do servidor + ASK_TIMEOUT, veio: ' + JSON.stringify({ askEndsAt: r.askEndsAt, server: env.time.now() + 45000 }));
-    const saved = JSON.parse(env.storage['pmKPI_roomState']);
+    const saved = savedState(env);
     check(saved.currentRound.askEndsAt === r.askEndsAt, 'o estado salvo deveria guardar askEndsAt, veio: ' + JSON.stringify(saved.currentRound.askEndsAt));
 
     // 2) O host ficou fora além do prazo de A: na retomada, a pergunta vai na hora (envio automático), com o prazo de resposta contando dali.
@@ -469,9 +469,9 @@ test('T181 Prazo do Perguntador em hora do servidor (askEndsAt): gravado na roda
     // 3) Rodada salva sem askEndsAt (versão anterior): o prazo inteiro, contado do F5.
     const old = askingMatch(use, { reload: true });
     old.time.advance(10000);
-    const oldSaved = JSON.parse(old.storage['pmKPI_roomState']);
+    const oldSaved = savedState(old);
     delete oldSaved.currentRound.askEndsAt;
-    old.storage['pmKPI_roomState'] = JSON.stringify(oldSaved);
+    storeSavedState(old, { roomState: oldSaved });
     const reloadedOld = use(reloadHost(old));
     reloadedOld.CONFIG.GAME.ASK_TIMEOUT = ASK;
     const timeOld = reloadedOld.fakeTime(old.time.now());

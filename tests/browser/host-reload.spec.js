@@ -2,11 +2,11 @@
 // PM: The KPI Master - Testes no navegador: F5 do host em cada momento
 // ============================================
 // Checklist: _docs/connection-tests.md (M2 e os bugs B3, B4 e B5) e
-// _docs/issues.md (BUG-019, assessoria pendente). O F5 no meio da
-// pergunta está em connection.spec.js (E1). Também a reabertura da sala
-// depois que todos saíram (M13, M16): até 5 minutos o estado salvo
-// restaura a partida; depois disso, lobby novo. E o relógio da partida
-// pela hora do servidor, com um navegador de relógio errado (E28).
+// _docs/issues.md (BUG-019, apoio pendente: continua depois do F5, E29).
+// O F5 no meio da pergunta está em connection.spec.js (E1). Também a
+// reabertura da sala depois que todos saíram (M13, M16): o estado no
+// banco restaura a partida enquanto a sala existir. E o relógio da
+// partida pela hora do servidor, com um navegador de relógio errado (E28).
 // ============================================
 
 const { test, expect, roomCode, startMatch, answerUntilRoundEnds, waitForOpenQuestion, waitForHostBack } = require('./players');
@@ -105,37 +105,7 @@ test('E11 F5 do host com a partida pausada: continua pausada com o mesmo evento 
     await beto.waitFor(() => Game.state.currentRound !== null && Game.state.roundEnded === false);
 });
 
-test('E12 F5 do host com um pedido de assessoria sem resposta: o pedido é cancelado e quem responde pode seguir (BUG-019)', async ({ players }) => {
-    const code = roomCode();
-    const ana = await players.add('Ana');
-    const beto = await players.add('Beto');
-    const caio = await players.add('Caio');
-    await startMatch(ana, [beto, caio], code);
-
-    // Um guest com a pergunta aberta pede assessoria; o assessor não responde.
-    const answerer = await waitForOpenQuestion(ana, [ana, beto, caio], [beto, caio]);
-    await answerer.click('#btnRequestAdvisory');
-    await answerer.page.click('#advisoryPlayersList .advisor-select-btn', { timeout: 10000 });
-    await ana.waitFor(() => !!Game.state.currentRound && !!Game.state.currentRound.advisory &&
-        Game.state.currentRound.advisory.status === 'pending');
-    expect(await answerer.hasOpenQuestion(), 'pré-condição: botões travados esperando o assessor').toBe(false);
-
-    await ana.page.reload();
-    await waitForHostBack(ana);
-    await expect.poll(() => answerer.isConnectedToHost(), { timeout: 25000, message: answerer.name + ' deveria reconectar ao mesmo host' }).toBe(true);
-
-    // Volta com a pergunta aberta, botões e "Pedir Assessoria" liberados.
-    await expect.poll(() => answerer.hasOpenQuestion(),
-        { timeout: 15000, message: answerer.name + ' deveria voltar com os botões liberados (pedido cancelado)' }).toBe(true);
-    await expect(answerer.page.locator('#btnRequestAdvisory'), 'deveria poder pedir assessoria de novo').toBeEnabled();
-    expect(await ana.state(() => Game.state.currentRound.advisory || null), 'o host não deveria mais esperar o assessor').toBeNull();
-
-    // Responde e a partida segue.
-    expect(await answerer.answerIfMyTurn()).toBe(true);
-    await ana.waitFor((name) => Game.state.answeredThisRound.includes(name), { arg: answerer.name, timeout: 10000 });
-});
-
-test('E17 Todos saem (o host por último, com a partida pausada) e voltam em até 5 min: continua pausada com o mesmo evento e retoma', async ({ players }) => {
+test('E17 Todos saem (o host por último, com a partida pausada) e voltam: continua pausada com o mesmo evento e retoma', async ({ players }) => {
     const code = roomCode();
     const ana = await players.add('Ana');
     const beto = await players.add('Beto');
@@ -167,44 +137,44 @@ test('E17 Todos saem (o host por último, com a partida pausada) e voltam em at�
     await beto.waitFor(() => Game.state.gameStarted === true && Game.state.currentRound !== null);
 });
 
-test('E18 Todos saem e voltam depois de 5 min: a sala abre um lobby novo e uma partida nova começa', async ({ players }) => {
+test('E29 F5 do host com um pedido de apoio sem resposta: o pedido continua, quem foi chamado responde depois do F5 e a rodada segue (BUG-019, pelo Firebase)', async ({ players }) => {
     const code = roomCode();
     const ana = await players.add('Ana');
     const beto = await players.add('Beto');
-    await startMatch(ana, [beto], code);
+    const caio = await players.add('Caio');
+    const everyone = [ana, beto, caio];
+    await startMatch(ana, [beto, caio], code);
 
-    const betoLink = await beto.closeTab();
-    await ana.waitFor(() => !!Game.state.matchPaused);
-    const anaLink = await ana.closeTab();
+    // Um guest com a pergunta aberta pede apoio; quem foi chamado ainda não responde.
+    const answerer = await waitForOpenQuestion(ana, everyone, [beto, caio]);
+    await answerer.click('#btnRequestAdvisory');
+    await answerer.page.click('#advisoryPlayersList .advisor-select-btn', { timeout: 10000 });
+    await ana.waitFor(() => !!Game.state.currentRound && !!Game.state.currentRound.advisory &&
+        Game.state.currentRound.advisory.status === 'pending');
+    const advisorName = await ana.state(() => Game.state.currentRound.advisory.advisorName);
+    const advisor = everyone.find(p => p.name === advisorName);
+    expect(await answerer.hasOpenQuestion(), 'pré-condição: botões travados esperando o apoio').toBe(false);
 
-    // Passam 6 minutos para os dois (o estado salvo só vale 5).
-    expect(await ana.ageSavedState(6), 'pré-condição: a Ana tinha estado salvo').toBe(true);
-    expect(await beto.ageSavedState(6), 'pré-condição: o Beto tinha estado salvo').toBe(true);
+    await ana.page.reload();
+    await waitForHostBack(ana);
+    for (const p of [beto, caio]) {
+        await expect.poll(() => p.isConnectedToHost(), { timeout: 25000, message: p.name + ' deveria reconectar ao mesmo host' }).toBe(true);
+    }
+    expect(await ana.state(() => Game.state.currentRound && Game.state.currentRound.advisory && Game.state.currentRound.advisory.status),
+        'o pedido de apoio deveria continuar pendente depois do F5').toBe('pending');
+    expect(await answerer.hasOpenQuestion(), answerer.name + ' continua esperando o apoio (botões travados)').toBe(false);
 
-    // Ana reabre o link: lobby novo, só ela na sala.
-    await ana.reopen(anaLink);
-    await expect.poll(() => ana.isRoomHost(), { timeout: 25000, message: 'Ana deveria voltar como host da sala' }).toBe(true);
-    expect(await ana.state(() => Game.state.gameStarted), 'a partida antiga não deveria ser restaurada').toBe(false);
-    expect(await ana.state(() => Game.state.players.map(p => p.name))).toEqual(['Ana']);
-    await expect(ana.page.locator('#screenLobby')).toBeVisible();
-    await expect(ana.page.locator('#btnStartGame'), 'sozinha, o "Iniciar" fica bloqueado').toBeDisabled();
+    // Quem foi chamado vê a pergunta do apoio (de novo, depois do F5) e responde.
+    await advisor.waitFor(() => document.getElementById('modalAdvisoryQuestion').style.display === 'flex', { timeout: 20000 });
+    await advisor.page.click('#advisoryAlternativesList button', { timeout: 10000 });
+    await ana.waitFor(() => !!Game.state.currentRound && !!Game.state.currentRound.advisory &&
+        Game.state.currentRound.advisory.status === 'accepted', { timeout: 15000 });
 
-    // Beto reabre o link: entra como jogador novo.
-    await beto.reopen(betoLink);
-    await ana.waitFor(() => {
-        const b = Game.state.players.find(p => p.name === 'Beto');
-        return b && b.disconnected !== true;
-    }, { timeout: 25000 });
-    const betoInList = await ana.state(() => Game.state.players.find(p => p.name === 'Beto'));
-    expect(betoInList.kpi).toBe(0);
-    expect(betoInList.resources).toBe(await ana.state(() => CONFIG.STARTING_RESOURCES));
-    expect(await beto.state(() => Game.state.gameStarted)).toBe(false);
-
-    // Uma partida nova começa.
-    await expect(ana.page.locator('#btnStartGame')).toBeEnabled();
-    await ana.click('#btnStartGame');
-    await ana.waitFor(() => Game.state.gameStarted === true && Game.state.currentRound !== null);
-    await beto.waitFor(() => Game.state.gameStarted === true);
+    // Quem pediu recebe a sugestão, com os botões liberados, responde e a rodada segue.
+    await expect.poll(() => answerer.hasOpenQuestion(),
+        { timeout: 15000, message: answerer.name + ' deveria ter os botões liberados depois da resposta de ' + advisor.name }).toBe(true);
+    expect(await answerer.answerIfMyTurn()).toBe(true);
+    await ana.waitFor((name) => Game.state.answeredThisRound.includes(name), { arg: answerer.name, timeout: 10000 });
 });
 
 test('E28 Relógio pela hora do servidor: um navegador com o relógio 30 s adiantado mostra o mesmo tempo do host, e o F5 do host continua do mesmo ponto', async ({ players }) => {

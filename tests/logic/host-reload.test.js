@@ -2,7 +2,8 @@
 // PM: The KPI Master - Testes de lógica: F5 do host
 // ============================================
 // F5 do host em cada momento da partida: faz o que aconteceria sem o F5
-// (D3f, BUG-019, BUG-020).
+// (D3f, BUG-019, BUG-020). O host volta pelo estado que gravou no banco
+// (secret/state; etapa 2b).
 // Ambiente simulado e ajudantes: environment.js. Rodar a partir da raiz:
 //     node tests/logic/host-reload.test.js
 // ============================================
@@ -11,7 +12,7 @@ const {
     fs, path, vm, ROOT, createEnvironment, test, check, start, finish,
     syncTo, roundScreens, roomToReload, reloadHost, tryReloadHost, recordScreens,
     savedStateV1, savedStateV2, finalRankingV2, oldNamesIn, oldPlayerNamesIn,
-    savedStateV3, oldAdvisoryNamesIn
+    savedStateV3, oldAdvisoryNamesIn, savedState, storeSavedState
 } = require('./environment');
 
 start('F5 do host');
@@ -322,93 +323,86 @@ function preparePendingAdvisory(env, { asker, answerer, advisor }) {
     return env.state.currentRound;
 }
 
-test('T59 F5 do host com assessoria pendente: o pedido é cancelado, quem responde pode pedir de novo e a rodada não fica presa (BUG-019)', (use) => {
-    // 1) Respondedor guest (A), assessor guest (B), o host pergunta.
+test('T59 F5 do host com assessoria pendente: o pedido continua — quem responde segue esperando, a resposta de quem foi chamado vale depois do F5 e o prazo de resposta volta do que faltava; resposta já guardada é processada quando o apoio chega (BUG-019, pelo Firebase)', (use) => {
+    // 1) Respondedor guest (A), assessor guest (B), o host pergunta; F5 5 s depois do pedido.
     const env = use(createEnvironment());
+    const before = env.fakeTime();
     const r = preparePendingAdvisory(env, { asker: 'Host', answerer: 'A', advisor: 'B' });
+    const answerTimeLeft = env.state.currentRound.answerTimeLeft;
+    check(typeof answerTimeLeft === 'number' && answerTimeLeft > 0, 'pré-condição: prazo de resposta parado, com o que faltava, veio: ' + answerTimeLeft);
+    before.advance(5000);
 
     const reloaded = use(reloadHost(env));
-    const time = reloaded.fakeTime();
+    const time = reloaded.fakeTime(before.now());
     reloaded.clearLog();
     reloaded.Game.core.resumeMatchAfterReload();
     const r2 = reloaded.state.currentRound;
     check(r2 && r2.answerer === 'A' && r2.question.id === r.question.id && !r2.answered,
         'a mesma pergunta deveria continuar em andamento');
-    check(!r2.advisory, 'o pedido de assessoria pendente deveria ser cancelado no F5, veio: ' + JSON.stringify(r2.advisory));
+    check(r2.advisory && r2.advisory.status === 'pending' && r2.advisory.advisorName === 'B' && r2.advisory.kind === 'advisory',
+        'o pedido de assessoria pendente deveria continuar depois do F5, veio: ' + JSON.stringify(r2.advisory));
+    check(typeof r2.answerEndsAt !== 'number' && reloaded.broadcastsOfType('advisory-result').length === 0,
+        'com o apoio pendente, o prazo de resposta continua parado e nada se resolve no F5, veio: ' + JSON.stringify({ answerEndsAt: r2.answerEndsAt }));
 
-    // Resposta atrasada do assessor do pedido cancelado: ignorada.
+    // B responde depois do F5: a sugestão vale e o prazo de resposta volta do que faltava.
     reloaded.Game.network.handleMessage({ type: 'advisory-answer', alternative: r.question.correct, declined: false }, 'peer-b');
-    check(reloaded.broadcastsOfType('advisory-result').length === 0 && !reloaded.state.currentRound.advisory,
-        'a resposta atrasada do assessor do pedido cancelado deveria ser ignorada');
-
-    // Quem responde volta e recebe a pergunta sem o pedido pendente (botões liberados).
-    reloaded.join('A', 'peer-a');
-    const sync = syncTo(reloaded, 'peer-a');
-    check(sync && sync.currentRound && sync.currentRound.answerer === 'A' && !sync.currentRound.advisory,
-        'A deveria receber a pergunta sem assessoria pendente, veio: ' + JSON.stringify(sync && sync.currentRound && sync.currentRound.advisory));
-
-    // Prazo de resposta rearmado: sem resposta, a vez é pulada e a partida segue.
-    time.advance(reloaded.CONFIG.GAME.ANSWER_TIMEOUT);
-    check(reloaded.state.currentRound.answered === true && reloaded.broadcastsOfType('kpi-update').some(m => m.playerName === 'A'),
-        'ao fim do prazo de resposta, a vez de A deveria ser pulada (a rodada não pode ficar presa)');
+    const result = reloaded.broadcastsOfType('advisory-result').pop();
+    check(result && result.declined === false && result.suggestion === r.question.correct && reloaded.state.currentRound.advisory.status === 'accepted',
+        'a resposta de B depois do F5 deveria valer (advisory-result com a sugestão), veio: ' + JSON.stringify(result));
+    check(reloaded.state.currentRound.answerEndsAt === time.now() + answerTimeLeft && result.answerEndsAt === reloaded.state.currentRound.answerEndsAt,
+        'o prazo de resposta deveria voltar do que faltava quando o apoio começou (' + answerTimeLeft + ' ms), veio: ' +
+        JSON.stringify({ answerEndsAt: reloaded.state.currentRound.answerEndsAt, now: time.now() }));
+    const fee = reloaded.CONFIG.RESOURCES.ADVISORY_FEE;
+    const paid = { A: reloaded.player('A').resources, B: reloaded.player('B').resources };
+    reloaded.Game.network.handleMessage({ type: 'answer', alternative: r.question.correct, playerName: 'A' }, 'peer-a');
+    check(reloaded.player('A').resources === paid.A - fee && reloaded.player('B').resources === paid.B + fee,
+        'seguindo a sugestão certa recebida depois do F5, A deveria pagar o honorário a B, veio: ' +
+        JSON.stringify({ A: reloaded.player('A').resources, B: reloaded.player('B').resources }));
     time.advance(3000);
-    check(reloaded.broadcastsOfType('round-start').length === 1, 'depois disso, a próxima dupla deveria começar');
+    check(reloaded.broadcastsOfType('round-start').length === 1, 'e a partida segue para a próxima dupla');
 
-    // 2) Depois do F5, quem responde pode pedir assessoria de novo — e o pedido corre normalmente.
-    const env2 = use(createEnvironment());
-    preparePendingAdvisory(env2, { asker: 'Host', answerer: 'A', advisor: 'B' });
-    const reloaded2 = use(reloadHost(env2));
-    const time2 = reloaded2.fakeTime();
-    reloaded2.Game.core.resumeMatchAfterReload();
-    reloaded2.join('A', 'peer-a');
-    reloaded2.join('B', 'peer-b');
-    reloaded2.clearLog();
-    reloaded2.Game.network.handleMessage({ type: 'advisory-request', advisorName: 'B', requesterName: 'A' }, 'peer-a');
-    check(reloaded2.broadcastsOfType('advisory-started').length === 1 &&
-        reloaded2.record.sent.some(e => e.to === 'peer-b' && e.msg.type === 'advisory-question'),
-        'A deveria conseguir pedir assessoria de novo, e B receber a pergunta');
-    time2.advance(reloaded2.CONFIG.GAME.ADVISORY_TIMEOUT);
-    const result = reloaded2.broadcastsOfType('advisory-result').pop();
-    check(result && result.timeout === true, 'o novo pedido deveria ter o prazo de assessoria normal');
-    time2.advance(reloaded2.CONFIG.GAME.ANSWER_TIMEOUT);
-    check(reloaded2.broadcastsOfType('kpi-update').some(m => m.playerName === 'A'), 'e depois o prazo de resposta normal');
-
-    // 3) O host é quem responde: a tela dele já abre sem o pedido pendente.
+    // 2) O host é quem responde: a tela dele volta com o pedido pendente (botões travados) e a sugestão chega depois do F5.
     const env3 = use(createEnvironment());
+    const before3 = env3.fakeTime();
     preparePendingAdvisory(env3, { asker: 'A', answerer: 'Host', advisor: 'B' });
     const reloaded3 = use(reloadHost(env3));
-    const time3 = reloaded3.fakeTime();
+    reloaded3.fakeTime(before3.now());
     const advisoryOnScreen = [];
     const realUi = reloaded3.Game.ui;
     reloaded3.Game.ui = new Proxy({}, {
         get: (_, name) => (...args) => {
-            if (name === 'displayQuestion') advisoryOnScreen.push(reloaded3.state.currentRound && reloaded3.state.currentRound.advisory);
+            if (name === 'displayQuestion') advisoryOnScreen.push(JSON.parse(JSON.stringify(reloaded3.state.currentRound && reloaded3.state.currentRound.advisory || null)));
             return realUi[name](...args);
         }
     });
     reloaded3.Game.core.resumeMatchAfterReload();
-    check(advisoryOnScreen.length === 1 && !advisoryOnScreen[0],
-        'o host deveria ver a pergunta sem o pedido pendente (botões liberados), viu: ' + JSON.stringify(advisoryOnScreen));
-    time3.advance(reloaded3.CONFIG.GAME.ANSWER_TIMEOUT);
-    check(reloaded3.broadcastsOfType('kpi-update').some(m => m.playerName === 'Host'),
-        'ao fim do prazo de resposta, a vez do host deveria ser pulada');
+    check(advisoryOnScreen.length === 1 && advisoryOnScreen[0] && advisoryOnScreen[0].status === 'pending',
+        'o host deveria ver a pergunta com o pedido pendente (botões travados), viu: ' + JSON.stringify(advisoryOnScreen));
+    reloaded3.Game.network.handleMessage({ type: 'advisory-answer', alternative: 'B', declined: false }, 'peer-b');
+    check(reloaded3.state.currentRound.advisory.status === 'accepted' && reloaded3.record.ui.includes('showAdvisoryResult'),
+        'o host deveria receber a sugestão de B depois do F5');
 
-    // 4) A resposta já tinha chegado e esperava o assessor: é processada no F5.
+    // 3) A já tinha respondido e a resposta esperava B: continua guardada no F5 e é processada quando B responde.
     const env4 = use(createEnvironment());
+    const before4 = env4.fakeTime();
     const r4 = preparePendingAdvisory(env4, { asker: 'Host', answerer: 'A', advisor: 'B' });
     env4.Game.network.handleMessage({ type: 'answer', alternative: r4.question.correct, playerName: 'A' }, 'peer-a');
     check(env4.state.currentRound.pendingAnswer, 'pré-condição: resposta guardada esperando a assessoria');
     env4.Game.saveState(); // salvo por outro motivo antes do F5 (ex.: alguém caiu)
     const reloaded4 = use(reloadHost(env4));
-    const time4 = reloaded4.fakeTime();
+    const time4 = reloaded4.fakeTime(before4.now());
     reloaded4.clearLog();
     reloaded4.Game.core.resumeMatchAfterReload();
-    const kpiOfA = reloaded4.broadcastsOfType('kpi-update').find(m => m.playerName === 'A');
-    check(kpiOfA && kpiOfA.isCorrect === true, 'a resposta guardada deveria ser processada depois do F5');
-    check(!reloaded4.record.ui.includes('displayQuestion'), 'a pergunta já respondida não pode ser reexibida');
     const r5 = reloaded4.state.currentRound;
-    check(reloaded4.state.answeredThisRound.includes('A') && r5 && !r5.pendingAnswer && !r5.advisory,
-        'A entra no rodízio; nada fica guardado nem pendente, veio: ' + JSON.stringify(r5 && { p: r5.pendingAnswer, a: r5.advisory }));
+    check(!reloaded4.broadcastsOfType('kpi-update').some(m => m.playerName === 'A') && r5 && r5.pendingAnswer &&
+        r5.advisory && r5.advisory.status === 'pending',
+        'a resposta guardada deveria continuar esperando B depois do F5, veio: ' + JSON.stringify(r5 && { p: r5.pendingAnswer, a: r5.advisory }));
+    reloaded4.Game.network.handleMessage({ type: 'advisory-answer', alternative: r4.question.correct, declined: false }, 'peer-b');
+    const kpiOfA = reloaded4.broadcastsOfType('kpi-update').find(m => m.playerName === 'A');
+    check(kpiOfA && kpiOfA.isCorrect === true, 'com a resposta de B, a resposta guardada de A deveria ser processada');
+    const r6 = reloaded4.state.currentRound;
+    check(reloaded4.state.answeredThisRound.includes('A') && r6 && !r6.pendingAnswer,
+        'A entra no rodízio e nada fica guardado, veio: ' + JSON.stringify(r6 && { p: r6.pendingAnswer }));
     time4.advance(3000);
     check(reloaded4.broadcastsOfType('round-start').length === 1, 'e a partida segue para a próxima dupla');
 });
@@ -474,27 +468,27 @@ function preparePendingHelp(env) {
     return env.state.currentRound;
 }
 
-test('T122 F5 do host com pedido de ajuda: o pendente é cancelado (quem responde pode pedir de novo), o já aceito continua valendo com a recompensa ou a cobertura; quem ajuda cai sem responder e o prazo libera quem responde', (use) => {
-    // 1) Ajuda pendente no F5: cancelada, a resposta atrasada é ignorada e A pede de novo.
+test('T122 F5 do host com pedido de ajuda: o pendente continua e a resposta de quem ajuda vale depois do F5 (com a recompensa); o já aceito continua valendo com a recompensa ou a cobertura; quem ajuda cai sem responder e o prazo libera quem responde', (use) => {
+    // 1) Ajuda pendente no F5: continua; B responde depois do F5 e, seguida e certa, ganha a recompensa.
     const env = use(createEnvironment());
+    const pendingTime = env.fakeTime();
     const r = preparePendingHelp(env);
     const reloaded = use(reloadHost(env));
-    reloaded.fakeTime();
+    reloaded.fakeTime(pendingTime.now());
     reloaded.Game.core.resumeMatchAfterReload();
-    check(reloaded.state.currentRound && reloaded.state.currentRound.question.id === r.question.id && !reloaded.state.currentRound.advisory,
-        'a mesma pergunta deveria continuar, sem o pedido de ajuda pendente, veio: ' + JSON.stringify(reloaded.state.currentRound.advisory));
+    const kept = reloaded.state.currentRound && reloaded.state.currentRound.advisory;
+    check(reloaded.state.currentRound.question.id === r.question.id && kept && kept.kind === 'help' && kept.status === 'pending' && kept.advisorName === 'B',
+        'a mesma pergunta deveria continuar, com o pedido de ajuda pendente, veio: ' + JSON.stringify(kept));
     reloaded.clearLog();
     reloaded.Game.network.handleMessage({ type: 'advisory-answer', alternative: r.question.correct, declined: false }, 'peer-b');
-    check(reloaded.broadcastsOfType('advisory-result').length === 0 && !reloaded.state.currentRound.advisory,
-        'a resposta atrasada de quem ia ajudar deveria ser ignorada');
-    reloaded.join('A', 'peer-a');
-    reloaded.join('B', 'peer-b');
-    reloaded.clearLog();
-    reloaded.Game.network.handleMessage({ type: 'advisory-request', kind: 'help', advisorName: 'B', requesterName: 'A' }, 'peer-a');
-    const started = reloaded.broadcastsOfType('advisory-started').pop();
-    check(started && started.kind === 'help' &&
-        reloaded.record.sent.some(e => e.to === 'peer-b' && e.msg.type === 'advisory-question' && e.msg.kind === 'help'),
-        'depois do F5, A deveria conseguir pedir ajuda de novo, e B receber a pergunta, veio: ' + JSON.stringify(started));
+    const helped = reloaded.broadcastsOfType('advisory-result').pop();
+    check(helped && helped.kind === 'help' && helped.declined === false && helped.suggestion === r.question.correct,
+        'a resposta de B depois do F5 deveria valer como ajuda, veio: ' + JSON.stringify(helped));
+    reloaded.Game.network.handleMessage({ type: 'answer', alternative: r.question.correct, playerName: 'A' }, 'peer-a');
+    const R = reloaded.CONFIG.RESOURCES;
+    check(reloaded.player('A').resources === 0 && reloaded.player('B').resources === 5 + R.HELP_REWARD,
+        'seguindo a ajuda certa recebida depois do F5, A deveria continuar com 0 e B ganhar a recompensa, veio: ' +
+        JSON.stringify({ A: reloaded.player('A').resources, B: reloaded.player('B').resources }));
 
     // 2) Ajuda já aceita antes do F5: o tipo vai no estado salvo e a recompensa ou a cobertura valem depois.
     for (const follows of ['correct', 'wrong']) {
@@ -502,7 +496,7 @@ test('T122 F5 do host com pedido de ajuda: o pendente é cancelado (quem respond
         const round = preparePendingHelp(before);
         const suggestion = follows === 'correct' ? round.question.correct : ['A', 'B', 'C', 'D'].find(x => x !== round.question.correct);
         before.Game.network.handleMessage({ type: 'advisory-answer', alternative: suggestion, declined: false }, 'peer-b');
-        const saved = JSON.parse(before.storage['pmKPI_roomState']);
+        const saved = savedState(before);
         check(saved.currentRound.advisory && saved.currentRound.advisory.kind === 'help' && saved.currentRound.advisory.status === 'accepted',
             'o estado salvo deveria guardar a ajuda aceita com kind help, veio: ' + JSON.stringify(saved.currentRound.advisory));
 
@@ -639,12 +633,6 @@ test('T65 A pergunta da rodada leva domínio e área: o F5 do host e quem volta 
         'A deveria ver as etiquetas ao voltar');
 });
 
-/** Grava no localStorage do ambiente um estado salvo { roomState, myData }. */
-function storeSavedState(env, saved) {
-    env.storage['pmKPI_roomState'] = JSON.stringify(saved.roomState);
-    env.storage['pmKPI_myData'] = JSON.stringify(saved.myData);
-}
-
 test('T79 F5 do host com o estado salvo na versão 1 (gravado antes de o jogo ser atualizado): a partida continua de onde estava', (use) => {
     // 1) Pergunta aberta: Host pergunta, A responde.
     const env = use(createEnvironment());
@@ -683,7 +671,7 @@ test('T79 F5 do host com o estado salvo na versão 1 (gravado antes de o jogo se
         'a resposta certa de A deveria contar sobre o KPI salvo, veio: ' + JSON.stringify(kpi));
     check(JSON.stringify(reloaded.state.answeredThisRound) === '["A"]', 'A deveria entrar no rodízio');
     reloaded.Game.saveState();
-    const saved = JSON.parse(env.storage['pmKPI_roomState']);
+    const saved = savedState(env);
     const current = reloaded.Game.persistence.STATE_VERSION;
     check(saved.stateVersion === current && oldNamesIn(saved).length === 0,
         'ao salvar de novo, o estado deveria ficar na versão atual (' + current + '), sem nomes antigos, sobraram: ' + oldNamesIn(saved).join(', '));
@@ -732,8 +720,6 @@ test('T82 F5 do host com o estado salvo na versão 2 (gravado antes de o jogo se
     const a = reloaded.player('A');
     check(host.resources === 9 && a.resources === 7 && a.focusArea === 'initiating' && a.activities === 1,
         'os jogadores salvos na versão 2 deveriam ser restaurados com resources e focusArea, veio: ' + JSON.stringify(s.players));
-    check(host.focusArea === 'planning' && host.activities === 0,
-        'a área foco do host vem do pmKPI_myData, que também deveria ser migrado, veio: ' + JSON.stringify(host));
     check(oldPlayerNamesIn(s).length === 0, 'nenhum nome antigo deveria sobrar no estado restaurado, sobraram: ' + oldPlayerNamesIn(s).join(', '));
 
     reloaded.fakeTime();
@@ -750,11 +736,9 @@ test('T82 F5 do host com o estado salvo na versão 2 (gravado antes de o jogo se
     check(kpi && kpi.isCorrect === false && kpi.resources === 6 && kpi.focusArea === 'initiating' && reloaded.player('A').resources === 6,
         'a resposta errada de A deveria gastar 1 dos recursos salvos (7 → 6), veio: ' + JSON.stringify(kpi));
     reloaded.Game.saveState();
-    const saved = JSON.parse(env.storage['pmKPI_roomState']);
-    const mine = JSON.parse(env.storage['pmKPI_myData']);
+    const saved = savedState(env);
     check(saved.stateVersion === reloaded.Game.persistence.STATE_VERSION && oldPlayerNamesIn(saved).length === 0 && saved.players.find(p => p.name === 'A').resources === 6,
         'ao salvar de novo, o estado deveria ficar na versão atual, com os nomes novos, veio: ' + JSON.stringify(saved.players));
-    check(mine.focusArea === 'planning' && !('phase' in mine), 'pmKPI_myData deveria ser salvo com focusArea, veio: ' + JSON.stringify(mine));
 
     // 2) Fim de jogo: o F5 na tela final mostra o mesmo ranking, com os nomes novos.
     const env2 = use(createEnvironment());
@@ -777,8 +761,8 @@ test('T82 F5 do host com o estado salvo na versão 2 (gravado antes de o jogo se
 });
 
 test('T85 F5 do host com o estado salvo na versão 3 (gravado antes de o jogo ser atualizado): a assessoria da rodada continua (pendente, aceita ou recusada)', (use) => {
-    // 1) Assessoria pendente: restaurada com os nomes novos; a retomada a
-    // cancela (como sem a atualização) e quem responde pode pedir de novo.
+    // 1) Assessoria pendente: restaurada com os nomes novos; continua na
+    // retomada e a resposta de B, depois do F5, vale.
     const env = use(createEnvironment());
     roomToReload(env);
     storeSavedState(env, savedStateV3());
@@ -792,22 +776,17 @@ test('T85 F5 do host com o estado salvo na versão 3 (gravado antes de o jogo se
     reloaded.fakeTime();
     reloaded.Game.core.resumeMatchAfterReload();
     const r = reloaded.state.currentRound;
-    check(r && r.advisory === null && r.answerer === 'A' && r.question.id === 'q7' && !r.answered,
-        'o pedido pendente deveria ser cancelado na retomada, com a mesma pergunta aberta, veio: ' + JSON.stringify(r));
-    reloaded.join('A', 'peer-a');
-    reloaded.join('B', 'peer-b');
+    check(r && r.advisory && r.advisory.status === 'pending' && r.advisory.advisorName === 'B' && r.answerer === 'A' && r.question.id === 'q7' && !r.answered,
+        'o pedido pendente deveria continuar na retomada, com a mesma pergunta aberta, veio: ' + JSON.stringify(r));
     reloaded.clearLog();
-    reloaded.Game.network.handleMessage({ type: 'advisory-request', advisorName: 'B', requesterName: 'A' }, 'peer-a');
-    const started = reloaded.broadcastsOfType('advisory-started')[0];
-    check(started && started.advisorName === 'B' && started.requesterName === 'A' &&
-        reloaded.record.sent.some(e => e.to === 'peer-b' && e.msg.type === 'advisory-question'),
-        'A deveria conseguir pedir assessoria de novo, e B receber a pergunta, veio: ' + JSON.stringify(started));
-    const again = reloaded.state.currentRound.advisory;
-    check(again && again.advisorName === 'B' && again.status === 'pending', 'o pedido novo deveria ficar pendente, veio: ' + JSON.stringify(again));
+    reloaded.Game.network.handleMessage({ type: 'advisory-answer', alternative: 'b', declined: false }, 'peer-b');
+    const answered = reloaded.broadcastsOfType('advisory-result')[0];
+    check(answered && answered.advisorName === 'B' && answered.suggestion === 'b' && answered.declined === false,
+        'a resposta de B depois do F5 deveria valer, veio: ' + JSON.stringify(answered));
     reloaded.Game.saveState();
-    const saved = JSON.parse(env.storage['pmKPI_roomState']);
+    const saved = savedState(env);
     check(saved.stateVersion === reloaded.Game.persistence.STATE_VERSION && saved.currentRound.advisory &&
-        saved.currentRound.advisory.advisorName === 'B' && oldAdvisoryNamesIn(saved).length === 0,
+        saved.currentRound.advisory.advisorName === 'B' && saved.currentRound.advisory.suggestion === 'b' && oldAdvisoryNamesIn(saved).length === 0,
         'ao salvar de novo, o estado deveria ficar na versão atual, com a assessoria nos nomes novos, veio: ' + JSON.stringify(saved.currentRound));
 
     // 2) Sugestão recebida antes da atualização: continua valendo, vai para
@@ -856,6 +835,115 @@ test('T85 F5 do host com o estado salvo na versão 3 (gravado antes de o jogo se
     reloaded3.Game.network.handleMessage({ type: 'advisory-request', advisorName: 'B', requesterName: 'A' }, 'peer-a');
     check(reloaded3.broadcastsOfType('advisory-started').length === 0 && reloaded3.state.currentRound.advisory.status === 'declined',
         'só um pedido de assessoria por pergunta, como sem a atualização');
+});
+
+test('T187 Apoio pendente atravessa o F5 do host: o prazo de quem foi chamado continua de onde estava (vencido durante o F5, a recusa por tempo vem na retomada; sem a hora salva, prazo inteiro) e depois o de resposta volta do que faltava; quem foi chamado, ao voltar, recebe de novo a pergunta do apoio com a mesma hora de término; quem pediu volta com o apoio pendente; o host chamado vê a pergunta de novo', (use) => {
+    // 1) F5 5 s depois do pedido: o prazo de B continua do que faltava.
+    const env = use(createEnvironment());
+    const before = env.fakeTime();
+    preparePendingAdvisory(env, { asker: 'Host', answerer: 'A', advisor: 'B' });
+    const ADVISORY = env.CONFIG.GAME.ADVISORY_TIMEOUT;
+    const endsAt = env.state.currentRound.advisory.endsAt;
+    const answerTimeLeft = env.state.currentRound.answerTimeLeft;
+    check(endsAt === before.now() + ADVISORY && typeof answerTimeLeft === 'number', 'pré-condição: hora de término do prazo de B e o que faltava do prazo de A');
+    before.advance(5000);
+    const reloaded = use(reloadHost(env));
+    const time = reloaded.fakeTime(before.now());
+    reloaded.clearLog();
+    reloaded.Game.core.resumeMatchAfterReload();
+    check(reloaded.state.currentRound.advisory && reloaded.state.currentRound.advisory.endsAt === endsAt,
+        'a hora de término do prazo de B não deveria mudar no F5, veio: ' + JSON.stringify(reloaded.state.currentRound.advisory));
+    time.advance(ADVISORY - 5000 - 1);
+    check(reloaded.broadcastsOfType('advisory-result').length === 0 && reloaded.state.currentRound.advisory.status === 'pending',
+        'o prazo de B continua de onde estava: 1 ms antes do fim, o apoio ainda deveria estar pendente');
+    time.advance(1);
+    const late = reloaded.broadcastsOfType('advisory-result').pop();
+    check(late && late.declined === true && late.timeout === true && reloaded.state.currentRound.advisory.status === 'declined',
+        'no fim do prazo que faltava a B, o apoio deveria ser recusado por tempo, veio: ' + JSON.stringify(late));
+    check(reloaded.state.currentRound.answerEndsAt === time.now() + answerTimeLeft,
+        'depois da recusa, o prazo de resposta de A deveria voltar do que faltava quando o apoio começou, veio: ' +
+        JSON.stringify({ answerEndsAt: reloaded.state.currentRound.answerEndsAt, now: time.now(), answerTimeLeft }));
+
+    // 2) O prazo de B venceu durante o F5: a recusa por tempo vem na retomada, sem esperar mais.
+    const env2 = use(createEnvironment());
+    const before2 = env2.fakeTime();
+    preparePendingAdvisory(env2, { asker: 'Host', answerer: 'A', advisor: 'B' });
+    const left2 = env2.state.currentRound.answerTimeLeft;
+    const reloaded2 = use(reloadHost(env2));
+    const back = before2.now() + ADVISORY + 1000;
+    const time2 = reloaded2.fakeTime(back);
+    reloaded2.Game.core.resumeMatchAfterReload();
+    time2.advance(0);
+    const expired = reloaded2.broadcastsOfType('advisory-result').pop();
+    check(expired && expired.timeout === true && reloaded2.state.currentRound.advisory.status === 'declined',
+        'com o prazo de B vencido durante o F5, a recusa por tempo deveria vir na retomada, veio: ' + JSON.stringify(expired));
+    check(reloaded2.state.currentRound.answerEndsAt === back + left2,
+        'o prazo de resposta de A deveria voltar do que faltava, contado da retomada, veio: ' + JSON.stringify(reloaded2.state.currentRound.answerEndsAt));
+
+    // 3) Rodada salva sem a hora de término do apoio (versão anterior): prazo inteiro, contado da retomada.
+    const env3 = use(createEnvironment());
+    const before3 = env3.fakeTime();
+    preparePendingAdvisory(env3, { asker: 'Host', answerer: 'A', advisor: 'B' });
+    const old = savedState(env3);
+    delete old.currentRound.advisory.endsAt;
+    storeSavedState(env3, { roomState: old });
+    const reloaded3 = use(reloadHost(env3));
+    const time3 = reloaded3.fakeTime(before3.now() + 10000);
+    reloaded3.Game.core.resumeMatchAfterReload();
+    time3.advance(ADVISORY - 1);
+    check(reloaded3.state.currentRound.advisory && reloaded3.state.currentRound.advisory.status === 'pending',
+        'sem a hora de término salva, o prazo de B deveria ser inteiro: 1 ms antes, ainda pendente');
+    time3.advance(1);
+    check(reloaded3.state.currentRound.advisory.status === 'declined' && reloaded3.broadcastsOfType('advisory-result').some(m => m.timeout === true),
+        'sem a hora de término salva, a recusa por tempo deveria vir no fim do prazo inteiro, contado da retomada');
+
+    // 4) Quem volta depois do F5 do host (o guest pede o estado de novo quando o host volta).
+    const env4 = use(createEnvironment());
+    const before4 = env4.fakeTime();
+    const r4 = preparePendingAdvisory(env4, { asker: 'Host', answerer: 'A', advisor: 'B' });
+    const endsAt4 = env4.state.currentRound.advisory.endsAt;
+    before4.advance(5000);
+    const reloaded4 = use(reloadHost(env4));
+    reloaded4.fakeTime(before4.now());
+    reloaded4.Game.core.resumeMatchAfterReload();
+    reloaded4.clearLog();
+    // B, chamado: o estado e, depois dele (a tela do estado fecha as janelas), a pergunta do apoio de novo.
+    reloaded4.join('B', 'peer-b');
+    const toB = reloaded4.record.sent.filter(e => e.to === 'peer-b').map(e => e.msg);
+    const syncAt = toB.findIndex(m => m.type === 'state-sync');
+    const askAt = toB.findIndex(m => m.type === 'advisory-question');
+    check(syncAt >= 0 && askAt > syncAt,
+        'B deveria receber o estado e, depois dele, a pergunta do apoio de novo, recebeu: ' + toB.map(m => m.type).join(', '));
+    const ask = toB[askAt];
+    check(ask.endsAt === endsAt4 && ask.kind === 'advisory' && ask.id === r4.question.id && ask.question === r4.question.question &&
+        Array.isArray(ask.alternatives) && ask.alternatives.length === r4.question.alternatives.length && !('correct' in ask),
+        'a pergunta do apoio deveria vir com a mesma hora de término, sem o gabarito, veio: ' + JSON.stringify(ask));
+    // A, quem pediu: a rodada com o apoio pendente (botões travados), sem a pergunta do apoio.
+    reloaded4.join('A', 'peer-a');
+    const syncA = syncTo(reloaded4, 'peer-a');
+    const pendingForA = syncA && syncA.currentRound && syncA.currentRound.advisory;
+    check(pendingForA && pendingForA.status === 'pending' && pendingForA.advisorName === 'B',
+        'A deveria voltar com o apoio pendente, veio: ' + JSON.stringify(pendingForA));
+    check(!reloaded4.record.sent.some(e => e.to === 'peer-a' && e.msg.type === 'advisory-question'), 'A não deveria receber a pergunta do apoio');
+    // Com o apoio já respondido, a volta de B não traz a pergunta de novo.
+    reloaded4.Game.network.handleMessage({ type: 'advisory-answer', alternative: r4.question.correct, declined: false }, 'peer-b');
+    reloaded4.clearLog();
+    reloaded4.join('B', 'peer-b');
+    check(syncTo(reloaded4, 'peer-b') && !reloaded4.record.sent.some(e => e.msg.type === 'advisory-question'),
+        'com o apoio já respondido, a volta de B não deveria trazer a pergunta do apoio de novo');
+
+    // 5) O host é quem foi chamado: depois do F5, a pergunta do apoio aparece de novo para ele.
+    const env5 = use(createEnvironment());
+    const before5 = env5.fakeTime();
+    preparePendingAdvisory(env5, { asker: 'A', answerer: 'B', advisor: 'Host' });
+    const endsAt5 = env5.state.currentRound.advisory.endsAt;
+    const reloaded5 = use(reloadHost(env5));
+    reloaded5.fakeTime(before5.now());
+    reloaded5.clearLog();
+    reloaded5.Game.core.resumeMatchAfterReload();
+    const toHost = reloaded5.record.sent.filter(e => e.to === 'peer-host' && e.msg.type === 'advisory-question').map(e => e.msg);
+    check((toHost.length === 1 && toHost[0].endsAt === endsAt5) || reloaded5.record.ui.includes('showAdvisoryQuestionModal'),
+        'o host chamado deveria ver de novo a pergunta do apoio depois do F5, veio: ' + JSON.stringify(toHost));
 });
 
 finish('F5 do host');

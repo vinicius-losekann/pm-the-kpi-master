@@ -3,9 +3,10 @@
 // ============================================
 // Carrega os arquivos REAIS do jogo num "navegador" simulado (contexto
 // `vm` do Node), sem navegador e sem banco: o envio de mensagens é
-// trocado por um registro, a tela por um registro de chamadas e o
-// localStorage por um objeto em memória (um F5 é um ambiente novo com o
-// mesmo localStorage). As entradas e quedas de jogador passam pelo
+// trocado por um registro, a tela por um registro de chamadas e o estado
+// que o host grava no banco (secret/state) por um banco simulado em
+// memória (um F5 do host é um ambiente novo com o mesmo banco, ver
+// tryReloadHost()). As entradas e quedas de jogador passam pelo
 // receiveRequest() e pelo receivePresence() REAIS de
 // js/network/roomLink.js.
 //
@@ -84,7 +85,9 @@ var CONFIG = {
  * Cria um "navegador" novo e isolado, carrega os arquivos reais do
  * jogo nele e devolve atalhos para simular jogadores entrando/saindo.
  * D3f: `options.storage` reaproveita o localStorage de outro
- * ambiente — a mesma página depois de um F5 (ver reloadHost()).
+ * ambiente (o mesmo navegador). Etapa 2b: `options.bank` reaproveita o
+ * banco simulado de outro ambiente — a mesma sala depois de um F5 do
+ * host (ver reloadHost()).
  * `options.realLink` mantém o envio real do roomLink.js (pelo canal da
  * sala), para o room-link.test.js ligar o aparelho a um banco simulado.
  */
@@ -106,9 +109,12 @@ function createEnvironment(options = {}) {
         silentConsole[level] = (...args) => record.logs.push(level + ': ' + args.join(' '));
     });
 
-    // localStorage em memória (o estado salvo da partida, pelo
-    // persistence.js real).
+    // localStorage em memória. Desde a etapa 2b, o estado da partida não
+    // vai mais para ele (o T57 confere que fica vazio).
     const storage = options.storage || {};
+    // Banco simulado da sala: `secret` é o texto JSON que o host grava em
+    // secret/state pelo saveState() (Game.network.saveRoomState).
+    const bank = options.bank || {};
     const fakeLocalStorage = {
         getItem: (k) => (k in storage ? storage[k] : null),
         setItem: (k, v) => { storage[k] = String(v); },
@@ -184,7 +190,9 @@ function createEnvironment(options = {}) {
             admitPlayer: (uid) => { record.admitted.push(uid); },
             dismissPlayer: (uid) => { record.dismissed.push(uid); },
             feedCursor: () => record.feedCursor,
-            serverNow: () => (ctx.Date || Date).now() + serverOffset
+            serverNow: () => (ctx.Date || Date).now() + serverOffset,
+            // Host: grava o estado completo da partida no banco (secret/state).
+            saveRoomState: (secretState) => { bank.secret = JSON.stringify(secretState); }
         });
     }
 
@@ -193,7 +201,7 @@ function createEnvironment(options = {}) {
     state.questionsData = { domains: { d1: { name: 'Domínio de teste' } }, events: [] };
 
     const env = {
-        ctx, Game, state, record, storage, fakeLocalStorage, CONFIG: vm.runInContext('CONFIG', ctx),
+        ctx, Game, state, record, storage, fakeLocalStorage, bank, CONFIG: vm.runInContext('CONFIG', ctx),
 
         /** Host sozinho no lobby. */
         createRoomAsHost() {
@@ -422,11 +430,51 @@ function roomToReload(env) {
 }
 
 /**
- * F5 do host: página nova (outro ambiente, mesmo localStorage) que lê a
- * URL como init() (main.js) e restaura o estado salvo pelo
- * persistence.js real. A retomada da partida fica para o teste chamar
- * (Game.core.resumeMatchAfterReload()), depois de instalar os
- * dublês de que precisar.
+ * O código grava o estado da partida no banco (etapa 2b)? Desvio do 1º
+ * commit da 2b (como o da 1b-β): com o código anterior, o estado salvo
+ * ainda é o do localStorage e os ajudantes abaixo usam ele — assim só os
+ * testes novos e os reescritos falham. Sai no 2º commit.
+ */
+function savesToBank(env) {
+    return typeof env.Game.persistence.restoreSavedState === 'function';
+}
+
+/** Texto JSON → valor; null se não há texto ou se ele é ilegível (como o readSecret() do canal). */
+function parseSaved(text) {
+    if (typeof text !== 'string') return null;
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        return null;
+    }
+}
+
+/** Estado que o host gravou (secret/state do banco simulado); null se não há. */
+function savedState(env) {
+    return parseSaved(savesToBank(env) ? env.bank.secret : env.storage['pmKPI_roomState']);
+}
+
+/**
+ * Grava à mão o estado salvo do host no banco simulado (secret/state),
+ * ex.: um estado gravado por uma versão anterior. Recebe { roomState,
+ * myData }, o formato de savedStateV1()...V4(): só o roomState vai para o
+ * banco (o myData só conta no desvio do 1º commit).
+ */
+function storeSavedState(env, { roomState, myData }) {
+    if (savesToBank(env)) {
+        env.bank.secret = JSON.stringify(roomState);
+        return;
+    }
+    env.storage['pmKPI_roomState'] = JSON.stringify(roomState);
+    if (myData !== undefined) env.storage['pmKPI_myData'] = JSON.stringify(myData);
+}
+
+/**
+ * F5 do host: página nova (outro ambiente, mesmo banco) que abre a sala
+ * como o openRoom() (roomLink.js): continua host pelo meta, lê o
+ * secret/state e restaura pelo persistence.js real. A retomada da
+ * partida fica para o teste chamar (Game.core.resumeMatchAfterReload()),
+ * depois de instalar os dublês de que precisar.
  */
 function reloadHost(env) {
     const { reloaded, restored } = tryReloadHost(env);
@@ -437,15 +485,19 @@ function reloadHost(env) {
 /**
  * Como reloadHost(), mas sem exigir que o estado seja restaurado
  * (roadmap 3.1: versão desconhecida ou inválida não restaura).
+ * `prepare(reloaded)` roda antes da restauração (ex.: trocar a migração).
  */
-function tryReloadHost(env) {
-    const reloaded = createEnvironment({ storage: env.storage });
+function tryReloadHost(env, prepare) {
+    const reloaded = createEnvironment({ storage: env.storage, bank: env.bank });
     const s = reloaded.state;
     reloaded.ctx.location.search = '?' + new URLSearchParams({ room: env.state.roomName, playerName: env.state.playerName }).toString();
     s.isHost = true; // o meta da sala continua com o host
     s.roomName = env.state.roomName;
     s.playerName = env.state.playerName;
-    const restored = reloaded.Game.persistence.tryRestoreState();
+    if (prepare) prepare(reloaded);
+    const restored = savesToBank(reloaded)
+        ? reloaded.Game.persistence.restoreSavedState(parseSaved(env.bank.secret))
+        : reloaded.Game.persistence.tryRestoreState();
     s.peerId = env.state.peerId; // mesmo aparelho, mesmo uid
     return { reloaded, restored };
 }
@@ -541,8 +593,8 @@ function savedStateV1(overrides = {}) {
  * ranking ainda com `recursos`, `phase`, `posicao` e `kpiFinal`), escrito
  * à mão. Mesma partida de savedStateV1(), com recursos diferentes para
  * cada jogador. No pmKPI_myData, a área foco e as atividades do host são
- * outras que as da lista, de propósito: o F5 usa as do pmKPI_myData, e
- * assim o teste vê se ele também foi migrado. `overrides` troca campos de
+ * outras que as da lista, de propósito (a migração dele é conferida no
+ * T81; no banco, só o roomState é gravado). `overrides` troca campos de
  * pmKPI_roomState. Devolve { roomState, myData } (objetos novos a cada
  * chamada).
  */
@@ -782,6 +834,7 @@ module.exports = {
     fs, path, vm, ROOT,
     createEnvironment, test, check, start, finish,
     syncTo, roundScreens, roomToReload, reloadHost, tryReloadHost, recordScreens, guestWithScreens,
+    savedState, storeSavedState,
     savedStateV1, savedStateV2, finalRankingV2, oldNamesIn, oldPlayerNamesIn,
     savedStateV3, oldAdvisoryNamesIn, OLD_ADVISORY_TYPES, OLD_ADVISORY_REASONS,
     savedStateV4, oldEventNamesIn, OLD_EVENT_NAMES,

@@ -349,7 +349,7 @@ asyncTest('T171 Volta da conexão e F5 de guest: quem volta manda o player-join 
     check(again.env.state.gameStarted === true, 'Beto deveria voltar à partida');
 });
 
-asyncTest('T172 Host que cai: os outros veem "Host desconectado" e a sala espera, sem troca de host; F5 do host pelo estado salvo trata os pedidos que esperaram no banco', async () => {
+asyncTest('T172 Host que cai: os outros veem "Host desconectado" e a sala espera, sem troca de host; F5 do host pelo estado no banco (restaurado antes do onOpen) trata os pedidos que esperaram no banco', async () => {
     const fake = createFakeFirebase();
     const clock = { now: 1000 };
     const host = await hostRoom(fake, clock);
@@ -377,17 +377,18 @@ asyncTest('T172 Host que cai: os outros veem "Host desconectado" e a sala espera
     check(Object.keys(fake.read('rooms/' + ROOM + '/requests') || {}).length === 1 && !caio.types().includes('state-sync'),
         'o pedido de Caio deveria esperar no banco');
     const reloaded = linkedDevice(fake, 'uid-host', 'Ana', clock, host.browser);
-    reloaded.env.ctx.location.search = '?' + new URLSearchParams({ room: ROOM, playerName: 'Ana' }).toString();
-    check(reloaded.env.Game.persistence.tryRestoreState() === true, 'o F5 do host deveria restaurar o estado salvo (URL só com a sala e o nome)');
     // onOpen (o main.js monta a tela e retoma a partida ali) roda com o
-    // papel já no estado e antes de o pedido que esperou ser tratado.
+    // papel e o estado do banco já restaurado, e antes de o pedido que
+    // esperou ser tratado.
     let atOpen = null;
-    const onOpen = () => { atOpen = { isHost: reloaded.env.state.isHost, players: reloaded.env.state.players.length }; };
+    const onOpen = (result) => {
+        atOpen = { isHost: reloaded.env.state.isHost, players: reloaded.env.state.players.length, restored: result && result.restored };
+    };
     const opened = await reloaded.open(ROOM, { onOpen });
     await settle();
     check(opened && opened.ok === true && opened.isHost === true && reloaded.env.state.isHost === true, 'depois do F5, Ana continua host pelo meta, veio: ' + JSON.stringify(opened));
-    check(atOpen && atOpen.isHost === true && atOpen.players === 2,
-        'onOpen deveria rodar como host e antes do pedido de Caio, veio: ' + JSON.stringify(atOpen));
+    check(atOpen && atOpen.isHost === true && atOpen.restored === true && atOpen.players === 2,
+        'onOpen deveria rodar como host, com o estado do banco restaurado (Ana e Beto) e antes do pedido de Caio, veio: ' + JSON.stringify(atOpen));
     check(reloaded.env.state.players.length === 3 && reloaded.env.player('Beto') && reloaded.env.player('Caio'),
         'o host deveria ter Beto (do estado salvo) e Caio (do pedido que esperou), veio: ' + JSON.stringify(reloaded.env.state.players));
     check(caio.types().includes('state-sync') && fake.read('rooms/' + ROOM + '/requests') === undefined, 'Caio deveria receber o estado e o pedido sair do banco');
@@ -573,6 +574,156 @@ asyncTest('T179 Hora do servidor: o login devolve serverNow() = relógio do apar
     // main.js passa o serverNow() do login ao abrir a sala.
     const main = fs.readFileSync(path.join(ROOT, 'js/main.js'), 'utf8');
     check(/openRoom\(\{[^}]*now:\s*login\.serverNow\b/.test(main), 'o main.js deveria abrir a sala com now: login.serverNow');
+});
+
+/**
+ * Passa a registrar as gravações em lote (update) e os caminhos lidos ou
+ * ouvidos (ref) pelo aparelho. Devolve { updates: [{ path, keys }], paths }.
+ */
+function spyDb(device) {
+    const spied = { updates: [], paths: [] };
+    const ref = device.db.ref;
+    device.db.ref = (p) => {
+        spied.paths.push(String(p));
+        const r = ref(p);
+        const update = r.update;
+        r.update = (values) => {
+            spied.updates.push({ path: String(p), keys: Object.keys(values) });
+            return update(values);
+        };
+        return r;
+    };
+    return spied;
+}
+
+/** F5 do host: a aba fecha e o jogo abre de novo no mesmo navegador; guarda o que o onOpen viu. */
+async function reopenHost(fake, clock, host) {
+    host.close();
+    await settle();
+    const again = linkedDevice(fake, 'uid-host', 'Ana', clock, host.browser);
+    const s = again.env.state;
+    let atOpen = null;
+    const opened = await again.open(ROOM, {
+        onOpen: (result) => {
+            atOpen = {
+                result: copy(result), isHost: s.isHost, gameStarted: s.gameStarted, players: copy(s.players),
+                currentRound: copy(s.currentRound), decks: copy(s.decks), endsAt: s.endsAt
+            };
+        }
+    });
+    await settle();
+    return { again, opened, atOpen };
+}
+
+asyncTest('T184 Estado no banco: o saveState() do host grava o estado completo em secret/state (texto JSON, versão atual, com baralhos e gabarito) e anda a meta/lastActivity, numa gravação só, a cada chamada; public/state e hands não são gravados; o guest não grava nada; nada vai para o localStorage', async () => {
+    const fake = createFakeFirebase();
+    const clock = { now: 1000 };
+    const host = await hostRoom(fake, clock);
+    const beto = await guestJoins(fake, clock, 'uid-beto', 'Beto');
+    host.env.state.decks = { d1: { questions: [{ id: 'q-baralho', question: 'Pergunta do baralho', alternatives: ['A', 'B', 'C', 'D'], correct: 'D', used: false }], available: 1, total: 1 } };
+    host.env.startMatch();
+    await settle();
+
+    const spied = spyDb(host.device);
+    for (const at of [50000, 60000]) {
+        clock.now = at;
+        spied.updates.length = 0;
+        host.env.Game.saveState();
+        await settle();
+        const text = fake.read('rooms/' + ROOM + '/secret/state');
+        check(typeof text === 'string', 'o estado deveria ser gravado em secret/state como texto JSON, veio: ' + JSON.stringify(text));
+        const saved = JSON.parse(text);
+        const s = host.env.state;
+        check(saved.stateVersion === host.env.Game.persistence.STATE_VERSION && saved.gameStarted === true && saved.players.length === 2 &&
+            saved.endsAt === s.endsAt && saved.roomName === ROOM,
+            'o secret/state deveria ter o estado da partida na versão atual, veio: ' + JSON.stringify({ v: saved.stateVersion, started: saved.gameStarted, players: saved.players && saved.players.length, endsAt: saved.endsAt }));
+        check(saved.decks && saved.decks.d1 && saved.decks.d1.questions[0].correct === 'D' &&
+            saved.currentRound && saved.currentRound.question && saved.currentRound.question.correct === s.currentRound.question.correct,
+            'o secret/state deveria guardar os baralhos e a rodada com o gabarito (só o host lê)');
+        check(fake.read('rooms/' + ROOM + '/meta/lastActivity') === at,
+            'cada gravação deveria andar a meta/lastActivity (' + at + '), veio: ' + fake.read('rooms/' + ROOM + '/meta/lastActivity'));
+        check(spied.updates.some(u => u.keys.includes('secret/state') && u.keys.includes('meta/lastActivity')),
+            'secret/state e meta/lastActivity deveriam ir numa gravação só (update), veio: ' + JSON.stringify(spied.updates));
+    }
+    check(fake.read('rooms/' + ROOM + '/public') === undefined && fake.read('rooms/' + ROOM + '/hands') === undefined,
+        'public/state e hands não deveriam ser gravados (o state-sync continua levando o estado de quem entra)');
+
+    // O guest não grava estado.
+    const writes = beto.device.writes.length;
+    beto.env.Game.saveState();
+    await settle();
+    check(beto.device.writes.length === writes, 'o saveState() do guest não deveria gravar nada no banco, gravou: ' + JSON.stringify(beto.device.writes.slice(writes)));
+    check(Object.keys(host.browser.storage).length === 0 && Object.keys(beto.browser.storage).length === 0,
+        'nada deveria ir para o localStorage, foi: ' + JSON.stringify({ host: Object.keys(host.browser.storage), beto: Object.keys(beto.browser.storage) }));
+    const persistence = fs.readFileSync(path.join(ROOT, 'js/utils/persistence.js'), 'utf8');
+    check(!/localStorage\s*\./.test(persistence), 'o persistence.js não deveria usar mais o localStorage');
+});
+
+asyncTest('T185 F5 do host pelo banco: ao abrir a sala, o host lê o secret/state e restaura a partida antes do onOpen (resultado com restored); o guest não lê o secret/state; versão mais nova, texto ilegível ou sala sem estado: abre como host sem restaurar; o main.js monta a tela pelo resultado da abertura', async () => {
+    const fake = createFakeFirebase();
+    const clock = { now: 1000 };
+    const host = await hostRoom(fake, clock);
+    const beto = await guestJoins(fake, clock, 'uid-beto', 'Beto');
+    host.env.state.decks = { d1: { questions: [{ id: 'q-baralho', question: 'Pergunta do baralho', alternatives: ['A', 'B', 'C', 'D'], correct: 'D', used: false }], available: 1, total: 1 } };
+    host.env.startMatch();
+    await settle();
+    const s = host.env.state;
+    const before = copy({ players: s.players, currentRound: s.currentRound, decks: s.decks, endsAt: s.endsAt });
+
+    const { again, opened, atOpen } = await reopenHost(fake, clock, host);
+    check(opened && opened.ok === true && opened.isHost === true && opened.restored === true,
+        'o F5 do host deveria abrir como host e restaurar o estado do banco, veio: ' + JSON.stringify(opened));
+    check(atOpen && atOpen.result && atOpen.result.restored === true && atOpen.isHost === true && atOpen.gameStarted === true,
+        'o onOpen deveria receber restored e ver a partida já restaurada, veio: ' + JSON.stringify(atOpen && { result: atOpen.result, started: atOpen.gameStarted }));
+    check(JSON.stringify(atOpen.players) === JSON.stringify(before.players) && JSON.stringify(atOpen.decks) === JSON.stringify(before.decks) &&
+        atOpen.endsAt === before.endsAt && atOpen.currentRound && atOpen.currentRound.question.id === before.currentRound.question.id &&
+        atOpen.currentRound.question.correct === before.currentRound.question.correct,
+        'antes do onOpen, o host deveria ter os jogadores, os baralhos, o relógio e a rodada (com o gabarito) do banco');
+
+    // F5 do guest: abre sem ler o secret/state (as regras recusariam) e sem restaurar nada sozinho.
+    beto.close();
+    await settle();
+    const betoAgain = linkedDevice(fake, 'uid-beto', 'Beto', clock, beto.browser);
+    const spied = spyDb(betoAgain.device);
+    const betoOpened = await betoAgain.open();
+    await settle();
+    check(betoOpened && betoOpened.ok === true && betoOpened.isHost === false && !betoOpened.restored,
+        'o guest deveria abrir sem restaurar pelo banco, veio: ' + JSON.stringify(betoOpened));
+    check(!spied.paths.some(p => p.includes('/secret')), 'o guest não deveria ler o secret/state, leu: ' + JSON.stringify(spied.paths.filter(p => p.includes('/secret'))));
+    check(betoAgain.env.state.gameStarted === true && betoAgain.types().includes('state-sync'), 'o guest volta à partida pelo state-sync do host');
+    again.close();
+
+    // Sala só com o host: versão mais nova, texto ilegível ou sem estado → abre como host, sem restaurar; estado válido → restaura.
+    const fake2 = createFakeFirebase();
+    let host2 = await hostRoom(fake2, clock);
+    const current = host2.env.Game.persistence.STATE_VERSION;
+    const valid = {
+        stateVersion: current, roomName: ROOM, gameStarted: true, gameOver: false, endsAt: 9000000, currentRound: null, decks: {},
+        answeredThisRound: [], roundEnded: false, matchPaused: null, finalRanking: null, timestamp: new Date().toISOString(),
+        players: [{ name: 'Ana', peerId: 'uid-host', isHost: true, kpi: 30, resources: 4, focusArea: 'initiating', activities: 1, waitingInLobby: false }]
+    };
+    const secrets = [
+        ['versão mais nova', JSON.stringify({ ...valid, stateVersion: current + 1 }), false],
+        ['texto ilegível', '{"stateVersion": ', false],
+        ['sem estado', null, false],
+        ['estado válido', JSON.stringify(valid), true]
+    ];
+    for (const [label, text, expected] of secrets) {
+        fake2.write('rooms/' + ROOM + '/secret/state', text);
+        const { again: h, opened: o, atOpen: seen } = await reopenHost(fake2, clock, host2);
+        host2 = h;
+        check(o && o.ok === true && o.isHost === true && o.restored === expected,
+            label + ': deveria abrir como host com restored ' + expected + ', veio: ' + JSON.stringify(o));
+        check(seen && seen.gameStarted === expected, label + ': ' + (expected ? 'a partida deveria estar restaurada no onOpen' : 'nada deveria ser restaurado'));
+        if (expected) {
+            check(seen.players.length === 1 && seen.players[0].kpi === 30, 'estado válido: o host deveria voltar com os jogadores do banco, veio: ' + JSON.stringify(seen.players));
+        }
+    }
+
+    // main.js: a tela do F5 vem do resultado da abertura da sala, não do localStorage.
+    const main = fs.readFileSync(path.join(ROOT, 'js/main.js'), 'utf8');
+    check(/showRoom\(\s*\w+\.restored\s*\)/.test(main), 'o main.js deveria montar a tela com o restored do resultado da abertura (onOpen)');
+    check(!/tryRestoreState|localStorage/.test(main), 'o main.js não deveria restaurar pelo localStorage');
 });
 
 (async () => {

@@ -8,7 +8,7 @@
 
 const {
     fs, path, vm, ROOT, createEnvironment, test, check, start, finish,
-    syncTo, roundScreens, roomToReload, reloadHost, tryReloadHost, recordScreens
+    syncTo, roundScreens, roomToReload, reloadHost, tryReloadHost, recordScreens, savedState, storeSavedState
 } = require('./environment');
 
 start('Fim de partida e lobby');
@@ -233,27 +233,31 @@ test('T67 Guest volta à sala no fim de jogo: não é recusado e vê o ranking f
     check(sync2 && sync2.gameOver === false, 'durante a partida, o state-sync deveria dizer que ela não acabou');
 });
 
-test('T68 Estado salvo guarda o fim de jogo e o ranking; estado antigo restaura como antes; voltar ao lobby limpa (BUG-021)', (use) => {
+test('T68 Estado salvo do host guarda o fim de jogo e o ranking; estado antigo restaura como antes; voltar ao lobby limpa (BUG-021); o guest não grava estado', (use) => {
     const ranking = [{ position: 1, name: 'A', kpi: 30, resources: 0, finalKpi: 30 }, { position: 2, name: 'Host', kpi: 10, resources: 0, finalKpi: 10 }];
-    const guestInRoom = (storage) => {
-        const g = use(createEnvironment(storage ? { storage } : {}));
-        g.ctx.location.search = '?' + new URLSearchParams({ host: 'false', room: 'sala', playerName: 'A', peerId: 'sala' }).toString();
-        Object.assign(g.state, { isHost: false, playerName: 'A', roomName: 'sala', baseRoomPeerId: 'sala', hostPeerId: 'sala', hostVersion: 0 });
-        return g;
-    };
 
-    // O guest recebe o fim de jogo do host: o estado salvo guarda os dois.
-    const g = guestInRoom();
+    // O guest recebe o fim de jogo do host: guarda no estado da página, sem gravar nada (o estado da partida é do host, no banco).
+    const g = use(createEnvironment());
+    Object.assign(g.state, { isHost: false, playerName: 'A', roomName: 'sala', peerId: 'peer-a' });
     g.state.gameStarted = true;
-    g.state.players = [{ name: 'Host', peerId: 'sala', isHost: true, kpi: 10 }, { name: 'A', peerId: 'peer-a', isHost: false, kpi: 30 }];
-    g.Game.network.handleMessage({ type: 'game-over', ranking }, 'sala');
-    const saved = JSON.parse(g.storage['pmKPI_roomState']);
-    check(saved.gameOver === true, 'o estado salvo deveria ter gameOver');
+    g.state.players = [{ name: 'Host', peerId: 'peer-host', isHost: true, kpi: 10 }, { name: 'A', peerId: 'peer-a', isHost: false, kpi: 30 }];
+    g.Game.network.handleMessage({ type: 'game-over', ranking }, 'peer-host');
+    check(g.state.gameOver === true && JSON.stringify(g.state.finalRanking) === JSON.stringify(ranking), 'o guest deveria guardar o fim de jogo e o ranking');
+    check(Object.keys(g.storage).length === 0 && g.bank.secret === undefined,
+        'o guest não deveria gravar estado (nem no localStorage, nem no banco), gravou: ' + JSON.stringify({ storage: Object.keys(g.storage), bank: g.bank.secret }));
+
+    // O host encerra a partida: o estado salvo guarda o fim de jogo e o ranking.
+    const env = use(createEnvironment());
+    roomToReload(env);
+    env.join('A', 'peer-a');
+    env.startMatch();
+    env.Game.core.endGame(ranking);
+    const saved = savedState(env);
+    check(saved && saved.gameOver === true, 'o estado salvo deveria ter gameOver');
     check(JSON.stringify(saved.finalRanking) === JSON.stringify(ranking), 'o estado salvo deveria ter o ranking final');
 
-    // F5 do guest: restaura o fim de jogo e o ranking.
-    const f5 = guestInRoom(g.storage);
-    check(f5.Game.persistence.tryRestoreState() === true, 'pré-condição: o F5 restaura o estado salvo');
+    // F5 do host: restaura o fim de jogo e o ranking.
+    const f5 = use(reloadHost(env));
     check(f5.state.gameOver === true && JSON.stringify(f5.state.finalRanking) === JSON.stringify(ranking),
         'o F5 deveria restaurar o fim de jogo e o ranking');
 
@@ -261,16 +265,15 @@ test('T68 Estado salvo guarda o fim de jogo e o ranking; estado antigo restaura 
     const old = { ...saved };
     delete old.gameOver;
     delete old.finalRanking;
-    g.storage['pmKPI_roomState'] = JSON.stringify(old);
-    const f5Old = guestInRoom(g.storage);
-    check(f5Old.Game.persistence.tryRestoreState() === true, 'estado salvo antigo deveria continuar restaurando');
+    storeSavedState(env, { roomState: old });
+    const f5Old = use(reloadHost(env));
     check(f5Old.state.gameOver === false && !f5Old.state.finalRanking, 'estado antigo: sem fim de jogo, como antes');
 
     // Voltar ao lobby limpa o fim de jogo e o ranking (também no estado salvo).
     f5.Game.core.backToLobby();
     check(f5.state.gameOver === false && !f5.state.finalRanking, 'voltar ao lobby deveria limpar o fim de jogo e o ranking');
-    const after = JSON.parse(f5.storage['pmKPI_roomState']);
-    check(after.gameOver === false && !after.finalRanking, 'o estado salvo depois de voltar ao lobby não pode ter o ranking antigo');
+    const after = savedState(f5);
+    check(after && after.gameOver === false && !after.finalRanking, 'o estado salvo depois de voltar ao lobby não pode ter o ranking antigo');
 });
 
 /**

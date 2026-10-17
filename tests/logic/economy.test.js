@@ -11,7 +11,7 @@
 // ============================================
 
 const {
-    fs, path, vm, ROOT, createEnvironment, recordScreens, test, check, start, finish
+    fs, path, vm, ROOT, createEnvironment, recordScreens, test, check, start, finish, savedState
 } = require('./environment');
 
 start('Economia de recursos');
@@ -106,7 +106,7 @@ test('T107 Estouro de orçamento: errar com 0 recursos vai a −1 e com −1 vai
 
     // 4) O estado salvo guarda o negativo (um F5 do host não "conserta" o estouro).
     env.Game.saveState();
-    const saved = JSON.parse(env.storage['pmKPI_roomState']);
+    const saved = savedState(env);
     const savedFirst = saved.players.find(p => p.name === first);
     check(savedFirst && savedFirst.resources === -1, 'o estado salvo deveria guardar −1, veio: ' + JSON.stringify(savedFirst));
 });

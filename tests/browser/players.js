@@ -156,26 +156,6 @@ async function createPlayer(browser, name) {
         },
 
         /**
-         * Faz o estado salvo deste navegador parecer gravado há `minutes`
-         * minutos (o jogo só restaura o que tem menos de 5). Usa uma aba
-         * à parte, no endereço do site. Devolve false se não havia estado salvo.
-         */
-        async ageSavedState(minutes) {
-            const tab = await context.newPage();
-            await tab.goto(SITE + '/index.html');
-            const existed = await tab.evaluate((ms) => {
-                const saved = localStorage.getItem('pmKPI_roomState');
-                if (!saved) return false;
-                const savedState = JSON.parse(saved);
-                savedState.timestamp = new Date(Date.now() - ms).toISOString();
-                localStorage.setItem('pmKPI_roomState', JSON.stringify(savedState));
-                return true;
-            }, minutes * 60 * 1000);
-            await tab.close();
-            return existed;
-        },
-
-        /**
          * Clica num botão como o jogador faria: antes, fecha os avisos que
          * cobrem a tela (evento da rodada, resultado da resposta).
          */

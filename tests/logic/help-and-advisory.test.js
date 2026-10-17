@@ -13,7 +13,7 @@
 
 const {
     fs, path, vm, ROOT, createEnvironment, test, check, start, finish,
-    syncTo, roundScreens, roomToReload, reloadHost, tryReloadHost, recordScreens, guestWithScreens
+    syncTo, roundScreens, roomToReload, reloadHost, tryReloadHost, recordScreens, guestWithScreens, savedState
 } = require('./environment');
 
 start('Pedido de ajuda e assessoria');
@@ -194,7 +194,7 @@ test('T115 Honorário: seguiu a sugestão e acertou → quem pediu paga RESOURCE
         'o kpi-update de C deveria levar o honorário recebido de B, veio: ' + JSON.stringify(toC));
     check(!env.broadcastsOfType('kpi-update').some(m => 'advisorBonus' in m), 'nenhum kpi-update deveria levar advisorBonus');
     env.Game.saveState();
-    const saved = JSON.parse(env.storage['pmKPI_roomState']);
+    const saved = savedState(env);
     check(saved.players.find(p => p.name === 'B').resources === 3 - fee && saved.players.find(p => p.name === 'C').resources === 5 + fee,
         'o estado salvo deveria guardar os recursos depois do honorário');
 
@@ -599,7 +599,7 @@ test('T120 Ajuda seguida e certa: quem pediu ganha o acerto sem mexer nos recurs
         toC.supportAmount === reward && toC.supportPartner === 'B',
         'o kpi-update de C deveria levar a recompensa pela ajuda a B, veio: ' + JSON.stringify(toC));
     env.Game.saveState();
-    const saved = JSON.parse(env.storage['pmKPI_roomState']);
+    const saved = savedState(env);
     check(saved.players.find(p => p.name === 'B').resources === 0 && saved.players.find(p => p.name === 'C').resources === 5 + reward,
         'o estado salvo deveria guardar os recursos depois da recompensa');
 
