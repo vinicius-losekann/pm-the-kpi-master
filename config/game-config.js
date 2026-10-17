@@ -55,7 +55,15 @@ const CONFIG = {
     // (vai para o navegador de quem abre a página); a proteção vem das
     // regras do banco (database.rules.json). Nunca colocar aqui chave de
     // conta de serviço. null = ainda não configurado (a página avisa).
-    FIREBASE: null,
+    FIREBASE: {
+        apiKey: 'AIzaSyDPKTnL1DTS5b7QT3lgZXPxUCG-SWm_Ro4',
+        authDomain: 'pm-the-kpi-master.firebaseapp.com',
+        databaseURL: 'https://pm-the-kpi-master-default-rtdb.firebaseio.com',
+        projectId: 'pm-the-kpi-master',
+        storageBucket: 'pm-the-kpi-master.firebasestorage.app',
+        messagingSenderId: '736157504763',
+        appId: '1:736157504763:web:1aac887291ccb4b5814c5e',
+    },
 
     // Só os testes no navegador ligam: aponta o login e o banco para o
     // emulador local, ex: { host, authPort, databasePort }.
