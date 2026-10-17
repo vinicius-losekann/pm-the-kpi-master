@@ -4,7 +4,9 @@
 // A página firebase-check.html (roadmap 2.9) com o emulador do Firebase
 // (login anônimo e banco, com as regras de database.rules.json): criar
 // sala, entrar, mensagem de teste com eco, F5, saída de quem fecha a aba
-// e o que as regras do banco recusam. Checklist: _docs/connection-tests.md.
+// e o que as regras do banco recusam — as da página e as das salas do
+// jogo (rooms/), usando o login e o banco que a página já carrega.
+// Checklist: _docs/connection-tests.md.
 // ============================================
 
 const { test, expect, roomCode, SITE } = require('./players');
@@ -121,4 +123,139 @@ test('E25 Regras do banco no emulador: sem login não lê; fora da sala, sala de
         return !!snap.val() && snap.val().hostUid === firebase.auth().currentUser.uid;
     }, 'connectionChecks/' + code);
     expect(stillAnas, 'a sala deveria continuar com a Ana como dona').toBe(true);
+});
+
+/** uid do login anônimo da página aberta. */
+async function uidOf(player) {
+    return player.page.evaluate(() => firebase.auth().currentUser.uid);
+}
+
+/**
+ * Tenta cada operação no banco, pela página do jogador (com o login
+ * dele), e diz se as regras deixaram ('allowed') ou recusaram
+ * ('denied'). Cada passo: [nome, operação, caminho, valor]; operação
+ * 'read', 'set', 'push', 'update' ou 'remove'; o valor 'TIMESTAMP' (ou
+ * um campo com ele) vira a hora do servidor.
+ */
+async function attemptAll(player, steps) {
+    return player.page.evaluate(async (list) => {
+        const db = firebase.database();
+        const withTime = (v) => {
+            if (v === 'TIMESTAMP') return firebase.database.ServerValue.TIMESTAMP;
+            if (v && typeof v === 'object') {
+                const out = {};
+                Object.keys(v).forEach(k => { out[k] = withTime(v[k]); });
+                return out;
+            }
+            return v;
+        };
+        const out = {};
+        for (const [name, op, path, value] of list) {
+            try {
+                const ref = db.ref(path);
+                if (op === 'read') await ref.once('value');
+                else if (op === 'set') await ref.set(withTime(value));
+                else if (op === 'push') await ref.push(withTime(value));
+                else if (op === 'update') await ref.update(withTime(value));
+                else if (op === 'remove') await ref.remove();
+                out[name] = 'allowed';
+            } catch (e) {
+                out[name] = 'denied';
+            }
+        }
+        return out;
+    }, steps);
+}
+
+test('E26 Regras do banco para as salas do jogo (rooms/), no emulador: o host cria e grava tudo; quem foi aceito lê o público e o próprio, nunca o secreto; quem não foi aceito só lê a sala, a própria inbox e manda pedido em nome próprio; sala parada há 2 h pode ser criada de novo por outro', async ({ players }) => {
+    const room = 'rooms/' + roomCode();
+    const ana = await players.add('Ana');
+    const beto = await players.add('Beto');
+    const caio = await players.add('Caio');
+    for (const p of [ana, beto, caio]) await openCheck(p);
+    const [anaUid, betoUid, caioUid] = [await uidOf(ana), await uidOf(beto), await uidOf(caio)];
+    const meta = (uid) => ({ hostUid: uid, hostEpoch: 1, protocolVersion: 10, createdAt: 'TIMESTAMP', lastActivity: 'TIMESTAMP' });
+    const request = (uid, payload) => ({ from: uid, payload });
+
+    // Sem login (pelo endereço do banco).
+    const anonymous = await fetch(DATABASE_URL + '/' + room + '/meta.json?ns=' + DATABASE_NAMESPACE);
+    expect(anonymous.ok, 'ler a sala sem login deveria ser recusado').toBe(false);
+
+    expect(await attemptAll(ana, [
+        ['createRoom', 'set', room + '/meta', meta(anaUid)],
+        ['admitBeto', 'set', room + '/roster/' + betoUid, true],
+        ['writePublic', 'set', room + '/public/state', '{"players":[]}'],
+        ['writeSecret', 'set', room + '/secret/state', '{"correct":"b"}'],
+        ['writeHand', 'set', room + '/hands/' + betoUid, '{"question":"Q"}'],
+        ['writeFeed', 'push', room + '/feed', { payload: '{"type":"round-start"}' }],
+        ['writeInbox', 'push', room + '/inbox/' + caioUid, { payload: '{"type":"join-rejected"}' }],
+        ['touchActivity', 'set', room + '/meta/lastActivity', 'TIMESTAMP']
+    ]), 'o host').toEqual({
+        createRoom: 'allowed', admitBeto: 'allowed', writePublic: 'allowed', writeSecret: 'allowed',
+        writeHand: 'allowed', writeFeed: 'allowed', writeInbox: 'allowed', touchActivity: 'allowed'
+    });
+
+    expect(await attemptAll(beto, [
+        ['readMeta', 'read', room + '/meta'],
+        ['readPublic', 'read', room + '/public'],
+        ['readFeed', 'read', room + '/feed'],
+        ['readOwnRoster', 'read', room + '/roster/' + betoUid],
+        ['readOwnHand', 'read', room + '/hands/' + betoUid],
+        ['ownRequest', 'push', room + '/requests', request(betoUid, '{"type":"answer"}')],
+        ['readSecret', 'read', room + '/secret'],
+        ['readOtherHand', 'read', room + '/hands/' + caioUid],
+        ['readOtherInbox', 'read', room + '/inbox/' + caioUid],
+        ['readRoster', 'read', room + '/roster'],
+        ['readRequests', 'read', room + '/requests'],
+        ['writePublic', 'set', room + '/public/state', '{}'],
+        ['writeFeed', 'push', room + '/feed', { payload: '{}' }],
+        ['admitCaio', 'set', room + '/roster/' + caioUid, true],
+        ['fakeSender', 'push', room + '/requests', request(caioUid, '{}')],
+        ['hugeRequest', 'push', room + '/requests', request(betoUid, 'x'.repeat(30000))],
+        ['takeOverRoom', 'set', room + '/meta', meta(betoUid)],
+        ['touchActivity', 'set', room + '/meta/lastActivity', 1],
+        ['removeRoom', 'remove', room]
+    ]), 'quem foi aceito (Beto)').toEqual({
+        readMeta: 'allowed', readPublic: 'allowed', readFeed: 'allowed', readOwnRoster: 'allowed',
+        readOwnHand: 'allowed', ownRequest: 'allowed',
+        readSecret: 'denied', readOtherHand: 'denied', readOtherInbox: 'denied', readRoster: 'denied',
+        readRequests: 'denied', writePublic: 'denied', writeFeed: 'denied', admitCaio: 'denied',
+        fakeSender: 'denied', hugeRequest: 'denied', takeOverRoom: 'denied', touchActivity: 'denied', removeRoom: 'denied'
+    });
+
+    expect(await attemptAll(caio, [
+        ['readMeta', 'read', room + '/meta'],
+        ['readOwnInbox', 'read', room + '/inbox/' + caioUid],
+        ['readOwnRoster', 'read', room + '/roster/' + caioUid],
+        ['ownRequest', 'push', room + '/requests', request(caioUid, '{"type":"player-join"}')],
+        ['readPublic', 'read', room + '/public'],
+        ['readFeed', 'read', room + '/feed'],
+        ['readSecret', 'read', room + '/secret'],
+        ['admitSelf', 'set', room + '/roster/' + caioUid, true],
+        ['createOverActiveRoom', 'set', room + '/meta', meta(caioUid)]
+    ]), 'quem não foi aceito (Caio)').toEqual({
+        readMeta: 'allowed', readOwnInbox: 'allowed', readOwnRoster: 'allowed', ownRequest: 'allowed',
+        readPublic: 'denied', readFeed: 'denied', readSecret: 'denied', admitSelf: 'denied', createOverActiveRoom: 'denied'
+    });
+
+    // O host trata os pedidos e deixa a sala parada (última atividade antiga).
+    expect(await attemptAll(ana, [
+        ['readRequests', 'read', room + '/requests'],
+        ['clearRequests', 'remove', room + '/requests'],
+        ['oldActivity', 'set', room + '/meta/lastActivity', 1]
+    ]), 'o host tratando os pedidos').toEqual({ readRequests: 'allowed', clearRequests: 'allowed', oldActivity: 'allowed' });
+
+    // Sala parada: outro cria de novo, limpa o que sobrou e passa a ser o host.
+    expect(await attemptAll(caio, [
+        ['createIdleRoom', 'set', room + '/meta', meta(caioUid)],
+        ['clearLeftovers', 'update', room, { roster: null, public: null, secret: null, hands: null, feed: null, inbox: null, requests: null, presence: null }],
+        ['readSecret', 'read', room + '/secret']
+    ]), 'reaproveitando a sala parada (Caio)').toEqual({ createIdleRoom: 'allowed', clearLeftovers: 'allowed', readSecret: 'allowed' });
+
+    expect(await attemptAll(ana, [
+        ['writePublic', 'set', room + '/public/state', '{}'],
+        ['removeRoom', 'remove', room]
+    ]), 'o host antigo, depois que outro criou a sala').toEqual({ writePublic: 'denied', removeRoom: 'denied' });
+
+    expect(await attemptAll(caio, [['removeRoom', 'remove', room]]), 'o host novo apagando a sala').toEqual({ removeRoom: 'allowed' });
 });
