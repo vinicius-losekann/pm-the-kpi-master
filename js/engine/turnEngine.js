@@ -308,18 +308,19 @@ function armAnswerTimeout(answererName, ms = CONFIG.GAME.ANSWER_TIMEOUT) {
 /**
  * Para o prazo de resposta (apoio pendente), apaga a hora de término da
  * rodada e devolve quanto faltava, em ms — ou undefined, se o prazo não
- * estava correndo.
+ * estava correndo (rodada sem `answerEndsAt`). Quem diz se o prazo corre
+ * é a hora de término guardada (vai no estado salvo), não o timer.
  */
 function pauseAnswerTimeout() {
     const state = Game.state;
-    if (!state.answerTimeout) return undefined;
-    clearTimeout(state.answerTimeout);
-    state.answerTimeout = null;
+    if (state.answerTimeout) {
+        clearTimeout(state.answerTimeout);
+        state.answerTimeout = null;
+    }
     const round = state.currentRound;
-    const left = round && typeof round.answerEndsAt === 'number'
-        ? Math.max(0, round.answerEndsAt - Game.network.serverNow())
-        : CONFIG.GAME.ANSWER_TIMEOUT;
-    if (round) round.answerEndsAt = null;
+    if (!round || typeof round.answerEndsAt !== 'number') return undefined;
+    const left = Math.max(0, round.answerEndsAt - Game.network.serverNow());
+    round.answerEndsAt = null;
     return left;
 }
 
