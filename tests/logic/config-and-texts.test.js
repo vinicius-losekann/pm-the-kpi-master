@@ -381,9 +381,13 @@ function dataAttributeOf(datasetName) {
 test('T91 HTML e CSS em inglês: IDs, classes e atributos data-* com os nomes novos; o jogo e os testes no navegador só pedem IDs e classes que existem', (use) => {
     const gameHtml = readRepoFile('game.html');
     const indexHtml = readRepoFile('index.html');
+    // Página de teste de conexão (roadmap 2.9): HTML e script próprios.
+    const checkHtml = readRepoFile('firebase-check.html');
     const css = readRepoFile('css/style.css');
     const gameIds = htmlIds(gameHtml);
     const indexIds = htmlIds(indexHtml);
+    const checkIds = htmlIds(checkHtml);
+    const idsOfPage = { 'js/entry/roomEntry.js': indexIds, 'js/entry/connectionCheckPage.js': checkIds };
     const styled = cssClasses(css);
     // Fica de fora só a migração do estado salvo, que precisa dos nomes
     // antigos dos campos (assessorName é também um campo antigo da assessoria).
@@ -427,7 +431,7 @@ test('T91 HTML e CSS em inglês: IDs, classes e atributos data-* com os nomes no
     const knownClasses = new Set([...classTokens(gameHtml), ...Object.values(jsSources).flatMap(classTokens)]);
     const unknown = [];
     for (const [file, source] of Object.entries(jsSources)) {
-        const ids = file === 'js/entry/roomEntry.js' ? indexIds : gameIds;
+        const ids = idsOfPage[file] || gameIds;
         for (const m of source.matchAll(/getElementById\(\s*['"]([\w-]+)['"]\s*\)/g)) {
             if (!ids.has(m[1])) unknown.push(file + ' getElementById ' + m[1]);
         }
@@ -452,7 +456,7 @@ test('T91 HTML e CSS em inglês: IDs, classes e atributos data-* com os nomes no
     for (const file of jsFilesIn('tests/browser')) {
         const source = readRepoFile(file);
         const asked = [...source.matchAll(/['"`]#([\w-]+)/g), ...source.matchAll(/getElementById\(\s*['"]([\w-]+)['"]\s*\)/g)];
-        for (const m of asked) if (!gameIds.has(m[1]) && !indexIds.has(m[1])) unknown.push(file + ' #' + m[1]);
+        for (const m of asked) if (!gameIds.has(m[1]) && !indexIds.has(m[1]) && !checkIds.has(m[1])) unknown.push(file + ' #' + m[1]);
     }
     check(unknown.length === 0, 'IDs, classes ou data-* pedidos que não existem: ' + unknown.join('; '));
 

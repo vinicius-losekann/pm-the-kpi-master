@@ -4,6 +4,7 @@
 // Rodar a partir da raiz do repositório:
 //   npm ci
 //   npx playwright install chromium
+//   npm install -g firebase-tools@15.32.1   (precisa de Java 21)
 //   npx playwright test --config tests/browser/playwright.config.js
 // ============================================
 
@@ -35,11 +36,24 @@ module.exports = defineConfig({
         headless: true,
         trace: 'retain-on-failure'
     },
-    webServer: {
-        command: 'node tests/browser/servers.js',
-        cwd: ROOT,
-        url: 'http://127.0.0.1:8080/index.html',
-        reuseExistingServer: !ON_CI,
-        timeout: 30000
-    }
+    webServer: [
+        {
+            command: 'node tests/browser/servers.js',
+            cwd: ROOT,
+            url: 'http://127.0.0.1:8080/index.html',
+            reuseExistingServer: !ON_CI,
+            timeout: 30000
+        },
+        {
+            // Emulador do Firebase (login e banco) para a página de teste
+            // de conexão; portas e regras no firebase.json. O projeto
+            // "demo-" só existe no emulador: não usa o projeto de verdade.
+            // Na primeira vez, o emulador baixa os arquivos dele.
+            command: 'firebase emulators:start --only auth,database --project demo-pm-the-kpi-master',
+            cwd: ROOT,
+            url: 'http://127.0.0.1:9099',
+            reuseExistingServer: !ON_CI,
+            timeout: 180000
+        }
+    ]
 });

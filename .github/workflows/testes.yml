@@ -6,7 +6,8 @@
 #     simuladas (rápido, sem dependências); uma tabela por arquivo.
 #   - "ponta-a-ponta": tests/browser — o jogo de verdade em várias
 #     janelas do Chromium, com servidor PeerJS e site locais (alguns
-#     minutos).
+#     minutos), e a página de teste de conexão com o emulador do
+#     Firebase (precisa de Java).
 # Resultado: aba "Actions" do repositório — tabelas de resumo na página
 # da execução; log dos testes (artefato "resultado-testes") e relatório
 # do navegador com o console de cada jogador nos cenários que falharem
@@ -61,7 +62,7 @@ jobs:
 
   ponta-a-ponta:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Baixar o código
@@ -78,6 +79,15 @@ jobs:
 
       - name: Instalar o Chromium
         run: npx playwright install --with-deps chromium
+
+      - name: Instalar o Java (para o emulador do Firebase)
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Instalar o emulador do Firebase
+        run: npm install -g firebase-tools@15.32.1
 
       - name: Rodar os testes no navegador
         run: npx playwright test --config tests/browser/playwright.config.js

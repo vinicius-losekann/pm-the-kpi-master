@@ -6,6 +6,9 @@
 // O PeerJS vem do pacote local (mesma versão do jogo) e aponta para o
 // servidor de sinalização local; fontes e outros endereços externos
 // são bloqueados, para o teste não depender da internet.
+// Exceção: os arquivos do Firebase (gstatic.com, mesma versão da página
+// de teste de conexão) vêm da internet; o banco e o login são os do
+// emulador local (projeto "demo-", que não existe fora do emulador).
 // ============================================
 
 const path = require('path');
@@ -16,6 +19,10 @@ const SITE = 'http://127.0.0.1:' + (process.env.SITE_PORT || 8080);
 const PEER_PORT = Number(process.env.PEER_PORT || 9000);
 const LOCAL_PEERJS = path.join(ROOT, 'node_modules', 'peerjs', 'dist', 'peerjs.min.js');
 const ROOM_PREFIX = 'pm-the-kpi-master-';
+// Emulador do Firebase (firebase.json); o projeto "demo-" só existe nele.
+const FIREBASE_PROJECT = 'demo-pm-the-kpi-master';
+const FIREBASE_AUTH_PORT = 9099;
+const FIREBASE_DATABASE_PORT = 9400;
 
 /** Código de sala único por cenário (evita sobra de um cenário no outro). */
 function roomCode() {
@@ -39,15 +46,21 @@ async function createPlayer(browser, name) {
         if (/unpkg\.com\/peerjs@/.test(url)) {
             return route.fulfill({ path: LOCAL_PEERJS, contentType: 'application/javascript' });
         }
+        if (/^https:\/\/www\.gstatic\.com\/firebasejs\//.test(url)) return route.continue();
         return route.abort();
     });
 
-    // Aponta o PeerJS do jogo para o servidor local: acrescenta uma linha
-    // ao config servido, sem mexer no arquivo do repositório.
+    // Aponta o PeerJS do jogo para o servidor local e o Firebase da página
+    // de teste de conexão para o emulador: acrescenta linhas ao config
+    // servido, sem mexer no arquivo do repositório.
     await context.route(SITE + '/config/game-config.js', async (route) => {
         const response = await route.fetch();
         const body = (await response.text()) +
-            "\nCONFIG.PEER = { debug: 0, host: '127.0.0.1', port: " + PEER_PORT + ", path: '/', secure: false };\n";
+            "\nCONFIG.PEER = { debug: 0, host: '127.0.0.1', port: " + PEER_PORT + ", path: '/', secure: false };\n" +
+            "CONFIG.FIREBASE = { apiKey: 'demo-key', authDomain: '" + FIREBASE_PROJECT + ".firebaseapp.com', " +
+            "databaseURL: 'https://" + FIREBASE_PROJECT + "-default-rtdb.firebaseio.com', projectId: '" + FIREBASE_PROJECT + "' };\n" +
+            "CONFIG.FIREBASE_EMULATOR = { host: '127.0.0.1', authPort: " + FIREBASE_AUTH_PORT +
+            ", databasePort: " + FIREBASE_DATABASE_PORT + " };\n";
         await route.fulfill({ response, body });
     });
 
