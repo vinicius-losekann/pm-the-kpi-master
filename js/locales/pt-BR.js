@@ -51,6 +51,11 @@ window.Game.locales['pt-BR'] = {
         roundEndedHost: '🏁 Rodada encerrada! Clique em "Nova Rodada" para continuar.',
         roundEndedGuest: '🏁 Rodada encerrada! Aguardando o host iniciar uma nova rodada.',
         matchPaused: '⏸️ Partida pausada: não há jogadores conectados suficientes. Ela continua sozinha assim que alguém reconectar.',
+        // Etapa "Fazer a pergunta": o Perguntador lê a pergunta em voz alta
+        // e clica; só então quem responde vê as alternativas.
+        askButton: '🗣️ Fazer a pergunta',
+        askHint: 'Leia a pergunta e as alternativas em voz alta para {{answerer}} e clique quando terminar. Se você não clicar, ela vai sozinha em alguns segundos.',
+        waitingToBeAsked: '👂 {{asker}} vai te fazer uma pergunta — preste atenção! As alternativas aparecem quando a pergunta for feita.',
     },
 
     spectator: {
@@ -103,6 +108,7 @@ window.Game.locales['pt-BR'] = {
     result: {
         correct: '✅ Acertou!',
         wrong: '❌ Errou!',
+        timeout: '⌛ Tempo esgotado!',
         kpiGained: '+{{kpi}} KPI',
         kpiZero: '0 KPI',
         withResources: ' | 📦 {{resources}} recursos',

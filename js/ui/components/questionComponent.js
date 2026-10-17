@@ -17,12 +17,13 @@ let answerCountdownInterval = null;
 
 /**
  * Inicia (ou reinicia) o contador visível de tempo do Respondedor.
+ * @param {number} [seconds] - de quanto contar (depois de um apoio, o
+ *   que faltava); sem ele, o prazo inteiro
  */
-function startAnswerCountdown() {
+function startAnswerCountdown(seconds = Math.floor(CONFIG.GAME.ANSWER_TIMEOUT / 1000)) {
     const timerEl = document.getElementById('answerTimerText');
     if (!timerEl) return;
 
-    let seconds = Math.floor(CONFIG.GAME.ANSWER_TIMEOUT / 1000);
     timerEl.style.display = 'block';
     timerEl.textContent = Game.i18n.t('question.timeLeft', { seconds });
 
@@ -78,6 +79,57 @@ function displayRoundStart() {
     // seguida, se este cliente for o Respondedor) é quem decide se ele
     // deve ligar de novo.
     stopAnswerCountdown();
+
+    // O botão "Fazer a pergunta" só aparece para o Perguntador, em
+    // displayQuestion().
+    showQuestionAsked();
+
+    // Quem responde, antes de o Perguntador fazer a pergunta, só vê o aviso.
+    if (Game.state.playerName === round.answerer && round.asked === false) {
+        showWaitingToBeAsked(round.asker);
+    }
+}
+
+/** Quem responde espera o Perguntador fazer a pergunta (sem as alternativas). */
+function showWaitingToBeAsked(asker) {
+    document.getElementById('modalAnswerQuestion').style.display = 'none';
+    document.getElementById('questionArea').style.display = 'none';
+    document.getElementById('spectatorArea').style.display = 'block';
+    document.getElementById('spectatorMessage').textContent = Game.i18n.t('question.waitingToBeAsked', { asker });
+}
+
+/**
+ * Perguntador: mostra o botão "Fazer a pergunta" enquanto a pergunta não
+ * foi feita.
+ */
+function showAskButton(answerer) {
+    const button = document.getElementById('btnAskQuestion');
+    const hint = document.getElementById('askHint');
+    button.textContent = Game.i18n.t('question.askButton');
+    button.disabled = false;
+    button.style.display = 'block';
+    hint.textContent = Game.i18n.t('question.askHint', { answerer });
+    hint.style.display = 'block';
+}
+
+/** A pergunta foi feita (ou não é a vez deste jogador perguntar): sem o botão. */
+function showQuestionAsked() {
+    document.getElementById('btnAskQuestion').style.display = 'none';
+    document.getElementById('askHint').style.display = 'none';
+}
+
+/** Clique do Perguntador em "Fazer a pergunta": o host manda a pergunta a quem responde. */
+function handleAskClick() {
+    const state = Game.state;
+    const round = state.currentRound;
+    if (!round || round.asked !== false || state.playerName !== round.asker) return;
+    document.getElementById('btnAskQuestion').disabled = true;
+    const msg = { type: 'ask-question', playerName: state.playerName };
+    if (state.isHost) {
+        Game.core.handleAskQuestion(msg);
+    } else {
+        Game.network.sendToHost(msg);
+    }
 }
 
 function displayQuestion(q) {
@@ -88,6 +140,14 @@ function displayQuestion(q) {
     document.getElementById('badgeArea').textContent = q.area;
 
     if (isAnswerer && q.isAnswerer !== false) {
+        // Pergunta ainda por fazer (ex.: quem volta à partida recebe a
+        // rodada no state-sync): continua só o aviso.
+        if (Game.state.currentRound?.asked === false) {
+            showWaitingToBeAsked(Game.state.currentRound.asker);
+            return;
+        }
+        document.getElementById('questionArea').style.display = 'block';
+        document.getElementById('spectatorArea').style.display = 'none';
         document.getElementById('allAlternativesArea').style.display = 'none';
         document.getElementById('roleNotice').style.display = 'none';
         document.getElementById('answerModalQuestionText').textContent = q.question;
@@ -180,6 +240,13 @@ function displayQuestion(q) {
         const askerAdvisoryArea = document.getElementById('advisoryArea');
         if (askerAdvisoryArea) askerAdvisoryArea.style.display = 'none';
         stopAnswerCountdown();
+
+        const round = Game.state.currentRound;
+        if (round?.asked === false) {
+            showAskButton(round.answerer);
+        } else {
+            showQuestionAsked();
+        }
     }
 }
 
@@ -249,6 +316,8 @@ Object.assign(window.Game.ui, {
     displayQuestion,
     displaySpectatorView,
     handleAlternativeClick,
+    showQuestionAsked,
+    handleAskClick,
     startAnswerCountdown,
     stopAnswerCountdown,
     showRoundEndedMessage,

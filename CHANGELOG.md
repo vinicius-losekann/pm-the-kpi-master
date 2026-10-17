@@ -26,7 +26,18 @@
   regras reais do jogo (`tests/simulation/`). Mostra duração, recursos,
   economia, eventos e justiça, e compara com uma troca do config
   ("cenário B"). Não muda o jogo publicado. Testes T93–T99.
-- São 126 testes de lógica em 11 arquivos e 21 cenários no navegador.
+- **"Fazer a pergunta":** no início de cada pergunta, só o Perguntador a
+  vê, com o gabarito e o botão "🗣️ Fazer a pergunta"; quem responde vê o
+  aviso de quem vai perguntar. O Perguntador lê em voz alta e clica (sem
+  o clique, ela vai sozinha em 30 segundos); só então quem responde vê as
+  alternativas e o tempo começa a contar. Veio da partida de teste na
+  UFSM, em que tudo parecia rápido demais e quem perguntava não sabia que
+  era a vez dele. A versão das mensagens entre os jogadores (protocolo)
+  passou da 8 para a 9. Testes T130–T133, T136, T138–T141 e cenário E23.
+- **Aviso de tempo esgotado:** quando o tempo de resposta acaba, o
+  resultado mostra "⌛ Tempo esgotado!" em vez de "Errou"; continua
+  contando como erro. Teste T137.
+- São 139 testes de lógica em 12 arquivos e 22 cenários no navegador.
 
 ### Changed
 - **Estouro de orçamento:** o recurso pode ficar negativo. Errar com 0
@@ -81,8 +92,16 @@
   o README aponta para `_docs/architecture.md` em vez de repetir a
   árvore de arquivos; o roadmap ganhou a seção "Itens retirados" e as
   ideias 8.6 a 8.8.
+- **Prazos:** quem responde tem 1 minuto e 30 segundos (antes, 1 minuto)
+  e quem é chamado para assessorar ou ajudar tem 1 minuto (antes, 20
+  segundos). Teste T142.
 
 ### Fixed
+- **Tempo de quem responde durante o apoio (BUG-028):** com a assessoria
+  ou a ajuda pendente, o contador na tela continuava descendo e podia
+  chegar a zero, embora o prazo de verdade estivesse parado; no fim do
+  apoio, o prazo voltava inteiro. Agora o contador para junto e, no fim,
+  os dois continuam de onde pararam. Testes T134 e T135.
 - **Telas pequenas (BUG-025 a BUG-027):** com a janela entre 769 e
   1200 px, os números de KPI e de recursos ("Estouro") saíam do card do
   jogador; agora descem para uma segunda linha. No celular, a janela

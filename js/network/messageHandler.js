@@ -105,7 +105,8 @@ function handleMessage(msg, fromPeerId) {
                 asker: msg.asker,
                 answerer: msg.answerer,
                 question: null,
-                answered: false
+                answered: false,
+                asked: false
             };
             if (state.playerName === msg.asker || state.playerName === msg.answerer) {
                 Game.ui.displayRoundStart();
@@ -134,7 +135,23 @@ function handleMessage(msg, fromPeerId) {
                 state.currentRound.question = msg;
             }
             state.currentRound.answered = false;
+            // Quem responde só recebe a pergunta depois de ela ser feita.
+            if (msg.isAnswerer) state.currentRound.asked = true;
             Game.ui.displayQuestion(msg);
+            break;
+
+        // O Perguntador clicou em "Fazer a pergunta" (ver turnEngine.askQuestion()).
+        case 'ask-question':
+            if (state.isHost && isSenderVerified(msg.playerName, fromPeerId)) {
+                Game.core.handleAskQuestion(msg);
+            }
+            break;
+
+        // A pergunta foi feita (clique ou prazo do Perguntador): todos
+        // guardam, para a cópia da rodada bater com a do host.
+        case 'question-asked':
+            if (state.currentRound) state.currentRound.asked = true;
+            Game.ui.showQuestionAsked();
             break;
 
         case 'answer':

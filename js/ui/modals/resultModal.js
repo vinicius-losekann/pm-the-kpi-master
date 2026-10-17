@@ -1,7 +1,7 @@
 // ============================================
 // PM: The KPI Master - UI Modal: Resultado
 // ============================================
-// Modal de resultado (acertou/errou), com o apoio da pergunta (honorário
+// Modal de resultado (acertou/errou/tempo esgotado), com o apoio da pergunta (honorário
 // pago ao assessor, ajuda recompensada ou erro coberto), e o aviso de
 // quem apoiou (honorário recebido, recompensa ou cobertura).
 //
@@ -17,10 +17,18 @@
  * @param {{outcome: string, amount: number, partner: string}} [support] - apoio
  *   da pergunta: 'fee' (honorário pago ao assessor `partner`), 'reward'
  *   (`partner` ajudou e ganhou a recompensa) ou 'cover' (`partner` cobriu o erro)
+ * @param {boolean} [timedOut] - o prazo de resposta acabou (conta como erro;
+ *   o título diz "Tempo esgotado")
  */
-function showResultModal(isCorrect, kpiGained, remainingResources, support) {
+function showResultModal(isCorrect, kpiGained, remainingResources, support, timedOut) {
     const modal = document.getElementById('modalResult');
-    document.getElementById('resultTitle').textContent = Game.i18n.t(isCorrect ? 'result.correct' : 'result.wrong');
+    let title = Game.i18n.t('result.wrong');
+    if (isCorrect) {
+        title = Game.i18n.t('result.correct');
+    } else if (timedOut) {
+        title = Game.i18n.t('result.timeout');
+    }
+    document.getElementById('resultTitle').textContent = title;
     document.getElementById('resultTitle').className = 'result-title ' + (isCorrect ? 'result-success' : 'result-error');
     let msg = isCorrect ? Game.i18n.t('result.kpiGained', { kpi: kpiGained }) : Game.i18n.t('result.kpiZero');
     if (remainingResources !== undefined) msg += Game.i18n.t('result.withResources', { resources: remainingResources });

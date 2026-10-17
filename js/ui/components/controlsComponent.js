@@ -94,6 +94,12 @@ function bindControls() {
         Game.ui.showAdvisorySelectModal();
     });
 
+    // --- Fazer a pergunta: o Perguntador, depois de ler em voz alta
+    // (ver ui/components/questionComponent.js) ---
+    document.getElementById('btnAskQuestion').addEventListener('click', () => {
+        Game.ui.handleAskClick();
+    });
+
     controlsBound = true;
 }
 

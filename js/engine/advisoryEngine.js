@@ -125,18 +125,21 @@ function handleAdvisoryRequest(msg) {
         kind
     };
 
-    // Pausa o timeout de resposta enquanto aguarda o apoio
-    if (state.answerTimeout) {
-        clearTimeout(state.answerTimeout);
-        state.answerTimeout = null;
-    }
+    // Pausa o prazo de resposta enquanto aguarda o apoio; no fim, ele
+    // continua do que faltava (handleAdvisoryAnswer()).
+    state.currentRound.answerTimeLeft = Game.engine.turn.pauseAnswerTimeout();
 
-    Game.network.broadcastAll({
+    const startedMsg = {
         type: 'advisory-started',
         kind,
         advisorName: msg.advisorName,
-        requesterName: msg.requesterName
-    });
+        requesterName: msg.requesterName,
+        answerTimeLeft: state.currentRound.answerTimeLeft
+    };
+    Game.network.broadcastAll(startedMsg);
+    // broadcastAll não manda para o próprio host: se é ele quem responde,
+    // a tela dele (o contador) é avisada aqui.
+    if (msg.requesterName === state.playerName) Game.ui.showAdvisoryStarted(startedMsg);
 
     const question = state.currentRound.question;
     const domainName = state.questionsData.domains[question.domain_key]?.name || question.domain_key;
@@ -171,24 +174,31 @@ function handleAdvisoryAnswer(msg) {
         state.advisoryTimeout = null;
     }
 
-    state.currentRound.advisory.status = msg.declined ? 'declined' : 'accepted';
-    state.currentRound.advisory.suggestion = msg.declined ? null : msg.alternative;
+    const round = state.currentRound;
+    round.advisory.status = msg.declined ? 'declined' : 'accepted';
+    round.advisory.suggestion = msg.declined ? null : msg.alternative;
+
+    // O prazo de resposta volta do que faltava quando o apoio começou
+    // (se ele não estava correndo naquela hora, volta o prazo inteiro).
+    const resumes = !round.answered && !round.pendingAnswer;
+    const answerTimeLeft = round.answerTimeLeft ?? CONFIG.GAME.ANSWER_TIMEOUT;
+    round.answerTimeLeft = null;
 
     const resultMsg = {
         type: 'advisory-result',
-        kind: state.currentRound.advisory.kind,
-        advisorName: state.currentRound.advisory.advisorName,
-        suggestion: state.currentRound.advisory.suggestion,
+        kind: round.advisory.kind,
+        advisorName: round.advisory.advisorName,
+        suggestion: round.advisory.suggestion,
         declined: !!msg.declined,
-        timeout: !!msg.timeout
+        timeout: !!msg.timeout,
+        answerTimeLeft: resumes ? answerTimeLeft : undefined
     };
 
     Game.network.broadcastAll(resultMsg);
     Game.ui.showAdvisoryResult(resultMsg);
 
-    // Rearma o timeout de resposta se a rodada ainda não foi respondida
-    if (!state.currentRound.answered && !state.currentRound.pendingAnswer) {
-        Game.engine.turn.armAnswerTimeout(state.currentRound.answerer);
+    if (resumes) {
+        Game.engine.turn.armAnswerTimeout(round.answerer, answerTimeLeft);
     }
 
     // Se o Respondedor já tinha enviado uma resposta, processa agora

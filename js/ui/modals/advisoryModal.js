@@ -87,6 +87,9 @@ function showAdvisoryStarted(msg) {
     if (state.playerName === state.currentRound?.answerer) {
         document.getElementById('btnRequestAdvisory').disabled = true;
         document.getElementById('advisoryStatus').textContent = Game.i18n.t('advisory.waitingForAnswer', { advisor: msg.advisorName });
+        // O prazo de resposta para no host enquanto o apoio está pendente;
+        // o contador da tela também (volta em showAdvisoryResult()).
+        Game.ui.stopAnswerCountdown();
 
         if (state.currentRound) {
             state.currentRound.advisory = {
@@ -186,6 +189,11 @@ function showAdvisoryResult(msg) {
 
     if (!state.currentRound.answered) {
         document.querySelectorAll('.alternative-btn').forEach(b => b.disabled = false);
+        // Fim do apoio: o contador volta do tempo que faltava. Recusa na
+        // hora (o apoio nem começou) não traz o campo: o contador seguiu.
+        if (typeof msg.answerTimeLeft === 'number') {
+            Game.ui.startAnswerCountdown(Math.ceil(msg.answerTimeLeft / 1000));
+        }
     }
 
     // Recusa por um motivo que não muda durante a pergunta (última área

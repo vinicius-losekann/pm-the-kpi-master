@@ -95,7 +95,7 @@ só automatizado (falta o manual).
 | Caso | Testes | Manual |
 |---|---|---|
 | Espectador cai: fica na lista, fora do sorteio, volta com tudo | 🤖 T4 | — |
-| Quem caiu não pode ser chamado como assessor nem para ajudar (recusa na hora; quem pede chama outro); quem foi chamado e cai antes de responder libera quem responde no fim do prazo (20s) | 🤖 T70, T119, T122 | — |
+| Quem caiu não pode ser chamado como assessor nem para ajudar (recusa na hora; quem pede chama outro); quem foi chamado e cai antes de responder libera quem responde no fim do prazo (`ADVISORY_TIMEOUT`) | 🤖 T70, T119, T122 | — |
 | Participante da rodada cai: rodada abortada, nova dupla | 🤖 T5 | — |
 | Falta só conexão: partida pausa e retoma com o mesmo evento | 🤖 T6, T33 | — |
 | Ciclo da rodada termina sem esperar o desconectado | 🤖 T8 | — |
@@ -108,6 +108,7 @@ só automatizado (falta o manual).
 | F5/fechar do host encerra as conexões sem mexer no jogo | 🤖 T12, T13 | — |
 | Host volta dentro de 10s: guests reconectam, sem troca de host | 🤖 T38 · 🌐 E1 | — (coberto por E1) |
 | F5 do host com a pergunta aberta: a mesma pergunta continua; relógio e prazo de resposta religados | 🤖 T56 · 🌐 E1 | — (coberto por E1) |
+| Pergunta ainda por fazer (o Perguntador não clicou em "Fazer a pergunta"): no F5 do host, na troca de host e na volta à partida, a rodada continua esperando o clique, com o prazo do Perguntador de novo; quem volta como Respondedor vê o aviso, não as alternativas | 🤖 T138, T139, T140 | — |
 | F5 do host fora da dupla com a pergunta aberta: o host vê a tela de espectador; etiquetas de domínio e área aparecem depois do F5 e para quem volta (BUG-020) | 🤖 T64, T65 | — |
 | F5 do host com a rodada encerrada: continua encerrada para todos, nada começa sozinho | 🤖 T53, T57 · 🌐 E9 | — (coberto por E9) |
 | F5 do host logo depois de uma resposta: segue para a próxima dupla ou encerra a rodada; se a resposta completou a última área foco, a partida termina | 🤖 T54, T58 · 🌐 E10 | — (coberto por E10) |
@@ -230,6 +231,7 @@ não mudam: o teste só aponta o PeerJS para o servidor local.
 | E20 | Janela de 1000 px com o card do jogador em estouro (−12): os chips de KPI e de recursos ficam dentro do card | BUG-025 (layout) |
 | E21 | Celular baixo (375×480) com a pergunta aberta: a janela de resposta cabe na tela e rola até a última alternativa | BUG-026 (layout) |
 | E22 | Celular (375 px) no fim de partida: o detalhe de cada jogador no ranking fica abaixo do nome | BUG-027 (layout) |
+| E23 | Quem responde vê o aviso de quem vai perguntar, sem a janela de resposta; o Perguntador clica em "Fazer a pergunta" e a janela abre com o prazo inteiro | — (etapa "Fazer a pergunta") |
 
 Queda de rede (M7) não entrou: a simulação de "sem rede" do navegador
 não derruba a conexão direta entre janelas na mesma máquina (conferido —

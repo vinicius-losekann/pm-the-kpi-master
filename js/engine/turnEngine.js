@@ -144,7 +144,11 @@ function pickNewPair(event = null, depth = 0, showModal = true, eventEffect = nu
         asker: asker.name,
         answerer: answerer.name,
         question: { ...question, domain: domainName, area: areaName },
-        answered: false
+        answered: false,
+        // A pergunta só vai para o Respondedor quando o Perguntador a faz
+        // (ver askQuestion()). Rodada sem o campo (estado salvo ou cópia
+        // de uma versão anterior) conta como pergunta já feita.
+        asked: false
     };
 
     console.log('🎯 Nova dupla:', asker.name, 'pergunta para', answerer.name);
@@ -189,33 +193,119 @@ function pickNewPair(event = null, depth = 0, showModal = true, eventEffect = nu
         id: question.id
     };
 
-    // Envia a pergunta (com gabarito) para o Perguntador
+    // Envia a pergunta (com gabarito) para o Perguntador. O Respondedor
+    // só a recebe quando o Perguntador a faz (askQuestion()).
     Game.network.sendToPlayer(asker.peerId, { ...questionMsg, isAsker: true });
 
-    // Envia a pergunta (sem gabarito) para o Respondedor
-    Game.network.sendToPlayer(answerer.peerId, { ...questionMsg, isAnswerer: true, correct: undefined });
-
-    // Timeout de segurança para o Respondedor
-    armAnswerTimeout(answerer.name);
+    if (CONFIG.GAME.ASK_TIMEOUT > 0) {
+        armAskTimeout();
+    } else {
+        askQuestion(true);
+    }
 
     Game.ui.refreshNewRoundButton();
     Game.saveState();
 }
 
 /**
- * Arma um timeout para evitar que a rodada fique travada se o Respondedor
- * não responder (desconexão, travamento, etc.).
+ * Arma o prazo do Perguntador: se ele não clicar em "Fazer a pergunta"
+ * até CONFIG.GAME.ASK_TIMEOUT, a pergunta vai sozinha. Também usada no
+ * F5 do host e na troca de host com a pergunta ainda por fazer.
  */
-function armAnswerTimeout(answererName) {
+function armAskTimeout() {
+    const state = Game.state;
+    clearAskTimeout();
+    state.askTimeout = setTimeout(() => {
+        console.log('⌛ O Perguntador não clicou a tempo — a pergunta vai sozinha.');
+        askQuestion(true);
+    }, CONFIG.GAME.ASK_TIMEOUT);
+}
+
+/** Cancela o prazo do Perguntador, se estiver armado. */
+function clearAskTimeout() {
+    const state = Game.state;
+    if (state.askTimeout) {
+        clearTimeout(state.askTimeout);
+        state.askTimeout = null;
+    }
+}
+
+/**
+ * Host: o Perguntador clicou em "Fazer a pergunta" (mensagem
+ * 'ask-question', ou a própria tela do host). Pedido de outro jogador é
+ * ignorado.
+ */
+function handleAskQuestion(msg) {
+    const round = Game.state.currentRound;
+    if (!Game.state.isHost || !round || msg.playerName !== round.asker) return;
+    askQuestion(false);
+}
+
+/**
+ * Host: a pergunta foi feita (clique ou prazo do Perguntador). Avisa
+ * todos ('question-asked'), manda a pergunta, sem o gabarito, ao
+ * Respondedor e liga o prazo de resposta. Só vale uma vez por pergunta.
+ * @param {boolean} auto - true quando foi o prazo, não o clique
+ */
+function askQuestion(auto) {
+    const state = Game.state;
+    const round = state.currentRound;
+    if (!state.isHost || !round || round.asked !== false || round.answered) return;
+
+    clearAskTimeout();
+    round.asked = true;
+    console.log('🗣️ ' + round.asker + ' fez a pergunta' + (auto ? ' (prazo do Perguntador)' : '') + '.');
+
+    // broadcastAll não manda para o próprio host: a tela dele é avisada aqui.
+    Game.network.broadcastAll({ type: 'question-asked', auto });
+    if (state.playerName === round.asker) Game.ui.showQuestionAsked();
+
+    const answerer = Game.getPlayerByName(round.answerer);
+    const q = round.question;
+    if (answerer) {
+        Game.network.sendToPlayer(answerer.peerId, {
+            type: 'question',
+            question: q.question,
+            domain: q.domain,
+            area: q.area,
+            alternatives: q.alternatives,
+            id: q.id,
+            isAnswerer: true
+        });
+    }
+
+    armAnswerTimeout(round.answerer);
+    Game.saveState();
+}
+
+/**
+ * Arma um timeout para evitar que a rodada fique travada se o Respondedor
+ * não responder (desconexão, travamento, etc.). `ms` é o prazo que resta
+ * (depois de um apoio, continua de onde parou); sem ele, o prazo inteiro.
+ */
+function armAnswerTimeout(answererName, ms = CONFIG.GAME.ANSWER_TIMEOUT) {
     const state = Game.state;
     if (state.answerTimeout) {
         clearTimeout(state.answerTimeout);
         state.answerTimeout = null;
     }
+    state.answerDeadline = Date.now() + ms;
     state.answerTimeout = setTimeout(() => {
         console.warn('⌛ Timeout: ' + answererName + ' não respondeu a tempo. Pulando vez automaticamente.');
         Game.engine.answer.handleAnswer({ alternative: null, playerName: answererName, timeout: true });
-    }, CONFIG.GAME.ANSWER_TIMEOUT);
+    }, ms);
+}
+
+/**
+ * Para o prazo de resposta (apoio pendente) e devolve quanto faltava, em
+ * ms — ou undefined, se o prazo não estava correndo.
+ */
+function pauseAnswerTimeout() {
+    const state = Game.state;
+    if (!state.answerTimeout) return undefined;
+    clearTimeout(state.answerTimeout);
+    state.answerTimeout = null;
+    return Math.max(0, state.answerDeadline - Date.now());
 }
 
 /**
@@ -295,7 +385,12 @@ window.Game.engine = window.Game.engine || {};
 window.Game.engine.turn = {
     startNewRound,
     pickNewPair,
+    armAskTimeout,
+    clearAskTimeout,
+    handleAskQuestion,
+    askQuestion,
     armAnswerTimeout,
+    pauseAnswerTimeout,
     nextTurn,
     endRoundIfCycleComplete,
     resumePausedMatch

@@ -62,7 +62,8 @@ const DEFAULT_OPTIONS = Object.freeze({
     players: 4,
     seed: 1,
     accuracies: [0.4, 0.6, 0.8],     // perfis de chance de acerto sozinho; cada jogador sorteia um
-    answerSeconds: [20, 50],         // tempo para responder (mín, máx)
+    askSeconds: [5, 15],             // tempo do Perguntador para ler a pergunta em voz alta e clicar (mín, máx)
+    answerSeconds: [20, 50],         // tempo para responder, contado da pergunta feita (mín, máx)
     newRoundSeconds: 10,             // espera até o host clicar em "Nova Rodada"
     advisoryChance: 0.5,             // quem não sabe, com 1 recurso ou mais, pede assessoria
     advisorUnsureAcceptChance: 0.5,  // o assessor que não sabe aceita mesmo assim (e chuta)
@@ -417,11 +418,22 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
     function onSend(peerId, msg) {
         const player = byPeer(peerId);
         if (!player) return;
-        if (msg.type === 'question' && msg.isAnswerer) {
+        if (msg.type === 'question' && msg.isAsker) {
+            askerRobot(player);
+        } else if (msg.type === 'question' && msg.isAnswerer) {
             answererRobot(player);
         } else if (msg.type === 'advisory-question') {
             advisorRobot(player, msg.kind);
         }
+    }
+
+    /** Perguntador: lê a pergunta em voz alta e clica em "Fazer a pergunta". */
+    function askerRobot(player) {
+        const round = state.currentRound;
+        clock.setTimeout(() => {
+            if (state.gameOver || state.currentRound !== round || round.asked !== false) return;
+            Game.core.handleAskQuestion({ type: 'ask-question', playerName: player.name });
+        }, between(o.askSeconds) * 1000);
     }
 
     /**
@@ -553,6 +565,7 @@ function optionsFromInputs(inputs = {}) {
     const options = {
         ...DEFAULT_OPTIONS,
         accuracies: [...DEFAULT_OPTIONS.accuracies],
+        askSeconds: [...DEFAULT_OPTIONS.askSeconds],
         answerSeconds: [...DEFAULT_OPTIONS.answerSeconds],
         advisorSeconds: [...DEFAULT_OPTIONS.advisorSeconds],
         overrides: {}
@@ -688,7 +701,8 @@ function buildReport({ a, b = null, commit = '' }) {
     table(['Parâmetro', 'Valor'], [
         ['Chance de acerto sozinho (cada jogador sorteia um perfil)', o.accuracies.map(pct).join(', ')],
         ['Sabe a resposta (pelo perfil; sem saber, chuta 1 em 4)', o.accuracies.map(acc => pct(knowChance(acc))).join(', ')],
-        ['Tempo para responder', seconds(o.answerSeconds)],
+        ['Tempo do Perguntador para fazer a pergunta', seconds(o.askSeconds)],
+        ['Tempo para responder (da pergunta feita)', seconds(o.answerSeconds)],
         ['Espera até "Nova Rodada"', number(o.newRoundSeconds, 0) + ' s'],
         ['Pede assessoria quando não sabe (com 1 recurso ou mais)', pct(o.advisoryChance) +
             ' (o assessor que não sabe aceita mesmo assim em ' + pct(o.advisorUnsureAcceptChance) + ')'],

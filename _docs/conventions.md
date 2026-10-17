@@ -47,20 +47,22 @@ Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` o
 |---|---|---|
 | `player-join` | guest → host | `playerName`, `peerId`, `token` (identidade por sala; o host guarda só o hash), `protocolVersion` (versão do formato das mensagens; sem o campo conta como 1). Montada só em `sendPlayerJoin()` (`network/peerService.js`) |
 | `join-rejected` | host → quem tentou entrar | `reason`: `version-mismatch` (outra versão do jogo — conferida antes de tudo), `room-full`, `room-locked` (partida em andamento, nome novo), `name-taken`, `identity-mismatch` (token diferente do registrado) |
-| `state-sync` | host → quem entra ou volta | `fullState` com os jogadores (`players`), a rodada (`currentRound`: `event`, `asker`, `answerer`, `question`, `answered`), os baralhos (`decks`), o relógio, `roundEnded`, `matchPaused`, `answeredThisRound` (quem já respondeu na rodada), `gameOver` e `finalRanking` (fim de jogo) |
+| `state-sync` | host → quem entra ou volta | `fullState` com os jogadores (`players`), a rodada (`currentRound`: `event`, `asker`, `answerer`, `question`, `answered`, `asked` — a pergunta já foi feita; sem o campo, já foi), os baralhos (`decks`), o relógio, `roundEnded`, `matchPaused`, `answeredThisRound` (quem já respondeu na rodada), `gameOver` e `finalRanking` (fim de jogo) |
 | `round-start` | host → todos | `event`, `asker`, `answerer`, `answeredThisRound` |
-| `question` | host → Perguntador e Respondedor | a pergunta; `isAsker` (com o gabarito `correct`) ou `isAnswerer` (sem o gabarito) |
+| `question` | host → Perguntador (no início da rodada) e Respondedor (quando a pergunta é feita) | a pergunta; `isAsker` (com o gabarito `correct`) ou `isAnswerer` (sem o gabarito) |
+| `ask-question` | Perguntador → host | `playerName` — clicou em "Fazer a pergunta" |
+| `question-asked` | host → todos | a pergunta foi feita; `auto` (true quando foi o prazo do Perguntador, `ASK_TIMEOUT`, e não o clique) |
 | `answer` | Respondedor → host | `alternative`, `playerName` |
-| `kpi-update` | host → todos | o jogador: `kpi`, `focusArea`, `activities`, `resources`; da resposta: `isCorrect`, `kpiGained`, `answeredThisRound`; do apoio: `supportOutcome` (`fee`: honorário de assessoria; `reward`: recompensa do patrocinador a quem ajudou; `cover`: quem ajudou cobriu o erro), `supportAmount` (recursos) e `supportPartner` (no de quem respondeu, quem apoiou; no de quem apoiou, quem respondeu). O apoio vai nos dois `kpi-update`: no de quem respondeu (com `isCorrect`) e num segundo, de quem apoiou (sem `isCorrect`) |
+| `kpi-update` | host → todos | o jogador: `kpi`, `focusArea`, `activities`, `resources`; da resposta: `isCorrect`, `kpiGained`, `answeredThisRound` e, se o prazo de resposta acabou, `timedOut` (conta como erro); do apoio: `supportOutcome` (`fee`: honorário de assessoria; `reward`: recompensa do patrocinador a quem ajudou; `cover`: quem ajudou cobriu o erro), `supportAmount` (recursos) e `supportPartner` (no de quem respondeu, quem apoiou; no de quem apoiou, quem respondeu). O apoio vai nos dois `kpi-update`: no de quem respondeu (com `isCorrect`) e num segundo, de quem apoiou (sem `isCorrect`) |
 | `player-list`, `match-ended` | host → todos | `players` (cada jogador com `kpi`, `resources`, `focusArea`, `activities`...) |
 | `game-over` | host → todos | `ranking`: cada jogador com `position` (empatados em tudo têm a mesma: 1, 1, 3), `finalKpi` (KPI + recursos × `FINAL_RESOURCE_VALUE`), `kpi`, `resources`, `focusArea` |
 | `show-event` | host → todos | `event` (início de rodada nova), `players` (os efeitos do evento mudam os recursos) e `eventEffect` (quem foi atingido, no Patrocinador Generoso e na Reestruturação: `receivers`, `giver`, `amount` e, se o evento não acontece, `reason` — `all-tied` ou `giver-without-resources`; nos outros eventos, `null`) |
 | `round-ended` | host → todos | rodada encerrada, aguardando o "Nova Rodada" |
 | `match-paused` | host → todos | faltam jogadores conectados; retoma sozinha quando alguém volta |
 | `advisory-request` | Respondedor → host | `kind` (`advisory`: assessoria; `help`: pedido de ajuda; sem o campo, assessoria), `advisorName` (quem é chamado), `requesterName`. O apoio fica na rodada: `currentRound.advisory` (`advisorName`, `status` `pending`/`accepted`/`declined`, `suggestion`, `kind`) |
-| `advisory-started` / `advisory-question` | host → todos / host → quem é chamado | `kind`, `advisorName`, `requesterName` / `kind` e a pergunta (sem o gabarito) |
+| `advisory-started` / `advisory-question` | host → todos / host → quem é chamado | `kind`, `advisorName`, `requesterName`, `answerTimeLeft` (ms do prazo de resposta que faltavam, pausado durante o apoio) / `kind` e a pergunta (sem o gabarito) |
 | `advisory-answer` | quem é chamado → host | `alternative`, `declined` |
-| `advisory-result` | host → todos (ou só a quem pediu, se o pedido é inválido) | `kind`, `advisorName`, `suggestion`, `declined`, `timeout`; pedido inválido: `invalid` e `reason` (`closing-focus-area`; `needs-resources` — assessoria com 0 recursos ou menos; `has-resources` — ajuda com 1 ou mais; `helper-without-resources` — quem ajuda sem `HELP_COVER` recursos; `already-answered`; ou nenhum) |
+| `advisory-result` | host → todos (ou só a quem pediu, se o pedido é inválido) | `kind`, `advisorName`, `suggestion`, `declined`, `timeout`, `answerTimeLeft` (ms de onde o prazo de resposta continua; só quando ele volta a correr); pedido inválido: `invalid` e `reason` (`closing-focus-area`; `needs-resources` — assessoria com 0 recursos ou menos; `has-resources` — ajuda com 1 ou mais; `helper-without-resources` — quem ajuda sem `HELP_COVER` recursos; `already-answered`; ou nenhum) |
 
 Mensagem que chega sem um campo novo (de uma versão anterior do jogo) mantém o comportamento antigo (ex.: `advisory-request` sem `kind` é assessoria), salvo quando o campo veio com uma versão nova do protocolo e o host precisa dele: aí o host exige o campo.
 
@@ -70,7 +72,7 @@ Mensagem que chega sem um campo novo (de uma versão anterior do jogo) mantém o
 
 Como os testes funcionam (ambiente simulado, Playwright, Actions) está em `architecture.md`, seção "Testes automatizados". Aqui, as regras para escrever:
 
-- Teste de lógica entra em `tests/logic/<assunto>.test.js` (entrada e identidade, queda e volta, troca de host, F5 do host, estado salvo, fim de partida, pedido de ajuda e assessoria, banco de perguntas, configuração e textos da tela, simulador), com o próximo número da sequência (T1, T2...); cenário no navegador entra em `tests/browser/*.spec.js`, com o próximo número E. Os números não mudam nem são reaproveitados.
+- Teste de lógica entra em `tests/logic/<assunto>.test.js` (entrada e identidade, queda e volta, troca de host, F5 do host, estado salvo, fim de partida, pedido de ajuda e assessoria, ritmo da pergunta, banco de perguntas, configuração e textos da tela, simulador), com o próximo número da sequência (T1, T2...); cenário no navegador entra em `tests/browser/*.spec.js`, com o próximo número E. Os números não mudam nem são reaproveitados.
 - Nomes de arquivos, funções e variáveis dos testes em inglês; comentários e títulos em português, com o número (T…, E…, BUG-…) no título.
 - Toda mudança de lógica vem com teste. A frente vai em dois commits: primeiro só os testes (os novos devem falhar no Actions), depois o código (tudo passa). Isso confirma que os testes novos de fato pegam o problema. Antes do segundo commit, o código novo é revisado à procura de mudanças que os testes não pegariam (teste de mutação), e os testes são reforçados se aparecer alguma.
 - Código novo de lógica fica onde o teste alcança (`engine/`, `network/`, `state/`, `utils/`); `main.js` só orquestra a inicialização.
@@ -104,6 +106,8 @@ A regra geral: **nome é em inglês; texto é em português.** Nome é tudo que 
   | partida pausada / rodada encerrada / fim de jogo | paused / round ended / game over |
   | quem já respondeu na rodada (rodízio) | answeredThisRound |
   | relógio / prazo | clock / timeout |
+  | fazer a pergunta (etapa do Perguntador) / pergunta feita / prazo do Perguntador | ask (`ask-question`, `askQuestion`) / asked (`question-asked`) / `askTimeout` (`ASK_TIMEOUT`) |
+  | tempo que resta para responder / tempo esgotado | answer time left (`answerTimeLeft`) / timed out (`timedOut`) |
   | troca de host / host antigo / backup | host migration / old host / backup |
   | token de identidade / estado salvo | identity token / saved state |
 - **Comentários**: sempre em português. Explicam o que o código faz e por quê — sem fase, número de bug ou item do roadmap e sem a história do "antes era assim": isso fica no `roadmap.md`, no `issues.md`, no `CHANGELOG.md` e no histórico do Git. Os títulos dos testes continuam com os números (T…, E…, BUG-…), que ligam o teste ao registro.

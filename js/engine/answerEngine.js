@@ -119,6 +119,9 @@ function handleAnswer(msg) {
     // O apoio vai no kpi-update dos dois (supportOutcome, supportAmount e
     // supportPartner: o outro jogador do apoio).
     const answererSupport = support ? { supportOutcome: support.outcome, supportAmount: support.amount, supportPartner: advisor.name } : {};
+    // Tempo esgotado conta como erro; o campo só serve para a tela dizer
+    // "Tempo esgotado" em vez de "Errou".
+    const timeoutNote = msg.timeout === true ? { timedOut: true } : {};
 
     // Quem respondeu entra no rodízio ANTES do aviso aos
     // guests — o 'kpi-update' leva a lista (`answeredThisRound`). Se o host
@@ -135,6 +138,7 @@ function handleAnswer(msg) {
         isCorrect,
         kpiGained,
         ...answererSupport,
+        ...timeoutNote,
         answeredThisRound: state.answeredThisRound.slice()
     });
 
@@ -147,7 +151,8 @@ function handleAnswer(msg) {
             resources: answerer.resources,
             isCorrect,
             kpiGained,
-            ...answererSupport
+            ...answererSupport,
+            ...timeoutNote
         });
     }
 
@@ -211,7 +216,7 @@ function updatePlayerKPI(msg) {
             ? { outcome: msg.supportOutcome, amount: msg.supportAmount, partner: msg.supportPartner }
             : undefined;
         if (msg.isCorrect !== undefined) {
-            Game.ui.showResultModal(msg.isCorrect, msg.kpiGained, msg.resources, support);
+            Game.ui.showResultModal(msg.isCorrect, msg.kpiGained, msg.resources, support, msg.timedOut === true);
         } else if (support) {
             Game.ui.showSupportResultModal(support.outcome, support.amount, support.partner);
         }

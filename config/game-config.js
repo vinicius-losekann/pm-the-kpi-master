@@ -25,8 +25,9 @@ const CONFIG = {
         SESSION_DURATION: 5400,               // 90 minutos (em segundos)
         ACTIVITIES_PER_FOCUS_AREA: 2,         // Atividades necessárias para avançar de área foco
         HOST_TIMEOUT: 10000,                  // Prazo total (ms) que os jogadores esperam o host voltar depois de uma queda; esgotado, outro jogador assume como host
-        ADVISORY_TIMEOUT: 20000,              // Tempo máximo para o assessor (ou quem ajuda) responder (ms)
-        ANSWER_TIMEOUT: 60000,                // Tempo máximo para o Respondedor escolher uma alternativa (ms)
+        ADVISORY_TIMEOUT: 60000,              // Tempo máximo para o assessor (ou quem ajuda) responder (ms)
+        ANSWER_TIMEOUT: 90000,                // Tempo máximo para o Respondedor escolher uma alternativa (ms), contado da pergunta feita; para enquanto o apoio está pendente
+        ASK_TIMEOUT: 30000,                   // Tempo para o Perguntador clicar em "Fazer a pergunta" (ms); esgotado, a pergunta vai sozinha. 0 = sem essa etapa: a pergunta vai direto para quem responde
     },
 
     FOCUS_AREAS: [

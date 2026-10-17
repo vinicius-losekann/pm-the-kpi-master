@@ -7,7 +7,7 @@
 > de escrita de código (→ `conventions.md`), bugs (→ `issues.md`) nem
 > planos (→ `roadmap.md`).
 >
-> Última revisão: 14/10/2026
+> Última revisão: 16/10/2026
 
 ## Tipo de arquitetura
 
@@ -74,6 +74,7 @@ pm-the-kpi-master/
 │   │   ├── end-of-match.test.js
 │   │   ├── help-and-advisory.test.js # pedido de ajuda e assessoria (só com recurso; honorário ao assessor)
 │   │   ├── economy.test.js          # economia de recursos: estouro de orçamento (erro e corte sem piso), KPI Final com negativo, eventos pelo tabuleiro e aviso com os nomes
+│   │   ├── question-pace.test.js    # ritmo da pergunta: "Fazer a pergunta", prazo de resposta pausado no apoio, tempo esgotado
 │   │   ├── questions.test.js        # banco de perguntas: formato, gabarito equilibrado
 │   │   ├── config-and-texts.test.js # chaves do CONFIG, textos da tela e nomes do HTML/CSS (só o que existe é pedido; CSS sem regra sem uso)
 │   │   └── simulation.test.js   # simulador de partidas: regras reais, contas, semente, relatório
@@ -85,7 +86,7 @@ pm-the-kpi-master/
 │       ├── servers.js           # site e servidor PeerJS locais
 │       ├── players.js           # jogadores (contextos separados) e ajudantes
 │       ├── summary.js           # tabela de resultados no Actions
-│       └── *.spec.js            # cenários (connection, host-migration, host-reload, layout)
+│       └── *.spec.js            # cenários (connection, host-migration, host-reload, layout, question-pace)
 │
 ├── index.html
 ├── game.html
@@ -120,7 +121,7 @@ pm-the-kpi-master/
     │
     ├── engine/                  # 🎬 orquestração — chama domain, mexe em state, network, ui
     │   ├── sessionEngine.js     # startGame, endGame, endMatch, endSession, leaveMatch, retomada após F5 do host...
-    │   ├── turnEngine.js        # startNewRound, pickNewPair, nextTurn
+    │   ├── turnEngine.js        # startNewRound, pickNewPair, askQuestion (etapa "Fazer a pergunta"), prazos de resposta, nextTurn
     │   ├── answerEngine.js      # handleAnswer (com o resultado do apoio), updatePlayerKPI
     │   └── advisoryEngine.js    # assessoria e pedido de ajuda: requestAdvisory, handleAdvisoryAnswer
     │
@@ -176,6 +177,15 @@ O que falta:
 
 O botão `btnNewRound`, ligado em `ui/setup.js`, aparece só para o host durante a partida e chama `Game.core.nextTurn()` — o mesmo fluxo que roda sozinho 3s depois de cada resposta (`engine/answerEngine.js`). Não pula rodada em andamento nem força nada fora do fluxo normal: só permite ao host avançar sem esperar.
 
+### A pergunta: o Perguntador faz, o Respondedor responde
+
+No início de cada dupla (`pickNewPair()`, `engine/turnEngine.js`), só o Perguntador recebe a pergunta (com o gabarito), com o botão "Fazer a pergunta" (`btnAskQuestion`); quem responde vê só o aviso de que ele vai perguntar (`question.waitingToBeAsked`), sem as alternativas. A rodada guarda `asked: false`. O Perguntador lê a pergunta em voz alta e clica (`ask-question`, `handleAskQuestion()`), ou ela vai sozinha no prazo dele (`CONFIG.GAME.ASK_TIMEOUT`, `armAskTimeout()`); nos dois casos, `askQuestion()` marca `asked: true`, avisa todos (`question-asked`), manda a pergunta sem o gabarito ao Respondedor e liga o prazo de resposta (`ANSWER_TIMEOUT`), que conta dali. `ASK_TIMEOUT` 0 desliga a etapa: a pergunta vai direto para quem responde.
+
+- **Sem o campo `asked`** (estado salvo ou cópia de uma versão anterior), a pergunta conta como já feita — por isso o estado salvo não mudou de versão.
+- **F5 do host, troca de host e volta à partida** com a pergunta ainda por fazer: a rodada continua esperando o clique; o prazo do Perguntador recomeça (`resumeMatchAfterReload()`, `becomeHost()`); quem volta como Respondedor vê o aviso, não as alternativas (`displayQuestion()` olha `asked`).
+- **Prazo de resposta pausado no apoio:** quando um apoio começa, `pauseAnswerTimeout()` para o prazo e guarda o que faltava em `currentRound.answerTimeLeft` (ms); no fim do apoio (resposta, recusa ou prazo de quem foi chamado), o prazo continua desse valor, não do inteiro. O tempo que resta vai no `advisory-started` (o contador da tela de quem responde para) e no `advisory-result` (o contador volta dele).
+- **Tempo esgotado** conta como erro (gasta recurso e entra no rodízio, como antes); o `kpi-update` leva `timedOut` e a tela de resultado mostra "Tempo esgotado" no lugar de "Errou".
+
 ### NOTA-004 — logger: mantido, religamento planejado
 
 `utils/logger.js` funciona isoladamente (`Game.logger.info(...)`, `Game.logger.warn(...)` etc.), mas o código ainda usa `console.log`/`console.warn`/`console.error` diretos.
@@ -206,7 +216,7 @@ O Respondedor pode chamar outro jogador para sugerir uma alternativa — um apoi
 - **Quem pode pedir:** `validateAdvisoryRequest()` (`domain/advisoryRules.js`) recusa a assessoria com 0 ou menos (`needs-resources`) e a ajuda com 1 ou mais (`has-resources`); o `requestAdvisory()` do cliente nem envia.
 - **Quem pode ser chamado:** jogador ativo, conectado, que não seja o Perguntador. Na ajuda, também precisa ter pelo menos `RESOURCES.HELP_COVER` recursos (`helper-without-resources`), para nunca ficar negativo por cobrir um erro; a lista de escolha só mostra quem pode.
 - **Resultado depois da resposta** (só com a sugestão aceita e seguida): `calculateSupportOutcome()` decide e `handleAnswer()` (`engine/answerEngine.js`) aplica — assessoria certa: `fee` (honorário, abaixo); ajuda certa: `reward` (quem ajudou ganha `RESOURCES.HELP_REWARD` do patrocinador; quem pediu não paga); ajuda errada sem a Reserva de Contingência: `cover` (quem ajudou perde `RESOURCES.HELP_COVER` e quem pediu não perde o recurso do erro). Ignorou a sugestão, recusa ou prazo: resultado normal. O resultado vai nos `kpi-update` dos dois (`supportOutcome`, `supportAmount`, `supportPartner`, ver `conventions.md`); quem respondeu vê no resultado (`showResultModal`) e quem apoiou num aviso próprio (`showSupportResultModal`, `ui/modals/resultModal.js`). Quem apoiou e caiu continua valendo; quem saiu da sala (fora da lista), não.
-- **Prazo, recusa, F5 e troca de host:** iguais para os dois (`ADVISORY_TIMEOUT`; recusa ou prazo gastam o apoio da pergunta; no F5 do host, o pendente é cancelado e o já respondido continua — `cancelPendingAdvisory()` em `engine/sessionEngine.js`; quem foi chamado e caiu sem responder libera quem responde no fim do prazo).
+- **Prazo, recusa, F5 e troca de host:** iguais para os dois (`ADVISORY_TIMEOUT`; durante o apoio, o prazo de resposta de quem pediu fica parado e depois continua de onde parou — seção "A pergunta: o Perguntador faz, o Respondedor responde"; recusa ou prazo gastam o apoio da pergunta; no F5 do host, o pendente é cancelado e o já respondido continua — `cancelPendingAdvisory()` em `engine/sessionEngine.js`; quem foi chamado e caiu sem responder libera quem responde no fim do prazo).
 
 Motivo (feedback do piloto e economia de recursos): o pedido de ajuda era uma venda fora da vez (fila automática, recurso por KPI) e quase não acontecia. Como fiança na vez de responder, quem está no estouro tem apoio na pergunta, e quem ajuda arrisca o próprio orçamento.
 
@@ -292,9 +302,9 @@ Resumo dos mecanismos; detalhes nos comentários de cada arquivo e no checklist 
 - **Sala travada:** com a partida em andamento, nome novo é recusado (`join-rejected` com `room-locked`); só volta quem já estava na partida.
 - **Pausa:** se faltam jogadores *conectados* mas não jogadores da partida, a partida pausa (`match-paused`) e retoma sozinha quando alguém volta, com o mesmo evento. Se todos os conectados já tinham respondido, a rodada é encerrada em vez de recomeçar (D3e).
 - **Saída da página:** `pagehide`/`beforeunload` encerram as conexões na hora, para os outros perceberem a saída sem esperar o tempo limite da rede.
-- **Versão do jogo:** o `player-join` leva `protocolVersion` (`PROTOCOL_VERSION` em `network/peerService.js`, hoje 8). O host confere antes de tudo e recusa quem vem com outra versão (`join-rejected` com `version-mismatch`; o aviso pede para recarregar a página). Motivo: logo depois de um deploy, quem dá F5 passa a rodar o código novo e os outros continuam no antigo; com nomes de campo diferentes nas mensagens, a partida travaria sem aviso. Sem o campo (jogo de antes da versão) conta como 1.
+- **Versão do jogo:** o `player-join` leva `protocolVersion` (`PROTOCOL_VERSION` em `network/peerService.js`, hoje 9). O host confere antes de tudo e recusa quem vem com outra versão (`join-rejected` com `version-mismatch`; o aviso pede para recarregar a página). Motivo: logo depois de um deploy, quem dá F5 passa a rodar o código novo e os outros continuam no antigo; com nomes de campo diferentes nas mensagens, a partida travaria sem aviso. Sem o campo (jogo de antes da versão) conta como 1.
 - **Identidade (D2):** cada navegador gera um token por sala (`utils/identity.js`, guardado em `localStorage`). O `player-join` leva o token; o host guarda só o hash (SHA-256 próprio e síncrono — `crypto.subtle` só existe em HTTPS/localhost e é assíncrono) e exige o mesmo token para reconectar alguém que caiu.
-- **F5 do host (D3f):** o estado salvo (`utils/persistence.js`) inclui se a rodada está encerrada e se a partida está pausada (com o evento). Ao recarregar, `main.js` só chama `Game.core.resumeMatchAfterReload()` (`engine/sessionEngine.js`), que faz o que aconteceria sem o F5: pausa e rodada encerrada continuam; pergunta já respondida segue para a próxima dupla (ou encerra a partida, se a resposta completou a última área foco); pergunta aberta é reexibida (com o host fora da dupla, a tela de espectador — BUG-020) com o prazo de resposta rearmado. A pergunta guardada na rodada leva os nomes de domínio e área (as etiquetas da tela), para o F5 e o `state-sync` mostrarem as etiquetas. O estado salvo também guarda o fim de jogo e o ranking final (`gameOver`, `finalRanking`): um F5 na tela final volta a ela (`Game.core.showGameOver()`) — BUG-021.
+- **F5 do host (D3f):** o estado salvo (`utils/persistence.js`) inclui se a rodada está encerrada e se a partida está pausada (com o evento). Ao recarregar, `main.js` só chama `Game.core.resumeMatchAfterReload()` (`engine/sessionEngine.js`), que faz o que aconteceria sem o F5: pausa e rodada encerrada continuam; pergunta já respondida segue para a próxima dupla (ou encerra a partida, se a resposta completou a última área foco); pergunta aberta é reexibida (com o host fora da dupla, a tela de espectador — BUG-020) com o prazo de resposta rearmado (ou, com a pergunta ainda por fazer, o prazo do Perguntador). A pergunta guardada na rodada leva os nomes de domínio e área (as etiquetas da tela), para o F5 e o `state-sync` mostrarem as etiquetas. O estado salvo também guarda o fim de jogo e o ranking final (`gameOver`, `finalRanking`): um F5 na tela final volta a ela (`Game.core.showGameOver()`) — BUG-021.
 - **O que quem reconecta recebe:** `state-sync` com a rodada, o relógio (a contagem local é religada), se a rodada está encerrada ou pausada, quem já respondeu nesta rodada e, no fim de jogo, o ranking final. Depois do fim de jogo a sala não fica travada: quem caiu na tela final pode voltar (BUG-021).
 - **Troca de host:** quando o host cai, os guests tentam o mesmo host por até `CONFIG.GAME.HOST_TIMEOUT` (10s). Esgotado, o backup assume num ID novo: a sala passa de `<ID base>` para `<ID base>-h1`, `-h2`... (`computeHostPeerId`). O ID muda porque o antigo pode ficar preso no servidor de sinalização por até ~1 min, e o host antigo voltando brigaria por ele. Quem assume marca `host=true` na URL (um F5 continua host); o host antigo fica na lista como jogador comum desconectado e, se voltar (ou recarregar a página), entra como jogador comum. O novo host não manda aviso de troca (ninguém está conectado ao ID novo nesse momento): cada guest acha a sala sozinho. O relógio de quem assume é a mesma contagem do início da partida (`Game.core.startClock()`).
 - **Procura da sala (D3c, `network/hostSearch.js`):** quem só conhece o ID base (tela inicial, link antigo, conexão inicial) procura o ID base e as versões seguintes ao mesmo tempo e fica com a que responder. A tela inicial também recusa criar sala com o código de uma partida que continua numa versão migrada.

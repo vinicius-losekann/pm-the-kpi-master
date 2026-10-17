@@ -416,7 +416,13 @@ function becomeHost() {
                 if (state.currentRound.question) {
                     Game.ui.displayQuestion(state.currentRound.question);
                 }
-                Game.core.armAnswerTimeout(state.currentRound.answerer);
+                // Pergunta ainda por fazer: espera o clique deste jogador
+                // (o Perguntador), com o prazo dele de novo.
+                if (state.currentRound.asked === false) {
+                    Game.core.armAskTimeout();
+                } else {
+                    Game.core.armAnswerTimeout(state.currentRound.answerer);
+                }
             }
         } else {
             Game.ui.showLobbyNormal();

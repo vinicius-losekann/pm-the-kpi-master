@@ -192,6 +192,10 @@
 
                     <!-- Notificação de Papel -->
                     <div class="role-notice" id="roleNotice" style="display:none;"></div>
+
+                    <!-- Fazer a pergunta (Perguntador, antes de quem responde ver as alternativas) -->
+                    <p id="askHint" style="display:none; margin-top:16px; color:#a0a0b8; font-size:0.9rem;"></p>
+                    <button class="btn btn-primary" id="btnAskQuestion" style="display:none; margin-top:10px; width:100%;">🗣️ Fazer a pergunta</button>
                 </div>
 
                 <!-- Área de Espectador (quando não participa da rodada) -->
@@ -247,7 +251,7 @@
         <div class="modal-card glass-card" style="max-width:520px; text-align:center;">
             <span style="font-size:2rem;">🎯</span>
             <h2 style="color:#00d9ff; margin:8px 0;">Sua vez de responder!</h2>
-            <p id="answerTimerText" style="display:none; color:#a0a0b8; margin-bottom:8px; font-size:0.9rem;">⏱️ 30s</p>
+            <p id="answerTimerText" style="display:none; color:#a0a0b8; margin-bottom:8px; font-size:0.9rem;">⏱️ 90s</p>
             <p id="answerModalRoundInfo" style="color:#a0a0b8; font-size:0.85rem; margin-bottom:8px;">
                 🗣️ <strong id="answerModalAsker">---</strong> pergunta para <strong id="answerModalAnswerer">---</strong>
             </p>
@@ -314,7 +318,7 @@
         <div class="modal-card glass-card" style="max-width:480px; text-align:center;">
             <span style="font-size:2rem;">🧭</span>
             <h2 id="advisoryModalTitle" style="color:#6c63ff; margin:8px 0;">Pedido de Assessoria</h2>
-            <p style="color:#a0a0b8; margin-bottom:8px;" id="advisoryTimerText">⏱️ 20s</p>
+            <p style="color:#a0a0b8; margin-bottom:8px;" id="advisoryTimerText">⏱️ 60s</p>
             <p id="advisoryModalRoundInfo" style="color:#a0a0b8; font-size:0.85rem; margin-bottom:8px;">
                 🗣️ <strong id="advisoryModalAsker">---</strong> pergunta para <strong id="advisoryModalAnswerer">---</strong>
             </p>

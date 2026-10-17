@@ -16,24 +16,7 @@ glossário de `conventions.md` dá o nome atual.
 
 ## Em investigação
 
-**BUG-028 — o contador de quem responde não para durante a assessoria
-ou o pedido de ajuda.** Relatado em partida de teste (15/10/2026: "pausar
-o relógio do respondedor quando o assessor está respondendo").
-- **Sintoma:** com o apoio pendente, o contador "tempo restante" continua
-  descendo na tela de quem responde, podendo chegar a 0; quando o apoio
-  termina, ele não volta a contar. Quem responde acha que perdeu a vez.
-- **Causa:** o host pausa o prazo de verdade (`handleAdvisoryRequest()`,
-  `engine/advisoryEngine.js`) e, ao fim do apoio, rearma o prazo inteiro
-  (`handleAdvisoryAnswer()`). Mas `showAdvisoryStarted()`
-  (`ui/modals/advisoryModal.js`) não para o contador visível
-  (`stopAnswerCountdown()`, `ui/components/questionComponent.js`), e
-  `showAdvisoryResult()` não o religa. A tela e o host ficam com tempos
-  diferentes.
-- **Como reproduzir:** 3 jogadores; quem responde pede assessoria e o
-  assessor demora: o contador de quem responde continua descendo.
-- **Correção decidida (titular, 15/10/2026):** o tempo para enquanto o
-  apoio está pendente e continua de onde parou (não volta ao inteiro), na
-  tela e no host.
+Nenhum bug em investigação.
 
 ---
 
@@ -93,6 +76,7 @@ automatizado — os números (T…, E…) são os de `tests/logic` e
 | BUG-025 | Entre 769 e 1200 px de largura, os chips de KPI e de recursos (com o rótulo "Estouro" e o valor negativo) saíam do card do jogador; acima de 1200 px já encostavam na borda (achado em 14/10/2026, ao redimensionar a janela) | `.stats-row` (`css/style.css`) era flex sem quebra de linha, e os chips não encolhem abaixo do conteúdo; a coluna do card encolhe para 220 px nessa faixa | `.stats-row` com `flex-wrap: wrap`: o chip que não cabe desce para a linha de baixo — E20 |
 | BUG-026 | No celular (e em notebook com pouca altura), a janela "Sua vez de responder!" ficava mais alta que a tela, sem rolagem: topo e fim cortados, e o botão de assessoria ou de ajuda podia ficar fora do alcance | `.modal-card` é `position: fixed` centralizada, sem altura máxima nem rolagem | Toda janela (`.modal-card`) fica no máximo da altura da tela (`100dvh`, com `100vh` para navegador antigo) menos 32 px e rola por dentro — E21 |
 | BUG-027 | No celular, o detalhe de cada jogador no ranking final dividia a linha com posição, nome e KPI Final: virava uma coluna estreita, e o nome quebrava em três linhas | `.final-rank-item` era flex sem quebra de linha, e o `.final-rank-detail` entrava como quarto item da linha | `.final-rank-item` com `flex-wrap: wrap` e o detalhe com `flex-basis: 100%`: fica numa linha própria, abaixo do nome — E22 |
+| BUG-028 | Com a assessoria ou a ajuda pendente, o contador de quem responde continuava descendo e podia chegar a 0 (relatado na partida de teste da UFSM, 15/10/2026); no fim do apoio, o prazo voltava inteiro | O host parava o prazo (`handleAdvisoryRequest()`, `engine/advisoryEngine.js`) e rearmava o prazo inteiro no fim; `showAdvisoryStarted()` (`ui/modals/advisoryModal.js`) não parava o contador da tela, e `showAdvisoryResult()` não o religava | O host guarda o que faltava (`pauseAnswerTimeout()`, `answerTimeLeft`) e continua dele; o `advisory-started` para o contador e o `advisory-result` o religa do tempo que faltava (protocolo 9) — T134, T135 |
 
 ## Limpezas concluídas
 

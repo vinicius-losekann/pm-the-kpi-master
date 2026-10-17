@@ -14,14 +14,16 @@
 4. A cada rodada:
    - Um **evento** é sorteado (afeta recursos)
    - Um **modal** mostra o evento para todos e, no Patrocinador Generoso e na Reestruturação, quem foi atingido
-   - Um jogador **pergunta** (vê a resposta)
-   - Outro jogador **responde** (escolhe entre 4 alternativas)
+   - Um jogador **pergunta** (vê a resposta): lê a pergunta e as alternativas em voz alta e
+     clica em **🗣️ Fazer a pergunta** (se não clicar em 30 segundos, ela vai sozinha)
+   - Outro jogador **responde**: só depois da pergunta feita vê as 4 alternativas, e tem
+     **1 minuto e 30 segundos** para escolher
    - O Respondedor pode, opcionalmente, chamar outro jogador antes de responder (um apoio por
      pergunta, fora da Área Foco Encerramento): com 1 recurso ou mais, **pede Assessoria** (seguiu
      a sugestão e acertou, paga 1 recurso de honorário ao assessor); com 0 ou menos, **pede Ajuda**
      (quem ajuda cobre o erro e, acertando, ganha 2 recursos do patrocinador)
 5. **Acertar** = +10 KPI + 1 atividade, sem gastar recurso
-6. **Errar** = 0 KPI + 0 atividade + **-1 recurso** (protegido pelo evento 🛡️ Reserva de Contingência)
+6. **Errar** = 0 KPI + 0 atividade + **-1 recurso** (protegido pelo evento 🛡️ Reserva de Contingência). **Tempo esgotado** conta como erro (a tela mostra "⌛ Tempo esgotado!")
 7. Sem recursos não impede de tentar: errar com 0 recursos deixa o recurso **negativo** (estouro de orçamento), que desconta no KPI Final
 8. **Pedir Ajuda**: na vez de responder, quem está com 0 recursos ou menos chama um colega com recurso, que vira fiador da resposta (veja abaixo)
 9. O jogo termina quando o primeiro jogador completa o **Encerramento**
@@ -72,8 +74,9 @@ O KPI acumulado vem só dos acertos (honorário, recompensa e cobertura são em 
   lugar do "Pedir Assessoria" (um apoio por pergunta; não vale na Área Foco Encerramento)
 - Escolhe quem ajuda: jogador ativo e conectado, que não seja o Perguntador, com **1 recurso ou
   mais** (a lista só mostra quem pode)
-- Quem é chamado vê a pergunta (sem o gabarito) e tem **20 segundos** para sugerir ou recusar;
-  recusa ou prazo esgotado gastam o pedido, e quem pediu responde sozinho
+- Quem é chamado vê a pergunta (sem o gabarito) e tem **1 minuto** para sugerir ou recusar;
+  recusa ou prazo esgotado gastam o pedido, e quem pediu responde sozinho. Enquanto isso, o
+  tempo de quem pediu fica parado e depois continua de onde parou
 - Nada é pago no pedido. Depois da resposta:
 
 | Situação | Quem pediu | Quem ajudou |
@@ -113,8 +116,9 @@ do PMBOK em praticamente todos os domínios de desempenho.
    raciocina do zero, como se estivesse respondendo.
 4. O assessor pode **aceitar** e enviar sua sugestão, ou **recusar** o pedido a qualquer momento
    dentro da janela de tempo.
-5. O assessor tem **20 segundos** para enviar sua sugestão ou recusar. Se o tempo esgotar sem
-   resposta, o pedido é tratado como recusado automaticamente.
+5. O assessor tem **1 minuto** para enviar sua sugestão ou recusar. Se o tempo esgotar sem
+   resposta, o pedido é tratado como recusado automaticamente. Enquanto o assessor pensa, o
+   tempo do Respondedor fica parado e depois continua de onde parou.
 6. O Respondedor vê a sugestão recebida (quando houver), mas a decisão final é sempre dele:
    pode seguir a sugestão ou escolher outra alternativa.
 7. O resultado é revelado normalmente, seguindo as regras já existentes de KPI e recursos; se
@@ -204,7 +208,7 @@ Respondedor recebe pergunta
         │         │
         │         └── Assessor recebe pergunta + alternativas (sem gabarito)
         │                   │
-        │                   ├── Aceita → envia sugestão em até 20s
+        │                   ├── Aceita → envia sugestão em até 1 min (o tempo do Respondedor fica parado)
         │                   └── Recusa (ou expira) → pedido encerrado, sem sugestão
         │
         ├── Respondedor decide: segue sugestão (se houver) ou escolhe outra alternativa
@@ -219,8 +223,8 @@ Respondedor recebe pergunta
 
 | Papel | O que vê | O que faz |
 |---|---|---|
-| 🗣️ **Perguntador** | Pergunta + resposta correta destacada | Somente leitura |
-| 🎯 **Respondedor** | Pergunta + 4 alternativas | Escolhe a resposta; pode pedir Assessoria (com 1 recurso ou mais) ou Ajuda (com 0 ou menos), exceto no Encerramento |
+| 🗣️ **Perguntador** | Pergunta + resposta correta destacada | Lê a pergunta em voz alta e clica em "Fazer a pergunta" |
+| 🎯 **Respondedor** | Aviso de quem vai perguntar; depois da pergunta feita, as 4 alternativas | Escolhe a resposta em até 1min30; pode pedir Assessoria (com 1 recurso ou mais) ou Ajuda (com 0 ou menos), exceto no Encerramento |
 | 🧭 **Assessor** / 🆘 **quem ajuda** | Pergunta + 4 alternativas (sem gabarito) | Aceita e sugere, ou recusa, se chamado |
 | ⏳ **Espectador** | Quem está jogando | Aguarda sua vez |
 

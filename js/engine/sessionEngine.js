@@ -83,7 +83,8 @@ function startClock() {
  *     respondida" = `answered` ou o Respondedor já no rodízio, o mesmo
  *     critério de becomeHost() (network/hostMigration.js);
  *   - pergunta em aberto → reexibe a mesma pergunta (ou, com o host fora
- *     da dupla, a tela de espectador) e rearma o prazo de resposta — a
+ *     da dupla, a tela de espectador) e rearma o prazo de resposta — ou,
+ *     com a pergunta ainda por fazer, o prazo do Perguntador; a
  *     pergunta não pode ser trocada pelo F5. Um pedido de assessoria ou
  *     de ajuda ainda sem resposta é cancelado antes (ver
  *     cancelPendingAdvisory()).
@@ -137,14 +138,20 @@ function resumeMatchAfterReload() {
         } else {
             Game.ui.displaySpectatorView(round.asker, round.answerer);
         }
-        Game.engine.turn.armAnswerTimeout(round.answerer);
+        // Pergunta ainda por fazer: o Perguntador ganha o prazo dele de
+        // novo; feita, o Respondedor ganha o prazo de resposta inteiro.
+        if (round.asked === false) {
+            Game.engine.turn.armAskTimeout();
+        } else {
+            Game.engine.turn.armAnswerTimeout(round.answerer);
+        }
         Game.ui.refreshNewRoundButton();
     }
 }
 
 /**
  * No F5 do host, um pedido de assessoria ou de ajuda ainda sem resposta é
- * cancelado. O prazo de 20s de quem foi chamado (setTimeout de
+ * cancelado. O prazo de quem foi chamado (ADVISORY_TIMEOUT, setTimeout de
  * advisoryEngine.handleAdvisoryRequest()) se perde com a página, e o
  * chamado perde a pergunta (a reconexão fecha os modais) — sem cancelar,
  * a rodada ficaria presa esperando uma resposta que não vem. Quem
@@ -201,13 +208,14 @@ function endGame(ranking) {
 }
 
 /**
- * Cancela os prazos da pergunta em andamento: o de resposta do
- * Respondedor e o de quem foi chamado (assessoria ou ajuda). Usada no
- * fim de jogo, ao encerrar a partida e quando a dupla é trocada
+ * Cancela os prazos da pergunta em andamento: o do Perguntador, o de
+ * resposta do Respondedor e o de quem foi chamado (assessoria ou ajuda).
+ * Usada no fim de jogo, ao encerrar a partida e quando a dupla é trocada
  * (abortRoundIfParticipant()).
  */
 function cancelRoundTimeouts() {
     const state = Game.state;
+    Game.engine.turn.clearAskTimeout();
     if (state.advisoryTimeout) {
         clearTimeout(state.advisoryTimeout);
         state.advisoryTimeout = null;

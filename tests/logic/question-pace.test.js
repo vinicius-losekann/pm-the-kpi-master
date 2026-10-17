@@ -13,7 +13,7 @@
 
 const {
     fs, path, vm, ROOT, createEnvironment, test, check, start, finish,
-    roomToReload, reloadHost, guestWithScreens
+    roomToReload, reloadHost, recordScreens, guestWithScreens
 } = require('./environment');
 
 start('Ritmo da pergunta');
@@ -213,6 +213,16 @@ test('T134 BUG-028 no host: durante o apoio o prazo de quem responde para e, no 
     check(!answeredByB(late), 'depois do prazo do assessor, B ainda deveria ter os 5s que faltavam');
     late.time.advance(1);
     check(answeredByB(late), 'os 5s que faltavam deveriam acabar depois do prazo do assessor');
+
+    // 3) O host é quem responde: o broadcast não chega a ele, então a tela dele é avisada direto.
+    const hostAnswers = askingMatch(use);
+    askFromA(hostAnswers);
+    hostAnswers.state.currentRound.answerer = 'Host';
+    const screens = recordScreens(hostAnswers);
+    check(hostAnswers.Game.core.requestAdvisory('B') === true, 'pré-condição: o host pede assessoria a B');
+    const shown = screens.find(s => s.name === 'showAdvisoryStarted');
+    check(shown && typeof shown.args[0].answerTimeLeft === 'number',
+        'a tela do host que responde deveria receber o aviso do apoio com o tempo que resta, veio: ' + JSON.stringify(shown && shown.args));
 });
 
 test('T135 BUG-028 na tela: o contador de quem responde para quando o apoio começa e volta a contar do tempo que restava', (use) => {
