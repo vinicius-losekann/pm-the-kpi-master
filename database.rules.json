@@ -26,6 +26,82 @@
           }
         }
       }
+    },
+    "rooms": {
+      "$code": {
+        ".write": "auth !== null && data.child('meta/hostUid').val() === auth.uid && !newData.exists()",
+        "meta": {
+          ".read": "auth !== null",
+          ".write": "auth !== null && newData.child('hostUid').val() === auth.uid && (!data.exists() || data.child('lastActivity').val() < now - 7200000)",
+          ".validate": "newData.hasChildren(['hostUid', 'hostEpoch', 'protocolVersion', 'createdAt', 'lastActivity']) && newData.child('hostUid').isString() && newData.child('hostEpoch').isNumber() && newData.child('protocolVersion').isNumber() && newData.child('createdAt').isNumber()",
+          "lastActivity": {
+            ".write": "auth !== null && data.parent().child('hostUid').val() === auth.uid",
+            ".validate": "newData.isNumber()"
+          }
+        },
+        "roster": {
+          ".write": "auth !== null && root.child('rooms/' + $code + '/meta/hostUid').val() === auth.uid",
+          "$uid": {
+            ".read": "auth !== null && $uid === auth.uid",
+            ".validate": "newData.val() === true"
+          }
+        },
+        "public": {
+          ".read": "auth !== null && (root.child('rooms/' + $code + '/meta/hostUid').val() === auth.uid || root.child('rooms/' + $code + '/roster/' + auth.uid).exists())",
+          ".write": "auth !== null && root.child('rooms/' + $code + '/meta/hostUid').val() === auth.uid",
+          "state": {
+            ".validate": "newData.isString()"
+          }
+        },
+        "feed": {
+          ".read": "auth !== null && (root.child('rooms/' + $code + '/meta/hostUid').val() === auth.uid || root.child('rooms/' + $code + '/roster/' + auth.uid).exists())",
+          ".write": "auth !== null && root.child('rooms/' + $code + '/meta/hostUid').val() === auth.uid",
+          "$messageId": {
+            ".validate": "newData.hasChildren(['payload']) && newData.child('payload').isString()"
+          }
+        },
+        "secret": {
+          ".read": "auth !== null && root.child('rooms/' + $code + '/meta/hostUid').val() === auth.uid",
+          ".write": "auth !== null && root.child('rooms/' + $code + '/meta/hostUid').val() === auth.uid",
+          "state": {
+            ".validate": "newData.isString()"
+          }
+        },
+        "hands": {
+          ".write": "auth !== null && root.child('rooms/' + $code + '/meta/hostUid').val() === auth.uid",
+          "$uid": {
+            ".read": "auth !== null && ($uid === auth.uid || root.child('rooms/' + $code + '/meta/hostUid').val() === auth.uid)",
+            ".validate": "newData.isString()"
+          }
+        },
+        "inbox": {
+          ".write": "auth !== null && root.child('rooms/' + $code + '/meta/hostUid').val() === auth.uid",
+          "$uid": {
+            ".read": "auth !== null && ($uid === auth.uid || root.child('rooms/' + $code + '/meta/hostUid').val() === auth.uid)",
+            "$messageId": {
+              ".validate": "newData.hasChildren(['payload']) && newData.child('payload').isString()"
+            }
+          }
+        },
+        "requests": {
+          ".read": "auth !== null && root.child('rooms/' + $code + '/meta/hostUid').val() === auth.uid",
+          ".write": "auth !== null && root.child('rooms/' + $code + '/meta/hostUid').val() === auth.uid",
+          "$requestId": {
+            ".write": "auth !== null && !data.exists() && newData.child('from').val() === auth.uid",
+            ".validate": "newData.hasChildren(['from', 'payload'])",
+            "from": {
+              ".validate": "newData.isString()"
+            },
+            "payload": {
+              ".validate": "newData.isString() && newData.val().length <= 20000"
+            }
+          }
+        },
+        "presence": {
+          ".read": "auth !== null && root.child('rooms/' + $code + '/meta/hostUid').val() === auth.uid",
+          ".write": "auth !== null && root.child('rooms/' + $code + '/meta/hostUid').val() === auth.uid"
+        }
+      }
     }
   }
 }

@@ -17,7 +17,10 @@
   público de sinalização do PeerJS, só para os navegadores se acharem.
   A página de teste de conexão (`firebase-check.html`, fora do jogo)
   usa o Firebase (login anônimo e Realtime Database), para medir se a
-  sincronia por ele funciona nas redes de quem joga (roadmap 2.9).
+  sincronia por ele funciona nas redes de quem joga (roadmap 2.9). O
+  canal da sala pelo Firebase (`network/roomChannel.js`, com as regras de
+  `rooms/` em `database.rules.json`) já existe, testado, mas o jogo ainda
+  não o usa.
 - **Rede P2P em estrela, com host autoritativo.** Cada guest se conecta
   só ao host (WebRTC, via PeerJS). O navegador do host faz o papel de
   servidor: guarda o estado oficial, valida os pedidos (`*-request`) e
@@ -83,6 +86,7 @@ pm-the-kpi-master/
 │   │   ├── config-and-texts.test.js # chaves do CONFIG, textos da tela e nomes do HTML/CSS (só o que existe é pedido; CSS sem regra sem uso)
 │   │   ├── simulation.test.js   # simulador de partidas: regras reais, contas, semente, relatório
 │   │   ├── connection-check.test.js # teste de conexão pelo Firebase: sala, presença, F5, mensagens, regras do banco
+│   │   ├── room-channel.test.js # canal da sala pelo Firebase: sala parada, roster, pedidos, avisos, estado, regras de rooms/
 │   │   └── fakeFirebase.js      # Realtime Database simulado em memória, com vários aparelhos, queda e volta
 │   ├── simulation/              # simulador de partidas para balanceamento (Node, sem dependências)
 │   │   ├── simulator.js         # partidas com robôs, regras reais, relatório e CSV
@@ -139,7 +143,8 @@ pm-the-kpi-master/
     │   ├── peerService.js       # PeerJS puro: initPeer, connect, send, cleanup
     │   ├── messageHandler.js    # roteamento de mensagens (switch/case)
     │   ├── hostMigration.js     # becomeHost, reconexão, handleHostDisconnect
-    │   └── connectionCheck.js   # teste de conexão pelo Firebase: sala, presença, mensagem de teste com eco (não usado pelo jogo)
+    │   ├── connectionCheck.js   # teste de conexão pelo Firebase: sala, presença, mensagem de teste com eco (não usado pelo jogo)
+    │   └── roomChannel.js       # canal da sala pelo Firebase: sala, roster, pedidos ao host, avisos, estado público/secreto (ainda não usado pelo jogo)
     │
     ├── ui/
     │   ├── screenManager.js     # showScreen, closeAllModals, status de conexão
@@ -327,7 +332,7 @@ As regras para escrever teste (onde entra, numeração, os dois commits) estão 
 - `tests/logic/` carrega os arquivos reais do jogo em contextos isolados do Node (`vm`), com rede, tela e PeerJS simulados, e verifica os mecanismos acima caso a caso. Um arquivo por assunto (`*.test.js`); o ambiente simulado e os ajudantes ficam em `environment.js`. Não tem dependências: `node tests/logic/<arquivo>`. Atenção: a tela simulada (`Game.ui`) aceita qualquer nome de função, então uma chamada com nome errado passa nesses testes e só falha no navegador — conferir com uma busca no código. As chaves de texto são conferidas pelo T88 e os IDs e seletores do HTML, pelo T91.
 - `.github/workflows/testes.yml` roda todos os `tests/logic/*.test.js` e os de `tests/browser` a cada push e pull request; o resultado fica na aba Actions do repositório (uma tabela por arquivo, sem total geral).
 - `tests/browser` roda o jogo de verdade em janelas separadas do Chromium (Playwright), com o site e um servidor PeerJS locais — sem depender da internet. Os arquivos do jogo não mudam: o teste redireciona o PeerJS (unpkg) para o pacote local, de mesma versão, e acrescenta ao `config/game-config.js` servido uma linha que aponta `CONFIG.PEER` para o servidor local. As dependências (`package.json`) são só dos testes. No Actions, é o job "ponta-a-ponta", separado do de lógica. O `layout.spec.js` mede, com a tela em tamanho de celular e de janela reduzida, se o que o jogador precisa ver cabe na tela.
-- O `connection-check.spec.js` roda a página de teste de conexão contra o **emulador do Firebase** (login e banco, `firebase-tools`, com Java), que o Playwright sobe junto com o site. O projeto é um "demo-", que só existe no emulador: nenhuma credencial nem o projeto de verdade. O emulador usa as mesmas regras do banco (`database.rules.json`), e o cenário E25 confere o que elas recusam. Os arquivos do Firebase vêm da internet (gstatic.com); o `players.js` acrescenta ao config servido a configuração do emulador (`CONFIG.FIREBASE`, `CONFIG.FIREBASE_EMULATOR`). Nos testes de lógica, o banco é o `fakeFirebase.js`, que, como o real, não guarda `null` nem listas vazias — por isso as mensagens viajam como texto JSON.
+- O `connection-check.spec.js` roda a página de teste de conexão contra o **emulador do Firebase** (login e banco, `firebase-tools`, com Java), que o Playwright sobe junto com o site. O projeto é um "demo-", que só existe no emulador: nenhuma credencial nem o projeto de verdade. O emulador usa as mesmas regras do banco (`database.rules.json`), e os cenários E25 (página de teste) e E26 (salas do jogo, `rooms/`) conferem o que elas deixam e o que recusam, pelo login e pelo banco que a página carrega. Os arquivos do Firebase vêm da internet (gstatic.com); o `players.js` acrescenta ao config servido a configuração do emulador (`CONFIG.FIREBASE`, `CONFIG.FIREBASE_EMULATOR`). Nos testes de lógica, o banco é o `fakeFirebase.js`, que, como o real, não guarda `null` nem listas vazias — por isso as mensagens viajam como texto JSON.
 - O que depende de rede real, dispositivo ou outros navegadores continua no checklist manual (`connection-tests.md`), com o passo a passo em `manual-test-scripts.md`.
 
 ## Simulador de partidas (balanceamento)

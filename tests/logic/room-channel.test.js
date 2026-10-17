@@ -33,9 +33,9 @@ const HOUR_MS = 60 * 60 * 1000;
  * Um aparelho com o jogo aberto: carrega o js/network/roomChannel.js
  * real num contexto isolado e cria o canal ligado ao banco simulado,
  * com o uid e o relógio informados. Tudo o que o canal entrega ao jogo
- * fica em `got`.
+ * fica em `got`. `extra` troca opções do canal (ex.: timestamp).
  */
-function openDevice(fake, uid, clock) {
+function openDevice(fake, uid, clock, extra = {}) {
     const device = fake.client(uid);
     const logs = [];
     const silent = {};
@@ -57,12 +57,23 @@ function openDevice(fake, uid, clock) {
         onState: (state) => got.states.push(state === null ? null : JSON.parse(JSON.stringify(state))),
         onHand: (hand) => got.hands.push(hand === null ? null : JSON.parse(JSON.stringify(hand))),
         onAdmitted: () => got.admitted++,
-        onDismissed: () => got.dismissed++
+        onDismissed: () => got.dismissed++,
+        ...extra
     });
     return { device, channel, got, logs, ctx };
 }
 
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+/** Valor com as chaves dos objetos em ordem alfabética (o banco não garante a ordem dos campos). */
+function sorted(value) {
+    if (Array.isArray(value)) return value.map(sorted);
+    if (value && typeof value === 'object') {
+        const out = {};
+        Object.keys(value).sort().forEach(k => { out[k] = sorted(value[k]); });
+        return out;
+    }
+    return value;
+}
+const same = (a, b) => JSON.stringify(sorted(a)) === JSON.stringify(sorted(b));
 
 /** O host cria a sala "sala01" e Ana entra (ainda sem ser aceita). */
 async function roomWithGuest() {
@@ -129,6 +140,17 @@ asyncTest('T154 Criar sala: grava meta com o dono, hostEpoch 1, a versão do jog
     check(same(fake.read('rooms/sala01/meta'), meta), 'a sala do host não deveria mudar, veio: ' + JSON.stringify(fake.read('rooms/sala01/meta')));
     check(other.device.listenerCount() === 0 && other.channel.snapshot().code === null,
         'quem não conseguiu criar não deveria ficar ouvindo a sala nem ficar com ela');
+
+    // As horas gravadas são as do servidor (a opção timestamp), não as do relógio do aparelho.
+    const serverTime = { '.sv': 'timestamp' };
+    const f2 = createFakeFirebase();
+    const withServerTime = openDevice(f2, 'uid-host', { now: 7000 }, { timestamp: () => serverTime });
+    await withServerTime.channel.createRoom('sala02', { protocolVersion: VERSION });
+    await withServerTime.channel.publish({ publicState: {} });
+    await flush();
+    const meta2 = f2.read('rooms/sala02/meta');
+    check(same(meta2.createdAt, serverTime) && same(meta2.lastActivity, serverTime),
+        'createdAt e lastActivity (também ao publicar) deveriam ser gravados com a hora do servidor (timestamp), veio: ' + JSON.stringify(meta2));
 });
 
 asyncTest('T155 Sala parada: o código só pode ser criado de novo depois de ROOM_IDLE_MS (2 h) sem atividade do host, contando da última publicação (não da criação); quem cria apaga o que sobrou da sala antiga', async () => {
@@ -396,7 +418,18 @@ asyncTest('T161 Limpar e sair: limpar apaga só os avisos (feed e inbox); quem s
     const kept = ['meta', 'roster', 'public', 'secret', 'hands'].filter(k => fake.read('rooms/sala01/' + k) === undefined);
     check(kept.length === 0, 'limpar não deveria apagar ' + kept.join(', '));
 
+    // O que é só do host não grava nada quando chamado por um guest.
     const writesBefore = ana.device.writes.length;
+    await ana.channel.broadcast({ type: 'fake' });
+    await ana.channel.sendTo('uid-beto', { type: 'fake' });
+    await ana.channel.admit('uid-caio');
+    await ana.channel.dismiss('uid-beto');
+    await ana.channel.publish({ publicState: { fake: true } });
+    await ana.channel.clearMessages();
+    await flush();
+    check(ana.device.writes.length === writesBefore,
+        'avisos, aceitar, tirar, publicar e limpar são do host: o guest não deveria gravar nada, gravou: ' + JSON.stringify(ana.device.writes.slice(writesBefore)));
+
     await ana.channel.leave();
     await flush();
     check(ana.device.listenerCount() === 0, 'quem sai deveria parar de ouvir, ouvintes: ' + ana.device.listenerCount());
