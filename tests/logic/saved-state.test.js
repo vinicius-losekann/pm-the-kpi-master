@@ -8,8 +8,8 @@
 // ============================================
 
 const {
-    fs, path, vm, ROOT, createEnvironment, tokenOf, test, check, start, finish,
-    syncTo, roundScreens, unavailable, roomToReload, reloadHost, tryReloadHost, recordScreens,
+    fs, path, vm, ROOT, createEnvironment, test, check, start, finish,
+    syncTo, roundScreens, roomToReload, reloadHost, tryReloadHost, recordScreens,
     savedStateV1, savedStateV2, finalRankingV2, oldNamesIn, oldPlayerNamesIn,
     savedStateV3, oldAdvisoryNamesIn, savedStateV4
 } = require('./environment');
@@ -380,7 +380,7 @@ test('T84 Estado salvo 3 → 4: a assessoria da rodada passa para os nomes novos
 test('T125 Estado salvo 6 → 7: a assessoria da rodada ganha kind "advisory" (o pedido de ajuda passou a usar o mesmo campo), com os mesmos valores', (use) => {
     const env = use(createEnvironment());
     const P = env.Game.persistence;
-    check(P.STATE_VERSION === 7, 'a versão atual do estado salvo deveria ser 7 (tipo do apoio na rodada), veio: ' + P.STATE_VERSION);
+    check(P.STATE_VERSION >= 7, 'a versão atual do estado salvo deveria ser 7 ou mais (tipo do apoio na rodada), veio: ' + P.STATE_VERSION);
 
     /** Estado na versão 6 (migrado da 4, escrito à mão), com a assessoria indicada na rodada. */
     function savedStateV6(advisory) {
@@ -441,12 +441,76 @@ test('T125 Estado salvo 6 → 7: a assessoria da rodada ganha kind "advisory" (o
     check(restored && restored.kind === 'advisory' && restored.status === 'accepted' && restored.suggestion === 'b',
         'depois do F5, a assessoria salva na versão 6 deveria voltar com kind "advisory", veio: ' + JSON.stringify(restored));
     reloaded.Game.core.resumeMatchAfterReload();
-    reloaded.join('A', 'peer-a2');
+    reloaded.join('A', 'peer-a');
     const fee = reloaded.CONFIG.RESOURCES.ADVISORY_FEE;
     const before = { A: reloaded.player('A').resources, B: reloaded.player('B').resources };
-    reloaded.Game.network.handleMessage({ type: 'answer', alternative: 'b', playerName: 'A' }, 'peer-a2');
+    reloaded.Game.network.handleMessage({ type: 'answer', alternative: 'b', playerName: 'A' }, 'peer-a');
     check(reloaded.player('A').resources === before.A - fee && reloaded.player('B').resources === before.B + fee,
         'seguindo a sugestão certa, A deveria pagar o honorário a B, veio: ' + JSON.stringify({ A: reloaded.player('A').resources, B: reloaded.player('B').resources }));
+});
+
+// Campos da conexão pelo PeerJS que saíram do estado salvo na versão 8.
+const PEER_FIELDS = ['hostPeerId', 'backupPeerId', 'baseRoomPeerId', 'hostVersion'];
+
+test('T178 Estado salvo 7 → 8: saem os campos da conexão antiga (hostPeerId, backupPeerId, baseRoomPeerId, hostVersion e o tokenHash dos jogadores), com o resto igual; o estado novo não grava nenhum deles', (use) => {
+    const env = use(createEnvironment());
+    const P = env.Game.persistence;
+    check(P.STATE_VERSION >= 8, 'a versão atual do estado salvo deveria ser 8 ou mais (sem os campos da conexão antiga), veio: ' + P.STATE_VERSION);
+
+    // Estado na versão 7 (migrado da 4, escrito à mão), com o hash do
+    // token em cada jogador e um jogador desconectado.
+    const v4 = savedStateV4();
+    const v7 = P.migrateSavedState(v4.roomState, v4.myData, 7);
+    v7.roomState.players.forEach(p => { p.tokenHash = 'hash-de-' + p.name; });
+    v7.roomState.players[1].disconnected = true;
+    check(v7.roomState.stateVersion === 7 && PEER_FIELDS.every(k => k in v7.roomState), 'pré-condição: estado na versão 7, com os campos da conexão antiga');
+    const input = JSON.parse(JSON.stringify(v7));
+
+    // Só o passo 7 → 8 (alvo 8).
+    const r = P.migrateSavedState(v7.roomState, v7.myData, 8);
+    const s = r.roomState;
+    check(s.stateVersion === 8, 'o estado migrado deveria estar na versão 8, veio: ' + s.stateVersion);
+    const left = PEER_FIELDS.filter(k => k in s);
+    check(left.length === 0, 'os campos da conexão antiga deveriam sair, sobraram: ' + left.join(', '));
+    check(Array.isArray(s.players) && s.players.length === input.roomState.players.length, 'nenhum jogador deveria ser criado nem perdido, veio: ' + JSON.stringify(s.players));
+    s.players.forEach((p, i) => {
+        const { tokenHash, ...rest } = input.roomState.players[i];
+        check(sameFields(p, rest), 'jogador ' + rest.name + ': só o tokenHash sai, com o resto igual, veio: ' + JSON.stringify(p));
+    });
+    for (const key of Object.keys(input.roomState).filter(k => ![...PEER_FIELDS, 'players', 'stateVersion'].includes(k))) {
+        check(JSON.stringify(s[key]) === JSON.stringify(input.roomState[key]), key + ' não deveria mudar, veio: ' + JSON.stringify(s[key]));
+    }
+    check(Object.keys(s).length === Object.keys(input.roomState).length - PEER_FIELDS.length,
+        'só os campos da conexão antiga deveriam sair do estado, veio: ' + Object.keys(s).join(', '));
+    check(JSON.stringify(r.myData) === JSON.stringify(input.myData), 'pmKPI_myData não muda nesta versão');
+
+    // Estado da versão 7 sem os campos (nem jogadores): migra sem erro.
+    const bare = P.migrateSavedState({ stateVersion: 7, roomName: 'sala' }, {}, 8).roomState;
+    check(bare.roomName === 'sala' && bare.stateVersion === 8 && !('players' in bare),
+        'estado da versão 7 sem os campos deveria migrar sem erro, veio: ' + JSON.stringify(bare));
+
+    // O estado salvo agora não grava nenhum deles.
+    roomToReload(env);
+    env.join('A', 'peer-a');
+    env.startMatch();
+    env.Game.saveState();
+    const saved = JSON.parse(env.storage['pmKPI_roomState']);
+    const written = PEER_FIELDS.filter(k => k in saved);
+    check(saved.stateVersion === P.STATE_VERSION && written.length === 0,
+        'o estado salvo não deveria gravar os campos da conexão antiga, gravou: ' + written.join(', '));
+    check(saved.players.every(p => !('tokenHash' in p)), 'os jogadores salvos não deveriam ter tokenHash, veio: ' + JSON.stringify(saved.players));
+
+    // F5 do host com o estado salvo na versão 7: a partida continua, sem os campos antigos.
+    const old = use(createEnvironment());
+    roomToReload(old);
+    old.storage['pmKPI_roomState'] = JSON.stringify({ ...input.roomState, timestamp: new Date().toISOString() });
+    old.storage['pmKPI_myData'] = JSON.stringify(input.myData);
+    const reloaded = use(reloadHost(old));
+    check(reloaded.state.gameStarted === true && reloaded.state.players.length === 3 &&
+        reloaded.state.players.every(p => !('tokenHash' in p)) && reloaded.player('A').peerId === 'peer-a',
+        'o F5 com o estado da versão 7 deveria restaurar os jogadores sem o tokenHash, veio: ' + JSON.stringify(reloaded.state.players));
+    check(reloaded.state.currentRound && reloaded.state.currentRound.question && reloaded.state.currentRound.question.id === 'q7',
+        'o F5 com o estado da versão 7 deveria restaurar a rodada');
 });
 
 finish('Estado salvo');

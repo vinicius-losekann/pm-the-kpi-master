@@ -2,12 +2,16 @@
 // PM: The KPI Master - Testes de lógica: ambiente simulado
 // ============================================
 // Carrega os arquivos REAIS do jogo num "navegador" simulado (contexto
-// `vm` do Node), sem navegador e sem PeerJS: a rede é trocada por
-// conexões falsas, a tela por um registro de chamadas e o localStorage
-// por um objeto em memória (um F5 é um ambiente novo com o mesmo
-// localStorage). As entradas e quedas de jogador passam pelo
-// handleConnection() REAL de peerService.js (conexões falsas disparam
-// 'open'/'data'/'close' como o PeerJS faria).
+// `vm` do Node), sem navegador e sem banco: o envio de mensagens é
+// trocado por um registro, a tela por um registro de chamadas e o
+// localStorage por um objeto em memória (um F5 é um ambiente novo com o
+// mesmo localStorage).
+//
+// Transição do PeerJS para o canal da sala: com js/network/roomLink.js,
+// as entradas e quedas de jogador passam pelo receiveRequest() e pelo
+// receivePresence() REAIS dele; sem ele, pelo handleConnection() REAL de
+// peerService.js (conexões falsas disparam 'open'/'data'/'close' como o
+// PeerJS faria). Os testes são os mesmos nos dois caminhos.
 //
 // Também tem o mini-framework de teste (test/check/start/finish) e os
 // ajudantes usados por mais de um arquivo de teste. Cada arquivo
@@ -15,9 +19,9 @@
 // no GitHub Actions, todos rodam a cada push (ver
 // .github/workflows/testes.yml), com uma tabela de resumo por arquivo.
 //
-// O que NÃO é testado aqui (fica para tests/browser e para o teste
-// manual): se o navegador/PeerJS de fato entrega o 'close' ao outro
-// lado, e em quanto tempo, e a parte visual.
+// O que NÃO é testado aqui (fica para room-link.test.js, tests/browser
+// e o teste manual): o caminho das mensagens pelo banco, se a queda de
+// fato chega ao outro lado, e em quanto tempo, e a parte visual.
 //
 // Os números dos testes (T1, T2...) são os citados em
 // _docs/connection-tests.md e _docs/issues.md — não mudam.
@@ -29,8 +33,26 @@ const vm = require('vm');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 
+// O jogo conversa pelo canal da sala quando o arquivo da ligação existe.
+const USES_ROOM_LINK = fs.existsSync(path.join(ROOT, 'js/network/roomLink.js'));
+
 // Mesma ordem de carregamento do game.html para os arquivos envolvidos.
-const FILES = [
+const FILES = USES_ROOM_LINK ? [
+    'js/utils/persistence.js',
+    'js/state/store.js',
+    'js/state/selectors.js',
+    'js/state/mutations.js',
+    'js/domain/kpiRules.js',
+    'js/domain/advisoryRules.js',
+    'js/engine/sessionEngine.js',
+    'js/engine/turnEngine.js',
+    'js/engine/answerEngine.js',
+    'js/engine/advisoryEngine.js',
+    'js/network/roomChannel.js',
+    'js/network/roomLink.js',
+    'js/network/messageHandler.js',
+    'js/ui/setup.js',
+] : [
     'js/utils/persistence.js',
     'js/utils/identity.js',
     'js/network/hostSearch.js',
@@ -48,6 +70,9 @@ const FILES = [
     'js/network/hostMigration.js',
     'js/ui/setup.js',
 ];
+
+// Cursor dos avisos para todos que o canal falso devolve (feedCursor).
+const TEST_FEED_CURSOR = 'k-cursor-de-teste';
 
 // CONFIG próprio do teste (valores fixos, independentes do jogo real).
 const TEST_CONFIG = `
@@ -81,7 +106,7 @@ var CONFIG = {
 // AMBIENTE SIMULADO
 // ============================================
 
-/** D2: token "do navegador" de cada jogador nos testes. */
+/** Caminho PeerJS: token "do navegador" de cada jogador (um por nome). */
 function tokenOf(name) {
     return 'token-do-navegador-de-' + name;
 }
@@ -91,6 +116,8 @@ function tokenOf(name) {
  * jogo nele e devolve atalhos para simular jogadores entrando/saindo.
  * D3f: `options.storage` reaproveita o localStorage de outro
  * ambiente — a mesma página depois de um F5 (ver reloadHost()).
+ * `options.realLink` mantém o envio real do roomLink.js (pelo canal da
+ * sala), para o room-link.test.js ligar o aparelho a um banco simulado.
  */
 function createEnvironment(options = {}) {
     const record = {
@@ -100,6 +127,9 @@ function createEnvironment(options = {}) {
         logs: [],         // console.* (guardado para mostrar em caso de falha)
         listeners: [],    // eventos registrados em window.addEventListener
         toHost: [],       // msg — sendToHost (lado guest)
+        admitted: [],     // uid — admitPlayer (aceito no roster da sala)
+        dismissed: [],    // uid — dismissPlayer (tirado do roster)
+        feedCursor: TEST_FEED_CURSOR,
         spies: { becomeHost: 0, attemptReconnectToNewHost: 0 }
     };
 
@@ -166,13 +196,13 @@ function createEnvironment(options = {}) {
             }
         },
         network: {
-            connectionState,
             broadcastAll: (msg) => { record.broadcasts.push(msg); },
             sendToPlayer: (peerId, msg) => { record.sent.push({ to: peerId, msg }); },
             sendToHost: () => {},
             cleanup: () => {}
         }
     };
+    if (!USES_ROOM_LINK) ctx.Game.network.connectionState = connectionState;
 
     for (const file of FILES) {
         const filePath = path.join(ROOT, file);
@@ -182,29 +212,42 @@ function createEnvironment(options = {}) {
         vm.runInContext(fs.readFileSync(filePath, 'utf8'), ctx, { filename: file });
     }
 
-    // peerService.js real substitui o envio de mensagens pelo envio via
-    // PeerJS; aqui voltam os stubs que só registram (handleConnection e
-    // closeConnectionsOnExit continuam os reais).
-    Object.assign(ctx.Game.network, {
-        broadcastAll: (msg) => { record.broadcasts.push(msg); },
-        sendToPlayer: (peerId, msg) => { record.sent.push({ to: peerId, msg }); },
-        sendToHost: (msg) => { record.toHost.push(msg); },
-        cleanup: () => {},
-        handleHostDisconnect: () => {}
-    });
-
-    // Espiões no lugar das funções de migração que abririam conexões de verdade.
-    ctx.becomeHost = () => { record.spies.becomeHost++; };
-    ctx.attemptReconnectToNewHost = () => { record.spies.attemptReconnectToNewHost++; };
+    // A ligação real (roomLink.js ou peerService.js) substitui o envio de
+    // mensagens pelo envio de verdade; aqui voltam os stubs que só
+    // registram. Continuam os reais: receiveRequest/receivePresence e
+    // sendPlayerJoin (canal) ou handleConnection e closeConnectionsOnExit
+    // (PeerJS).
+    // Com `realLink`, nada é trocado: o envio vai pelo canal da sala.
+    const keepsRealLink = USES_ROOM_LINK && options.realLink === true;
+    if (!keepsRealLink) {
+        Object.assign(ctx.Game.network, {
+            broadcastAll: (msg) => { record.broadcasts.push(msg); },
+            sendToPlayer: (peerId, msg) => { record.sent.push({ to: peerId, msg }); },
+            sendToHost: (msg) => { record.toHost.push(msg); },
+            cleanup: () => {}
+        });
+    }
+    if (USES_ROOM_LINK && !keepsRealLink) {
+        Object.assign(ctx.Game.network, {
+            admitPlayer: (uid) => { record.admitted.push(uid); },
+            dismissPlayer: (uid) => { record.dismissed.push(uid); },
+            feedCursor: () => record.feedCursor
+        });
+    } else if (!USES_ROOM_LINK) {
+        ctx.Game.network.handleHostDisconnect = () => {};
+        // Espiões no lugar das funções de migração que abririam conexões de verdade.
+        ctx.becomeHost = () => { record.spies.becomeHost++; };
+        ctx.attemptReconnectToNewHost = () => { record.spies.attemptReconnectToNewHost++; };
+    }
 
     const Game = ctx.Game;
     const state = Game.state;
     state.questionsData = { domains: { d1: { name: 'Domínio de teste' } }, events: [] };
 
     /**
-     * Conexão falsa com a mesma interface usada do PeerJS: on(event, cb),
-     * send(), close() — close() dispara o 'close' registrado, como o
-     * PeerJS faz. Passa pelo handleConnection() real.
+     * Caminho PeerJS: conexão falsa com a mesma interface usada do PeerJS:
+     * on(event, cb), send(), close() — close() dispara o 'close'
+     * registrado, como o PeerJS faz. Passa pelo handleConnection() real.
      */
     function openConnection(peerId) {
         const handlers = {};
@@ -228,9 +271,6 @@ function createEnvironment(options = {}) {
     const env = {
         ctx, Game, state, record, storage, fakeLocalStorage, CONFIG: vm.runInContext('CONFIG', ctx),
 
-        /** Conexão falsa já aberta, passando pelo handleConnection() real. */
-        connect: (peerId) => openConnection(peerId),
-
         /** Host sozinho no lobby. */
         createRoomAsHost() {
             state.isHost = true;
@@ -243,24 +283,35 @@ function createEnvironment(options = {}) {
         },
 
         /**
-         * Guest conecta e envia player-join pela conexão (como o guest real
-         * faz), com a versão do protocolo do jogo. D2: por padrão cada nome
-         * usa sempre o mesmo token (o do "navegador" dele); passe outro
-         * token para simular um impostor, ou null para um player-join sem
-         * token.
+         * Guest com o aparelho `peerId` (o uid) manda o player-join ao host,
+         * com a versão do protocolo do jogo. `fields` troca campos da
+         * mensagem (valor undefined tira o campo). Canal: pelo
+         * receiveRequest() real; PeerJS: pela conexão, como o guest real
+         * faz, com o token do "navegador" de cada nome.
          */
-        join(name, peerId, token = tokenOf(name)) {
-            const c = openConnection(peerId);
+        join(name, peerId, fields = {}) {
             const msg = { type: 'player-join', playerName: name, peerId, protocolVersion: Game.network.PROTOCOL_VERSION };
-            if (token !== null) msg.token = token;
-            c.fire('data', msg);
+            if (!USES_ROOM_LINK) msg.token = tokenOf(name);
+            for (const [key, value] of Object.entries(fields)) {
+                if (value === undefined) delete msg[key];
+                else msg[key] = value;
+            }
+            if (USES_ROOM_LINK) {
+                Game.network.receiveRequest(msg, peerId);
+                return;
+            }
+            openConnection(peerId).fire('data', msg);
         },
 
-        /** Hash que o host deveria guardar para um token. */
-        hash: (token) => Game.identity.hashToken(token),
-
-        /** Queda de conexão vista pelo host: dispara o 'close' da conexão. */
+        /**
+         * Queda vista pelo host. Canal: a presença do aparelho fica offline
+         * (receivePresence() real); PeerJS: dispara o 'close' da conexão.
+         */
         drop(peerId) {
+            if (USES_ROOM_LINK) {
+                Game.network.receivePresence(peerId, false);
+                return;
+            }
             const c = connectionState.getConnection(peerId);
             if (!c) throw new Error('não há conexão aberta para ' + peerId);
             c.close();
@@ -278,51 +329,6 @@ function createEnvironment(options = {}) {
         rejectionFor(peerId) {
             const r = record.sent.find(e => e.to === peerId && e.msg.type === 'join-rejected');
             return r ? r.msg.reason : null;
-        },
-        /**
-         * Troca o Peer do PeerJS (e o document) por dublês. Cada
-         * `new Peer()` entra na lista devolvida, com os handlers
-         * registrados (fire(event, arg) os chama) e os destinos
-         * pedidos em connect(). connect() devolve uma conexão falsa que
-         * não abre sozinha, ou `options.connectReturns`, se informado, ou
-         * o que `options.onConnect(target)` devolver (D3c: uma conexão
-         * por destino, para a procura em várias versões do host).
-         */
-        installFakePeer(options = {}) {
-            const createdPeers = [];
-            ctx.Peer = function (id, peerOptions) {
-                const handlers = {};
-                this.id = id;
-                this.peerOptions = peerOptions;
-                this.destroyed = false;
-                this.disconnected = false;
-                this.reconnects = 0;
-                this.reconnect = () => { this.reconnects++; };
-                this.requestedConnections = [];
-                this.on = (event, cb) => { handlers[event] = cb; };
-                this.destroy = () => { this.destroyed = true; };
-                this.connect = (target) => {
-                    this.requestedConnections.push(target);
-                    if (options.onConnect) return options.onConnect(target);
-                    if ('connectReturns' in options) return options.connectReturns;
-                    return { peer: target, open: false, on: () => {}, send: () => {}, close: () => {} };
-                };
-                this.fire = (event, arg) => { if (handlers[event]) handlers[event](arg); };
-                createdPeers.push(this);
-            };
-            ctx.document = { getElementById: () => ({ style: {}, textContent: '' }) };
-            return createdPeers;
-        },
-
-        /**
-         * D1b: este jogador (guest) assume como host pelo becomeHost()
-         * REAL; o 'open' do peer novo é disparado na hora, como se o
-         * broker tivesse aceitado o ID da sala nova.
-         */
-        takeOverAsHost() {
-            const peers = this.installFakePeer();
-            Game.network.becomeHost();
-            peers[peers.length - 1].fire('open', Game.computeHostPeerId(state.baseRoomPeerId, state.hostVersion));
         },
 
         /**
@@ -380,31 +386,6 @@ function createEnvironment(options = {}) {
             };
         },
 
-        /**
-         * D3b: peer local (guest) cujas conexões só abrem quando o teste
-         * mandar — a lista devolvida guarda todas as pedidas, na ordem.
-         */
-        guestPeer() {
-            const connections = [];
-            const peer = {
-                destroyed: false,
-                connect(target) {
-                    const h = {};
-                    const c = {
-                        peer: target, open: false, closed: false,
-                        on: (ev, cb) => { h[ev] = cb; },
-                        send: () => {},
-                        close() { c.closed = true; c.open = false; },
-                        openNow() { c.open = true; if (h.open) h.open(); }
-                    };
-                    connections.push(c);
-                    return c;
-                }
-            };
-            connectionState.setPeer(peer);
-            return connections;
-        },
-
         /** D3b: URL da página e history.replaceState simulados. */
         fakeUrl(href) {
             const replacements = [];
@@ -426,6 +407,8 @@ function createEnvironment(options = {}) {
             record.broadcasts.length = 0;
             record.ui.length = 0;
             record.toHost.length = 0;
+            record.admitted.length = 0;
+            record.dismissed.length = 0;
         }
     };
     return env;
@@ -504,8 +487,6 @@ function roundScreens(env) {
     return env.record.ui.filter(n => ['displayQuestion', 'displayRoundStart', 'displaySpectatorView',
         'showRoundEndedMessage', 'showMatchPausedMessage'].includes(n));
 }
-
-const unavailable = (id) => ({ type: 'peer-unavailable', message: 'Could not connect to peer ' + id });
 
 /**
  * Host sozinho no lobby, com nome e ID de sala — o estado salvo só é
@@ -881,8 +862,8 @@ function oldEventNamesIn(value) {
 
 module.exports = {
     fs, path, vm, ROOT,
-    createEnvironment, tokenOf, test, check, start, finish,
-    syncTo, roundScreens, unavailable, roomToReload, reloadHost, tryReloadHost, recordScreens, guestWithScreens,
+    createEnvironment, test, check, start, finish,
+    syncTo, roundScreens, roomToReload, reloadHost, tryReloadHost, recordScreens, guestWithScreens,
     savedStateV1, savedStateV2, finalRankingV2, oldNamesIn, oldPlayerNamesIn,
     savedStateV3, oldAdvisoryNamesIn, OLD_ADVISORY_TYPES, OLD_ADVISORY_REASONS,
     savedStateV4, oldEventNamesIn, OLD_EVENT_NAMES,

@@ -9,8 +9,8 @@
 // ============================================
 
 const {
-    fs, path, vm, ROOT, createEnvironment, tokenOf, test, check, start, finish,
-    syncTo, roundScreens, unavailable, roomToReload, reloadHost, tryReloadHost, recordScreens
+    fs, path, vm, ROOT, createEnvironment, test, check, start, finish,
+    syncTo, roundScreens, roomToReload, reloadHost, tryReloadHost, recordScreens
 } = require('./environment');
 
 start('Queda e volta de jogador');
@@ -34,17 +34,13 @@ test('T4  Queda de espectador: fica na lista, fora do sorteio, volta com tudo pr
     const list = env.broadcastsOfType('player-list').pop();
     check(list && list.players.find(p => p.name === 'A').disconnected === true, 'player-list enviado deveria mostrar A desconectado');
 
-    env.join('A', 'peer-a2');
+    env.join('A', 'peer-a');
     const returned = env.player('A');
     check(!returned.disconnected, 'A deveria voltar como conectado');
-    check(returned.peerId === 'peer-a2', 'peerId de A deveria ser o novo');
+    check(returned.peerId === 'peer-a', 'A deveria voltar com o mesmo ID');
     check(returned.kpi === 7 && returned.resources === 4 && returned.focusArea === 'planning' && returned.activities === 1,
         'KPI/recursos/fase/atividades de A deveriam estar preservados');
-    check(env.record.sent.some(e => e.to === 'peer-a2' && e.msg.type === 'state-sync'), 'A deveria receber state-sync');
-
-    // 'close' atrasado da conexão antiga não pode derrubar o jogador de novo.
-    env.Game.network.handlePlayerDisconnect('peer-a');
-    check(!env.player('A').disconnected, 'close atrasado da conexão antiga não deveria marcar A como desconectado');
+    check(env.record.sent.some(e => e.to === 'peer-a' && e.msg.type === 'state-sync'), 'A deveria receber state-sync');
 });
 
 test('T5  Queda de participante: rodada abortada, nova dupla sem ele', (use) => {
@@ -79,13 +75,13 @@ test('T6  Pausa quando falta só conexão, retomada com o mesmo evento', (use) =
     const pausedEvent = env.state.matchPaused.event;
 
     env.clearLog();
-    env.join('A', 'peer-a2');
+    env.join('A', 'peer-a');
     check(!env.state.matchPaused, 'pausa deveria ter sido desfeita');
     check(env.state.currentRound, 'deveria haver uma nova dupla');
     check(env.state.currentRound.event === pausedEvent, 'a rodada deveria continuar com o mesmo evento');
     check(env.broadcastsOfType('round-start').length === 1, 'deveria ter enviado round-start');
     check(env.broadcastsOfType('show-event').length === 0, 'NÃO deveria reexibir o modal de evento');
-    const iSync = env.record.sent.findIndex(e => e.to === 'peer-a2' && e.msg.type === 'state-sync');
+    const iSync = env.record.sent.findIndex(e => e.to === 'peer-a' && e.msg.type === 'state-sync');
     check(iSync >= 0, 'A deveria receber state-sync ao voltar');
 });
 
@@ -100,34 +96,6 @@ test('T8  Ciclo da rodada termina sem esperar o desconectado', (use) => {
     check(!sel.isCycleComplete(env.Game.getActivePlayers(), used), 'com B conectado, o ciclo NÃO está completo');
     env.player('B').disconnected = true;
     check(sel.isCycleComplete(env.Game.getActivePlayers(), used), 'com B desconectado, o ciclo deveria estar completo');
-});
-
-test('T12 Saída da página: handlers de pagehide/beforeunload registrados', (use) => {
-    const env = use(createEnvironment());
-    check(env.record.listeners.includes('pagehide'), 'faltou registrar pagehide (celular)');
-    check(env.record.listeners.includes('beforeunload'), 'faltou registrar beforeunload (desktop)');
-});
-
-test('T13 F5/fechar no host: encerra conexões sem mexer no estado do jogo', (use) => {
-    const env = use(createEnvironment());
-    env.createRoomAsHost();
-    env.join('A', 'peer-a');
-    env.join('B', 'peer-b');
-    env.startMatch();
-    const fakePeer = { destroyed: false, destroy() { this.destroyed = true; } };
-    env.Game.network.connectionState.setPeer(fakePeer);
-
-    const roundBefore = env.state.currentRound;
-    env.clearLog();
-    env.Game.network.closeConnectionsOnExit();
-    check(fakePeer.destroyed, 'o peer deveria ter sido destruído');
-    check(env.state.players.every(p => !p.disconnected), 'nenhum jogador deveria ser marcado como desconectado pelo próprio reload do host');
-    check(env.state.currentRound === roundBefore, 'a rodada em andamento não deveria mudar (seria o BUG-001 de volta)');
-    check(env.record.broadcasts.length === 0, 'não deveria enviar nada durante a saída');
-
-    // Idempotente: rodar de novo (pagehide + beforeunload) não faz nada.
-    env.Game.network.closeConnectionsOnExit();
-    check(env.state.currentRound === roundBefore, 'segunda chamada não deveria ter efeito');
 });
 
 test('T30 Guest que reconecta volta com o relógio contando segundo a segundo', (use) => {
@@ -200,8 +168,8 @@ test('T32 Reconexão depois do fim do ciclo: "rodada encerrada", sem reabrir a p
 
     host.drop('peer-a');
     host.clearLog();
-    host.join('A', 'peer-a2');
-    const sync = syncTo(host, 'peer-a2');
+    host.join('A', 'peer-a');
+    const sync = syncTo(host, 'peer-a');
     check(sync && sync.roundEnded === true && sync.matchPaused === false, 'state-sync deveria dizer que o ciclo encerrou');
     check(host.broadcastsOfType('round-start').length === 0, 'a volta de A não deveria começar rodada nova sozinha');
 
@@ -238,9 +206,9 @@ test('T33 Reconexão com a partida ainda pausada: aviso de pausa, sem pergunta',
     check(host.state.matchPaused, 'pré-condição: partida pausada');
 
     host.clearLog();
-    host.join('B', 'peer-b2'); // ainda faltam jogadores conectados
+    host.join('B', 'peer-b'); // ainda faltam jogadores conectados
     check(host.state.matchPaused, 'pré-condição: continua pausada');
-    const sync = syncTo(host, 'peer-b2');
+    const sync = syncTo(host, 'peer-b');
     check(sync && sync.matchPaused === true, 'state-sync deveria dizer que a partida está pausada');
 
     const guest = use(createEnvironment());
@@ -288,7 +256,7 @@ test('T52 Retomar a pausa quando todos os conectados já responderam: encerra a 
     env.state.answeredThisRound = ['Host', 'A'];
 
     env.clearLog();
-    env.join('A', 'peer-a2');
+    env.join('A', 'peer-a');
     check(!env.state.matchPaused, 'a pausa deveria acabar');
     check(env.state.roundEnded === true, 'a rodada deveria ser encerrada, aguardando o "Nova Rodada"');
     check(env.broadcastsOfType('round-start').length === 0, 'não pode começar dupla nova sozinha');
@@ -304,7 +272,7 @@ test('T52 Retomar a pausa quando todos os conectados já responderam: encerra a 
     env2.state.currentRound = null;
     env2.state.matchPaused = { event: event };
     env2.state.answeredThisRound = ['Host'];
-    env2.join('A', 'peer-a2');
+    env2.join('A', 'peer-a');
     check(env2.state.currentRound && env2.state.currentRound.answerer === 'A' && !env2.state.roundEnded,
         'faltando A, a retomada deveria sortear A');
 });

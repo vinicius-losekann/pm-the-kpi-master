@@ -60,7 +60,7 @@ test('T87 CONFIG em inglês: o jogo e os testes só usam chaves que existem no c
 
     // 1) O config real tem as chaves novas e nenhuma antiga.
     for (const keyPath of ['GAME.MAX_PLAYERS', 'GAME.MIN_PLAYERS', 'GAME.SESSION_DURATION', 'GAME.ACTIVITIES_PER_FOCUS_AREA',
-        'GAME.HOST_TIMEOUT', 'GAME.ADVISORY_TIMEOUT', 'GAME.ANSWER_TIMEOUT', 'GAME.ASK_TIMEOUT', 'STARTING_RESOURCES',
+        'GAME.ADVISORY_TIMEOUT', 'GAME.ANSWER_TIMEOUT', 'GAME.ASK_TIMEOUT', 'STARTING_RESOURCES',
         'KPI.CORRECT_ANSWER', 'KPI.FINAL_RESOURCE_VALUE', 'RESOURCES.ADVISORY_FEE', 'RESOURCES.HELP_REWARD', 'RESOURCES.HELP_COVER']) {
         check(typeof valueAt(C, keyPath) === 'number', 'config/game-config.js deveria ter CONFIG.' + keyPath + ' (número)');
     }
@@ -215,6 +215,10 @@ const I18N_RENAMES = {
 // recursos: nem o nome antigo nem o novo podem voltar.
 const REMOVED_I18N_KEYS = ['trade.pedidoRecebido', 'trade.semKpiParaPedirAjuda', 'trade.ninguemPodeAjudar',
     'trade.helpOffer', 'trade.insufficientKpi', 'trade.noHelp', 'trade.helpBusy'];
+// Textos de reconexão e de procura do novo host, da conexão pelo PeerJS:
+// o nome antigo não pode voltar, mas o novo deixa de ser obrigatório.
+const PEER_CONNECTION_KEYS = ['connection.reconnecting', 'connection.reconnectingToHost', 'connection.reconnected',
+    'connection.searchingForNewHost', 'connection.couldNotReconnect', 'connection.hostTakeoverFailed'];
 const OLD_I18N_KEYS = Object.keys(I18N_RENAMES).concat(REMOVED_I18N_KEYS);
 const OLD_I18N_MARKERS = ['assessor', 'sugestao', 'perguntador', 'respondedor', 'recursos', 'valor', 'kpiRecursos'];
 const I18N_MARKERS = ['advisor', 'amount', 'answerer', 'asker', 'attempt', 'count', 'cover', 'giver', 'helper', 'kpi', 'max', 'min', 'names',
@@ -226,7 +230,7 @@ test('T88 Textos da tela em inglês: toda chave pedida existe no pt-BR.js real, 
 
     // 1) O dicionário tem as chaves e os marcadores novos e nenhum antigo.
     const missingNew = Object.values(I18N_RENAMES).concat(['lobby.badgeHost', 'advisory.timeout', 'result.kpiZero'])
-        .filter(k => !textKeys.includes(k));
+        .filter(k => !PEER_CONNECTION_KEYS.includes(k) && !textKeys.includes(k));
     check(missingNew.length === 0, 'faltam no pt-BR.js as chaves novas: ' + missingNew.join(', '));
     const oldKeys = textKeys.filter(k => OLD_I18N_KEYS.includes(k));
     check(oldKeys.length === 0, 'o pt-BR.js ainda tem chaves antigas: ' + oldKeys.join(', '));

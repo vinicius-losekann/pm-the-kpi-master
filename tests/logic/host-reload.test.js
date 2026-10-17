@@ -8,8 +8,8 @@
 // ============================================
 
 const {
-    fs, path, vm, ROOT, createEnvironment, tokenOf, test, check, start, finish,
-    syncTo, roundScreens, unavailable, roomToReload, reloadHost, tryReloadHost, recordScreens,
+    fs, path, vm, ROOT, createEnvironment, test, check, start, finish,
+    syncTo, roundScreens, roomToReload, reloadHost, tryReloadHost, recordScreens,
     savedStateV1, savedStateV2, finalRankingV2, oldNamesIn, oldPlayerNamesIn,
     savedStateV3, oldAdvisoryNamesIn
 } = require('./environment');
@@ -48,8 +48,8 @@ test('T53 F5 do host com a rodada encerrada: continua encerrada, "Nova Rodada" l
         'nada pode começar sozinho depois do F5');
 
     // A volta: recebe "rodada encerrada" e nada começa.
-    reloaded.join('A', 'peer-a2');
-    const sync = syncTo(reloaded, 'peer-a2');
+    reloaded.join('A', 'peer-a');
+    const sync = syncTo(reloaded, 'peer-a');
     check(sync && sync.roundEnded === true && sync.matchPaused === false, 'quem volta deveria receber "rodada encerrada"');
     check(reloaded.broadcastsOfType('round-start').length === 0, 'a volta de A não pode começar rodada sozinha');
     const guest = use(createEnvironment());
@@ -158,7 +158,7 @@ test('T55 F5 do host com a partida pausada: continua pausada com o mesmo evento 
     check(reloaded.record.ui.includes('showMatchPausedMessage'), 'o host deveria ver o aviso de pausa');
 
     // A volta: retoma com o mesmo evento, sem modal.
-    reloaded.join('A', 'peer-a2');
+    reloaded.join('A', 'peer-a');
     check(!reloaded.state.matchPaused, 'a volta de A deveria retomar a partida');
     const r = reloaded.state.currentRound;
     check(r && r.event && r.event.id === pausedEvent.id, 'a rodada retomada deveria usar o mesmo evento');
@@ -318,8 +318,8 @@ test('T59 F5 do host com assessoria pendente: o pedido é cancelado, quem respon
         'a resposta atrasada do assessor do pedido cancelado deveria ser ignorada');
 
     // Quem responde volta e recebe a pergunta sem o pedido pendente (botões liberados).
-    reloaded.join('A', 'peer-a2');
-    const sync = syncTo(reloaded, 'peer-a2');
+    reloaded.join('A', 'peer-a');
+    const sync = syncTo(reloaded, 'peer-a');
     check(sync && sync.currentRound && sync.currentRound.answerer === 'A' && !sync.currentRound.advisory,
         'A deveria receber a pergunta sem assessoria pendente, veio: ' + JSON.stringify(sync && sync.currentRound && sync.currentRound.advisory));
 
@@ -336,12 +336,12 @@ test('T59 F5 do host com assessoria pendente: o pedido é cancelado, quem respon
     const reloaded2 = use(reloadHost(env2));
     const time2 = reloaded2.fakeTime();
     reloaded2.Game.core.resumeMatchAfterReload();
-    reloaded2.join('A', 'peer-a2');
-    reloaded2.join('B', 'peer-b2');
+    reloaded2.join('A', 'peer-a');
+    reloaded2.join('B', 'peer-b');
     reloaded2.clearLog();
-    reloaded2.Game.network.handleMessage({ type: 'advisory-request', advisorName: 'B', requesterName: 'A' }, 'peer-a2');
+    reloaded2.Game.network.handleMessage({ type: 'advisory-request', advisorName: 'B', requesterName: 'A' }, 'peer-a');
     check(reloaded2.broadcastsOfType('advisory-started').length === 1 &&
-        reloaded2.record.sent.some(e => e.to === 'peer-b2' && e.msg.type === 'advisory-question'),
+        reloaded2.record.sent.some(e => e.to === 'peer-b' && e.msg.type === 'advisory-question'),
         'A deveria conseguir pedir assessoria de novo, e B receber a pergunta');
     time2.advance(reloaded2.CONFIG.GAME.ADVISORY_TIMEOUT);
     const result = reloaded2.broadcastsOfType('advisory-result').pop();
@@ -403,12 +403,12 @@ test('T60 F5 do host com a assessoria já resolvida: a sugestão (ou a recusa) c
     const a = reloaded.state.currentRound.advisory;
     check(a && a.status === 'accepted' && a.advisorName === 'B' && a.suggestion === r.question.correct,
         'a sugestão deveria continuar na rodada, veio: ' + JSON.stringify(a));
-    reloaded.join('A', 'peer-a2');
-    const sync = syncTo(reloaded, 'peer-a2');
+    reloaded.join('A', 'peer-a');
+    const sync = syncTo(reloaded, 'peer-a');
     check(sync && sync.currentRound.advisory && sync.currentRound.advisory.status === 'accepted', 'A deveria voltar vendo a sugestão');
     const fee = reloaded.CONFIG.RESOURCES.ADVISORY_FEE;
     const before = { A: reloaded.player('A').resources, B: reloaded.player('B').resources };
-    reloaded.Game.network.handleMessage({ type: 'answer', alternative: r.question.correct, playerName: 'A' }, 'peer-a2');
+    reloaded.Game.network.handleMessage({ type: 'answer', alternative: r.question.correct, playerName: 'A' }, 'peer-a');
     check(reloaded.broadcastsOfType('kpi-update').some(m => m.playerName === 'B' && m.supportOutcome === 'fee' && m.supportPartner === 'A') &&
         reloaded.player('A').resources === before.A - fee && reloaded.player('B').resources === before.B + fee,
         'seguindo a sugestão certa, A deveria pagar o honorário a B, veio: ' + JSON.stringify({ A: reloaded.player('A').resources, B: reloaded.player('B').resources }));
@@ -423,9 +423,9 @@ test('T60 F5 do host com a assessoria já resolvida: a sugestão (ou a recusa) c
     reloaded2.fakeTime();
     reloaded2.Game.core.resumeMatchAfterReload();
     check(reloaded2.state.currentRound.advisory && reloaded2.state.currentRound.advisory.status === 'declined', 'a recusa deveria continuar valendo');
-    reloaded2.join('A', 'peer-a2');
+    reloaded2.join('A', 'peer-a');
     reloaded2.clearLog();
-    reloaded2.Game.network.handleMessage({ type: 'advisory-request', advisorName: 'B', requesterName: 'A' }, 'peer-a2');
+    reloaded2.Game.network.handleMessage({ type: 'advisory-request', advisorName: 'B', requesterName: 'A' }, 'peer-a');
     check(reloaded2.broadcastsOfType('advisory-started').length === 0, 'só um pedido de assessoria por pergunta, como sem o F5');
 });
 
@@ -463,13 +463,13 @@ test('T122 F5 do host com pedido de ajuda: o pendente é cancelado (quem respond
     reloaded.Game.network.handleMessage({ type: 'advisory-answer', alternative: r.question.correct, declined: false }, 'peer-b');
     check(reloaded.broadcastsOfType('advisory-result').length === 0 && !reloaded.state.currentRound.advisory,
         'a resposta atrasada de quem ia ajudar deveria ser ignorada');
-    reloaded.join('A', 'peer-a2');
-    reloaded.join('B', 'peer-b2');
+    reloaded.join('A', 'peer-a');
+    reloaded.join('B', 'peer-b');
     reloaded.clearLog();
-    reloaded.Game.network.handleMessage({ type: 'advisory-request', kind: 'help', advisorName: 'B', requesterName: 'A' }, 'peer-a2');
+    reloaded.Game.network.handleMessage({ type: 'advisory-request', kind: 'help', advisorName: 'B', requesterName: 'A' }, 'peer-a');
     const started = reloaded.broadcastsOfType('advisory-started').pop();
     check(started && started.kind === 'help' &&
-        reloaded.record.sent.some(e => e.to === 'peer-b2' && e.msg.type === 'advisory-question' && e.msg.kind === 'help'),
+        reloaded.record.sent.some(e => e.to === 'peer-b' && e.msg.type === 'advisory-question' && e.msg.kind === 'help'),
         'depois do F5, A deveria conseguir pedir ajuda de novo, e B receber a pergunta, veio: ' + JSON.stringify(started));
 
     // 2) Ajuda já aceita antes do F5: o tipo vai no estado salvo e a recompensa ou a cobertura valem depois.
@@ -488,8 +488,8 @@ test('T122 F5 do host com pedido de ajuda: o pendente é cancelado (quem respond
         const kept = after.state.currentRound.advisory;
         check(kept && kept.kind === 'help' && kept.status === 'accepted' && kept.suggestion === suggestion,
             'depois do F5, a ajuda aceita deveria continuar, veio: ' + JSON.stringify(kept));
-        after.join('A', 'peer-a2');
-        after.Game.network.handleMessage({ type: 'answer', alternative: suggestion, playerName: 'A' }, 'peer-a2');
+        after.join('A', 'peer-a');
+        after.Game.network.handleMessage({ type: 'answer', alternative: suggestion, playerName: 'A' }, 'peer-a');
         const C = after.CONFIG.RESOURCES;
         const expectedB = follows === 'correct' ? 5 + C.HELP_REWARD : 5 - C.HELP_COVER;
         const toB = after.broadcastsOfType('kpi-update').find(m => m.playerName === 'B');
@@ -593,8 +593,8 @@ test('T65 A pergunta da rodada leva domínio e área: o F5 do host e quem volta 
         'depois do F5, o host deveria ver as etiquetas, veio: ' + JSON.stringify(onScreen && { domain: onScreen.args[0].domain, area: onScreen.args[0].area }));
 
     // A (o Respondedor) volta à partida: recebe a pergunta com as etiquetas e sem o gabarito.
-    reloaded.join('A', 'peer-a2');
-    const sync = syncTo(reloaded, 'peer-a2');
+    reloaded.join('A', 'peer-a');
+    const sync = syncTo(reloaded, 'peer-a');
     const p = sync && sync.currentRound && sync.currentRound.question;
     check(p && p.domain === 'Domínio de teste' && p.area === 'Iniciação', 'quem volta deveria receber domínio e área, veio: ' + JSON.stringify(p && { domain: p.domain, area: p.area }));
     check(p.correct === undefined, 'o Respondedor não pode receber o gabarito');
@@ -639,12 +639,12 @@ test('T79 F5 do host com o estado salvo na versão 1 (gravado antes de o jogo se
     check(reloaded.broadcastsOfType('round-start').length === 0, 'a pergunta não pode ser trocada');
 
     // A volta: recebe a mesma pergunta, sem o gabarito, e responde certo.
-    reloaded.join('A', 'peer-a2');
-    const sync = syncTo(reloaded, 'peer-a2');
+    reloaded.join('A', 'peer-a');
+    const sync = syncTo(reloaded, 'peer-a');
     const q = sync && sync.currentRound && sync.currentRound.question;
     check(q && q.id === 'q7' && q.correct === undefined && sync.decks && sync.decks.d1,
         'A deveria receber a mesma pergunta, sem o gabarito, e os baralhos');
-    reloaded.Game.network.handleMessage({ type: 'answer', alternative: 'b', playerName: 'A' }, 'peer-a2');
+    reloaded.Game.network.handleMessage({ type: 'answer', alternative: 'b', playerName: 'A' }, 'peer-a');
     const kpi = reloaded.broadcastsOfType('kpi-update').find(m => m.playerName === 'A');
     check(kpi && kpi.isCorrect === true && kpi.kpiGained > 0 && kpi.kpi === 10 + kpi.kpiGained,
         'a resposta certa de A deveria contar sobre o KPI salvo, veio: ' + JSON.stringify(kpi));
@@ -667,7 +667,7 @@ test('T79 F5 do host com o estado salvo na versão 1 (gravado antes de o jogo se
     check(reloaded2.state.matchPaused && reloaded2.state.matchPaused.event && reloaded2.state.matchPaused.event.id === 'e-pausa',
         'deveria continuar pausada com o mesmo evento, veio: ' + JSON.stringify(reloaded2.state.matchPaused));
     check(reloaded2.record.ui.includes('showMatchPausedMessage'), 'o host deveria ver o aviso de pausa');
-    reloaded2.join('A', 'peer-a2');
+    reloaded2.join('A', 'peer-a');
     const rs = reloaded2.broadcastsOfType('round-start').pop();
     check(!reloaded2.state.matchPaused && rs && rs.event && rs.event.id === 'e-pausa',
         'a volta de A deveria retomar a partida com o mesmo evento, veio: ' + JSON.stringify(rs));
@@ -705,14 +705,14 @@ test('T82 F5 do host com o estado salvo na versão 2 (gravado antes de o jogo se
 
     reloaded.fakeTime();
     reloaded.Game.core.resumeMatchAfterReload();
-    reloaded.join('A', 'peer-a2');
-    const sync = syncTo(reloaded, 'peer-a2');
+    reloaded.join('A', 'peer-a');
+    const sync = syncTo(reloaded, 'peer-a');
     const aInSync = sync && sync.players.find(p => p.name === 'A');
     check(aInSync && aInSync.resources === 7 && aInSync.focusArea === 'initiating' && oldPlayerNamesIn(sync).length === 0,
         'A deveria voltar com os recursos e a área foco salvos, com os nomes novos, veio: ' + JSON.stringify(aInSync));
 
     // A erra: gasta 1 dos recursos salvos.
-    reloaded.Game.network.handleMessage({ type: 'answer', alternative: 'a', playerName: 'A' }, 'peer-a2');
+    reloaded.Game.network.handleMessage({ type: 'answer', alternative: 'a', playerName: 'A' }, 'peer-a');
     const kpi = reloaded.broadcastsOfType('kpi-update').find(m => m.playerName === 'A');
     check(kpi && kpi.isCorrect === false && kpi.resources === 6 && kpi.focusArea === 'initiating' && reloaded.player('A').resources === 6,
         'a resposta errada de A deveria gastar 1 dos recursos salvos (7 → 6), veio: ' + JSON.stringify(kpi));
@@ -737,8 +737,8 @@ test('T82 F5 do host com o estado salvo na versão 2 (gravado antes de o jogo se
         ranking[1].name === 'A' && ranking[1].position === 2 && ranking[1].finalKpi === 24 && ranking[1].resources === 7,
         'a tela final deveria mostrar o ranking salvo com position, finalKpi, resources e focusArea, veio: ' + JSON.stringify(ranking));
     check(oldPlayerNamesIn(ranking).length === 0, 'nenhum nome antigo deveria sobrar no ranking, sobraram: ' + oldPlayerNamesIn(ranking).join(', '));
-    reloaded2.join('A', 'peer-a2');
-    const endSync = syncTo(reloaded2, 'peer-a2');
+    reloaded2.join('A', 'peer-a');
+    const endSync = syncTo(reloaded2, 'peer-a');
     check(endSync && endSync.gameOver === true && JSON.stringify(endSync.finalRanking) === JSON.stringify(ranking),
         'quem volta no fim de jogo deveria receber o mesmo ranking, veio: ' + JSON.stringify(endSync && endSync.finalRanking));
 });
@@ -761,13 +761,13 @@ test('T85 F5 do host com o estado salvo na versão 3 (gravado antes de o jogo se
     const r = reloaded.state.currentRound;
     check(r && r.advisory === null && r.answerer === 'A' && r.question.id === 'q7' && !r.answered,
         'o pedido pendente deveria ser cancelado na retomada, com a mesma pergunta aberta, veio: ' + JSON.stringify(r));
-    reloaded.join('A', 'peer-a2');
-    reloaded.join('B', 'peer-b2');
+    reloaded.join('A', 'peer-a');
+    reloaded.join('B', 'peer-b');
     reloaded.clearLog();
-    reloaded.Game.network.handleMessage({ type: 'advisory-request', advisorName: 'B', requesterName: 'A' }, 'peer-a2');
+    reloaded.Game.network.handleMessage({ type: 'advisory-request', advisorName: 'B', requesterName: 'A' }, 'peer-a');
     const started = reloaded.broadcastsOfType('advisory-started')[0];
     check(started && started.advisorName === 'B' && started.requesterName === 'A' &&
-        reloaded.record.sent.some(e => e.to === 'peer-b2' && e.msg.type === 'advisory-question'),
+        reloaded.record.sent.some(e => e.to === 'peer-b' && e.msg.type === 'advisory-question'),
         'A deveria conseguir pedir assessoria de novo, e B receber a pergunta, veio: ' + JSON.stringify(started));
     const again = reloaded.state.currentRound.advisory;
     check(again && again.advisorName === 'B' && again.status === 'pending', 'o pedido novo deveria ficar pendente, veio: ' + JSON.stringify(again));
@@ -790,13 +790,13 @@ test('T85 F5 do host com o estado salvo na versão 3 (gravado antes de o jogo se
     const a2 = reloaded2.state.currentRound && reloaded2.state.currentRound.advisory;
     check(a2 && a2.advisorName === 'B' && a2.status === 'accepted' && a2.suggestion === 'b',
         'a sugestão salva na versão 3 deveria continuar na rodada, veio: ' + JSON.stringify(reloaded2.state.currentRound));
-    reloaded2.join('A', 'peer-a2');
-    reloaded2.join('B', 'peer-b2');
-    const sync = syncTo(reloaded2, 'peer-a2');
+    reloaded2.join('A', 'peer-a');
+    reloaded2.join('B', 'peer-b');
+    const sync = syncTo(reloaded2, 'peer-a');
     const syncAdvisory = sync && sync.currentRound && sync.currentRound.advisory;
     check(syncAdvisory && syncAdvisory.status === 'accepted' && syncAdvisory.suggestion === 'b' && sync.currentRound.question.correct === undefined,
         'A deveria voltar vendo a sugestão (e sem o gabarito), veio: ' + JSON.stringify(sync && sync.currentRound));
-    reloaded2.Game.network.handleMessage({ type: 'answer', alternative: 'b', playerName: 'A' }, 'peer-a2');
+    reloaded2.Game.network.handleMessage({ type: 'answer', alternative: 'b', playerName: 'A' }, 'peer-a');
     // Salvos: A com 7 recursos, B com 4 e 30 de KPI (savedStateV3).
     const feeUpdate = reloaded2.broadcastsOfType('kpi-update').find(m => m.playerName === 'B');
     const fee = reloaded2.CONFIG.RESOURCES.ADVISORY_FEE;
@@ -817,10 +817,10 @@ test('T85 F5 do host com o estado salvo na versão 3 (gravado antes de o jogo se
     const a3 = reloaded3.state.currentRound && reloaded3.state.currentRound.advisory;
     check(a3 && a3.advisorName === 'B' && a3.status === 'declined' && a3.suggestion === null,
         'a recusa salva na versão 3 deveria continuar valendo, veio: ' + JSON.stringify(reloaded3.state.currentRound));
-    reloaded3.join('A', 'peer-a2');
-    reloaded3.join('B', 'peer-b2');
+    reloaded3.join('A', 'peer-a');
+    reloaded3.join('B', 'peer-b');
     reloaded3.clearLog();
-    reloaded3.Game.network.handleMessage({ type: 'advisory-request', advisorName: 'B', requesterName: 'A' }, 'peer-a2');
+    reloaded3.Game.network.handleMessage({ type: 'advisory-request', advisorName: 'B', requesterName: 'A' }, 'peer-a');
     check(reloaded3.broadcastsOfType('advisory-started').length === 0 && reloaded3.state.currentRound.advisory.status === 'declined',
         'só um pedido de assessoria por pergunta, como sem a atualização');
 });

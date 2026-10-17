@@ -10,8 +10,8 @@
 // ============================================
 
 const {
-    fs, path, vm, ROOT, createEnvironment, tokenOf, test, check, start, finish,
-    syncTo, roundScreens, unavailable, roomToReload, reloadHost, tryReloadHost, recordScreens
+    fs, path, vm, ROOT, createEnvironment, test, check, start, finish,
+    syncTo, roundScreens, roomToReload, reloadHost, tryReloadHost, recordScreens
 } = require('./environment');
 
 start('Banco de perguntas');

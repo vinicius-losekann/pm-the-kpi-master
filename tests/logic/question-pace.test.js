@@ -372,7 +372,7 @@ test('T139 Volta à partida antes da pergunta (state-sync): quem responde vê a 
     const round = env.state.currentRound;
     // O que o host manda a quem volta (addPlayer): a rodada sem o gabarito.
     const fullState = copy({
-        players: env.state.players, decks: env.state.decks || {}, timer: 100, gameStarted: true, hostVersion: 0,
+        players: env.state.players, decks: env.state.decks || {}, timer: 100, gameStarted: true,
         currentRound: { ...round, question: { ...round.question, correct: undefined } },
         roundEnded: false, matchPaused: null, answeredThisRound: [], gameOver: false, finalRanking: null
     });
@@ -388,35 +388,6 @@ test('T139 Volta à partida antes da pergunta (state-sync): quem responde vê a 
     a.guest.receiveSync('A', copy(fullState));
     check(a.elements.btnAskQuestion && a.elements.btnAskQuestion.style.display === 'block',
         'A deveria ver o botão "Fazer a pergunta" ao voltar antes da pergunta, veio: ' + JSON.stringify(a.elements.btnAskQuestion && a.elements.btnAskQuestion.style));
-});
-
-test('T140 Troca de host antes da pergunta: o Perguntador que assume continua esperando o clique (prazo dele), sem ligar o prazo de resposta', (use) => {
-    const a = use(createEnvironment());
-    const time = a.fakeTime();
-    a.CONFIG.GAME.ASK_TIMEOUT = ASK;
-    a.state.isHost = false;
-    a.state.playerName = 'A';
-    a.state.peerId = 'peer-a';
-    a.state.baseRoomPeerId = 'sala';
-    a.state.hostVersion = 0;
-    a.state.gameStarted = true;
-    a.state.gameOver = false;
-    a.state.timer = 500;
-    a.state.answeredThisRound = [];
-    const question = { type: 'question', question: 'Pergunta?', alternatives: ['a', 'b', 'c', 'd'], correct: 'a', id: 'q9', isAsker: true };
-    a.state.currentRound = { event: { id: 'e1' }, asker: 'A', answerer: 'B', question, answered: false, asked: false };
-    a.state.players = [
-        { name: 'Host', peerId: 'sala', isHost: true, kpi: 0, resources: 10, focusArea: 'initiating', activities: 0 },
-        { name: 'A', peerId: 'peer-a', isHost: false, kpi: 0, resources: 10, focusArea: 'initiating', activities: 0 },
-        { name: 'B', peerId: 'peer-b', isHost: false, kpi: 0, resources: 10, focusArea: 'initiating', activities: 0 }
-    ];
-    a.takeOverAsHost();
-    check(a.state.isHost && a.state.currentRound && a.state.currentRound.asker === 'A', 'pré-condição: A assumiu e continua a rodada');
-    check(a.state.askTimeout && !a.state.answerTimeout, 'o novo host deveria esperar o clique (prazo do Perguntador), sem o prazo de resposta');
-    time.advance(ASK);
-    const toB = sentTo(a, 'peer-b', 'question');
-    check(toB.length === 1 && toB[0].isAnswerer === true && toB[0].correct === undefined && a.state.answerTimeout,
-        'no prazo do Perguntador, o novo host deveria mandar a pergunta a B e ligar o prazo de resposta, veio: ' + JSON.stringify(toB));
 });
 
 test('T141 Fim de jogo e troca de dupla cancelam o envio automático da pergunta', (use) => {

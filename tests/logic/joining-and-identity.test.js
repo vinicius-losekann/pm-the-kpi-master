@@ -2,15 +2,15 @@
 // PM: The KPI Master - Testes de lógica: Entrada na sala e identidade
 // ============================================
 // Entrar na sala (lobby, sala travada, sala cheia, nome em uso, versão
-// do jogo), token de identidade por sala e a tela inicial (entrar e
-// criar sala).
+// do jogo), a identidade de quem entra (o uid do aparelho) e os nomes
+// das mensagens e do estado em cada versão do jogo.
 // Ambiente simulado e ajudantes: environment.js. Rodar a partir da raiz:
 //     node tests/logic/joining-and-identity.test.js
 // ============================================
 
 const {
-    fs, path, vm, ROOT, createEnvironment, tokenOf, test, check, start, finish,
-    syncTo, roundScreens, unavailable, roomToReload, reloadHost, tryReloadHost, recordScreens, guestWithScreens,
+    fs, path, vm, ROOT, createEnvironment, test, check, start, finish,
+    syncTo, roundScreens, roomToReload, reloadHost, tryReloadHost, recordScreens, guestWithScreens,
     savedStateV1, oldNamesIn, oldPlayerNamesIn,
     oldAdvisoryNamesIn, OLD_ADVISORY_TYPES, OLD_ADVISORY_REASONS,
     savedStateV4, oldEventNamesIn, OLD_EVENT_NAMES,
@@ -73,214 +73,20 @@ test('T9  Sala cheia: quem caiu consegue voltar; nome novo leva room-locked', (u
     env.startMatch();
 
     env.drop('peer-a');
-    env.join('A', 'peer-a2');
-    check(env.rejectionFor('peer-a2') === null, 'A não deveria ser recusado, veio: ' + env.rejectionFor('peer-a2'));
+    env.join('A', 'peer-a');
+    check(env.rejectionFor('peer-a') === null, 'A não deveria ser recusado, veio: ' + env.rejectionFor('peer-a'));
     check(!env.player('A').disconnected, 'A deveria estar conectado de novo');
 
     env.join('D', 'peer-d');
     check(env.rejectionFor('peer-d') === 'room-locked', 'esperava room-locked para D, veio: ' + env.rejectionFor('peer-d'));
 });
 
-/** Algum token cru apareceu em alguma mensagem que saiu do host? */
-function tokenLeaked(env, token) {
-    const all = JSON.stringify(env.record.broadcasts) + JSON.stringify(env.record.sent);
-    return all.includes(token);
-}
-
-test('T22 SHA-256 próprio: vetores oficiais e mesmo resultado do Node', (use) => {
-    const env = use(createEnvironment());
-    const sha = env.Game.identity.sha256Hex;
-    const vectors = {
-        '': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-        'abc': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
-        'abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq': '248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1'
-    };
-    for (const [input, expected] of Object.entries(vectors)) {
-        check(sha(input) === expected, 'SHA-256("' + input + '") errado: ' + sha(input));
-    }
-
-    const nodeSha = (t) => require('crypto').createHash('sha256').update(t, 'utf8').digest('hex');
-    // Todos os tamanhos de 0 a 130 (cobre as fronteiras de bloco em 55/56/64/119/120/128).
-    for (let n = 0; n <= 130; n++) {
-        const t = 'x'.repeat(n);
-        check(sha(t) === nodeSha(t), 'diverge do Node com ' + n + ' caracteres');
-    }
-    for (const t of ['Ação é João', 'ñ ç ü € 日本語', 'emoji 🎯🚀 no meio', env.Game.identity.getRoomToken('sala')]) {
-        check(sha(t) === nodeSha(t), 'diverge do Node em "' + t + '"');
-    }
-});
-
-test('T23 Token por sala: criado uma vez, reaproveitado, diferente entre salas', (use) => {
-    const env = use(createEnvironment());
-    const id = env.Game.identity;
-    const t1 = id.getRoomToken('sala-x');
-    check(/^[0-9a-f]{32}$/.test(t1), 'token deveria ter 32 caracteres hexadecimais, veio: ' + t1);
-    check(env.storage['pmKPI_token_sala-x'] === t1, 'token deveria ficar no localStorage, na chave da sala');
-    check(id.getRoomToken('sala-x') === t1, 'a mesma sala deveria devolver o mesmo token (F5, reconexão)');
-    check(id.getRoomToken('sala-y') !== t1, 'outra sala deveria ter outro token');
-    check(id.myTokenHash('sala-x') === id.hashToken(t1) && id.hashToken(t1) !== t1, 'myTokenHash deveria ser o hash do token');
-
-    // Um ambiente novo (outro "navegador") gera outro token para a mesma sala.
-    const other = use(createEnvironment());
-    check(other.Game.identity.getRoomToken('sala-x') !== t1, 'outro navegador deveria ter outro token');
-
-    // localStorage indisponível: continua funcionando enquanto a página estiver aberta.
-    const noStorage = use(createEnvironment());
-    noStorage.fakeLocalStorage.getItem = () => { throw new Error('bloqueado'); };
-    noStorage.fakeLocalStorage.setItem = () => { throw new Error('bloqueado'); };
-    const t3 = noStorage.Game.identity.getRoomToken('sala-z');
-    check(/^[0-9a-f]{32}$/.test(t3) && noStorage.Game.identity.getRoomToken('sala-z') === t3,
-        'sem localStorage, o token deveria ser estável durante a página');
-});
-
-test('T24 Entrada guarda só o hash do token; o token cru nunca sai do host', (use) => {
-    const env = use(createEnvironment());
-    env.createRoomAsHost();
-    env.join('A', 'peer-a');
-    env.join('B', 'peer-b');
-    check(env.player('A').tokenHash === env.hash(tokenOf('A')), 'A deveria ficar com o hash do token dele');
-    check(!JSON.stringify(env.state.players).includes(tokenOf('A')), 'o token cru não pode ficar na lista de jogadores');
-
-    env.startMatch();
-    env.drop('peer-a');
-    env.join('A', 'peer-a2');
-    check(env.record.sent.some(e => e.to === 'peer-a2' && e.msg.type === 'state-sync'), 'pré-condição: A recebeu state-sync');
-    check(env.record.broadcasts.some(m => m.type === 'player-list'), 'pré-condição: houve player-list');
-    for (const name of ['A', 'B']) {
-        check(!tokenLeaked(env, tokenOf(name)), 'o token cru de ' + name + ' vazou em alguma mensagem do host');
-    }
-    const list = env.broadcastsOfType('player-list').pop();
-    check(list.players.find(p => p.name === 'A').tokenHash === env.hash(tokenOf('A')), 'o hash circula na lista (para sobreviver à migração)');
-});
-
-test('T25 Reconexão com token errado ou sem token: recusada, vaga e dados preservados', (use) => {
-    const env = use(createEnvironment());
-    env.createRoomAsHost();
-    env.join('A', 'peer-a');
-    env.startMatch();
-    Object.assign(env.player('A'), { kpi: 7, resources: 4, focusArea: 'planning', activities: 1 });
-    env.drop('peer-a');
-    check(env.state.matchPaused, 'pré-condição: partida pausada com A desconectado');
-
-    env.join('A', 'peer-impostor', 'token-de-outro-navegador');
-    check(env.rejectionFor('peer-impostor') === 'identity-mismatch', 'esperava identity-mismatch, veio: ' + env.rejectionFor('peer-impostor'));
-
-    env.join('A', 'peer-sem-token', null);
-    check(env.rejectionFor('peer-sem-token') === 'identity-mismatch', 'sem token deveria dar identity-mismatch, veio: ' + env.rejectionFor('peer-sem-token'));
-
-    const a = env.player('A');
-    check(a.disconnected === true && a.peerId === 'peer-a', 'A deveria continuar desconectado, com o peerId antigo');
-    check(a.kpi === 7 && a.resources === 4 && a.focusArea === 'planning' && a.activities === 1, 'dados de A não podem mudar');
-    check(a.tokenHash === env.hash(tokenOf('A')), 'o hash registrado não pode ser trocado');
-    check(env.state.matchPaused, 'a partida não pode ser retomada por um impostor');
-    check(!env.record.sent.some(e => (e.to === 'peer-impostor' || e.to === 'peer-sem-token') && e.msg.type === 'state-sync'),
-        'impostor não pode receber o estado da partida');
-
-    // O A de verdade continua conseguindo voltar.
-    env.join('A', 'peer-a2');
-    check(env.rejectionFor('peer-a2') === null, 'A com o token certo deveria voltar, veio: ' + env.rejectionFor('peer-a2'));
-    check(!env.player('A').disconnected && env.player('A').peerId === 'peer-a2', 'A deveria estar conectado de novo');
-    check(!env.state.matchPaused && env.state.currentRound, 'a volta de A deveria retomar a partida');
-});
-
-test('T27 Transição: entrada salva antes do token é aceita pelo nome e passa a exigir o token', (use) => {
-    const env = use(createEnvironment());
-    env.createRoomAsHost();
-    env.join('A', 'peer-a');
-    env.join('B', 'peer-b');
-    env.startMatch();
-    delete env.player('A').tokenHash; // como num estado salvo por uma versão anterior
-    env.drop('peer-a');
-
-    env.join('A', 'peer-a2');
-    check(env.rejectionFor('peer-a2') === null, 'sem hash registrado, deveria aceitar pelo nome (como antes), veio: ' + env.rejectionFor('peer-a2'));
-    check(env.player('A').tokenHash === env.hash(tokenOf('A')), 'deveria adotar o hash deste token');
-
-    env.drop('peer-a2');
-    env.join('A', 'peer-impostor', 'token-de-outro-navegador');
-    check(env.rejectionFor('peer-impostor') === 'identity-mismatch', 'depois de adotar, deveria exigir o token, veio: ' + env.rejectionFor('peer-impostor'));
-});
-
-test('T28 Guest envia o token no player-join (1ª conexão e as duas reconexões)', (use) => {
-    const env = use(createEnvironment());
-    env.state.isHost = false;
-    env.state.playerName = 'A';
-    env.state.peerId = 'peer-a';
-    env.state.baseRoomPeerId = 'sala';
-    env.state.hostPeerId = 'sala';
-    env.state.hostVersion = 0;
-    const myToken = env.Game.identity.getRoomToken('sala');
-    const checkJoin = (where) => {
-        const join = env.record.toHost.filter(m => m.type === 'player-join').pop();
-        check(join, where + ': deveria enviar player-join');
-        check(join.playerName === 'A' && join.token === myToken, where + ': player-join deveria levar o token da sala, veio: ' + join.token);
-        env.clearLog();
-    };
-
-    // 1) Primeira conexão (handleConnection, lado guest).
-    env.connect('sala');
-    checkJoin('primeira conexão');
-
-    // Conexão falsa que abre quando o teste mandar (para as reconexões).
-    const newConnection = (target) => {
-        const h = {};
-        return { peer: target, open: true, on: (ev, cb) => { h[ev] = cb; }, send: () => {}, close: () => {}, fire: (ev) => h[ev] && h[ev]() };
-    };
-
-    // 2) Reconexão ao mesmo host.
-    let conn = newConnection('sala');
-    env.installFakePeer({ connectReturns: conn });
-    env.Game.network.connectionState.setPeer(new env.ctx.Peer('peer-a'));
-    env.Game.network.attemptReconnectToSameHost(1);
-    conn.fire('open');
-    checkJoin('reconexão ao mesmo host');
-
-    // 3) Reconexão ao novo host (depois de uma migração).
-    conn = newConnection('sala-h1');
-    env.installFakePeer({ connectReturns: conn });
-    env.Game.network.connectionState.setPeer(new env.ctx.Peer('peer-a'));
-    env.Game.network.attemptReconnectToNewHost(1);
-    conn.fire('open');
-    checkJoin('reconexão ao novo host');
-    check(env.state.hostPeerId === 'sala-h1', 'pré-condição: guest deveria ter ido para a sala nova');
-    check(env.Game.identity.getRoomToken(env.state.baseRoomPeerId) === myToken, 'o token não muda com a migração (chave pelo ID base)');
-});
-
-test('T29 Host se insere na lista (setupUI) com o hash do próprio token', (use) => {
-    const env = use(createEnvironment());
-    const element = () => ({ style: {}, textContent: '', disabled: false, addEventListener: () => {} });
-    env.ctx.document = { getElementById: element, querySelectorAll: () => [] };
-    env.state.isHost = true;
-    env.state.playerName = 'Ana';
-    env.state.peerId = 'sala';
-    env.state.baseRoomPeerId = 'sala';
-    env.state.players = [];
-
-    env.ctx.setupUI();
-    const host = env.player('Ana');
-    const myToken = env.Game.identity.getRoomToken('sala');
-    check(host && host.isHost, 'o host deveria estar na lista');
-    check(host.tokenHash === env.hash(myToken), 'a entrada do host deveria ter o hash do token dele');
-    check(!JSON.stringify(env.state.players).includes(myToken), 'o token cru do host não pode ficar na lista');
-
-    // Chamada de novo (ex: becomeHost) não duplica nem troca a entrada.
-    env.ctx.setupUI();
-    check(env.state.players.length === 1 && env.player('Ana') === host, 'setupUI de novo não deveria duplicar o host');
-
-    // O nome do host continua sempre em uso, com ou sem o token certo.
-    env.join('Ana', 'peer-intruso', myToken);
-    check(env.rejectionFor('peer-intruso') === 'name-taken', 'nome do host deveria continuar name-taken, veio: ' + env.rejectionFor('peer-intruso'));
-});
-
 /**
- * Guest conecta e manda um player-join montado pelo teste, com a versão
- * do jogo escolhida (undefined = sem o campo, como o jogo antigo manda).
+ * Guest manda o player-join com a versão do jogo escolhida (undefined =
+ * sem o campo, como o jogo antigo manda).
  */
 function joinWithVersion(env, name, peerId, version) {
-    const c = env.connect(peerId);
-    const msg = { type: 'player-join', playerName: name, peerId, token: tokenOf(name) };
-    if (version !== undefined) msg.protocolVersion = version;
-    c.fire('data', msg);
+    env.join(name, peerId, { protocolVersion: version });
 }
 
 test('T76 Versão do jogo: o host recusa quem entra com outra versão (version-mismatch); sem o campo conta como 1', (use) => {
@@ -324,14 +130,15 @@ test('T76 Versão do jogo: o host recusa quem entra com outra versão (version-m
     match.startMatch();
     match.drop('peer-a');
     check(match.state.matchPaused, 'pré-condição: partida pausada com A desconectado');
-    joinWithVersion(match, 'A', 'peer-a2', version + 1);
-    check(match.rejectionFor('peer-a2') === 'version-mismatch', 'A com outra versão deveria ser recusado, veio: ' + match.rejectionFor('peer-a2'));
+    joinWithVersion(match, 'A', 'peer-a', version + 1);
+    check(match.rejectionFor('peer-a') === 'version-mismatch', 'A com outra versão deveria ser recusado, veio: ' + match.rejectionFor('peer-a'));
     check(match.player('A').disconnected === true && match.player('A').peerId === 'peer-a', 'A deveria continuar desconectado, com a vaga reservada');
     check(match.state.matchPaused, 'a partida não pode ser retomada por quem foi recusado');
 
     // Depois de recarregar (mesma versão), A volta e a partida retoma.
-    joinWithVersion(match, 'A', 'peer-a3', version);
-    check(match.rejectionFor('peer-a3') === null && !match.player('A').disconnected, 'A com a versão certa deveria voltar, veio: ' + match.rejectionFor('peer-a3'));
+    match.clearLog();
+    joinWithVersion(match, 'A', 'peer-a', version);
+    check(match.rejectionFor('peer-a') === null && !match.player('A').disconnected, 'A com a versão certa deveria voltar, veio: ' + match.rejectionFor('peer-a'));
     check(!match.state.matchPaused && match.state.currentRound, 'a volta de A deveria retomar a partida');
 });
 
@@ -347,7 +154,7 @@ test('T77 Versão do jogo: o player-join leva a versão; a recusa version-mismat
     env.state.hostVersion = 0;
 
     // O player-join é montado num lugar só (sendPlayerJoin), usado também nas reconexões.
-    env.connect('sala');
+    env.Game.network.sendPlayerJoin();
     const join = env.record.toHost.filter(m => m.type === 'player-join').pop();
     check(join, 'deveria enviar player-join');
     check(join.protocolVersion === version, 'o player-join deveria levar protocolVersion = ' + version + ', veio: ' + JSON.stringify(join.protocolVersion));
@@ -426,8 +233,8 @@ test('T80 Versão do jogo 2: as mensagens da rodada e da partida, o estado e o e
 
     // A (o Perguntador) cai e volta depois da resposta: o state-sync usa os nomes novos.
     env.drop('peer-a');
-    env.join('A', 'peer-a2');
-    const sync = syncTo(env, 'peer-a2');
+    env.join('A', 'peer-a');
+    const sync = syncTo(env, 'peer-a');
     check(sync && sync.decks && sync.roundEnded === false && sync.matchPaused === false && 'finalRanking' in sync &&
         JSON.stringify(sync.answeredThisRound) === '["B"]' &&
         sync.currentRound && sync.currentRound.asker === 'A' && sync.currentRound.answered === true && sync.currentRound.question,
@@ -450,8 +257,8 @@ test('T80 Versão do jogo 2: as mensagens da rodada e da partida, o estado e o e
     env.Game.core.endGame(env.Game.engine.session.buildRanking());
     check(Array.isArray(env.state.finalRanking) && env.state.finalRanking.length === 3, 'o ranking do fim de jogo deveria ficar em state.finalRanking');
     env.drop('peer-b');
-    env.join('B', 'peer-b2');
-    const endSync = syncTo(env, 'peer-b2');
+    env.join('B', 'peer-b');
+    const endSync = syncTo(env, 'peer-b');
     check(endSync && endSync.gameOver === true && JSON.stringify(endSync.finalRanking) === JSON.stringify(env.state.finalRanking),
         'quem volta no fim de jogo deveria receber o ranking em finalRanking');
     env.Game.saveState();
@@ -480,8 +287,8 @@ test('T80 Versão do jogo 2: as mensagens da rodada e da partida, o estado e o e
     guestP.state.currentRound = { asker: 'Host', answerer: 'A', answered: false };
     guestP.Game.network.handleMessage(pauseMsg, 'sala');
     check(guestP.state.currentRound === null && guestP.record.ui.includes('showMatchPausedMessage'), 'o guest deveria tratar o match-paused');
-    paused.join('A', 'peer-a2');
-    const pausedSync = syncTo(paused, 'peer-a2');
+    paused.join('A', 'peer-a');
+    const pausedSync = syncTo(paused, 'peer-a');
     check(pausedSync && pausedSync.matchPaused === true, 'quem volta com a partida pausada deveria receber matchPaused');
     const guestP2 = use(createEnvironment());
     guestP2.receiveSync('A', pausedSync);
@@ -643,8 +450,8 @@ test('T83 Versão do jogo 3: jogadores e ranking só com os nomes novos (resourc
 
     // Quem volta no fim de jogo recebe jogadores e ranking com os nomes novos.
     env.drop('peer-a');
-    env.join('A', 'peer-a2');
-    const sync = syncTo(env, 'peer-a2');
+    env.join('A', 'peer-a');
+    const sync = syncTo(env, 'peer-a');
     check(sync && JSON.stringify(sync.finalRanking) === JSON.stringify(ranking) && sync.players.every(p => 'resources' in p && 'focusArea' in p),
         'o state-sync deveria levar o ranking e os jogadores com os nomes novos, veio: ' + JSON.stringify(sync && sync.players));
     const guestA = use(createEnvironment());
@@ -1322,156 +1129,103 @@ test('T90 Versão do jogo 6: áreas foco com os IDs novos (initiating...) no CON
         'ao salvar de novo, o estado deveria ficar na versão atual sem IDs antigos, veio: ' + JSON.stringify({ players: resaved.players, mine: remine }));
 });
 
-/**
- * D3c: carrega a tela inicial (hostSearch.js + roomEntry.js, como o
- * index.html) com DOM, PeerJS e timers falsos.
- */
-function createHomeScreen() {
-    const elements = {};
-    const element = (id) => {
-        if (!elements[id]) {
-            const handlers = {};
-            elements[id] = {
-                id, value: '', textContent: '', className: '', style: {}, offsetHeight: 0,
-                focus: () => {},
-                addEventListener: (ev, fn) => { handlers[ev] = fn; },
-                click: () => handlers.click && handlers.click()
-            };
-        }
-        return elements[id];
-    };
-    const feedbacks = [];
-    let now = 0;
-    const queue = [];
-    const peers = [];
-    const ctx = vm.createContext({
-        console: { log: () => {}, warn: () => {}, error: () => {}, info: () => {} },
-        document: { getElementById: element, execCommand: () => {}, createRange: () => ({ selectNode: () => {} }) },
-        getSelection: () => ({ removeAllRanges: () => {}, addRange: () => {} }),
-        location: { href: 'index.html' },
-        URLSearchParams,
-        setTimeout: (fn, ms) => { queue.push({ fn, at: now + (ms || 0) }); return queue.length; },
-        clearTimeout: () => {},
-        Peer: function (id, options) {
-            // new Peer(options) (sem ID) também é aceito pelo PeerJS.
-            if (id && typeof id === 'object') { options = id; id = undefined; }
-            const handlers = {};
-            this.id = id;
-            this.destroyed = false;
-            this.requests = {};
-            this.on = (ev, cb) => { handlers[ev] = cb; };
-            this.destroy = () => { this.destroyed = true; };
-            this.connect = (target) => {
-                const h = {};
-                const c = { peer: target, open: false, closed: false, on: (ev, cb) => { h[ev] = cb; }, close() { c.closed = true; }, fire: (ev) => h[ev] && h[ev]() };
-                this.requests[target] = c;
-                return c;
-            };
-            this.fire = (ev, arg) => handlers[ev] && handlers[ev](arg);
-            peers.push(this);
-        }
-    });
-    vm.runInContext('var window = this;' + fs.readFileSync(path.join(ROOT, 'config/game-config.js'), 'utf8'), ctx);
-    vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/network/hostSearch.js'), 'utf8'), ctx, { filename: 'hostSearch.js' });
-    vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/entry/roomEntry.js'), 'utf8'), ctx, { filename: 'roomEntry.js' });
-    const prefix = vm.runInContext('CONFIG.ROOM_PREFIX', ctx);
+test('T175 Entrada pelo uid: quem volta com o mesmo uid retoma o lugar; o mesmo nome em outro aparelho é recusado (name-taken com o dono conectado, identity-mismatch com ele fora), sem entrar no roster', (use) => {
+    const env = use(createEnvironment());
+    env.createRoomAsHost();
+    env.join('A', 'uid-a');
+    env.join('B', 'uid-b');
+    check(Array.isArray(env.record.admitted) && ['uid-a', 'uid-b'].every(u => env.record.admitted.includes(u)),
+        'quem entra deveria ser aceito no roster da sala (admitPlayer), aceitos: ' + JSON.stringify(env.record.admitted));
+    env.startMatch();
+    Object.assign(env.player('A'), { kpi: 7, resources: 4, focusArea: 'planning', activities: 1 });
 
-    // Guarda cada mensagem mostrada (roomEntry sobrescreve textContent).
-    ['joinFeedback', 'createFeedback'].forEach(id => {
-        const el = element(id);
-        let text = '';
-        Object.defineProperty(el, 'textContent', { get: () => text, set: (v) => { text = v; feedbacks.push({ where: id, text: v }); } });
-    });
+    // Outro aparelho com o nome de A, com A conectado: name-taken.
+    env.join('A', 'uid-outro');
+    check(env.rejectionFor('uid-outro') === 'name-taken', 'com o dono conectado, esperava name-taken, veio: ' + env.rejectionFor('uid-outro'));
 
-    return {
-        ctx, element, feedbacks, peers, prefix,
-        advance(ms) {
-            const end = now + ms;
-            for (;;) {
-                queue.sort((a, b) => a.at - b.at);
-                if (!queue.length || queue[0].at > end) break;
-                const t = queue.shift();
-                now = t.at;
-                t.fn();
-            }
-            now = end;
-        },
-        /** Todas as versões pedidas pelo peer, menos `existing`, respondem "não existe". */
-        answerUnavailable(peer, existing = []) {
-            Object.keys(peer.requests).filter(d => !existing.includes(d)).forEach(d => peer.fire('error', unavailable(d)));
-        }
-    };
-}
+    // A cai: outro aparelho com o nome dele é recusado e a vaga fica reservada.
+    env.drop('uid-a');
+    check(env.player('A').disconnected === true, 'pré-condição: A desconectado');
+    env.join('A', 'uid-impostor');
+    check(env.rejectionFor('uid-impostor') === 'identity-mismatch',
+        'com o dono fora, outro aparelho com o nome dele deveria dar identity-mismatch, veio: ' + env.rejectionFor('uid-impostor'));
+    const a = env.player('A');
+    check(a.disconnected === true && a.peerId === 'uid-a' && a.kpi === 7 && a.resources === 4 && a.focusArea === 'planning' && a.activities === 1,
+        'A deveria continuar desconectado, com o uid e os dados dele, veio: ' + JSON.stringify(a));
+    check(!env.record.sent.some(e => (e.to === 'uid-outro' || e.to === 'uid-impostor') && e.msg.type === 'state-sync'),
+        'quem é recusado não pode receber o estado da partida');
+    check(!env.record.admitted.includes('uid-outro') && !env.record.admitted.includes('uid-impostor'), 'quem é recusado não entra no roster');
+    check(env.state.players.length === 3, 'a lista deveria continuar com 3 jogadores');
 
-test('T47 Tela inicial: entrar acha a sala migrada; criar recusa código de partida migrada; mensagens certas', (use) => {
-    // Entrar com o código 001 depois de uma migração (sala em ...-001-h1).
-    const screen = createHomeScreen();
-    const base = screen.prefix + '001';
-    screen.element('joinPlayerName').value = 'Vini';
-    screen.element('joinRoomSuffix').value = '001';
-    screen.element('btnJoinRoom').click();
-    const testPeer1 = screen.peers[0];
-    testPeer1.fire('open', 'peer-teste');
-    check(testPeer1.requests[base] && testPeer1.requests[base + '-h1'], 'deveria procurar o ID base e as versões migradas');
-    screen.answerUnavailable(testPeer1, [base + '-h1']);
-    testPeer1.requests[base + '-h1'].fire('open');
-    check(screen.feedbacks.some(f => f.text.includes('Sala encontrada')), 'deveria achar a sala migrada');
-    screen.advance(2000);
-    const target = new URL('https://x/' + screen.ctx.location.href).searchParams;
-    check(screen.ctx.location.href.startsWith('game.html?') && target.get('host') === 'false' && target.get('peerId') === base && target.get('room') === base,
-        'deveria ir para o jogo com o ID base da sala, foi para: ' + screen.ctx.location.href);
-    check(testPeer1.destroyed, 'o peer de teste deveria ser encerrado');
+    // O A de verdade volta com o mesmo uid.
+    env.clearLog();
+    env.join('A', 'uid-a');
+    check(env.rejectionFor('uid-a') === null && !env.player('A').disconnected && env.player('A').kpi === 7,
+        'A com o mesmo uid deveria voltar ao lugar, veio: ' + env.rejectionFor('uid-a'));
+    check(env.record.sent.some(e => e.to === 'uid-a' && e.msg.type === 'state-sync'), 'A deveria receber o estado da partida ao voltar');
 
-    // Código que não existe em versão nenhuma: uma mensagem só, a certa.
-    const screen2 = createHomeScreen();
-    screen2.element('joinPlayerName').value = 'Vini';
-    screen2.element('joinRoomSuffix').value = '999';
-    screen2.element('btnJoinRoom').click();
-    screen2.peers[0].fire('open', 'peer-teste');
-    screen2.answerUnavailable(screen2.peers[0]);
-    screen2.advance(20000);
-    const errors2 = screen2.feedbacks.filter(f => f.where === 'joinFeedback' && f.text.startsWith('⚠️'));
-    check(errors2.length === 1 && errors2[0].text.includes('Sala não encontrada'),
-        'deveria mostrar só "Sala não encontrada", mostrou: ' + errors2.map(f => f.text).join(' | '));
-    check(screen2.ctx.location.href === 'index.html', 'não deveria sair da tela inicial');
+    // No lobby, quem cai sai da lista e do roster.
+    const lobby = use(createEnvironment());
+    lobby.createRoomAsHost();
+    lobby.join('C', 'uid-c');
+    lobby.drop('uid-c');
+    check(!lobby.player('C') && Array.isArray(lobby.record.dismissed) && lobby.record.dismissed.includes('uid-c'),
+        'no lobby, quem cai deveria sair da lista e do roster (dismissPlayer), tirados: ' + JSON.stringify(lobby.record.dismissed));
+});
 
-    // Erro de rede no meio da procura: "Erro de conexão", uma vez, e a procura para.
-    const screen5 = createHomeScreen();
-    screen5.element('joinPlayerName').value = 'Vini';
-    screen5.element('joinRoomSuffix').value = '001';
-    screen5.element('btnJoinRoom').click();
-    const testPeer5 = screen5.peers[0];
-    testPeer5.fire('open', 'peer-teste');
-    testPeer5.fire('error', { type: 'network', message: 'Lost connection to server.' });
-    check(Object.values(testPeer5.requests).every(c => c.closed), 'a procura deveria parar na hora (conexões fechadas)');
-    screen5.advance(20000);
-    const errors5 = screen5.feedbacks.filter(f => f.text.startsWith('⚠️'));
-    check(errors5.length === 1 && errors5[0].text.includes('Erro de conexão'), 'deveria mostrar só "Erro de conexão", mostrou: ' + errors5.map(f => f.text).join(' | '));
+test('T176 Aparelho já na sala com outro nome: recusado com device-in-use (no lobby e na partida), sem mexer em ninguém; o aviso é próprio', (use) => {
+    const env = use(createEnvironment());
+    env.createRoomAsHost();
+    env.join('A', 'uid-a');
+    env.join('Outro', 'uid-a');
+    check(env.rejectionFor('uid-a') === 'device-in-use', 'o mesmo aparelho com outro nome deveria dar device-in-use, veio: ' + env.rejectionFor('uid-a'));
+    check(env.state.players.length === 2 && env.player('A') && env.player('A').peerId === 'uid-a' && !env.player('Outro'),
+        'A deveria continuar na lista como estava, sem a entrada nova, veio: ' + JSON.stringify(env.state.players));
 
-    // Criar 001 enquanto a partida continua em ...-001-h1: código em uso.
-    const screen3 = createHomeScreen();
-    screen3.element('createPlayerName').value = 'Outra';
-    screen3.element('createRoomId').value = '001';
-    screen3.element('btnCreateRoom').click();
-    const testPeer3 = screen3.peers[0];
-    check(testPeer3.id === base, 'pré-condição: criar reserva o ID base');
-    testPeer3.fire('open', base);
-    check(!testPeer3.requests[base] && testPeer3.requests[base + '-h1'], 'deveria procurar as versões migradas (não a própria)');
-    testPeer3.requests[base + '-h1'].fire('open');
-    check(screen3.feedbacks.some(f => f.text.includes('já está em uso')), 'deveria recusar o código de uma partida migrada');
-    check(screen3.element('screenCreated').style.display !== 'block', 'não deveria ir para a tela de sala criada');
-    check(testPeer3.destroyed, 'deveria liberar o ID base reservado');
+    // Na partida.
+    env.startMatch();
+    env.clearLog();
+    env.join('Z', 'uid-a');
+    check(env.rejectionFor('uid-a') === 'device-in-use', 'na partida, o mesmo aparelho com outro nome deveria dar device-in-use, veio: ' + env.rejectionFor('uid-a'));
+    check(!env.player('A').disconnected && env.state.players.length === 2, 'A não pode ser derrubado pela tentativa');
 
-    // Criar código livre: nenhuma versão existe → sala criada.
-    const screen4 = createHomeScreen();
-    screen4.element('createPlayerName').value = 'Outra';
-    screen4.element('createRoomId').value = '002';
-    screen4.element('btnCreateRoom').click();
-    screen4.peers[0].fire('open', screen4.prefix + '002');
-    screen4.answerUnavailable(screen4.peers[0]);
-    check(screen4.element('screenCreated').style.display === 'block', 'código livre deveria criar a sala');
-    check(!screen4.feedbacks.some(f => f.text.startsWith('⚠️')), 'sem mensagem de erro');
-    check(screen4.peers[0].destroyed, 'o peer de teste deveria ser liberado antes de entrar no jogo');
+    // O aviso da recusa é próprio e leva de volta à tela inicial.
+    const guest = use(createEnvironment());
+    const alerts = [];
+    guest.ctx.alert = (text) => { alerts.push(String(text)); };
+    guest.Game.network.handleMessage({ type: 'join-rejected', reason: 'name-taken' }, 'sala');
+    guest.ctx.location.href = 'game.html';
+    guest.Game.network.handleMessage({ type: 'join-rejected', reason: 'device-in-use' }, 'sala');
+    check(alerts.length === 2 && alerts[1] !== alerts[0] && /aparelho|navegador/i.test(alerts[1]),
+        'device-in-use deveria ter aviso próprio, falando deste aparelho, veio: ' + alerts[1]);
+    check(guest.ctx.location.href === './', 'depois do aviso, deveria voltar para a tela inicial, foi para: ' + guest.ctx.location.href);
+});
+
+test('T177 Protocolo 10: o player-join leva o uid e não leva token; o state-sync não leva hostVersion e leva o cursor dos avisos; o host não guarda tokenHash', (use) => {
+    const guest = use(createEnvironment());
+    check(guest.Game.network.PROTOCOL_VERSION >= 10, 'a versão do protocolo deveria ser 10 ou mais (entrada pelo uid), veio: ' + guest.Game.network.PROTOCOL_VERSION);
+    Object.assign(guest.state, { isHost: false, playerName: 'A', peerId: 'uid-a', roomName: 'sala', baseRoomPeerId: 'sala', hostPeerId: 'sala' });
+    guest.Game.network.sendPlayerJoin();
+    const join = guest.record.toHost.filter(m => m.type === 'player-join').pop();
+    check(join && join.playerName === 'A' && join.peerId === 'uid-a' && join.protocolVersion === guest.Game.network.PROTOCOL_VERSION,
+        'o player-join deveria levar o nome, o uid e a versão, veio: ' + JSON.stringify(join));
+    check(!('token' in join), 'o player-join não deveria levar token, veio: ' + JSON.stringify(join));
+
+    const host = use(createEnvironment());
+    host.createRoomAsHost();
+    host.join('A', 'uid-a');
+    host.join('B', 'uid-b');
+    host.startMatch();
+    host.drop('uid-a');
+    host.join('A', 'uid-a');
+    const sync = syncTo(host, 'uid-a');
+    check(sync && !('hostVersion' in sync), 'o state-sync não deveria levar hostVersion, veio: ' + JSON.stringify(sync && Object.keys(sync)));
+    check(sync.feedCursor === host.record.feedCursor,
+        'o state-sync deveria levar o cursor dos avisos (feedCursor) do canal, veio: ' + JSON.stringify(sync.feedCursor));
+    const withHash = host.state.players.filter(p => 'tokenHash' in p).map(p => p.name);
+    check(withHash.length === 0, 'o host não deveria guardar tokenHash, guarda de: ' + withHash.join(', '));
+    const list = host.broadcastsOfType('player-list').pop();
+    check(list && list.players.every(p => !('tokenHash' in p)), 'a lista de jogadores não deveria levar tokenHash');
 });
 
 finish('Entrada na sala e identidade');

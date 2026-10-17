@@ -7,8 +7,8 @@
 // ============================================
 
 const {
-    fs, path, vm, ROOT, createEnvironment, tokenOf, test, check, start, finish,
-    syncTo, roundScreens, unavailable, roomToReload, reloadHost, tryReloadHost, recordScreens
+    fs, path, vm, ROOT, createEnvironment, test, check, start, finish,
+    syncTo, roundScreens, roomToReload, reloadHost, tryReloadHost, recordScreens
 } = require('./environment');
 
 start('Fim de partida e lobby');
@@ -47,13 +47,12 @@ test('T14 Encerrar partida: desconectado que não voltou sai da lista do lobby',
     env.Game.core.endMatch();
     check(!env.player('A'), 'A deveria ter saído da lista ao voltar ao lobby');
     check(env.player('B') && env.player('Host'), 'Host e B (conectados) deveriam continuar');
-    check(env.state.backupPeerId === 'peer-b', 'backup era A — deveria passar para B, veio: ' + env.state.backupPeerId);
     const ended = env.broadcastsOfType('match-ended').pop();
     check(ended && !ended.players.some(p => p.name === 'A'), 'match-ended deveria levar a lista sem A');
 
     // No lobby, A pode voltar normalmente como jogador novo.
-    env.join('A', 'peer-a2');
-    check(env.rejectionFor('peer-a2') === null, 'A deveria conseguir entrar de novo, veio: ' + env.rejectionFor('peer-a2'));
+    env.join('A', 'peer-a');
+    check(env.rejectionFor('peer-a') === null, 'A deveria conseguir entrar de novo, veio: ' + env.rejectionFor('peer-a'));
     check(env.player('A') && !env.player('A').disconnected, 'A deveria estar de volta na lista');
 });
 
@@ -204,10 +203,10 @@ test('T67 Guest volta à sala no fim de jogo: não é recusado e vê o ranking f
     host.drop('peer-a');
     check(!host.player('A'), 'pré-condição: quem cai no fim de jogo sai da lista');
     host.clearLog();
-    host.join('A', 'peer-a2');
-    check(host.rejectionFor('peer-a2') === null, 'A não deveria ser recusado no fim de jogo, veio: ' + host.rejectionFor('peer-a2'));
+    host.join('A', 'peer-a');
+    check(host.rejectionFor('peer-a') === null, 'A não deveria ser recusado no fim de jogo, veio: ' + host.rejectionFor('peer-a'));
     check(host.player('A'), 'A deveria voltar à lista');
-    const sync = syncTo(host, 'peer-a2');
+    const sync = syncTo(host, 'peer-a');
     check(sync && sync.gameOver === true, 'quem volta deveria saber que a partida acabou');
     check(JSON.stringify(sync.finalRanking) === JSON.stringify(ranking), 'quem volta deveria receber o ranking final');
     check(host.broadcastsOfType('round-start').length === 0 && host.state.gameOver === true, 'a volta de A não pode recomeçar a partida');
@@ -228,8 +227,9 @@ test('T67 Guest volta à sala no fim de jogo: não é recusado e vê o ranking f
     env2.join('B', 'peer-b');
     env2.startMatch();
     env2.drop('peer-a');
-    env2.join('A', 'peer-a2');
-    const sync2 = syncTo(env2, 'peer-a2');
+    env2.clearLog();
+    env2.join('A', 'peer-a');
+    const sync2 = syncTo(env2, 'peer-a');
     check(sync2 && sync2.gameOver === false, 'durante a partida, o state-sync deveria dizer que ela não acabou');
 });
 

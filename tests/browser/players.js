@@ -9,12 +9,18 @@
 // Exceção: os arquivos do Firebase (gstatic.com, mesma versão da página
 // de teste de conexão) vêm da internet; o banco e o login são os do
 // emulador local (projeto "demo-", que não existe fora do emulador).
+//
+// Transição do PeerJS para o canal da sala: com js/network/roomLink.js,
+// o jogo conversa pelo canal (no emulador); sem ele, pelo PeerJS. Os
+// ajudantes abaixo valem para os dois ("PeerJS aberto ou canal pronto").
 // ============================================
 
+const fs = require('fs');
 const path = require('path');
 const { test: base, expect } = require('@playwright/test');
 
 const ROOT = path.resolve(__dirname, '..', '..');
+const USES_ROOM_LINK = fs.existsSync(path.join(ROOT, 'js', 'network', 'roomLink.js'));
 const SITE = 'http://127.0.0.1:' + (process.env.SITE_PORT || 8080);
 const PEER_PORT = Number(process.env.PEER_PORT || 9000);
 const LOCAL_PEERJS = path.join(ROOT, 'node_modules', 'peerjs', 'dist', 'peerjs.min.js');
@@ -29,9 +35,47 @@ function roomCode() {
     return 'e2e' + Date.now().toString(36).slice(-5) + Math.floor(Math.random() * 1000);
 }
 
-/** ID completo da sala (prefixo + código), como o jogo monta. */
+/** PeerJS: ID completo da sala (prefixo + código), como o jogo monta. */
 function roomId(code) {
     return ROOM_PREFIX + code;
+}
+
+// Funções executadas na página (cada uma sozinha, sem nada de fora).
+
+/** O jogo está ligado à sala: PeerJS aberto ou canal pronto (host, ou guest aceito). */
+function linkReadyInPage() {
+    const n = window.Game && Game.network;
+    if (!n) return false;
+    if (n.linkStatus) {
+        const s = n.linkStatus();
+        return !!s && (s.isHost === true || s.isAdmitted === true);
+    }
+    const peer = n.connectionState && n.connectionState.getPeer();
+    return !!peer && peer.open === true;
+}
+
+/** Guest ligado ao host: conexão aberta (PeerJS) ou aceito, com o host presente e o estado recebido (canal). */
+function connectedToHostInPage() {
+    const n = window.Game && Game.network;
+    if (!n || Game.state.isHost !== false) return false;
+    if (n.linkStatus) {
+        const s = n.linkStatus();
+        return !!s && s.isAdmitted === true && s.hostOnline === true && s.synced === true;
+    }
+    const c = n.connectionState.getConnection(Game.state.hostPeerId);
+    return !!c && c.open === true;
+}
+
+/** É o host da sala: com o ID da sala aberto (PeerJS) ou como host no canal. */
+function roomHostInPage() {
+    const n = window.Game && Game.network;
+    if (!n || Game.state.isHost !== true) return false;
+    if (n.linkStatus) {
+        const s = n.linkStatus();
+        return !!s && s.isHost === true;
+    }
+    const peer = n.connectionState.getPeer();
+    return Game.state.peerId === Game.state.hostPeerId && !!peer && peer.open === true;
 }
 
 async function createPlayer(browser, name) {
@@ -79,25 +123,37 @@ async function createPlayer(browser, name) {
             return page;
         },
 
-        /** Abre o jogo direto pelo link da partida (como o link gerado pela tela inicial). */
+        /**
+         * Abre o jogo. Canal: o host cria a sala na tela inicial e entra;
+         * o guest abre o link da sala (código e nome). PeerJS: direto pelo
+         * link da partida (como o link gerado pela tela inicial). Espera
+         * o jogo ficar ligado à sala.
+         */
         async openGame(code, { host }) {
-            const id = roomId(code);
-            const params = new URLSearchParams({ host: host ? 'true' : 'false', room: id, playerName: name, peerId: id });
             if (!player.page || player.page.isClosed()) await player.newTab();
-            await player.page.goto(SITE + '/game.html?' + params.toString());
-            await player.waitFor(() => window.Game && Game.network && Game.network.connectionState.getPeer() &&
-                Game.network.connectionState.getPeer().open === true);
+            if (USES_ROOM_LINK && host) {
+                const created = await player.createRoomFromHomeScreen(code);
+                if (!created.created) throw new Error(name + ' não conseguiu criar a sala ' + code + ': ' + created.warning);
+                await player.page.click('#btnEnterCreatedRoom');
+                await player.page.waitForURL(/game\.html/, { timeout: 20000 });
+            } else if (USES_ROOM_LINK) {
+                await player.page.goto(SITE + '/game.html?' + new URLSearchParams({ room: code, playerName: name }).toString());
+            } else {
+                const id = roomId(code);
+                const params = new URLSearchParams({ host: host ? 'true' : 'false', room: id, playerName: name, peerId: id });
+                await player.page.goto(SITE + '/game.html?' + params.toString());
+            }
+            await player.waitFor(linkReadyInPage);
         },
 
         /**
          * Entra pela tela inicial, como um jogador faria: "Entrar em uma
-         * sala", nome e código. Espera chegar ao jogo e o PeerJS abrir.
+         * sala", nome e código. Espera chegar ao jogo e ficar ligado à sala.
          */
         async joinFromHomeScreen(code) {
             await player.tryJoinFromHomeScreen(code);
             await player.page.waitForURL(/game\.html/, { timeout: 20000 });
-            await player.waitFor(() => window.Game && Game.network && Game.network.connectionState.getPeer() &&
-                Game.network.connectionState.getPeer().open === true);
+            await player.waitFor(linkReadyInPage);
         },
 
         /**
@@ -186,12 +242,14 @@ async function createPlayer(browser, name) {
             });
         },
 
-        /** Está conectado ao host do ID informado (conexão aberta)? */
-        isConnectedTo(hostId) {
-            return player.page.evaluate((id) => {
-                const c = Game.network.connectionState.getConnection(id);
-                return Game.state.isHost === false && Game.state.hostPeerId === id && !!c && c.open === true;
-            }, hostId);
+        /** É guest e está ligado ao host da sala, com o estado recebido? */
+        isConnectedToHost() {
+            return player.page.evaluate(connectedToHostInPage);
+        },
+
+        /** É o host da sala? */
+        isRoomHost() {
+            return player.page.evaluate(roomHostInPage);
         },
 
         /** Reabre o mesmo endereço numa aba nova (como reabrir pelo histórico). */
@@ -324,20 +382,13 @@ async function waitForOpenQuestion(host, everyone, targets) {
     throw new Error('Nenhuma pergunta abriu para ' + targets.map(p => p.name).join('/') + ' em 60s');
 }
 
-/** Espera um dos jogadores assumir como host (com o peer novo aberto). Devolve quem assumiu. */
-async function waitForNewHost(candidates, timeout = 25000) {
-    const deadline = Date.now() + timeout;
-    while (Date.now() < deadline) {
-        for (const p of candidates) {
-            const tookOver = await p.state(() => Game.state.isHost === true && Game.state.peerId === Game.state.hostPeerId);
-            if (tookOver) return p;
-        }
-        await candidates[0].page.waitForTimeout(200);
-    }
-    throw new Error('Ninguém assumiu como host em ' + (timeout / 1000) + 's');
+/** Espera o host voltar (F5 ou aba reaberta): de novo host da sala, com a partida em andamento. */
+async function waitForHostBack(host) {
+    await expect.poll(() => host.isRoomHost(), { timeout: 25000, message: host.name + ' deveria voltar como host da sala' }).toBe(true);
+    await host.waitFor(() => Game.state.gameStarted === true, { timeout: 25000 });
 }
 
 module.exports = {
-    test, expect, roomCode, roomId, startMatch, answerUntilRoundEnds,
-    waitForOpenQuestion, waitForNewHost, SITE
+    test, expect, roomCode, startMatch, answerUntilRoundEnds,
+    waitForOpenQuestion, waitForHostBack, SITE
 };

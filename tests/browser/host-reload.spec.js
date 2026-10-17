@@ -8,17 +8,10 @@
 // restaura a partida; depois disso, lobby novo.
 // ============================================
 
-const { test, expect, roomCode, roomId, startMatch, answerUntilRoundEnds, waitForOpenQuestion } = require('./players');
-
-/** Espera o host voltar do F5: de novo host, na mesma sala, com a partida em andamento. */
-async function waitForHostBack(host, room) {
-    await host.waitFor((id) => Game.state.isHost === true && Game.state.peerId === id && Game.state.gameStarted === true,
-        { arg: room, timeout: 25000 });
-}
+const { test, expect, roomCode, startMatch, answerUntilRoundEnds, waitForOpenQuestion, waitForHostBack } = require('./players');
 
 test('E9 F5 do host com a rodada encerrada: continua encerrada para todos, "Nova Rodada" liberado, nada começa sozinho', async ({ players }) => {
     const code = roomCode();
-    const room = roomId(code);
     const ana = await players.add('Ana');
     const beto = await players.add('Beto');
     await startMatch(ana, [beto], code);
@@ -26,8 +19,8 @@ test('E9 F5 do host com a rodada encerrada: continua encerrada para todos, "Nova
     await beto.waitFor(() => Game.state.roundEnded === true);
 
     await ana.page.reload();
-    await waitForHostBack(ana, room);
-    await expect.poll(() => beto.isConnectedTo(room), { timeout: 25000, message: 'Beto deveria reconectar ao mesmo host' }).toBe(true);
+    await waitForHostBack(ana);
+    await expect.poll(() => beto.isConnectedToHost(), { timeout: 25000, message: 'Beto deveria reconectar ao mesmo host' }).toBe(true);
     await ana.waitFor(() => {
         const b = Game.state.players.find(p => p.name === 'Beto');
         return b && b.disconnected === false;
@@ -53,7 +46,6 @@ test('E9 F5 do host com a rodada encerrada: continua encerrada para todos, "Nova
 
 test('E10 F5 do host logo depois de responder (antes da próxima dupla): a partida não trava', async ({ players }) => {
     const code = roomCode();
-    const room = roomId(code);
     const ana = await players.add('Ana');
     const beto = await players.add('Beto');
     await startMatch(ana, [beto], code);
@@ -64,13 +56,13 @@ test('E10 F5 do host logo depois de responder (antes da próxima dupla): a parti
     await ana.waitFor(() => Game.state.currentRound && Game.state.currentRound.answerer === 'Ana' && Game.state.currentRound.answered === true,
         { timeout: 2000 });
     await ana.page.reload();
-    await waitForHostBack(ana, room);
+    await waitForHostBack(ana);
 
     // Segue para a próxima dupla (Beto responde) ou encerra a rodada (Beto já tinha respondido).
     await ana.waitFor(() => Game.state.roundEnded === true ||
         (Game.state.currentRound !== null && Game.state.currentRound.answered === false && Game.state.currentRound.answerer === 'Beto'),
         { timeout: 10000 });
-    await expect.poll(() => beto.isConnectedTo(room), { timeout: 25000, message: 'Beto deveria reconectar ao mesmo host' }).toBe(true);
+    await expect.poll(() => beto.isConnectedToHost(), { timeout: 25000, message: 'Beto deveria reconectar ao mesmo host' }).toBe(true);
 
     // A partida continua: a rodada vai até o fim e a seguinte começa.
     await answerUntilRoundEnds(ana, [ana, beto]);
@@ -83,7 +75,6 @@ test('E10 F5 do host logo depois de responder (antes da próxima dupla): a parti
 
 test('E11 F5 do host com a partida pausada: continua pausada com o mesmo evento e retoma quando o outro volta', async ({ players }) => {
     const code = roomCode();
-    const room = roomId(code);
     const ana = await players.add('Ana');
     const beto = await players.add('Beto');
     await startMatch(ana, [beto], code);
@@ -94,7 +85,7 @@ test('E11 F5 do host com a partida pausada: continua pausada com o mesmo evento 
     const eventId = await ana.state(() => Game.state.matchPaused.event.id);
 
     await ana.page.reload();
-    await waitForHostBack(ana, room);
+    await waitForHostBack(ana);
     expect(await ana.state(() => Game.state.matchPaused && Game.state.matchPaused.event && Game.state.matchPaused.event.id),
         'depois do F5, a partida deveria continuar pausada com o mesmo evento').toBe(eventId);
     await expect(ana.page.locator('#modalEvent'), 'não deveria sortear nem mostrar outro evento').toBeHidden();
@@ -115,7 +106,6 @@ test('E11 F5 do host com a partida pausada: continua pausada com o mesmo evento 
 
 test('E12 F5 do host com um pedido de assessoria sem resposta: o pedido é cancelado e quem responde pode seguir (BUG-019)', async ({ players }) => {
     const code = roomCode();
-    const room = roomId(code);
     const ana = await players.add('Ana');
     const beto = await players.add('Beto');
     const caio = await players.add('Caio');
@@ -130,8 +120,8 @@ test('E12 F5 do host com um pedido de assessoria sem resposta: o pedido é cance
     expect(await answerer.hasOpenQuestion(), 'pré-condição: botões travados esperando o assessor').toBe(false);
 
     await ana.page.reload();
-    await waitForHostBack(ana, room);
-    await expect.poll(() => answerer.isConnectedTo(room), { timeout: 25000, message: answerer.name + ' deveria reconectar ao mesmo host' }).toBe(true);
+    await waitForHostBack(ana);
+    await expect.poll(() => answerer.isConnectedToHost(), { timeout: 25000, message: answerer.name + ' deveria reconectar ao mesmo host' }).toBe(true);
 
     // Volta com a pergunta aberta, botões e "Pedir Assessoria" liberados.
     await expect.poll(() => answerer.hasOpenQuestion(),
@@ -146,7 +136,6 @@ test('E12 F5 do host com um pedido de assessoria sem resposta: o pedido é cance
 
 test('E17 Todos saem (o host por último, com a partida pausada) e voltam em até 5 min: continua pausada com o mesmo evento e retoma', async ({ players }) => {
     const code = roomCode();
-    const room = roomId(code);
     const ana = await players.add('Ana');
     const beto = await players.add('Beto');
     await startMatch(ana, [beto], code);
@@ -159,7 +148,7 @@ test('E17 Todos saem (o host por último, com a partida pausada) e voltam em at�
 
     // Ana reabre o link: de novo host da mesma sala, ainda pausada com o mesmo evento.
     await ana.reopen(anaLink);
-    await waitForHostBack(ana, room);
+    await waitForHostBack(ana);
     expect(await ana.state(() => Game.state.matchPaused && Game.state.matchPaused.event && Game.state.matchPaused.event.id),
         'a partida deveria continuar pausada com o mesmo evento').toBe(eventId);
     await expect(ana.page.locator('#modalEvent'), 'não deveria sortear nem mostrar outro evento').toBeHidden();
@@ -179,7 +168,6 @@ test('E17 Todos saem (o host por último, com a partida pausada) e voltam em at�
 
 test('E18 Todos saem e voltam depois de 5 min: a sala abre um lobby novo e uma partida nova começa', async ({ players }) => {
     const code = roomCode();
-    const room = roomId(code);
     const ana = await players.add('Ana');
     const beto = await players.add('Beto');
     await startMatch(ana, [beto], code);
@@ -194,9 +182,7 @@ test('E18 Todos saem e voltam depois de 5 min: a sala abre um lobby novo e uma p
 
     // Ana reabre o link: lobby novo, só ela na sala.
     await ana.reopen(anaLink);
-    await ana.waitFor((id) => Game.state.isHost === true && Game.state.peerId === id &&
-        Game.network.connectionState.getPeer() && Game.network.connectionState.getPeer().open === true,
-    { arg: room, timeout: 25000 });
+    await expect.poll(() => ana.isRoomHost(), { timeout: 25000, message: 'Ana deveria voltar como host da sala' }).toBe(true);
     expect(await ana.state(() => Game.state.gameStarted), 'a partida antiga não deveria ser restaurada').toBe(false);
     expect(await ana.state(() => Game.state.players.map(p => p.name))).toEqual(['Ana']);
     await expect(ana.page.locator('#screenLobby')).toBeVisible();
