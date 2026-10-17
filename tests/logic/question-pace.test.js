@@ -32,11 +32,13 @@ const copy = (x) => (x === undefined ? undefined : JSON.parse(JSON.stringify(x))
 /**
  * Partida de 3 (Host, A, B) com tempo falso (env.time) e a etapa de
  * perguntar ligada (ASK_TIMEOUT = ASK). Sorteio fixo: A pergunta, B
- * responde, o host assiste. `reload` prepara a sala para um F5 do host.
+ * responde, o host assiste. `reload` prepara a sala para um F5 do host;
+ * `offset` é quanto a hora do servidor está à frente do relógio do host.
  */
-function askingMatch(use, { reload = false } = {}) {
+function askingMatch(use, { reload = false, offset = 0 } = {}) {
     const env = use(createEnvironment());
     env.time = env.fakeTime();
+    env.setServerOffset(offset);
     vm.runInContext('Math.random = () => 0.99', env.ctx);
     if (reload) roomToReload(env); else env.createRoomAsHost();
     env.CONFIG.GAME.ASK_TIMEOUT = ASK;
@@ -65,10 +67,13 @@ const QUESTION_SCREENS = ['js/utils/sanitize.js', 'js/ui/modals/advisoryModal.js
  * Guest com as telas reais de QUESTION_SCREENS, em que Game.ui.* chama a
  * função real quando ela é de um desses arquivos (as outras telas não
  * fazem nada): a mensagem passa pelo handleMessage() real e chega à tela
- * real, qualquer que seja o caminho entre as duas.
+ * real, qualquer que seja o caminho entre as duas. O relógio do guest
+ * (g.time) começa na hora do host: os prazos que vêm nas mensagens são
+ * horas de término.
  */
 function guestOnScreen(use, host, name) {
     const g = guestWithScreens(use, host, name, QUESTION_SCREENS);
+    g.time = g.guest.fakeTime(host.time.now());
     const names = new Set(QUESTION_SCREENS.flatMap(f =>
         [...fs.readFileSync(path.join(ROOT, f), 'utf8').matchAll(/^function (\w+)/gm)].map(m => m[1])));
     g.guest.Game.ui = new Proxy({}, { get: (_, n) => (names.has(String(n)) ? g.guest.ctx[n] : () => {}) });
@@ -178,7 +183,7 @@ test('T133 ASK_TIMEOUT 0 desliga a etapa: a pergunta vai direto para quem respon
 // PRAZO DE RESPOSTA PAUSADO NO APOIO (BUG-028)
 // ============================================
 
-test('T134 BUG-028 no host: durante o apoio o prazo de quem responde para e, no fim, continua de onde parou; o tempo que resta vai no advisory-started e no advisory-result', (use) => {
+test('T134 BUG-028 no host: durante o apoio o prazo de quem responde para e, no fim, continua de onde parou; o tempo que resta vai no advisory-started e a nova hora de término no advisory-result', (use) => {
     const answer = (env) => env.CONFIG.GAME.ANSWER_TIMEOUT;
 
     // 1) O assessor responde: faltavam 5s, o assessor pensou 10s, B continua com 5s.
@@ -194,7 +199,8 @@ test('T134 BUG-028 no host: durante o apoio o prazo de quem responde para e, no 
     check(!answeredByB(env), 'o prazo de B não pode vencer enquanto o assessor pensa');
     env.Game.core.handleAdvisoryAnswer({ alternative: env.state.currentRound.question.correct, declined: false });
     const result = env.broadcastsOfType('advisory-result').pop();
-    check(result && result.answerTimeLeft === 5000, 'o advisory-result deveria levar o tempo que resta a B (5000), veio: ' + JSON.stringify(result));
+    check(result && result.answerEndsAt === env.time.now() + 5000 && result.answerTimeLeft === undefined,
+        'o advisory-result deveria levar a nova hora de término do prazo de B (agora + 5000), sem answerTimeLeft, veio: ' + JSON.stringify(result));
     env.time.advance(4999);
     check(!answeredByB(env), 'B deveria ter os 5s que faltavam (ainda não acabou em 4999ms)');
     env.time.advance(1);
@@ -207,8 +213,8 @@ test('T134 BUG-028 no host: durante o apoio o prazo de quem responde para e, no 
     late.Game.network.handleMessage({ type: 'advisory-request', advisorName: 'Host', requesterName: 'B' }, 'peer-b');
     late.time.advance(late.CONFIG.GAME.ADVISORY_TIMEOUT);
     const timedOut = late.broadcastsOfType('advisory-result').pop();
-    check(timedOut && timedOut.timeout === true && timedOut.answerTimeLeft === 5000,
-        'com o prazo do assessor esgotado, o advisory-result deveria levar o tempo que resta a B, veio: ' + JSON.stringify(timedOut));
+    check(timedOut && timedOut.timeout === true && timedOut.answerEndsAt === late.time.now() + 5000,
+        'com o prazo do assessor esgotado, o advisory-result deveria levar a nova hora de término do prazo de B (agora + 5000), veio: ' + JSON.stringify(timedOut));
     late.time.advance(4999);
     check(!answeredByB(late), 'depois do prazo do assessor, B ainda deveria ter os 5s que faltavam');
     late.time.advance(1);
@@ -225,28 +231,40 @@ test('T134 BUG-028 no host: durante o apoio o prazo de quem responde para e, no 
         'a tela do host que responde deveria receber o aviso do apoio com o tempo que resta, veio: ' + JSON.stringify(shown && shown.args));
 });
 
-test('T135 BUG-028 na tela: o contador de quem responde para quando o apoio começa e volta a contar do tempo que restava', (use) => {
+test('T135 BUG-028 na tela: o contador de quem responde conta pela hora de término (hora do servidor), para quando o apoio começa e volta pela nova hora de término', (use) => {
     const env = askingMatch(use);
     askFromA(env);
     const { guest, elements } = guestOnScreen(use, env, 'B');
     const clock = guest.fakeClock();
+    // O relógio do aparelho de B está 30 s adiantado; a hora do servidor corrige.
+    const time = guest.fakeTime(env.time.now() + 30000);
+    guest.setServerOffset(-30000);
     for (const type of ['round-start', 'question-asked']) {
         const msg = env.broadcastsOfType(type).pop();
         if (msg) guest.Game.network.handleMessage(copy(msg), 'sala');
     }
-    guest.Game.network.handleMessage(copy(sentTo(env, 'peer-b', 'question').pop()), 'sala');
+    const question = sentTo(env, 'peer-b', 'question').pop();
+    check(question && question.answerEndsAt === env.time.now() + env.CONFIG.GAME.ANSWER_TIMEOUT,
+        'a pergunta para B deveria levar a hora de término do prazo de resposta (answerEndsAt), veio: ' + JSON.stringify(question && question.answerEndsAt));
+    guest.Game.network.handleMessage(copy(question), 'sala');
     const full = env.CONFIG.GAME.ANSWER_TIMEOUT / 1000;
     check(clock.activeCount() === 1 && elements.answerTimerText.textContent === 'question.timeLeft {"seconds":' + full + '}',
         'com a pergunta aberta, o contador de B deveria correr do prazo inteiro, veio: ' + (elements.answerTimerText || {}).textContent);
-    clock.tick(3);
+    time.advance(3000);
+    clock.tick();
+    check(elements.answerTimerText.textContent === 'question.timeLeft {"seconds":' + (full - 3) + '}',
+        'depois de 3 s com um tique só, o contador deveria mostrar o que falta até a hora de término (' + (full - 3) + 's), veio: ' + elements.answerTimerText.textContent);
 
     guest.ctx.showAdvisoryStarted({ type: 'advisory-started', kind: 'advisory', advisorName: 'Host', requesterName: 'B', answerTimeLeft: (full - 3) * 1000 });
     check(clock.activeCount() === 0, 'o contador de B deveria parar enquanto o apoio está pendente, ligados: ' + clock.activeCount());
 
+    time.advance(10000);
+    const resumedEndsAt = guest.Game.network.serverNow() + 41000;
     guest.ctx.showAdvisoryResult({ type: 'advisory-result', kind: 'advisory', advisorName: 'Host', suggestion: 'a', declined: false, timeout: false,
-        answerTimeLeft: 41000 });
+        answerEndsAt: resumedEndsAt });
     check(clock.activeCount() === 1 && elements.answerTimerText.textContent === 'question.timeLeft {"seconds":41}',
-        'com o fim do apoio, o contador de B deveria voltar do tempo que restava (41s), veio: ' + elements.answerTimerText.textContent);
+        'com o fim do apoio, o contador de B deveria voltar pela nova hora de término (41s), veio: ' + elements.answerTimerText.textContent);
+    time.advance(1000);
     clock.tick();
     check(elements.answerTimerText.textContent === 'question.timeLeft {"seconds":40}', 'o contador deveria continuar descendo, veio: ' +
         elements.answerTimerText.textContent);
@@ -255,7 +273,7 @@ test('T135 BUG-028 na tela: o contador de quem responde para quando o apoio come
     guest.ctx.showAdvisoryResult({ type: 'advisory-result', kind: 'advisory', advisorName: 'Host', suggestion: null, declined: true, invalid: true,
         reason: 'helper-without-resources' });
     check(clock.activeCount() === 1 && elements.answerTimerText.textContent === 'question.timeLeft {"seconds":40}',
-        'uma recusa sem o tempo que resta não deveria mexer no contador, veio: ' + elements.answerTimerText.textContent);
+        'uma recusa sem a hora de término não deveria mexer no contador, veio: ' + elements.answerTimerText.textContent);
 });
 
 // ============================================
@@ -335,22 +353,23 @@ test('T137 Tempo esgotado: conta como erro (gasta 1 recurso e entra no rodízio)
 // F5, VOLTA À PARTIDA E TROCA DE HOST ANTES DA PERGUNTA
 // ============================================
 
-test('T138 F5 do host antes da pergunta: a rodada continua esperando o Perguntador (prazo dele de novo, sem prazo de resposta); rodada salva sem `asked` conta como pergunta feita', (use) => {
-    // 1) Antes do clique de A.
+test('T138 F5 do host antes da pergunta: a rodada continua esperando o Perguntador (o prazo dele continua de onde estava, sem prazo de resposta); rodada salva sem `asked` conta como pergunta feita', (use) => {
+    // 1) Antes do clique de A, 10 s depois do início da rodada.
     const env = askingMatch(use, { reload: true });
+    env.time.advance(10000);
     const reloaded = use(reloadHost(env));
     reloaded.CONFIG.GAME.ASK_TIMEOUT = ASK;
-    const time = reloaded.fakeTime();
+    const time = reloaded.fakeTime(env.time.now());
     reloaded.Game.core.resumeMatchAfterReload();
     check(reloaded.state.currentRound && reloaded.state.currentRound.asked === false,
         'depois do F5, a rodada deveria continuar com a pergunta por fazer, veio: ' + JSON.stringify(reloaded.state.currentRound && reloaded.state.currentRound.asked));
     check(sentTo(reloaded, 'peer-b', 'question').length === 0 && !reloaded.state.answerTimeout,
         'o F5 não deveria mandar a pergunta a B nem ligar o prazo de resposta antes de A perguntar');
-    time.advance(ASK - 1);
-    check(sentTo(reloaded, 'peer-b', 'question').length === 0, 'o prazo de A recomeça no F5: ainda não deveria ter ido');
+    time.advance(ASK - 10000 - 1);
+    check(sentTo(reloaded, 'peer-b', 'question').length === 0, 'o prazo de A continua de onde estava: 1 ms antes do fim, ainda não deveria ter ido');
     time.advance(1);
     check(sentTo(reloaded, 'peer-b', 'question').length === 1 && reloaded.state.answerTimeout,
-        'no prazo de A depois do F5, a pergunta deveria ir sozinha para B, com o prazo de resposta');
+        'no fim do prazo que faltava a A (ASK_TIMEOUT - 10 s depois do F5), a pergunta deveria ir sozinha para B, com o prazo de resposta');
 
     // 2) Rodada salva por uma versão sem a etapa (sem o campo asked): a pergunta já tinha sido feita.
     const old = askingMatch(use, { reload: true });
@@ -418,6 +437,132 @@ test('T142 Prazos do config real: 90s para responder, 60s para a assessoria e a 
     check(game.ANSWER_TIMEOUT === 90000 && game.ADVISORY_TIMEOUT === 60000 && game.ASK_TIMEOUT === 30000,
         'o config real deveria ter ANSWER_TIMEOUT 90000, ADVISORY_TIMEOUT 60000 e ASK_TIMEOUT 30000, veio: ' +
         JSON.stringify({ ANSWER_TIMEOUT: game.ANSWER_TIMEOUT, ADVISORY_TIMEOUT: game.ADVISORY_TIMEOUT, ASK_TIMEOUT: game.ASK_TIMEOUT }));
+});
+
+// ============================================
+// PRAZOS EM HORA DO SERVIDOR (roadmap 2.9, etapa 2a)
+// ============================================
+
+test('T181 Prazo do Perguntador em hora do servidor (askEndsAt): gravado na rodada ao armar; vencido durante o F5 do host, a pergunta vai na hora; rodada salva sem askEndsAt ganha o prazo inteiro', (use) => {
+    // 1) A hora de término do prazo de A, pela hora do servidor (45 s à frente do relógio do host), vai na rodada e no estado salvo.
+    const env = askingMatch(use, { reload: true, offset: 45000 });
+    const r = env.state.currentRound;
+    check(r.askEndsAt === env.time.now() + 45000 + ASK,
+        'a rodada deveria guardar askEndsAt = hora do servidor + ASK_TIMEOUT, veio: ' + JSON.stringify({ askEndsAt: r.askEndsAt, server: env.time.now() + 45000 }));
+    const saved = JSON.parse(env.storage['pmKPI_roomState']);
+    check(saved.currentRound.askEndsAt === r.askEndsAt, 'o estado salvo deveria guardar askEndsAt, veio: ' + JSON.stringify(saved.currentRound.askEndsAt));
+
+    // 2) O host ficou fora além do prazo de A: na retomada, a pergunta vai na hora (envio automático), com o prazo de resposta contando dali.
+    const reloaded = use(reloadHost(env));
+    reloaded.CONFIG.GAME.ASK_TIMEOUT = ASK;
+    reloaded.setServerOffset(45000);
+    const back = env.time.now() + ASK + 2000;
+    const time = reloaded.fakeTime(back);
+    reloaded.Game.core.resumeMatchAfterReload();
+    time.advance(0);
+    const asked = reloaded.broadcastsOfType('question-asked');
+    check(asked.length === 1 && asked[0].auto === true && reloaded.state.currentRound.asked === true && sentTo(reloaded, 'peer-b', 'question').length === 1,
+        'com o prazo de A vencido durante o F5, a pergunta deveria ir na retomada (question-asked com auto), veio: ' + JSON.stringify(asked));
+    check(reloaded.state.currentRound.answerEndsAt === back + 45000 + reloaded.CONFIG.GAME.ANSWER_TIMEOUT,
+        'o prazo de resposta de B deveria contar da retomada, veio: ' + JSON.stringify(reloaded.state.currentRound.answerEndsAt));
+
+    // 3) Rodada salva sem askEndsAt (versão anterior): o prazo inteiro, contado do F5.
+    const old = askingMatch(use, { reload: true });
+    old.time.advance(10000);
+    const oldSaved = JSON.parse(old.storage['pmKPI_roomState']);
+    delete oldSaved.currentRound.askEndsAt;
+    old.storage['pmKPI_roomState'] = JSON.stringify(oldSaved);
+    const reloadedOld = use(reloadHost(old));
+    reloadedOld.CONFIG.GAME.ASK_TIMEOUT = ASK;
+    const timeOld = reloadedOld.fakeTime(old.time.now());
+    reloadedOld.Game.core.resumeMatchAfterReload();
+    timeOld.advance(ASK - 1);
+    check(sentTo(reloadedOld, 'peer-b', 'question').length === 0, 'sem askEndsAt, o prazo de A deveria ser inteiro: 1 ms antes, a pergunta ainda não deveria ter ido');
+    timeOld.advance(1);
+    check(sentTo(reloadedOld, 'peer-b', 'question').length === 1, 'sem askEndsAt, a pergunta deveria ir no fim do prazo inteiro, contado do F5');
+});
+
+test('T182 Prazos de resposta e de apoio em hora do servidor: answerEndsAt na rodada e na pergunta de quem responde; com o apoio pendente, answerEndsAt vazio e advisory.endsAt no advisory-started e no advisory-question; vencido durante o F5, a vez é pulada na hora; as telas contam pela hora de término', (use) => {
+    const C = (env) => env.CONFIG.GAME;
+
+    // 1) No host, com a hora do servidor 20 s atrás do relógio dele.
+    const env = askingMatch(use, { offset: -20000 });
+    const server = () => env.time.now() - 20000;
+    askFromA(env);
+    const r = env.state.currentRound;
+    check(r.answerEndsAt === server() + C(env).ANSWER_TIMEOUT,
+        'a rodada deveria guardar answerEndsAt = hora do servidor + ANSWER_TIMEOUT, veio: ' + JSON.stringify({ answerEndsAt: r.answerEndsAt, server: server() }));
+    const toB = sentTo(env, 'peer-b', 'question').pop();
+    check(toB && toB.answerEndsAt === r.answerEndsAt, 'a pergunta para B deveria levar answerEndsAt, veio: ' + JSON.stringify(toB && toB.answerEndsAt));
+
+    env.time.advance(10000);
+    env.Game.network.handleMessage({ type: 'advisory-request', advisorName: 'Host', requesterName: 'B' }, 'peer-b');
+    const pending = env.state.currentRound;
+    check(pending.advisory && pending.advisory.endsAt === server() + C(env).ADVISORY_TIMEOUT,
+        'o apoio deveria guardar endsAt = hora do servidor + ADVISORY_TIMEOUT, veio: ' + JSON.stringify(pending.advisory));
+    check(pending.answerEndsAt == null && pending.answerTimeLeft === C(env).ANSWER_TIMEOUT - 10000,
+        'com o apoio pendente, answerEndsAt deveria ficar vazio e answerTimeLeft guardar o que faltava, veio: ' +
+        JSON.stringify({ answerEndsAt: pending.answerEndsAt, answerTimeLeft: pending.answerTimeLeft }));
+    const started = env.broadcastsOfType('advisory-started').pop();
+    check(started && started.endsAt === pending.advisory.endsAt && started.answerTimeLeft === C(env).ANSWER_TIMEOUT - 10000,
+        'o advisory-started deveria levar endsAt do apoio e o tempo que resta a B, veio: ' + JSON.stringify(started));
+    const toAdvisor = sentTo(env, 'peer-host', 'advisory-question').pop();
+    check(toAdvisor && toAdvisor.endsAt === pending.advisory.endsAt,
+        'a pergunta para quem foi chamado deveria levar endsAt do apoio, veio: ' + JSON.stringify(toAdvisor && toAdvisor.endsAt));
+
+    env.time.advance(4000);
+    env.Game.core.handleAdvisoryAnswer({ alternative: 'A', declined: false });
+    const result = env.broadcastsOfType('advisory-result').pop();
+    check(result && result.answerEndsAt === server() + C(env).ANSWER_TIMEOUT - 10000 && env.state.currentRound.answerEndsAt === result.answerEndsAt,
+        'no fim do apoio, a rodada e o advisory-result deveriam levar a nova hora de término (hora do servidor + o que faltava), veio: ' +
+        JSON.stringify({ result: result && result.answerEndsAt, round: env.state.currentRound.answerEndsAt, expected: server() + C(env).ANSWER_TIMEOUT - 10000 }));
+
+    // 2) O host ficou fora além do prazo de resposta: na retomada, a vez de B é pulada na hora.
+    const late = askingMatch(use, { reload: true });
+    askFromA(late);
+    const lateReloaded = use(reloadHost(late));
+    lateReloaded.CONFIG.GAME.ASK_TIMEOUT = ASK;
+    const lateTime = lateReloaded.fakeTime(late.time.now() + C(late).ANSWER_TIMEOUT + 3000);
+    lateReloaded.Game.core.resumeMatchAfterReload();
+    lateTime.advance(0);
+    const skipped = lateReloaded.broadcastsOfType('kpi-update').find(m => m.playerName === 'B');
+    check(skipped && skipped.timedOut === true && lateReloaded.state.answeredThisRound.includes('B'),
+        'com o prazo de resposta vencido durante o F5, a vez de B deveria ser pulada na retomada, veio: ' + JSON.stringify(skipped));
+
+    // 3) Telas, com o relógio do aparelho 30 s adiantado (a hora do servidor corrige).
+    const screens = askingMatch(use);
+    askFromA(screens);
+    const skewed = (g) => {
+        const t = g.guest.fakeTime(screens.time.now() + 30000);
+        g.guest.setServerOffset(-30000);
+        return { t, clock: g.guest.fakeClock() };
+    };
+
+    // Quem foi chamado: o contador do apoio conta pela hora de término que veio na pergunta.
+    const advisor = guestOnScreen(use, screens, 'A');
+    const a = skewed(advisor);
+    advisor.guest.ctx.showAdvisoryQuestionModal({ type: 'advisory-question', kind: 'advisory', question: 'Pergunta?', domain: 'Domínio',
+        alternatives: ['A) Um', 'B) Dois', 'C) Três', 'D) Quatro'], id: 'q1', endsAt: screens.time.now() + 25000 });
+    check(advisor.elements.advisoryTimerText.textContent === 'advisory.timeLeft {"seconds":25}',
+        'o contador de quem foi chamado deveria mostrar o que falta até endsAt (25s), veio: ' + advisor.elements.advisoryTimerText.textContent);
+    a.t.advance(5000);
+    a.clock.tick();
+    check(advisor.elements.advisoryTimerText.textContent === 'advisory.timeLeft {"seconds":20}',
+        'depois de 5 s com um tique só, o contador do apoio deveria mostrar 20s, veio: ' + advisor.elements.advisoryTimerText.textContent);
+
+    // Quem responde volta à pergunta (state-sync) 40 s depois de ela ser feita: o contador mostra o que falta, não o prazo inteiro.
+    const round = screens.state.currentRound;
+    const b = guestOnScreen(use, screens, 'B');
+    const bt = skewed(b);
+    bt.t.advance(40000);
+    b.guest.receiveSync('B', copy({
+        players: screens.state.players, decks: {}, endsAt: screens.state.endsAt, gameStarted: true,
+        currentRound: { ...round, question: { ...round.question, correct: undefined } },
+        roundEnded: false, matchPaused: false, answeredThisRound: [], gameOver: false, finalRanking: null
+    }));
+    const left = C(screens).ANSWER_TIMEOUT / 1000 - 40;
+    check(b.elements.answerTimerText && b.elements.answerTimerText.textContent === 'question.timeLeft {"seconds":' + left + '}',
+        'quem volta à pergunta deveria ver o que falta até answerEndsAt (' + left + 's), veio: ' + (b.elements.answerTimerText || {}).textContent);
 });
 
 finish('Ritmo da pergunta');

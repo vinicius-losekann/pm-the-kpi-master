@@ -166,6 +166,11 @@ function createEnvironment(options = {}) {
         vm.runInContext(fs.readFileSync(filePath, 'utf8'), ctx, { filename: file });
     }
 
+    // Hora do servidor (Game.network.serverNow): o relógio do aparelho
+    // (o Date do contexto, trocado pelo fakeTime()) mais a diferença que o
+    // Firebase informaria (setServerOffset(); 0 até o teste trocar).
+    let serverOffset = 0;
+
     // A ligação real (roomLink.js) envia pelo canal da sala; aqui voltam
     // os stubs que só registram. Continuam os reais: receiveRequest,
     // receivePresence e sendPlayerJoin.
@@ -178,7 +183,8 @@ function createEnvironment(options = {}) {
             cleanup: () => {},
             admitPlayer: (uid) => { record.admitted.push(uid); },
             dismissPlayer: (uid) => { record.dismissed.push(uid); },
-            feedCursor: () => record.feedCursor
+            feedCursor: () => record.feedCursor,
+            serverNow: () => (ctx.Date || Date).now() + serverOffset
         });
     }
 
@@ -219,12 +225,26 @@ function createEnvironment(options = {}) {
             Game.network.receivePresence(peerId, false);
         },
 
-        /** Simula o início da partida sem timer/DOM (o que startGame faz de relevante). */
+        /**
+         * Simula o início da partida sem relógio/DOM (o que startGame faz de
+         * relevante), com a hora de término em hora do servidor.
+         */
         startMatch() {
             state.gameStarted = true;
             state.gameOver = false;
             state.answeredThisRound = [];
+            const now = Game.network.serverNow ? Game.network.serverNow() : (ctx.Date || Date).now();
+            state.endsAt = now + vm.runInContext('CONFIG', ctx).GAME.SESSION_DURATION * 1000;
             Game.core.startNewRound();
+        },
+
+        /**
+         * Hora do servidor = relógio do aparelho + `ms` (a diferença que o
+         * Firebase informa em .info/serverTimeOffset). Só nos ambientes sem
+         * `realLink` (o dublê de Game.network.serverNow).
+         */
+        setServerOffset(ms) {
+            serverOffset = ms;
         },
 
         player: (name) => state.players.find(p => p.name === name),
@@ -261,10 +281,12 @@ function createEnvironment(options = {}) {
          * D3b: troca setTimeout/clearTimeout e Date.now() por um tempo
          * controlado pelo teste. advance(ms) anda o relógio e roda, na
          * ordem, os timers que vencerem (inclusive os agendados durante
-         * o avanço).
+         * o avanço). `start` é a hora inicial — no F5 do host, a hora em
+         * que a página antiga parou (`reloaded.fakeTime(env.time.now())`),
+         * para os prazos gravados continuarem valendo.
          */
-        fakeTime() {
-            let now = 1000000;
+        fakeTime(start = 1000000) {
+            let now = start;
             let seq = 0;
             const queue = [];
             ctx.setTimeout = (fn, ms) => { const id = ++seq; queue.push({ id, fn, at: now + (ms || 0) }); return id; };

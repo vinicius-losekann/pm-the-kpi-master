@@ -300,7 +300,9 @@ async function simulateMatch(options = DEFAULT_OPTIONS) {
             sendToPlayer: (peerId, msg) => onSend(peerId, msg),
             sendToHost() {},
             handleMessage() {},
-            cleanup() {}
+            cleanup() {},
+            // Hora do servidor = o tempo falso da simulação (prazos e relógio da partida).
+            serverNow: () => clock.now()
         }
     };
     sources.scripts.forEach(script => script.runInContext(ctx));

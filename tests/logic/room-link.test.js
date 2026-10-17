@@ -3,7 +3,7 @@
 // ============================================
 // Confere js/network/roomLink.js, a ligação do jogo ao canal da sala
 // (js/network/roomChannel.js), e js/network/firebaseLogin.js, o login
-// anônimo: criar a sala na tela inicial e abrir o jogo (o papel vem do
+// anônimo e a hora do servidor: criar a sala na tela inicial e abrir o jogo (o papel vem do
 // banco), pedidos ao host, avisos para todos e para um jogador, o cursor
 // dos avisos de quem entra, recusa, queda e volta pela presença, F5 de
 // guest e do host, host que cai (sem troca de host), aba duplicada e
@@ -436,11 +436,13 @@ asyncTest('T173 Aba duplicada: outra aba do mesmo navegador com a mesma sala nã
 /**
  * Firebase falso para o login: initializeApp, auth() e database() da API
  * "compat", com o emulador e o login anônimo. `calls` guarda o que o
- * login pediu. `failSignIn` faz o login anônimo falhar.
+ * login pediu; `device` é o aparelho no banco simulado (ex.:
+ * setServerTimeOffset). `failSignIn` faz o login anônimo falhar.
  */
 function fakeFirebaseSdk(fake, uid, failSignIn = false) {
     const calls = [];
-    const db = fake.client(uid).db;
+    const device = fake.client(uid);
+    const db = device.db;
     const observers = [];
     const auth = {
         currentUser: null,
@@ -466,18 +468,20 @@ function fakeFirebaseSdk(fake, uid, failSignIn = false) {
         database: () => database
     };
     firebase.database.ServerValue = { TIMESTAMP: { '.sv': 'timestamp' } };
-    return { firebase, calls, database };
+    return { firebase, calls, database, device };
+}
+
+/** O firebaseLogin.js real, carregado num contexto próprio. */
+function loginIn() {
+    const file = 'js/network/firebaseLogin.js';
+    if (!fs.existsSync(path.join(ROOT, file))) throw new Error('Arquivo não encontrado: ' + file);
+    const ctx = vm.createContext({ console: { log() {}, warn() {}, error() {}, info() {} }, setTimeout, clearTimeout });
+    vm.runInContext('var window = this;', ctx);
+    vm.runInContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), ctx, { filename: file });
+    return ctx.Game.network.firebaseLogin;
 }
 
 asyncTest('T174 Login anônimo (firebaseLogin.js): emulador quando configurado, uid do login, banco e hora do servidor; falha do login vira erro; sair da sala: o guest para de ouvir, o host apaga a sala', async () => {
-    const file = 'js/network/firebaseLogin.js';
-    if (!fs.existsSync(path.join(ROOT, file))) throw new Error('Arquivo não encontrado: ' + file);
-    const loginIn = () => {
-        const ctx = vm.createContext({ console: { log() {}, warn() {}, error() {}, info() {} }, setTimeout, clearTimeout });
-        vm.runInContext('var window = this;', ctx);
-        vm.runInContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), ctx, { filename: file });
-        return ctx.Game.network.firebaseLogin;
-    };
     const fake = createFakeFirebase();
     const config = { apiKey: 'demo-key', projectId: 'demo-pm-the-kpi-master' };
 
@@ -525,6 +529,50 @@ asyncTest('T174 Login anônimo (firebaseLogin.js): emulador quando configurado, 
     await settle();
     check(fake.read('rooms/' + ROOM) === undefined, 'o host que sai deveria apagar a sala, sobrou: ' + JSON.stringify(fake.read('rooms/' + ROOM)));
     check(!('pmKPI_roomState' in host.browser.storage), 'o host que sai deveria apagar o estado salvo');
+});
+
+asyncTest('T179 Hora do servidor: o login devolve serverNow() = relógio do aparelho + a diferença que o Firebase informa (.info/serverTimeOffset), acompanhando as mudanças; a sala aberta usa esse relógio em Game.network.serverNow(), e o main.js o passa ao abrir a sala', async () => {
+    const fake = createFakeFirebase();
+    const config = { apiKey: 'demo-key', projectId: 'demo-pm-the-kpi-master' };
+
+    // O servidor está 30 s à frente do relógio deste aparelho.
+    const sdk = fakeFirebaseSdk(fake, 'uid-clock');
+    sdk.device.setServerTimeOffset(30000);
+    const login = await loginIn().start({ firebase: sdk.firebase, config, emulator: null });
+    await settle();
+    check(login && typeof login.serverNow === 'function', 'o login deveria devolver serverNow(), veio: ' + JSON.stringify(login && Object.keys(login)));
+    const near = (expected, label) => {
+        const before = Date.now();
+        const value = login.serverNow();
+        const after = Date.now();
+        check(value >= before + expected && value <= after + expected,
+            label + ': serverNow() deveria ser o relógio do aparelho ' + (expected >= 0 ? '+ ' : '- ') + Math.abs(expected) + ' ms, veio a diferença de ' + (value - after) + ' ms');
+    };
+    near(30000, 'com a diferença de 30 s');
+
+    // A diferença muda (o Firebase recalcula ao reconectar): serverNow() acompanha.
+    sdk.device.setServerTimeOffset(-5000);
+    await settle();
+    near(-5000, 'depois da diferença mudar para -5 s');
+
+    // Aparelho com o relógio certo (diferença 0): serverNow() é o próprio relógio.
+    const fresh = fakeFirebaseSdk(fake, 'uid-fresh');
+    const freshLogin = await loginIn().start({ firebase: fresh.firebase, config, emulator: null });
+    const value = freshLogin.serverNow();
+    check(Math.abs(value - Date.now()) < 1000, 'com a diferença 0, serverNow() deveria ser o relógio do aparelho, veio a diferença de ' + (value - Date.now()) + ' ms');
+
+    // A sala aberta: Game.network.serverNow() é o relógio passado ao abrir (now).
+    const clock = { now: 5000000 };
+    const host = await hostRoom(fake, clock);
+    check(typeof host.env.Game.network.serverNow === 'function' && host.env.Game.network.serverNow() === 5000000,
+        'com a sala aberta, Game.network.serverNow() deveria usar o relógio passado ao abrir, veio: ' +
+        (typeof host.env.Game.network.serverNow === 'function' ? host.env.Game.network.serverNow() : 'sem a função'));
+    clock.now += 1234;
+    check(host.env.Game.network.serverNow() === 5001234, 'Game.network.serverNow() deveria acompanhar o relógio da sala, veio: ' + host.env.Game.network.serverNow());
+
+    // main.js passa o serverNow() do login ao abrir a sala.
+    const main = fs.readFileSync(path.join(ROOT, 'js/main.js'), 'utf8');
+    check(/openRoom\(\{[^}]*now:\s*login\.serverNow\b/.test(main), 'o main.js deveria abrir a sala com now: login.serverNow');
 });
 
 (async () => {

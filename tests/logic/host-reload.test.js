@@ -167,16 +167,18 @@ test('T55 F5 do host com a partida pausada: continua pausada com o mesmo evento 
     check(draws === 0 && effects === 0, 'a retomada também não sorteia nem reaplica');
 });
 
-test('T56 F5 do host com a pergunta aberta e sem rodada: como antes; relógio e prazo de resposta religados', (use) => {
-    // Pergunta aberta: reexibida, com o prazo de resposta rearmado.
+test('T56 F5 do host com a pergunta aberta e sem rodada: a mesma pergunta; relógio e prazo de resposta continuam de onde estavam', (use) => {
+    // Pergunta aberta há 20 s: reexibida; relógio e prazo de resposta seguem pela hora de término.
     const env = use(createEnvironment());
+    env.time = env.fakeTime();
     roomToReload(env);
     env.join('A', 'peer-a');
     env.startMatch();
     const r = env.state.currentRound;
+    env.time.advance(20000);
 
     const reloaded = use(reloadHost(env));
-    const time = reloaded.fakeTime();
+    const time = reloaded.fakeTime(env.time.now());
     const clock = reloaded.fakeClock();
     reloaded.clearLog();
     reloaded.Game.core.resumeMatchAfterReload();
@@ -188,14 +190,21 @@ test('T56 F5 do host com a pergunta aberta e sem rodada: como antes; relógio e 
     check(reloaded.broadcastsOfType('round-start').length === 0 && reloaded.broadcastsOfType('show-event').length === 0,
         'não pode trocar a pergunta (BUG-001)');
 
+    const D = reloaded.CONFIG.GAME.SESSION_DURATION;
     check(clock.activeCount() === 1, 'o relógio da partida deveria voltar a contar, ligados: ' + clock.activeCount());
-    const t0 = reloaded.state.timer;
+    check(reloaded.state.timer === D - 20, 'o relógio deveria continuar de onde estava (faltam ' + (D - 20) + ' s), veio: ' + reloaded.state.timer);
+    time.advance(1000);
     clock.tick();
-    check(reloaded.state.timer === t0 - 1, 'deveria contar 1 segundo, veio: ' + reloaded.state.timer);
+    check(reloaded.state.timer === D - 21, 'deveria contar 1 segundo, veio: ' + reloaded.state.timer);
 
-    time.advance(reloaded.CONFIG.GAME.ANSWER_TIMEOUT);
+    // Faltavam ANSWER_TIMEOUT - 20 s quando o host deu F5 (1 s já passou depois dele).
+    const left = reloaded.CONFIG.GAME.ANSWER_TIMEOUT - 20000 - 1000;
+    time.advance(left - 1);
+    check(!reloaded.broadcastsOfType('kpi-update').some(m => m.playerName === r.answerer),
+        'o prazo de resposta continua de onde estava: 1 ms antes do fim, a vez ainda não deveria ter sido pulada');
+    time.advance(1);
     check(reloaded.state.currentRound.answered === true && reloaded.broadcastsOfType('kpi-update').some(m => m.playerName === r.answerer),
-        'o prazo de resposta deveria estar rearmado (a vez é pulada ao fim do prazo)');
+        'no fim do prazo que faltava, a vez deveria ser pulada (sem prazo inteiro de novo)');
 
     // Partida em andamento sem rodada (nem pausada, nem encerrada): começa uma.
     const env2 = use(createEnvironment());
@@ -518,13 +527,18 @@ test('T122 F5 do host com pedido de ajuda: o pendente é cancelado (quem respond
         JSON.stringify({ A: drop.player('A').resources, B: drop.player('B').resources }));
 });
 
+// Quanto tempo a pergunta ficou aberta antes do F5 em reloadWithOpenQuestion().
+const OPEN_BEFORE_RELOAD = 15000;
+
 /**
- * Partida de 3 (Host, A, B) com a dupla fixada e a pergunta aberta;
- * o host dá F5 e a partida é retomada. Devolve o host recarregado, o
- * tempo controlado e as telas que ele montou na retomada.
+ * Partida de 3 (Host, A, B) com a dupla fixada e a pergunta aberta há
+ * OPEN_BEFORE_RELOAD ms; o host dá F5 e a partida é retomada. Devolve o
+ * host recarregado, o tempo controlado (continua a hora da página antiga),
+ * as telas que ele montou na retomada e quanto faltava do prazo de resposta.
  */
 function reloadWithOpenQuestion(use, roles) {
     const env = use(createEnvironment());
+    const before = env.fakeTime();
     roomToReload(env);
     env.join('A', 'peer-a');
     env.join('B', 'peer-b');
@@ -533,16 +547,17 @@ function reloadWithOpenQuestion(use, roles) {
     env.state.currentRound = { ...env.state.currentRound, ...roles, answered: false };
     env.state.answeredThisRound = [];
     env.Game.saveState();
+    before.advance(OPEN_BEFORE_RELOAD);
 
     const reloaded = use(reloadHost(env));
-    const time = reloaded.fakeTime();
+    const time = reloaded.fakeTime(before.now());
     const screens = recordScreens(reloaded);
     reloaded.Game.core.resumeMatchAfterReload();
-    return { reloaded, time, screens };
+    return { reloaded, time, screens, left: reloaded.CONFIG.GAME.ANSWER_TIMEOUT - OPEN_BEFORE_RELOAD };
 }
 
-test('T64 F5 do host fora da dupla com a pergunta aberta: volta vendo a tela de espectador e o prazo de resposta continua (BUG-020)', (use) => {
-    const { reloaded, time, screens } = reloadWithOpenQuestion(use, { asker: 'A', answerer: 'B' });
+test('T64 F5 do host fora da dupla com a pergunta aberta: volta vendo a tela de espectador e o prazo de resposta continua de onde estava (BUG-020)', (use) => {
+    const { reloaded, time, screens, left } = reloadWithOpenQuestion(use, { asker: 'A', answerer: 'B' });
     const names = screens.map(t => t.name);
     const spectator = screens.find(t => t.name === 'displaySpectatorView');
     check(spectator && spectator.args[0] === 'A' && spectator.args[1] === 'B',
@@ -552,9 +567,12 @@ test('T64 F5 do host fora da dupla com a pergunta aberta: volta vendo a tela de 
     const r = reloaded.state.currentRound;
     check(r && r.asker === 'A' && r.answerer === 'B' && !r.answered, 'a mesma pergunta deveria continuar em andamento');
     check(reloaded.broadcastsOfType('round-start').length === 0, 'não pode trocar a pergunta');
-    time.advance(reloaded.CONFIG.GAME.ANSWER_TIMEOUT);
+    time.advance(left - 1);
+    check(!reloaded.broadcastsOfType('kpi-update').some(m => m.playerName === 'B'),
+        'o prazo de resposta continua de onde estava: 1 ms antes do fim, a vez de B ainda não deveria ter sido pulada');
+    time.advance(1);
     check(reloaded.broadcastsOfType('kpi-update').some(m => m.playerName === 'B'),
-        'o prazo de resposta deveria estar rearmado (sem resposta, a vez de B é pulada)');
+        'no fim do prazo que faltava antes do F5, a vez de B deveria ser pulada (sem prazo inteiro de novo)');
 
     // Controle: o host na dupla (perguntando ou respondendo) continua vendo a pergunta.
     for (const roles of [{ asker: 'Host', answerer: 'A' }, { asker: 'A', answerer: 'Host' }]) {
@@ -562,9 +580,9 @@ test('T64 F5 do host fora da dupla com a pergunta aberta: volta vendo a tela de 
         const n = c.screens.map(t => t.name);
         check(n.includes('displayRoundStart') && n.includes('displayQuestion') && !n.includes('displaySpectatorView'),
             'host como ' + (roles.asker === 'Host' ? 'Perguntador' : 'Respondedor') + ' deveria ver a pergunta, viu: ' + n.join(', '));
-        c.time.advance(c.reloaded.CONFIG.GAME.ANSWER_TIMEOUT);
+        c.time.advance(c.left);
         check(c.reloaded.broadcastsOfType('kpi-update').some(m => m.playerName === roles.answerer),
-            'o prazo de resposta também deveria estar rearmado com o host na dupla');
+            'o prazo de resposta também deveria continuar de onde estava com o host na dupla');
     }
 });
 

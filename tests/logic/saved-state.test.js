@@ -513,4 +513,66 @@ test('T178 Estado salvo 7 → 8: saem os campos da conexão antiga (hostPeerId, 
         'o F5 com o estado da versão 7 deveria restaurar a rodada');
 });
 
+test('T183 Estado salvo 8 → 9: o tempo que faltava (timer) vira a hora de término da partida (endsAt = hora da gravação + timer), com o resto igual; o estado novo grava endsAt e os prazos da rodada, sem timer; F5 com o estado da versão 8 continua o relógio e dá o prazo de resposta inteiro', (use) => {
+    const env = use(createEnvironment());
+    const P = env.Game.persistence;
+    check(P.STATE_VERSION >= 9, 'a versão atual do estado salvo deveria ser 9 ou mais (hora de término no lugar do timer), veio: ' + P.STATE_VERSION);
+
+    // Estado na versão 8 (migrado da 4, escrito à mão), gravado com 3000 s por jogar.
+    const v4 = savedStateV4();
+    const v8 = P.migrateSavedState(v4.roomState, v4.myData, 8);
+    v8.roomState.timestamp = '2026-10-17T12:00:00.000Z';
+    check(v8.roomState.stateVersion === 8 && v8.roomState.timer === 3000, 'pré-condição: estado na versão 8, com timer 3000');
+    const input = JSON.parse(JSON.stringify(v8));
+
+    // Só o passo 8 → 9 (alvo 9).
+    const r = P.migrateSavedState(v8.roomState, v8.myData, 9);
+    const s = r.roomState;
+    check(s.stateVersion === 9, 'o estado migrado deveria estar na versão 9, veio: ' + s.stateVersion);
+    check(!('timer' in s) && s.endsAt === Date.parse('2026-10-17T12:00:00.000Z') + 3000 * 1000,
+        'timer deveria virar endsAt = hora da gravação (timestamp) + timer, veio: ' + JSON.stringify({ timer: s.timer, endsAt: s.endsAt }));
+    for (const key of Object.keys(input.roomState).filter(k => !['timer', 'stateVersion'].includes(k))) {
+        check(JSON.stringify(s[key]) === JSON.stringify(input.roomState[key]), key + ' não deveria mudar, veio: ' + JSON.stringify(s[key]));
+    }
+    check(Object.keys(s).length === Object.keys(input.roomState).length,
+        'só timer deveria virar endsAt (nenhum outro campo criado nem perdido), veio: ' + Object.keys(s).join(', '));
+    check(JSON.stringify(r.myData) === JSON.stringify(input.myData), 'pmKPI_myData não muda nesta versão');
+
+    // Estado da versão 8 sem timer: migra sem erro e não ganha endsAt.
+    const bare = P.migrateSavedState({ stateVersion: 8, roomName: 'sala' }, {}, 9).roomState;
+    check(bare.roomName === 'sala' && bare.stateVersion === 9 && !('endsAt' in bare) && !('timer' in bare),
+        'estado da versão 8 sem timer deveria migrar sem erro, veio: ' + JSON.stringify(bare));
+
+    // O estado salvo agora grava a hora de término e os prazos da rodada, sem timer.
+    env.fakeTime();
+    roomToReload(env);
+    env.join('A', 'peer-a');
+    env.startMatch();
+    env.Game.saveState();
+    const saved = JSON.parse(env.storage['pmKPI_roomState']);
+    check(saved.stateVersion === P.STATE_VERSION && saved.endsAt === env.state.endsAt && typeof saved.endsAt === 'number' && !('timer' in saved),
+        'o estado salvo deveria gravar endsAt, sem timer, veio: ' + JSON.stringify({ endsAt: saved.endsAt, timer: saved.timer }));
+    check(typeof env.state.currentRound.answerEndsAt === 'number' && saved.currentRound.answerEndsAt === env.state.currentRound.answerEndsAt,
+        'o estado salvo deveria gravar o prazo de resposta da rodada (answerEndsAt), veio: ' + JSON.stringify(saved.currentRound.answerEndsAt));
+
+    // F5 do host com o estado da versão 8, gravado há 10 s com 3000 s por jogar e a pergunta aberta (sem prazos gravados).
+    const old = use(createEnvironment());
+    roomToReload(old);
+    const savedAt = Date.now() - 10000;
+    old.storage['pmKPI_roomState'] = JSON.stringify({ ...input.roomState, timestamp: new Date(savedAt).toISOString() });
+    old.storage['pmKPI_myData'] = JSON.stringify(input.myData);
+    const reloaded = use(reloadHost(old));
+    check(reloaded.state.endsAt === savedAt + 3000 * 1000,
+        'o F5 deveria restaurar a hora de término calculada da gravação, veio: ' + JSON.stringify({ endsAt: reloaded.state.endsAt, expected: savedAt + 3000 * 1000 }));
+    const time = reloaded.fakeTime(savedAt + 10000);
+    const clock = reloaded.fakeClock();
+    reloaded.Game.core.resumeMatchAfterReload();
+    check(clock.activeCount() === 1 && reloaded.state.timer === 2990,
+        'o relógio deveria continuar pela hora de término (2990 s depois de 10 s fora), veio: ' + reloaded.state.timer);
+    time.advance(reloaded.CONFIG.GAME.ANSWER_TIMEOUT - 1);
+    check(!reloaded.broadcastsOfType('kpi-update').some(m => m.playerName === 'A'), 'sem prazo gravado, o prazo de resposta deveria ser inteiro: 1 ms antes, a vez de A continua');
+    time.advance(1);
+    check(reloaded.broadcastsOfType('kpi-update').some(m => m.playerName === 'A'), 'sem prazo gravado, a vez de A deveria ser pulada no fim do prazo inteiro');
+});
+
 finish('Estado salvo');

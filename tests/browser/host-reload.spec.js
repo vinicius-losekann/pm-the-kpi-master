@@ -5,7 +5,8 @@
 // _docs/issues.md (BUG-019, assessoria pendente). O F5 no meio da
 // pergunta está em connection.spec.js (E1). Também a reabertura da sala
 // depois que todos saíram (M13, M16): até 5 minutos o estado salvo
-// restaura a partida; depois disso, lobby novo.
+// restaura a partida; depois disso, lobby novo. E o relógio da partida
+// pela hora do servidor, com um navegador de relógio errado (E28).
 // ============================================
 
 const { test, expect, roomCode, startMatch, answerUntilRoundEnds, waitForOpenQuestion, waitForHostBack } = require('./players');
@@ -204,4 +205,33 @@ test('E18 Todos saem e voltam depois de 5 min: a sala abre um lobby novo e uma p
     await ana.click('#btnStartGame');
     await ana.waitFor(() => Game.state.gameStarted === true && Game.state.currentRound !== null);
     await beto.waitFor(() => Game.state.gameStarted === true);
+});
+
+test('E28 Relógio pela hora do servidor: um navegador com o relógio 30 s adiantado mostra o mesmo tempo do host, e o F5 do host continua do mesmo ponto', async ({ players }) => {
+    const code = roomCode();
+    const ana = await players.add('Ana');
+    const beto = await players.add('Beto');
+    // O relógio do computador do Beto está 30 s adiantado (a hora do servidor corrige).
+    await beto.context.clock.install({ time: Date.now() + 30000 });
+    await beto.context.clock.resume();
+    await startMatch(ana, [beto], code);
+    const startedAt = Date.now();
+    const duration = await ana.state(() => CONFIG.GAME.SESSION_DURATION);
+    const timers = async () => ({ ana: await ana.state(() => Game.state.timer), beto: await beto.state(() => Game.state.timer) });
+
+    await ana.page.waitForTimeout(3000);
+    const early = await timers();
+    expect(Math.abs(early.ana - early.beto), 'Beto (relógio adiantado) deveria ver o mesmo tempo da Ana, veio: ' + JSON.stringify(early)).toBeLessThanOrEqual(1);
+
+    // F5 da Ana ~12 s depois do início, sem nada gravado nesse meio-tempo: o relógio continua do mesmo ponto.
+    await ana.page.waitForTimeout(9000);
+    await ana.page.reload();
+    await waitForHostBack(ana);
+    await expect.poll(() => beto.isConnectedToHost(), { timeout: 25000, message: 'Beto deveria reconectar ao mesmo host' }).toBe(true);
+    await ana.page.waitForTimeout(1500);
+    const expected = duration - Math.round((Date.now() - startedAt) / 1000);
+    const after = await timers();
+    expect(Math.abs(after.ana - expected), 'depois do F5, o relógio da Ana deveria continuar do mesmo ponto (faltando ~' + expected + ' s), veio: ' +
+        JSON.stringify(after)).toBeLessThanOrEqual(3);
+    expect(Math.abs(after.ana - after.beto), 'depois do F5, Beto deveria continuar vendo o mesmo tempo da Ana, veio: ' + JSON.stringify(after)).toBeLessThanOrEqual(1);
 });

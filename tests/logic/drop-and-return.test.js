@@ -98,57 +98,135 @@ test('T8  Ciclo da rodada termina sem esperar o desconectado', (use) => {
     check(sel.isCycleComplete(env.Game.getActivePlayers(), used), 'com B desconectado, o ciclo deveria estar completo');
 });
 
-test('T30 Guest que reconecta volta com o relógio contando segundo a segundo', (use) => {
+test('T30 Guest que reconecta volta com o relógio contando pela hora de término (endsAt do state-sync), segundo a segundo', (use) => {
     const env = use(createEnvironment());
     const clock = env.fakeClock();
+    const time = env.fakeTime();
     const round = { event: { id: 'e1' }, asker: 'Host', answerer: 'B', question: null, answered: false };
-    env.receiveSync('A', { players: [], decks: {}, timer: 500, currentRound: round, gameStarted: true, hostVersion: 0 });
+    env.receiveSync('A', { players: [], decks: {}, endsAt: time.now() + 500000, currentRound: round, gameStarted: true });
     check(clock.activeCount() === 1, 'o relógio local deveria estar ligado depois da reconexão, ligados: ' + clock.activeCount());
+    check(env.state.timer === 500, 'ao voltar, o relógio já deveria mostrar o que falta até a hora de término (500 s), veio: ' + env.state.timer);
 
+    time.advance(1000);
     clock.tick();
     check(env.state.timer === 499, 'deveria contar 1 segundo, veio: ' + env.state.timer);
-    clock.tick(9);
-    check(env.state.timer === 490 && env.broadcastsOfType('timer-update').length === 0, 'guest conta, mas não avisa ninguém');
-
-    // O host corrige; a contagem continua a partir do valor corrigido.
-    env.Game.network.handleMessage({ type: 'timer-update', remaining: 480 }, 'sala');
+    // Tique atrasado (aba em segundo plano): o que falta vem da hora de término, não do número de tiques.
+    time.advance(9000);
     clock.tick();
-    check(env.state.timer === 479, 'depois do timer-update deveria seguir de 480, veio: ' + env.state.timer);
+    check(env.state.timer === 490 && env.broadcastsOfType('timer-update').length === 0,
+        'depois de 9 s com um tique só, deveria mostrar 490 s, sem avisar ninguém, veio: ' + env.state.timer);
 
     // Um segundo state-sync (nova reconexão) não pode ligar uma segunda contagem.
-    env.receiveSync('A', { players: [], decks: {}, timer: 300, currentRound: round, gameStarted: true, hostVersion: 0 });
+    env.receiveSync('A', { players: [], decks: {}, endsAt: time.now() + 300000, currentRound: round, gameStarted: true });
+    time.advance(1000);
     clock.tick();
     check(clock.activeCount() === 1 && env.state.timer === 299, 'só pode haver uma contagem ligada, timer: ' + env.state.timer);
 
     // No zero, o guest só para — quem encerra a partida é o host.
-    env.state.timer = 1;
+    time.advance(299000);
     clock.tick();
-    check(clock.activeCount() === 0 && !env.state.gameOver, 'guest para no zero sem encerrar a partida sozinho');
+    check(clock.activeCount() === 0 && !env.state.gameOver && env.state.timer === 0,
+        'guest para no zero sem encerrar a partida sozinho, veio: ' + JSON.stringify({ timer: env.state.timer, ligados: clock.activeCount() }));
 
     // No lobby, não liga relógio.
     const lobby = use(createEnvironment());
     const clock2 = lobby.fakeClock();
-    lobby.receiveSync('A', { players: [], decks: {}, timer: 3600, currentRound: null, gameStarted: false, hostVersion: 0 });
+    lobby.receiveSync('A', { players: [], decks: {}, endsAt: null, currentRound: null, gameStarted: false });
     check(clock2.activeCount() === 0, 'no lobby não deveria ligar o relógio');
 });
 
-test('T31 Relógio do host continua igual (startGame usa a mesma contagem)', (use) => {
+test('T31 Relógio do host: startGame grava a hora de término (SESSION_DURATION) e a contagem segue por ela até o zero, que encerra a partida, sem avisos de tempo', (use) => {
     const env = use(createEnvironment());
     const clock = env.fakeClock();
+    const time = env.fakeTime();
     env.createRoomAsHost();
     env.join('A', 'peer-a');
-    env.state.timer = 11;
+    env.CONFIG.GAME.SESSION_DURATION = 11;
     env.Game.core.startGame();
     check(clock.activeCount() === 1, 'startGame deveria ligar uma contagem');
+    check(env.state.timer === 11, 'no início, o relógio deveria mostrar SESSION_DURATION (11 s), veio: ' + env.state.timer);
 
+    time.advance(1000);
     clock.tick();
-    const notice = env.broadcastsOfType('timer-update').pop();
-    check(env.state.timer === 10 && notice && notice.remaining === 10, 'host deveria avisar os guests a cada 10 segundos');
+    check(env.state.timer === 10 && env.broadcastsOfType('timer-update').length === 0,
+        'host deveria contar 1 segundo sem avisar os guests (cada aparelho calcula pela hora de término), veio: ' + env.state.timer);
+    time.advance(5000);
+    clock.tick();
+    check(env.state.timer === 5, 'tique atrasado: deveria mostrar o que falta até a hora de término (5 s), veio: ' + env.state.timer);
 
-    env.state.timer = 1;
+    time.advance(5000);
     clock.tick();
     check(env.state.gameOver && env.broadcastsOfType('game-over').length === 1 && clock.activeCount() === 0,
         'no zero, o host encerra a partida');
+});
+
+/** Todos os arquivos .js de uma pasta do jogo (e subpastas), com o conteúdo. */
+function sourcesIn(dir) {
+    return fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true }).flatMap(entry => {
+        const relative = dir + '/' + entry.name;
+        if (entry.isDirectory()) return sourcesIn(relative);
+        return entry.name.endsWith('.js') ? [{ file: relative, text: fs.readFileSync(path.join(ROOT, relative), 'utf8') }] : [];
+    });
+}
+
+/** Cópia simples (tira o objeto do contexto vm). */
+const copy = (x) => (x === undefined ? undefined : JSON.parse(JSON.stringify(x)));
+
+test('T180 Relógio da partida pela hora de término (endsAt, em hora do servidor): o host grava e manda no game-start, sem timer; cada aparelho conta pela própria hora do servidor, mesmo com o relógio do aparelho errado; quem volta recebe endsAt; sai o timer-update', (use) => {
+    const host = use(createEnvironment());
+    const hostTime = host.fakeTime();
+    const hostClock = host.fakeClock();
+    host.setServerOffset(7000); // o relógio do aparelho do host está 7 s atrás do servidor
+    host.createRoomAsHost();
+    host.join('A', 'peer-a');
+    check(host.Game.network.PROTOCOL_VERSION >= 11, 'a versão do protocolo deveria ser 11 ou mais (game-start com endsAt, sem timer-update), veio: ' +
+        host.Game.network.PROTOCOL_VERSION);
+    const D = host.CONFIG.GAME.SESSION_DURATION;
+    const serverAtStart = hostTime.now() + 7000;
+    host.Game.core.startGame();
+    const starts = host.broadcastsOfType('game-start');
+    check(starts.length === 1 && starts[0].endsAt === serverAtStart + D * 1000 && !('timer' in starts[0]),
+        'o host deveria mandar um game-start com endsAt = hora do servidor + SESSION_DURATION, sem timer, veio: ' + JSON.stringify(starts));
+    check(host.state.endsAt === starts[0].endsAt && host.state.timer === D,
+        'o host deveria guardar a mesma hora de término e mostrar ' + D + ' s, veio: ' + JSON.stringify({ endsAt: host.state.endsAt, timer: host.state.timer }));
+
+    // A, com o relógio do aparelho 30 s adiantado, recebe o game-start 3 s depois.
+    const guest = use(createEnvironment());
+    const guestTime = guest.fakeTime(serverAtStart + 30000);
+    guest.setServerOffset(-30000);
+    const guestClock = guest.fakeClock();
+    guest.state.playerName = 'A';
+    guest.state.peerId = 'peer-a';
+    guest.state.players = copy(host.state.players);
+    guestTime.advance(3000);
+    guest.Game.network.handleMessage(copy(starts[0]), 'sala');
+    check(guest.state.endsAt === starts[0].endsAt && guestClock.activeCount() === 1,
+        'A deveria guardar a hora de término do game-start e ligar o relógio, veio: ' + JSON.stringify({ endsAt: guest.state.endsAt, ligados: guestClock.activeCount() }));
+    check(guest.state.timer === D - 3, 'A recebeu o game-start 3 s depois: deveria mostrar ' + (D - 3) + ' s (o que falta pela hora do servidor), veio: ' + guest.state.timer);
+
+    // 25 s depois do início, os dois mostram o mesmo tempo.
+    hostTime.advance(25000);
+    guestTime.advance(22000);
+    hostClock.tick();
+    guestClock.tick();
+    check(host.state.timer === D - 25 && guest.state.timer === D - 25,
+        'host e A deveriam mostrar ' + (D - 25) + ' s, veio: ' + JSON.stringify({ host: host.state.timer, A: guest.state.timer }));
+    check(host.broadcastsOfType('timer-update').length === 0, 'o host não deveria mandar timer-update');
+
+    // Quem volta recebe a hora de término, não o tempo que falta.
+    host.drop('peer-a');
+    host.clearLog();
+    host.join('A', 'peer-a');
+    const sync = syncTo(host, 'peer-a');
+    check(sync && sync.endsAt === starts[0].endsAt && !('timer' in sync),
+        'o state-sync deveria levar endsAt, sem timer, veio: ' + JSON.stringify(sync && { endsAt: sync.endsAt, timer: sync.timer }));
+
+    // No código: ninguém manda nem trata timer-update; o botão "Iniciar" só chama startGame (que manda o game-start).
+    const withTimerUpdate = sourcesIn('js').filter(s => s.text.includes('timer-update')).map(s => s.file);
+    check(withTimerUpdate.length === 0, 'o timer-update deveria sair do jogo, aparece em: ' + withTimerUpdate.join(', '));
+    const controls = fs.readFileSync(path.join(ROOT, 'js/ui/components/controlsComponent.js'), 'utf8');
+    check(!controls.includes('game-start') && !/state\.timer\s*=/.test(controls),
+        'o botão "Iniciar" não deveria montar o game-start nem mexer no relógio (fica no startGame do host)');
 });
 
 test('T32 Reconexão depois do fim do ciclo: "rodada encerrada", sem reabrir a pergunta', (use) => {

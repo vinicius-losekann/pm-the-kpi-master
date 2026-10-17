@@ -4,7 +4,9 @@
 // Um Realtime Database em memória, com a parte da API "compat" do
 // Firebase que o jogo usa: ref(), set(), update(), remove(), push(),
 // once('value'), on('value' | 'child_added' | 'child_removed'), off(),
-// transaction(), onDisconnect() e o caminho especial '.info/connected'.
+// transaction(), onDisconnect() e os caminhos especiais '.info/connected'
+// e '.info/serverTimeOffset' (a diferença entre o relógio do aparelho e o
+// do servidor, trocada pelo teste com setServerTimeOffset()).
 //
 // Vários "aparelhos" (client(uid)) enxergam o MESMO banco, como no
 // servidor de verdade. Cada aparelho pode cair (goOffline: o servidor
@@ -54,6 +56,18 @@ function snapshotOf(key, value) {
     };
 }
 
+/** Caminho especial do aparelho ('.info/...'), que chega mesmo sem conexão. */
+function isInfo(path) {
+    return path === '.info/connected' || path === '.info/serverTimeOffset';
+}
+
+/** Valor de um caminho '.info/' para o aparelho; undefined nos outros caminhos. */
+function infoValue(client, path) {
+    if (path === '.info/connected') return client.online;
+    if (path === '.info/serverTimeOffset') return client.serverTimeOffset;
+    return undefined;
+}
+
 function createFakeFirebase() {
     let tree;            // o banco inteiro (undefined = vazio)
     let pushCounter = 0;
@@ -85,10 +99,9 @@ function createFakeFirebase() {
         tree = stored(root);
     }
 
-    /** Valor que o ouvinte enxerga agora (o '.info/connected' é do aparelho). */
+    /** Valor que o ouvinte enxerga agora (os caminhos '.info/' são do aparelho). */
     function currentFor(listener) {
-        if (listener.path === '.info/connected') return listener.client.online;
-        return readAt(listener.path);
+        return infoValue(listener.client, listener.path) ?? readAt(listener.path);
     }
 
     function childKeys(value) {
@@ -99,7 +112,7 @@ function createFakeFirebase() {
     function notify() {
         for (const l of listeners.slice()) {
             if (!listeners.includes(l)) continue;
-            if (!l.client.online && l.path !== '.info/connected') continue;
+            if (!l.client.online && !isInfo(l.path)) continue;
             const now = currentFor(l);
             if (l.event === 'value') {
                 const text = JSON.stringify(now === undefined ? null : now);
@@ -130,6 +143,7 @@ function createFakeFirebase() {
             uid,
             online: true,
             closed: false,
+            serverTimeOffset: 0, // ms que o relógio do servidor está à frente do aparelho
             queue: [],          // gravações feitas sem conexão
             disconnectOps: [],  // { path, value } — onDisconnect()
             writes: []          // { path, value } — tudo o que este aparelho gravou
@@ -163,7 +177,7 @@ function createFakeFirebase() {
                 },
                 once: (event) => {
                     if (event !== 'value') throw new Error('fakeFirebase: once só aceita "value"');
-                    const value = fullPath === '.info/connected' ? me.online : readAt(fullPath);
+                    const value = isInfo(fullPath) ? infoValue(me, fullPath) : readAt(fullPath);
                     return Promise.resolve(snapshotOf(r.key, value));
                 },
                 on: (event, cb) => {
@@ -177,7 +191,7 @@ function createFakeFirebase() {
                         l.lastValue = clone(now) || {};
                     }
                     listeners.push(l);
-                    if (me.online || fullPath === '.info/connected') notify();
+                    if (me.online || isInfo(fullPath)) notify();
                     return cb;
                 },
                 off: (event, cb) => {
@@ -236,6 +250,11 @@ function createFakeFirebase() {
                 for (let i = listeners.length - 1; i >= 0; i--) {
                     if (listeners[i].client === me) listeners.splice(i, 1);
                 }
+            },
+            /** O Firebase informa outra diferença entre o relógio do aparelho e o do servidor. */
+            setServerTimeOffset(ms) {
+                me.serverTimeOffset = ms;
+                notify();
             },
             /** Quantos ouvintes este aparelho tem registrados. */
             listenerCount: () => listeners.filter(l => l.client === me).length
