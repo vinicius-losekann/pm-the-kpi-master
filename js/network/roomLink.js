@@ -18,8 +18,9 @@
 //
 // Queda de jogador: o host vê pela presença (o servidor grava offline
 // quando a aba fecha ou a conexão cai). Volta da conexão: o guest manda o
-// player-join de novo. Sem troca de host: se o host cai, os outros veem
-// "Host desconectado" e a sala espera por ele.
+// player-join de novo; quando o host volta (F5 ou queda), também. Sem
+// troca de host: se o host cai, os outros veem "Host desconectado" e a
+// sala espera por ele.
 // ============================================
 
 // Versão do formato das mensagens de rede. Vai no meta da sala e no
@@ -42,7 +43,8 @@ const roomLinkState = {
     // canal espera na fila.
     isReady: false,
     waiting: [],
-    hostOnline: false,
+    // Presença do host vista por este guest (null = ainda não viu).
+    hostOnline: null,
     // Guest: recebeu o state-sync depois do último player-join.
     synced: false,
     // BroadcastChannel que marca a sala como aberta nesta aba.
@@ -221,10 +223,18 @@ function deliverFromHost(msg) {
     }
 }
 
+/**
+ * Guest: presença do host. Quando o host volta (F5 ou queda), o guest
+ * pede para entrar de novo e recebe o estado do host — o que mudou
+ * enquanto ele estava fora (ex.: o pedido de apoio cancelado no F5).
+ * A primeira presença, ao entrar na sala, não é volta.
+ */
 function showHostPresence(online) {
+    const cameBack = online && roomLinkState.hostOnline === false;
     roomLinkState.hostOnline = online;
     if (online) {
         Game.ui.updateConnectionStatus('connected', Game.i18n.t('connection.connected'));
+        if (cameBack) sendPlayerJoin();
     } else {
         Game.ui.updateConnectionStatus('disconnected', Game.i18n.t('connection.hostDisconnected'));
     }
@@ -233,7 +243,7 @@ function showHostPresence(online) {
 // Tirado da sala (ex.: o host viu a queda no lobby): ao voltar a
 // conexão, o player-join é mandado de novo.
 function handleDismissed() {
-    roomLinkState.hostOnline = false;
+    roomLinkState.hostOnline = null;
     roomLinkState.synced = false;
     Game.ui.updateConnectionStatus('disconnected', Game.i18n.t('connection.disconnected'));
 }
@@ -301,7 +311,7 @@ function linkStatus() {
         code: s.code,
         isHost: s.isHost,
         isAdmitted: s.isAdmitted,
-        hostOnline: roomLinkState.hostOnline,
+        hostOnline: roomLinkState.hostOnline === true,
         synced: roomLinkState.synced
     };
 }
@@ -316,7 +326,7 @@ function cleanup() {
     Game.persistence.clearSavedState();
     releaseRoomTab();
     const channel = roomLinkState.channel;
-    Object.assign(roomLinkState, { channel: null, hostUid: null, isReady: false, waiting: [], hostOnline: false, synced: false });
+    Object.assign(roomLinkState, { channel: null, hostUid: null, isReady: false, waiting: [], hostOnline: null, synced: false });
     return channel ? channel.leave() : Promise.resolve();
 }
 

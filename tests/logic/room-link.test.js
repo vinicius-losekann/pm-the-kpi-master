@@ -392,6 +392,15 @@ asyncTest('T172 Host que cai: os outros veem "Host desconectado" e a sala espera
         'o host deveria ter Beto (do estado salvo) e Caio (do pedido que esperou), veio: ' + JSON.stringify(reloaded.env.state.players));
     check(caio.types().includes('state-sync') && fake.read('rooms/' + ROOM + '/requests') === undefined, 'Caio deveria receber o estado e o pedido sair do banco');
     check(beto.env.state.players.length === 3, 'Beto deveria ver Caio na lista');
+
+    // Com o host de volta, Beto (que ficou na sala) pede o estado de novo:
+    // o que mudou no F5 (ex.: o apoio cancelado) chega a ele.
+    check(reloaded.handled.some(h => h.type === 'player-join' && h.from === 'uid-beto'),
+        'Beto deveria mandar o player-join de novo quando o host volta, o host tratou: ' + JSON.stringify(reloaded.handled.map(h => h.type + ':' + h.from)));
+    const betoTypes = beto.types();
+    check(betoTypes.filter(t => t === 'state-sync').length === 3,
+        'Beto deveria receber o estado ao entrar e depois de cada volta do host (queda e F5), recebeu: ' + JSON.stringify(betoTypes));
+    check(reloaded.env.player('Beto').disconnected === false, 'Beto deveria ficar como conectado (disconnected false) na lista do host');
 });
 
 asyncTest('T173 Aba duplicada: outra aba do mesmo navegador com a mesma sala não entra (tab-in-use) e não mexe na sala; fechada a primeira, a aba nova entra', async () => {

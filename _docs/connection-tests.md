@@ -110,7 +110,7 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 | Caso | Testes | Manual |
 |---|---|---|
 | Host cai: os outros veem "Host desconectado"; ninguém assume; com o host de volta, "Conectado" | 🤖 T172 | ⬜ |
-| F5 do host: continua host pelo meta da sala; os pedidos feitos durante o F5 esperam no banco e são tratados depois da retomada | 🤖 T172 · 🌐 E1 | — (coberto por E1) |
+| F5 do host: continua host pelo meta da sala; os pedidos feitos durante o F5 esperam no banco e são tratados depois da retomada; quem ficou na sala pede o estado de novo quando o host volta | 🤖 T172 · 🌐 E1, E9, E12 | — (coberto por E1) |
 | F5 do host com a pergunta aberta: a mesma pergunta continua; relógio e prazo de resposta religados | 🤖 T56 · 🌐 E1 | — (coberto por E1) |
 | Pergunta ainda por fazer (o Perguntador não clicou em "Fazer a pergunta"): no F5 do host e na volta à partida, a rodada continua esperando o clique, com o prazo do Perguntador de novo; quem volta como Respondedor vê o aviso, não as alternativas | 🤖 T138, T139 | — |
 | F5 do host fora da dupla com a pergunta aberta: o host vê a tela de espectador; etiquetas de domínio e área aparecem depois do F5 e para quem volta (BUG-020) | 🤖 T64, T65 | — |
