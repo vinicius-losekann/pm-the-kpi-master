@@ -420,23 +420,10 @@ function roundScreens(env) {
         'showRoundEndedMessage', 'showMatchPausedMessage'].includes(n));
 }
 
-/**
- * Host sozinho no lobby, com nome e código de sala — o estado salvo só é
- * restaurado no F5 se a sala e o jogador da URL baterem com ele.
- */
+/** Host sozinho no lobby, com nome e código de sala (os do F5 em reloadHost()). */
 function roomToReload(env) {
     env.createRoomAsHost();
     env.state.roomName = 'sala';
-}
-
-/**
- * O código grava o estado da partida no banco (etapa 2b)? Desvio do 1º
- * commit da 2b (como o da 1b-β): com o código anterior, o estado salvo
- * ainda é o do localStorage e os ajudantes abaixo usam ele — assim só os
- * testes novos e os reescritos falham. Sai no 2º commit.
- */
-function savesToBank(env) {
-    return typeof env.Game.persistence.restoreSavedState === 'function';
 }
 
 /** Texto JSON → valor; null se não há texto ou se ele é ilegível (como o readSecret() do canal). */
@@ -451,22 +438,17 @@ function parseSaved(text) {
 
 /** Estado que o host gravou (secret/state do banco simulado); null se não há. */
 function savedState(env) {
-    return parseSaved(savesToBank(env) ? env.bank.secret : env.storage['pmKPI_roomState']);
+    return parseSaved(env.bank.secret);
 }
 
 /**
  * Grava à mão o estado salvo do host no banco simulado (secret/state),
  * ex.: um estado gravado por uma versão anterior. Recebe { roomState,
  * myData }, o formato de savedStateV1()...V4(): só o roomState vai para o
- * banco (o myData só conta no desvio do 1º commit).
+ * banco (o myData era a parte do navegador do host, antes do banco).
  */
-function storeSavedState(env, { roomState, myData }) {
-    if (savesToBank(env)) {
-        env.bank.secret = JSON.stringify(roomState);
-        return;
-    }
-    env.storage['pmKPI_roomState'] = JSON.stringify(roomState);
-    if (myData !== undefined) env.storage['pmKPI_myData'] = JSON.stringify(myData);
+function storeSavedState(env, { roomState }) {
+    env.bank.secret = JSON.stringify(roomState);
 }
 
 /**
@@ -490,14 +472,11 @@ function reloadHost(env) {
 function tryReloadHost(env, prepare) {
     const reloaded = createEnvironment({ storage: env.storage, bank: env.bank });
     const s = reloaded.state;
-    reloaded.ctx.location.search = '?' + new URLSearchParams({ room: env.state.roomName, playerName: env.state.playerName }).toString();
     s.isHost = true; // o meta da sala continua com o host
     s.roomName = env.state.roomName;
     s.playerName = env.state.playerName;
     if (prepare) prepare(reloaded);
-    const restored = savesToBank(reloaded)
-        ? reloaded.Game.persistence.restoreSavedState(parseSaved(env.bank.secret))
-        : reloaded.Game.persistence.tryRestoreState();
+    const restored = reloaded.Game.persistence.restoreSavedState(parseSaved(env.bank.secret));
     s.peerId = env.state.peerId; // mesmo aparelho, mesmo uid
     return { reloaded, restored };
 }

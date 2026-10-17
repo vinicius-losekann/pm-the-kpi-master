@@ -663,8 +663,8 @@ test('T79 F5 do host com o estado salvo na versão 1 (gravado antes de o jogo se
     reloaded.join('A', 'peer-a');
     const sync = syncTo(reloaded, 'peer-a');
     const q = sync && sync.currentRound && sync.currentRound.question;
-    check(q && q.id === 'q7' && q.correct === undefined && sync.decks && sync.decks.d1,
-        'A deveria receber a mesma pergunta, sem o gabarito, e os baralhos');
+    check(q && q.id === 'q7' && q.correct === undefined && !('decks' in sync),
+        'A deveria receber a mesma pergunta, sem o gabarito e sem os baralhos (SEC-005)');
     reloaded.Game.network.handleMessage({ type: 'answer', alternative: 'b', playerName: 'A' }, 'peer-a');
     const kpi = reloaded.broadcastsOfType('kpi-update').find(m => m.playerName === 'A');
     check(kpi && kpi.isCorrect === true && kpi.kpiGained > 0 && kpi.kpi === 10 + kpi.kpiGained,

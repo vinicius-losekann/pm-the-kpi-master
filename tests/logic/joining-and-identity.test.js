@@ -235,15 +235,15 @@ test('T80 Versão do jogo 2: as mensagens da rodada e da partida, o estado e o e
     env.drop('peer-a');
     env.join('A', 'peer-a');
     const sync = syncTo(env, 'peer-a');
-    check(sync && sync.decks && sync.roundEnded === false && sync.matchPaused === false && 'finalRanking' in sync &&
+    check(sync && !('decks' in sync) && sync.roundEnded === false && sync.matchPaused === false && 'finalRanking' in sync &&
         JSON.stringify(sync.answeredThisRound) === '["B"]' &&
         sync.currentRound && sync.currentRound.asker === 'A' && sync.currentRound.answered === true && sync.currentRound.question,
-        'o state-sync deveria levar decks, roundEnded, matchPaused, answeredThisRound, finalRanking e a rodada com os nomes novos, veio: ' + JSON.stringify(sync && Object.keys(sync)));
+        'o state-sync deveria levar roundEnded, matchPaused, answeredThisRound, finalRanking e a rodada com os nomes novos (sem os baralhos, SEC-005), veio: ' + JSON.stringify(sync && Object.keys(sync)));
     const guestA = use(createEnvironment());
     guestA.receiveSync('A', sync);
     check(guestA.state.currentRound && guestA.state.currentRound.asker === 'A' && guestA.state.decks &&
         guestA.state.roundEnded === false && JSON.stringify(guestA.state.answeredThisRound) === '["B"]',
-        'A deveria restaurar a rodada, os baralhos e o rodízio do state-sync');
+        'A deveria restaurar a rodada e o rodízio do state-sync (e continuar com um objeto de baralhos)');
     check(roundScreens(guestA).includes('displaySpectatorView'), 'pergunta já respondida: A volta vendo a tela de espectador, viu: ' + roundScreens(guestA).join(', '));
 
     // Próxima dupla da mesma rodada: mesmo evento, sem mostrar o evento de novo.

@@ -138,12 +138,15 @@ function whenReady(fn) {
 
 /**
  * Abre a sala no jogo (também depois de um F5). O papel vem do meta:
- * host ou guest. `onOpen(result)` roda com o papel já no estado e antes
- * de qualquer pedido ou aviso ser tratado (o main.js monta a tela ali).
- * O guest pede para entrar em seguida. `now` é a hora do servidor
+ * host ou guest. O host lê o estado da partida do banco (secret/state) e
+ * o restaura (Game.persistence.restoreSavedState()) antes do onOpen; o
+ * guest não lê (o estado dele vem do state-sync do host). `onOpen(result)`
+ * roda com o papel e o estado restaurado já no estado do jogo e antes de
+ * qualquer pedido ou aviso ser tratado (o main.js monta a tela ali). O
+ * guest pede para entrar em seguida. `now` é a hora do servidor
  * (login.serverNow), que passa a valer em serverNow(). Devolve { ok,
- * isHost } ou { ok: false, reason } (`tab-in-use`, `invalid-code`,
- * `room-not-found`, `version-mismatch`).
+ * isHost, restored } ou { ok: false, reason } (`tab-in-use`,
+ * `invalid-code`, `room-not-found`, `version-mismatch`).
  */
 async function openRoom({ db, uid, code, now, timestamp, onOpen }) {
     if (!(await claimRoomTab(code))) return { ok: false, reason: 'tab-in-use' };
@@ -165,7 +168,13 @@ async function openRoom({ db, uid, code, now, timestamp, onOpen }) {
 
     let result;
     try {
-        result = await channel.joinRoom(code, { protocolVersion: PROTOCOL_VERSION });
+        const joined = await channel.joinRoom(code, { protocolVersion: PROTOCOL_VERSION });
+        // O que chegar enquanto o host lê o banco espera na fila (whenReady).
+        // Leitura que falha não abre a sala: abrir sem o estado e gravar
+        // por cima apagaria a partida.
+        result = joined.ok && joined.isHost
+            ? { ...joined, restored: Game.persistence.restoreSavedState(await channel.readSecret()) }
+            : joined.ok ? { ...joined, restored: false } : joined;
     } finally {
         if (!result || !result.ok) {
             roomLinkState.channel = null;
@@ -230,7 +239,8 @@ function deliverFromHost(msg) {
 /**
  * Guest: presença do host. Quando o host volta (F5 ou queda), o guest
  * pede para entrar de novo e recebe o estado do host — o que mudou
- * enquanto ele estava fora (ex.: o pedido de apoio cancelado no F5).
+ * enquanto ele estava fora (e, se foi chamado para um apoio ainda
+ * pendente, a pergunta do apoio de novo).
  * A primeira presença, ao entrar na sala, não é volta.
  */
 function showHostPresence(online) {
@@ -302,6 +312,15 @@ function dismissPlayer(uid) {
     if (roomLinkState.channel) roomLinkState.channel.dismiss(uid);
 }
 
+/**
+ * Host: grava o estado completo da partida no banco (secret/state, que só
+ * o host lê) e anda a meta/lastActivity, numa gravação só. Chamado pelo
+ * Game.saveState() (utils/persistence.js).
+ */
+function saveRoomState(secretState) {
+    if (roomLinkState.channel) roomLinkState.channel.publish({ secretState });
+}
+
 /** Host: chave do último aviso para todos (vai no state-sync); null sem avisos. */
 function feedCursor() {
     return roomLinkState.channel ? roomLinkState.channel.feedCursor() : null;
@@ -330,13 +349,12 @@ function linkStatus() {
 }
 
 /**
- * Sai da sala (fim da sessão, saída, recusa): para o relógio, apaga o
- * estado salvo e deixa o canal — o host apaga a sala; o guest só para de
- * ouvir (o host fica sabendo pela presença quando a página fecha).
+ * Sai da sala (fim da sessão, saída, recusa): para o relógio e deixa o
+ * canal — o host apaga a sala (e, com ela, o estado salvo); o guest só
+ * para de ouvir (o host fica sabendo pela presença quando a página fecha).
  */
 function cleanup() {
     clearInterval(Game.state.timerInterval);
-    Game.persistence.clearSavedState();
     releaseRoomTab();
     const channel = roomLinkState.channel;
     Object.assign(roomLinkState, { channel: null, hostUid: null, isReady: false, waiting: [], hostOnline: null, synced: false });
@@ -358,6 +376,7 @@ Object.assign(window.Game.network, {
     sendToPlayer,
     admitPlayer,
     dismissPlayer,
+    saveRoomState,
     feedCursor,
     serverNow,
     receiveRequest,

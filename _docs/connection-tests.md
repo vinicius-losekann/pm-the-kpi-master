@@ -59,7 +59,7 @@ flowchart TD
     H -->|guest cai ou fecha a aba| I[Presença offline: fica desconectado na lista<br/>rodada dele é abortada<br/>pausa se faltar gente conectada]
     I -->|volta a conexão ou reabre o link| G
 
-    H -->|F5 do host| K[Retoma pelo estado salvo;<br/>pedidos feitos no F5 esperam no banco]
+    H -->|F5 do host| K[Retoma pelo estado gravado no banco;<br/>pedidos feitos no F5 esperam no banco]
     H -->|host cai de vez| J[Os outros veem Host desconectado<br/>e a sala espera]
 
     H -->|guest sai da partida| O[Vai para o lobby<br/>se faltar jogador, a partida acaba]
@@ -102,6 +102,7 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 | Ciclo da rodada termina sem esperar o desconectado | 🤖 T8 | — |
 | Volta da conexão: o guest manda o player-join de novo e retoma o lugar; nenhum aviso de antes do estado chega depois dele | 🤖 T171 | ⬜ (M7) |
 | Quem entra ou volta recebe o estado com o cursor dos avisos: nada de antes dele, os de depois uma vez, na ordem | 🤖 T168, T177 | — |
+| O estado de quem entra ou volta não leva os baralhos nem a resposta que espera o apoio; o gabarito da pergunta da vez só vai para o Perguntador (SEC-005) | 🤖 T79, T80, T186 | — |
 | F5 de guest: volta ao mesmo lugar pelo uid | 🤖 T171 · 🌐 E6 | — |
 | Guest volta com o relógio andando e sem reabrir pergunta já respondida | 🤖 T30–T34 | — |
 | Relógio e prazos pela hora do servidor: todos mostram o mesmo tempo, mesmo com o relógio do aparelho errado; quem volta à pergunta vê o que falta do prazo, não o prazo inteiro | 🤖 T179–T182 · 🌐 E28 | — |
@@ -111,15 +112,15 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 | Caso | Testes | Manual |
 |---|---|---|
 | Host cai: os outros veem "Host desconectado"; ninguém assume; com o host de volta, "Conectado" | 🤖 T172 | ⬜ |
-| F5 do host: continua host pelo meta da sala; os pedidos feitos durante o F5 esperam no banco e são tratados depois da retomada; quem ficou na sala pede o estado de novo quando o host volta | 🤖 T172 · 🌐 E1, E9, E12 | — (coberto por E1) |
+| F5 do host: continua host pelo meta da sala e volta com o estado da partida gravado no banco (`secret/state`, lido antes de montar a tela); os pedidos feitos durante o F5 esperam no banco e são tratados depois da retomada; quem ficou na sala pede o estado de novo quando o host volta | 🤖 T172, T184, T185 · 🌐 E1, E9 | — (coberto por E1) |
 | F5 do host com a pergunta aberta: a mesma pergunta continua; relógio e prazo de resposta continuam de onde estavam; prazo vencido durante o F5 tem o efeito na retomada | 🤖 T56, T182 · 🌐 E1, E28 | ⬜ (contador da tela do host que responde, depois do F5 dele) |
 | Pergunta ainda por fazer (o Perguntador não clicou em "Fazer a pergunta"): no F5 do host e na volta à partida, a rodada continua esperando o clique, com o prazo do Perguntador continuando de onde estava (vencido: a pergunta vai na retomada); quem volta como Respondedor vê o aviso, não as alternativas | 🤖 T138, T139, T181 | — |
 | F5 do host fora da dupla com a pergunta aberta: o host vê a tela de espectador; etiquetas de domínio e área aparecem depois do F5 e para quem volta (BUG-020) | 🤖 T64, T65 | — |
 | F5 do host com a rodada encerrada: continua encerrada para todos, nada começa sozinho | 🤖 T53, T57 · 🌐 E9 | — (coberto por E9) |
 | F5 do host logo depois de uma resposta: segue para a próxima dupla ou encerra a rodada; se a resposta completou a última área foco, a partida termina | 🤖 T54, T58 · 🌐 E10 | — (coberto por E10) |
 | F5 do host com a partida pausada: continua pausada com o mesmo evento e retoma quando alguém volta | 🤖 T55, T57 · 🌐 E11 | — (coberto por E11) |
-| F5 do host com um pedido de assessoria ou de ajuda sem resposta: o pedido é cancelado, quem responde pode pedir de novo e a rodada segue; apoio já respondido continua valendo (com o honorário, a recompensa ou a cobertura) | 🤖 T59, T60, T122 · 🌐 E12 | — (coberto por E12) |
-| F5 do host logo depois de o jogo ser atualizado (estado salvo pela versão anterior): o estado é migrado e a partida continua de onde estava (pergunta aberta, pausa, rodada encerrada); recursos, área foco e ranking final dos jogadores e a assessoria da rodada (pendente é cancelada; sugestão ou recusa continuam) chegam iguais; os campos da conexão antiga saem; o tempo que faltava vira a hora de término da partida | 🤖 T78, T79, T81, T82, T84, T85, T125, T178, T183 | — |
+| F5 do host com um pedido de assessoria ou de ajuda sem resposta: o pedido continua, com o prazo que faltava a quem foi chamado (vencido durante o F5: recusa por tempo na retomada), e o prazo de quem pediu continua parado até o apoio terminar; quem foi chamado recebe a pergunta do apoio de novo (o host chamado a vê na retomada) e a resposta dele vale depois do F5; apoio já respondido continua valendo (com o honorário, a recompensa ou a cobertura) (BUG-019) | 🤖 T59, T60, T122, T187 · 🌐 E29 | — (coberto por E29) |
+| F5 do host logo depois de o jogo ser atualizado (estado salvo pela versão anterior): o estado é migrado e a partida continua de onde estava (pergunta aberta, pausa, rodada encerrada); recursos, área foco e ranking final dos jogadores e a assessoria da rodada (pendente, sugestão ou recusa continuam) chegam iguais; os campos da conexão antiga saem; o tempo que faltava vira a hora de término da partida | 🤖 T78, T79, T81, T82, T84, T85, T125, T178, T183 | — |
 | Todos recebem quem já respondeu na rodada (resposta, nova dupla, volta) | 🤖 T49 | — |
 | Sair da sala: o guest para de ouvir; o host apaga a sala | 🤖 T174 | — |
 
@@ -134,7 +135,7 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 | Guest sai da partida, ela acaba, e o host inicia outra | 🤖 T48 · 🌐 E8 | 👤 |
 | Pausa retomada com todos os conectados já tendo respondido: rodada encerra em vez de recomeçar | 🤖 T52 | — |
 | Sair da partida: se faltar jogador, a partida acaba | 🤖 T7 | 👤 |
-| Todos saem e a sala é reaberta: até 5 min a partida é restaurada (pausada, com o mesmo evento); depois, lobby novo | 🌐 E17, E18 | — (coberto por E17 e E18) |
+| Todos saem e o host reabre a sala: a partida é restaurada enquanto a sala existir, sem prazo de validade (pausada, com o mesmo evento); estado de versão mais nova, inválido ou ilegível não é restaurado e fica no banco | 🤖 T62, T185 · 🌐 E17 | — (coberto por E17) |
 
 ---
 
@@ -149,7 +150,7 @@ com sintoma, causa e correção.
 ## 4. Falta testar manualmente
 
 Cada teste com navegadores **diferentes** (não duas abas do mesmo
-navegador — elas compartilham o estado salvo e o login, e a segunda aba
+navegador — elas compartilham o login, e a segunda aba
 não entra na sala) e com as janelas visíveis lado a lado (aba em segundo
 plano fica mais lenta).
 
@@ -165,7 +166,7 @@ plano fica mais lenta).
 | M13 | ✅ 🌐 E17 | Host sai com a partida pausada | Guest cai (a partida pausa), depois o host fecha a aba e a reabre | Continua pausada com o mesmo evento e retoma quando o guest volta |
 | M14 | ✅ 🌐 E13 | Criar sala com código em uso | Código de sala aberta | "Já está em uso", em até 3s |
 | M15 | ✅ 🌐 E16 | Sala cheia (6 jogadores) | 6 navegadores/dispositivos; 1 cai e volta | Volta ao lugar; 7º nome é recusado |
-| M16 | ✅ 🌐 E17, E18 | Reusar o código depois que todos saem | Todos fecham; reabrir em 1 min e depois de 5 min | Até 5 min restaura a partida; depois, lobby novo |
+| M16 | ✅ 🌐 E17 | Reusar o código depois que todos saem | Todos fecham; o host reabre (em 1 min ou depois de mais tempo) | A partida é restaurada enquanto a sala existir, sem prazo de validade |
 | M17 | P2 | Navegadores | Chrome, Edge (inclusive InPrivate), Firefox, Safari no iPhone | Mesmo comportamento |
 | M18 | P2 | Aba em segundo plano por muito tempo | Deixar a aba escondida 10 min | Ao voltar, o jogo se recupera (pode precisar de F5) |
 | M21 | **P1** (roadmap 2.9) | Teste de conexão pelo Firebase em redes reais | Roteiro M21 de `manual-test-scripts.md` (em casa: computador no Wi-Fi e celular nos dados móveis; na instituição: celular no 5G e computador na rede dela), na página `firebase-check.html` | Cria, entra, troca mensagens (com o tempo de ida e volta), volta sozinho depois do F5 e do modo avião (lógica coberta por 🤖 T143–T153 e 🌐 E24, E25). **Em casa ✅ 👤 (17/10/2026, computador no Wi-Fi e celular no 4G):** todos os passos; ida e volta de 382–434 ms; volta em 1–2 s depois do modo avião e na hora depois da tela bloqueada. O servidor tira da lista quem cai sem aviso em ~2 min (modo avião) e em menos de 1 min (tela bloqueada). **Falta a parte na instituição.** |
@@ -180,10 +181,9 @@ banco.
 
 - ⚠️ Sem troca de host até a etapa 3 do roadmap 2.9: se o host cai de vez, a sala espera por ele.
 - ⚠️ Sinal de vida mínimo até a etapa 3: o host vê a queda quando o servidor do Firebase percebe a conexão fechada — na hora quando a aba fecha; até ~2 min numa queda de rede sem aviso. Uma queda percebida tarde pode marcar como desconectado quem já voltou (até a próxima queda e volta dele).
-- ⚠️ A última atividade da sala (`meta/lastActivity`) só passa a andar com o estado no banco (etapa 2): até lá, uma sala com mais de 2 h desde a criação conta como parada, e o código pode ser criado de novo por outra pessoa.
 - ⚠️ Nomes diferenciam maiúsculas: "vHost" e "Vhost" são jogadores diferentes — durante a partida, a grafia errada é recusada. Melhoria futura (roadmap 8.5).
-- ⚠️ Abas do mesmo navegador compartilham o login (uid) e o estado salvo: a segunda aba com a mesma sala não entra. Trocar de navegador, usar aba anônima ou limpar os dados no meio da partida perde a identidade (só volta no lobby).
-- ⚠️ As respostas não são secretas: `data/questions.pt-BR.json` é público no site e quem volta recebe o baralho com o gabarito. Ocultar é melhoria futura (roadmap 4.4); por ora, vale a regra da aula.
+- ⚠️ Abas do mesmo navegador compartilham o login (uid): a segunda aba com a mesma sala não entra. Trocar de navegador, usar aba anônima ou limpar os dados no meio da partida perde a identidade (só volta no lobby).
+- ⚠️ As respostas não são secretas: `data/questions.pt-BR.json` é público no site (o `state-sync` não leva mais os baralhos, SEC-005, mas o arquivo continua aberto). Ocultar é melhoria futura (roadmap 4.4); por ora, vale a regra da aula.
 - ⚠️ A lista "Em jogo" da tela de espera do lobby (`showLobbyWaitingView`) não mostra os jogadores desconectados.
 - ⚠️ Diferença de ~1s entre o relógio do host e o dos guests que voltam.
 - ⚠️ Dependem da internet dos domínios do Google (`gstatic.com`, `firebaseio.com`) e do limite de 100 aparelhos ao mesmo tempo do plano gratuito do Firebase.
@@ -208,11 +208,9 @@ o teste só aponta o Firebase para o emulador.
 | E9 | F5 do host com a rodada encerrada: continua encerrada para os dois, "Nova Rodada" liberado, nada começa sozinho | M2, B3 |
 | E10 | F5 do host logo depois de responder: a partida segue (próxima dupla ou fim da rodada) e a rodada seguinte começa | B4 |
 | E11 | F5 do host com a partida pausada: continua pausada com o mesmo evento, sem mostrar outro; retoma quando o outro volta | B5 |
-| E12 | 3 jogadores; um guest pede assessoria, o assessor não responde e o host dá F5: o guest volta com os botões e o "Pedir Assessoria" liberados, responde e a partida segue | BUG-019 |
 | E13 | Criar sala pela tela inicial com o código de uma sala aberta: "já está em uso" em até 3s, sem derrubar ninguém; código livre chega a "Sala criada" | M14 |
 | E16 | 6 jogadores: o 7º é recusado no lobby ("Sala cheia"); com a partida em andamento, um cai e volta ao próprio lugar | M15 |
-| E17 | Guest sai (pausa), depois o host; o host reabre: continua pausada com o mesmo evento, sem mostrar outro; retoma quando o guest volta | M13, M16 (até 5 min) |
-| E18 | Todos saem e voltam depois de 5 min: lobby novo, quem volta entra como jogador novo e uma partida nova começa | M16 (depois de 5 min) |
+| E17 | Guest sai (pausa), depois o host; o host reabre: continua pausada com o mesmo evento, sem mostrar outro; retoma quando o guest volta | M13, M16 |
 | E19 | 3 jogadores; o guest que responde está sem recursos, pede ajuda ao colega fora da dupla, que sugere a certa; seguindo, ele acerta sem mexer nos recursos e quem ajudou ganha a recompensa e vê o aviso | — |
 | E20 | Janela de 1000 px com o card do jogador em estouro (−12): os chips de KPI e de recursos ficam dentro do card | BUG-025 (layout) |
 | E21 | Celular baixo (375×480) com a pergunta aberta: a janela de resposta cabe na tela e rola até a última alternativa | BUG-026 (layout) |
@@ -223,11 +221,12 @@ o teste só aponta o Firebase para o emulador.
 | E26 | Regras do banco para as salas do jogo (`rooms/`): o host grava tudo; quem foi aceito lê o estado público e o próprio, nunca o secreto, e não grava o que é do host; quem não foi aceito só lê a sala, a própria caixa de avisos e manda pedido em nome próprio; presença: cada um grava só a própria (estando no roster ou sendo o host), o host lê todas e quem foi aceito só a do host; sala parada há 2 h pode ser criada de novo por outro, e o host antigo perde o acesso | — (segurança do banco; lógica do canal em 🤖 T154–T166) |
 | E27 | Outro navegador com o nome de quem caiu é recusado e a vaga continua reservada; o dono volta ao lugar pelo mesmo navegador, com KPI e recursos | — |
 | E28 | Um navegador com o relógio 30 s adiantado (`page.clock`) mostra o mesmo tempo do host; o F5 do host ~12 s depois do início continua o relógio do mesmo ponto | — (relógio pela hora do servidor) |
+| E29 | 3 jogadores; um guest pede apoio, quem foi chamado não responde e o host dá F5: o pedido continua pendente (quem pediu segue com os botões travados), quem foi chamado vê a pergunta do apoio de novo e responde, quem pediu recebe a sugestão, responde e a rodada segue | BUG-019 |
 
-No E18, os 5 minutos não são esperados de verdade (cada cenário tem
-limite de 2 minutos): antes de reabrir, o teste muda a hora gravada no
-estado salvo de cada navegador para 6 minutos atrás — o mesmo dado que
-o jogo usa para decidir se restaura.
+Números retirados (não se reaproveitam): E12 (o apoio pendente era
+cancelado no F5 do host; o E29 confere o comportamento atual) e E18 (a
+partida só era restaurada até 5 min depois de todos saírem; hoje vale
+enquanto a sala existir).
 
 **Continuam manuais:** M7 (queda de rede real), M8 (celular), M21 (redes
 reais), M17 (Firefox, Safari) e M18 (aba esquecida em segundo plano).

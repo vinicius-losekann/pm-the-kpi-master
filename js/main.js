@@ -57,7 +57,9 @@ async function loadQuestions() {
         state.questionsData = { domains: {}, events: [] };
     }
 
-    // Inicializa os baralhos, preservando progresso se já existir
+    // Inicializa os baralhos, preservando progresso se já existir. O host
+    // que volta de um F5 troca pelos do estado salvo depois, ao abrir a
+    // sala (restoreSavedState(), em utils/persistence.js).
     const decksRestored = state.decks && Object.keys(state.decks).length > 0;
     if (!decksRestored) {
         for (const [key, domain] of Object.entries(state.questionsData.domains || {})) {
@@ -79,10 +81,11 @@ async function loadQuestions() {
 
 /**
  * Login anônimo e abertura da sala (o papel, host ou guest, vem do
- * banco). Login que falha ou sala recusada (não existe, outra versão,
- * aberta em outra aba): avisa e não segue.
+ * banco; o host volta com o estado da partida gravado no banco, ver
+ * openRoom() em network/roomLink.js). Login que falha ou sala recusada
+ * (não existe, outra versão, aberta em outra aba): avisa e não segue.
  */
-async function connectToRoom(restored) {
+async function connectToRoom() {
     const state = Game.state;
     let login;
     try {
@@ -102,7 +105,7 @@ async function connectToRoom(restored) {
             code: state.roomName,
             now: login.serverNow,
             timestamp: login.timestamp,
-            onOpen: () => showRoom(restored)
+            onOpen: (result) => showRoom(result.restored)
         });
     } catch (err) {
         console.error('❌ Não foi possível abrir a sala:', err);
@@ -115,30 +118,26 @@ async function connectToRoom(restored) {
 }
 
 /**
- * Sala aberta: monta a tela pelo papel e, depois de um F5, volta ao
- * ponto em que estava. Roda antes de qualquer pedido ou aviso da sala.
+ * Sala aberta: monta a tela pelo papel e, com o estado da partida
+ * restaurado do banco (host depois de um F5), volta ao ponto em que
+ * estava. Roda antes de qualquer pedido ou aviso da sala.
  */
 function showRoom(restored) {
     const state = Game.state;
     console.log('👑 Host:', state.isHost);
     Game.ui.setupUI();
 
-    // A retomada do host (o que fazer conforme o momento da
-    // partida em que o F5 aconteceu) fica em engine/sessionEngine.js.
-    // F5 na tela final volta à tela final (host e guest).
-    if (restored && state.gameStarted && state.gameOver) {
+    // Só o host restaura (o guest volta pelo state-sync). A retomada (o
+    // que fazer conforme o momento da partida em que o F5 aconteceu) fica
+    // em engine/sessionEngine.js. F5 na tela final volta à tela final.
+    if (!restored) return;
+    if (state.gameStarted && state.gameOver) {
         Game.core.showGameOver();
-    } else if (restored && state.gameStarted) {
-        if (state.isHost) {
-            Game.core.resumeMatchAfterReload();
-        } else {
-            Game.ui.showScreen('game');
-            Game.ui.updateTimerDisplay();
-            Game.ui.updatePlayersOnlineList();
-            Game.ui.updateRankingList();
-        }
+    } else if (state.gameStarted) {
+        Game.core.resumeMatchAfterReload();
     }
-
+    // Sem restaurar, nada é gravado aqui: um estado de versão mais nova
+    // continua no banco até a partida mudar.
     Game.saveState();
 }
 
@@ -148,8 +147,9 @@ function showRoom(restored) {
 
 /**
  * Ponto de entrada do jogo.
- * Ordem: ler URL (game.html?room=<código>&playerName=<nome>) → restaurar
- * estado → carregar perguntas → login e sala → configurar UI.
+ * Ordem: ler URL (game.html?room=<código>&playerName=<nome>) → carregar
+ * perguntas → login e sala (o host restaura ali o estado do banco) →
+ * configurar UI.
  */
 async function init() {
     console.log('🎯 PM: The KPI Master - Inicializando...');
@@ -171,10 +171,8 @@ async function init() {
     // o status de cada fase, toda vez que o estado do jogador muda (via
     // syncPlayerViews()).
 
-    const restored = Game.persistence.tryRestoreState();
-
     await loadQuestions();
-    await connectToRoom(restored);
+    await connectToRoom();
 
     console.log('✅ Jogo inicializado!');
     console.log('💡 Debug: Game.debug está disponível no console (F12)');

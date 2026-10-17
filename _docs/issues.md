@@ -16,20 +16,7 @@ glossário de `conventions.md` dá o nome atual.
 
 ## Em investigação
 
-**SEC-005 — quem entra ou volta à sala recebe o gabarito de todas as
-perguntas.** Achado em 17/10/2026, ao desenhar a etapa 2 do roadmap 2.9.
-- **Sintoma:** quem quiser abre o console (F12) depois de entrar ou
-  voltar à sala e lê a resposta certa de qualquer pergunta da partida.
-  Quem só joga não vê nada de diferente.
-- **Local:** `addPlayer()` (`network/messageHandler.js`) — o `state-sync`
-  leva `decks: state.decks`, e cada baralho guarda as perguntas inteiras,
-  com `correct` (montadas em `loadQuestions()`, `main.js`). Vale também
-  no `main`. O `state-sync` leva ainda a resposta guardada de quem
-  responde (`currentRound.pendingAnswer`), que só o host precisa ver.
-- **Causa:** o guest nunca usa os baralhos (só o host sorteia); o campo
-  ficou no `state-sync` desde que ele levava o estado inteiro.
-- **Como reproduzir:** entrar numa sala, digitar no console
-  `Game.state.decks` e abrir qualquer baralho.
+Nenhum no momento.
 
 ---
 
@@ -69,6 +56,7 @@ automatizado — os números (T…, E…) são os de `tests/logic` e
 | REGRESSÃO-003 | Quem entrasse no meio de uma rodada receberia o gabarito no `state-sync` (detectado antes de chegar a quem joga) | Na troca do schema das perguntas para o inglês (Fase 8: `correta` → `correct`), a blindagem do gabarito em `addPlayer()` (`network/messageHandler.js`) continuou apagando o campo antigo: `{...spread, correta: undefined}` cria um campo novo e deixa o `correct` com a resposta | `correta: undefined` → `correct: undefined` no mesmo ponto (Fase 8) |
 | SEC-003 | Alguém entrando com o nome do host tomava o lugar dele na lista | `addPlayer()` tratava o nome do host como reconexão (o host não tem conexão consigo mesmo) | D1a: nome do host sempre "em uso" (`name-taken`) — T3b |
 | SEC-004 | Quem soubesse o nome de um jogador desconectado entrava no lugar dele e herdava KPI, recursos e fase | Reconexão conferia só o nome | D2: token de identidade por sala; o host guarda só o hash e exige o mesmo token (`identity-mismatch`) — T22–T29 |
+| SEC-005 | Quem entrava ou voltava à sala podia abrir o console (F12), digitar `Game.state.decks` e ler a resposta certa de qualquer pergunta da partida; o estado trazia também a resposta guardada de quem responde, esperando o apoio (achado em 17/10/2026, ao desenhar a etapa 2 do roadmap 2.9) | O `state-sync` de `addPlayer()` (`network/messageHandler.js`) levava `decks: state.decks` (cada baralho com as perguntas inteiras, com `correct`) e a rodada com `pendingAnswer`; o guest nunca usa os baralhos — o campo ficou desde que o `state-sync` levava o estado inteiro | Etapa 2b do roadmap 2.9: o `state-sync` vai sem os baralhos e com a rodada como quem entra pode vê-la (`roundAsSeenBy()`: sem `pendingAnswer`; gabarito só para o Perguntador); o guest continua com os baralhos que montou — T186 (ajustes no T79 e no T80) |
 | BUG-008 | Troca de host falhava: o guest que tentava achar a sala nova perdia a própria conexão | Qualquer erro do PeerJS (inclusive o esperado `peer-unavailable`) destruía o peer local | D1b: depois de aberto, erro não destrói mais o peer; tentativa sem peer conta como falha — T19, T20 |
 | BUG-009 | Rodada travada depois da troca de host | O novo host continuava uma pergunta sem ter o gabarito | D1b: sem gabarito, a pergunta é descartada e a partida segue com o mesmo evento — T21, T21b |
 | BUG-010 | Relógio de quem reconectava andava de 10 em 10 segundos | A contagem local só era ligada no início da partida | D2b: `startClock()` também na reconexão — T30, T31 |
@@ -80,7 +68,7 @@ automatizado — os números (T…, E…) são os de `tests/logic` e
 | BUG-016 (B3) | F5 do host com a rodada encerrada: telas erradas ("Aguardando início da rodada...", última dupla como em andamento) | "Rodada encerrada" não era salvo; a retomada reabria a última rodada | D3f: estado salvo leva a situação; `resumeMatchAfterReload()` — T53, T57 · E9 |
 | BUG-017 (B4) | F5 do host logo depois de uma resposta: partida travada | O aviso para seguir à próxima dupla (3s depois) se perdia com a página | D3f: a retomada segue para a próxima dupla, encerra a rodada ou encerra a partida — T54, T58 · E10 |
 | BUG-018 (B5) | F5 do host com a partida pausada: outro evento sorteado, efeitos reaplicados | A pausa não era salva | D3f: continua pausada com o mesmo evento — T55, T57 · E11 |
-| BUG-019 | F5 do host com um pedido de assessoria sem resposta: rodada presa (quem responde com os botões travados, "Nova Rodada" bloqueado) até acabar o tempo da partida | O prazo de 20s do assessor (`setTimeout`) se perdia com a página, e o assessor perdia a pergunta ao reconectar (a reconexão fecha os modais); a resposta ficava guardada esperando para sempre | O F5 cancela o pedido pendente (quem responde pode pedir de novo, como numa troca de host); resposta já guardada é processada — T59, T60 · E12 |
+| BUG-019 | F5 do host com um pedido de assessoria sem resposta: rodada presa (quem responde com os botões travados, "Nova Rodada" bloqueado) até acabar o tempo da partida | O prazo de 20s do assessor (`setTimeout`) se perdia com a página, e o assessor perdia a pergunta ao reconectar (a reconexão fecha os modais); a resposta ficava guardada esperando para sempre | Na Fase D, o F5 cancelava o pedido pendente (pela conexão direta, quem foi chamado perdia a pergunta). Desde a etapa 2b do roadmap 2.9 (estado no banco), o pedido continua: o prazo de quem foi chamado conta pela hora de término guardada (vencido no F5, recusa por tempo na retomada), quem foi chamado recebe a pergunta do apoio de novo ao voltar (o host chamado, na retomada), e a resposta guardada é processada quando o apoio chega — T59, T60, T122, T187 · E29 |
 | BUG-020 | F5 do host fora da dupla com a pergunta aberta: o host via a área da pergunta em vez de "Fulano pergunta para Beltrano"; as etiquetas de domínio e área ficavam vazias depois do F5 do host e para quem voltava à partida | A retomada não olhava o papel do host; a pergunta guardada na rodada (estado salvo, `state-sync`) não tinha os nomes de domínio e área — só a mensagem `question` tinha | A retomada mostra a tela de espectador fora da dupla; a pergunta da rodada guarda domínio e área — T64, T65 |
 | BUG-021 | F5 na tela de fim de jogo: o host voltava à tela de jogo e, se a partida tinha acabado por alguém completar a última fase, uma dupla nova era sorteada e ela recomeçava; o guest era recusado ("a partida desta sala já começou") e voltava à tela inicial | O fim de jogo não era gravado no estado salvo nem ia no `state-sync`; a sala continuava travada para nomes novos depois do fim (e quem cai no fim de jogo sai da lista) | Estado salvo e `state-sync` levam `gameOver` e o ranking final (`rankingFinal`); `showGameOver()` no F5 e na volta; depois do fim de jogo a sala não fica travada — T66, T67, T68 |
 | BUG-022 | Pedido de ajuda e assessoria com quem caiu: quem pediu esperava 20s por cada jogador caído na fila, e a fila seguia (podendo transferir recurso) mesmo depois de quem pediu cair; o assessor caído recebia a pergunta e quem respondia ficava 20s com os botões travados | `tradeEngine` e `validarPedidoAssessoria()` olhavam só `waitingInLobby`, não `disconnected` | Quem caiu é pulado na fila; se quem pediu cai, o pedido é cancelado sem transferir nada; assessor caído é recusado na hora — T69, T70 |

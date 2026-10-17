@@ -1,21 +1,21 @@
 // ============================================
-// PM: The KPI Master - Persistência (localStorage)
+// PM: The KPI Master - Persistência (estado da partida no banco da sala)
 // ============================================
-// Salva e restaura o estado da partida no localStorage, permitindo
-// retomar a sessão após um F5 (dentro de uma janela de 5 minutos).
+// O host grava o estado completo da partida no banco da sala
+// (secret/state, ver saveRoomState() em network/roomLink.js) e, ao abrir
+// a sala de novo (F5, ou depois de todos saírem), restaura a partida dali
+// (openRoom(), em roomLink.js). Vale enquanto a sala existir.
 // Roadmap 3.1: o estado salvo tem versão e passa pela migração antes de
 // ser restaurado (ver STATE_VERSION e STATE_MIGRATIONS abaixo).
 // ============================================
 
-const ROOM_STATE_KEY = 'pmKPI_roomState';
-const MY_DATA_KEY = 'pmKPI_myData';
-const RESTORE_WINDOW_MS = 5 * 60 * 1000;
-
 // Roadmap 3.1: versão do formato do estado salvo (campo stateVersion). Ao mudar
 // o formato (ex.: renomear um campo), aumentar a versão e acrescentar
 // em STATE_MIGRATIONS o passo que converte da versão anterior. Estado
-// salvo sem versão (antes do 3.1) é a versão 1. O número vale para as
-// duas chaves (são sempre gravadas juntas).
+// salvo sem versão (antes do 3.1) é a versão 1. Até a versão 9 o estado
+// ficava no navegador do host, em duas partes: a da sala (roomState) e a
+// do próprio host (pmKPI_myData). Os passos continuam recebendo e
+// devolvendo as duas; a restauração pelo banco passa myData null.
 const STATE_VERSION = 9;
 
 /**
@@ -219,8 +219,8 @@ const STATE_MIGRATIONS = {
 /**
  * Leva o estado salvo da versão em que foi gravado até a versão atual,
  * aplicando os passos de STATE_MIGRATIONS em ordem. Erro se faltar um passo.
- * @param {object} roomState - conteúdo de pmKPI_roomState
- * @param {object} myData - conteúdo de pmKPI_myData
+ * @param {object} roomState - o estado salvo (secret/state; antes, pmKPI_roomState)
+ * @param {object} myData - conteúdo de pmKPI_myData (null na restauração pelo banco)
  * @returns {{roomState: object, myData: object}}
  */
 function migrateSavedState(roomState, myData, targetVersion = STATE_VERSION, migrations = STATE_MIGRATIONS) {
@@ -237,13 +237,17 @@ function migrateSavedState(roomState, myData, targetVersion = STATE_VERSION, mig
 }
 
 /**
- * Salva o estado completo no localStorage. A rodada vai com as horas de
- * término dos prazos (askEndsAt, answerEndsAt, advisory.endsAt) e a
- * partida com a dela (endsAt): o F5 continua do mesmo ponto.
+ * Host: grava o estado completo da partida no banco da sala (secret/state,
+ * que só o host lê) pelo Game.network.saveRoomState(). A rodada vai com
+ * as horas de término dos prazos (askEndsAt, answerEndsAt,
+ * advisory.endsAt) e a partida com a dela (endsAt): o F5 continua do
+ * mesmo ponto. No guest, não faz nada — o estado dele vem do host
+ * (state-sync).
  */
 function saveState() {
     const state = Game.state;
-    localStorage.setItem(ROOM_STATE_KEY, JSON.stringify({
+    if (!state.isHost) return;
+    Game.network.saveRoomState({
         stateVersion: STATE_VERSION,
         roomName: state.roomName,
         players: state.players,
@@ -261,107 +265,60 @@ function saveState() {
         gameOver: !!state.gameOver,
         finalRanking: state.finalRanking || null,
         timestamp: new Date().toISOString()
-    }));
-
-    const me = Game.getPlayerByName(state.playerName);
-    localStorage.setItem(MY_DATA_KEY, JSON.stringify({
-        playerName: state.playerName,
-        kpi: me?.kpi || 0,
-        focusArea: me?.focusArea || CONFIG.FOCUS_AREAS[0].id,
-        activities: me?.activities || 0
-    }));
+    });
 }
 
 /**
- * Tenta restaurar o estado salvo no localStorage.
- * Só restaura se pertencer à mesma sala/jogador e tiver menos de 5 minutos.
- * Versão mais nova que STATE_VERSION: ignora sem apagar; versão inválida:
- * apaga, como estado corrompido.
- * @returns {boolean} true se restaurou com sucesso
+ * Host, ao abrir a sala: restaura a partida a partir do estado lido do
+ * secret/state (`saved`, já convertido do texto JSON; null se não há).
+ * Vale enquanto a sala existir, sem prazo de validade. Versão mais nova
+ * que STATE_VERSION (ex.: arquivos antigos em cache logo depois de um
+ * deploy), versão inválida ou migração que falha: não restaura e não
+ * copia nada — o banco fica como está, para a versão nova ainda poder usar.
+ * @returns {boolean} true se restaurou
  */
-function tryRestoreState() {
-    const savedState = localStorage.getItem(ROOM_STATE_KEY);
-    const savedMyData = localStorage.getItem(MY_DATA_KEY);
+function restoreSavedState(saved) {
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return false;
 
-    if (!savedState || !savedMyData) return false;
-
-    try {
-        const parsed = JSON.parse(savedState);
-        const version = parsed.stateVersion;
-
-        // Versão conferida antes de tudo: num formato mais novo, até o
-        // nome da sala pode ter mudado de campo.
-        if (version !== undefined && !(Number.isInteger(version) && version >= 1)) {
-            throw new Error('versão inválida: ' + JSON.stringify(version));
-        }
-        if (version > STATE_VERSION) {
-            // Gravado por um código mais novo (ex.: arquivos antigos em
-            // cache logo depois de um deploy): não restaura e não apaga,
-            // para a versão nova ainda poder usar.
-            console.log('💾 Estado salvo por uma versão mais nova do jogo. Ignorando.');
-            return false;
-        }
-
-        // Chamado por Game.persistence para o teste poder trocar a migração.
-        const migrated = Game.persistence.migrateSavedState(parsed, JSON.parse(savedMyData));
-        const saved = migrated.roomState;
-        const myData = migrated.myData;
-
-        const currentParams = new URLSearchParams(window.location.search);
-        const currentRoom = currentParams.get('room') || 'Sala';
-        const currentPlayer = currentParams.get('playerName') || 'Jogador';
-
-        if (saved.roomName !== currentRoom || myData.playerName !== currentPlayer) {
-            console.log('💾 Estado salvo pertence a outra sala/jogador. Ignorando.');
-            return false;
-        }
-
-        const timestamp = new Date(saved.timestamp);
-        const now = new Date();
-        if (Number.isNaN(timestamp.getTime()) || now - timestamp > RESTORE_WINDOW_MS) {
-            console.log('💾 Estado salvo expirou.');
-            return false;
-        }
-
-        console.log('💾 Estado restaurado do localStorage');
-
-        Game.state.roomName = saved.roomName;
-        Game.state.players = saved.players || [];
-        Game.state.endsAt = typeof saved.endsAt === 'number' ? saved.endsAt : null;
-        Game.state.gameStarted = !!saved.gameStarted;
-        Game.state.currentRound = saved.currentRound || null;
-        Game.state.decks = saved.decks || {};
-        Game.state.answeredThisRound = saved.answeredThisRound || [];
-        // Estado salvo por versões anteriores não tem os campos: sem rodada
-        // encerrada e sem pausa.
-        Game.state.roundEnded = !!saved.roundEnded;
-        Game.state.matchPaused = saved.matchPaused || null;
-        // Nem estes: partida não
-        // acabada.
-        Game.state.gameOver = !!saved.gameOver;
-        Game.state.finalRanking = saved.finalRanking || null;
-
-        const me = Game.getPlayerByName(myData.playerName);
-        if (me) {
-            me.kpi = myData.kpi ?? me.kpi;
-            me.focusArea = myData.focusArea ?? me.focusArea;
-            me.activities = myData.activities ?? me.activities;
-        }
-
-        return true;
-    } catch (e) {
-        console.warn('⚠️ Estado salvo corrompido. Limpando.');
-        clearSavedState();
+    // Versão conferida antes de tudo: num formato mais novo, até os
+    // nomes dos campos podem ter mudado.
+    const version = saved.stateVersion;
+    if (version !== undefined && !(Number.isInteger(version) && version >= 1)) {
+        console.warn('⚠️ Estado salvo com versão inválida (' + JSON.stringify(version) + '). Ignorando.');
         return false;
     }
-}
+    if (version > STATE_VERSION) {
+        console.log('💾 Estado salvo por uma versão mais nova do jogo. Ignorando.');
+        return false;
+    }
 
-/**
- * Limpa o estado salvo no localStorage (ex: ao sair da sessão).
- */
-function clearSavedState() {
-    localStorage.removeItem(ROOM_STATE_KEY);
-    localStorage.removeItem(MY_DATA_KEY);
+    let room;
+    try {
+        // Chamado por Game.persistence para o teste poder trocar a migração.
+        room = Game.persistence.migrateSavedState(saved, null).roomState;
+    } catch (e) {
+        console.warn('⚠️ Estado salvo ilegível (' + e.message + '). Ignorando.');
+        return false;
+    }
+
+    console.log('💾 Estado da partida restaurado do banco da sala');
+
+    const state = Game.state;
+    state.players = room.players || [];
+    state.endsAt = typeof room.endsAt === 'number' ? room.endsAt : null;
+    state.gameStarted = !!room.gameStarted;
+    state.currentRound = room.currentRound || null;
+    // Sem baralhos salvos, ficam os montados pelo loadQuestions() (main.js).
+    if (room.decks && Object.keys(room.decks).length > 0) state.decks = room.decks;
+    state.answeredThisRound = room.answeredThisRound || [];
+    // Estado salvo por versões anteriores não tem os campos: sem rodada
+    // encerrada e sem pausa.
+    state.roundEnded = !!room.roundEnded;
+    state.matchPaused = room.matchPaused || null;
+    // Nem estes: partida não acabada.
+    state.gameOver = !!room.gameOver;
+    state.finalRanking = room.finalRanking || null;
+    return true;
 }
 
 // ============================================
@@ -370,8 +327,7 @@ function clearSavedState() {
 window.Game = window.Game || {};
 window.Game.persistence = {
     saveState,
-    tryRestoreState,
-    clearSavedState,
+    restoreSavedState,
     migrateSavedState,
     STATE_VERSION
 };

@@ -87,7 +87,8 @@ function startClock() {
 
 /**
  * Host: retoma a partida depois de recarregar a página (F5), a partir do
- * estado salvo (utils/persistence.js). Chamada por init() (main.js).
+ * estado salvo no banco da sala (utils/persistence.js, restaurado ao abrir
+ * a sala). Chamada por showRoom() (main.js).
  *
  * Faz o que aconteceria sem o F5, conforme o momento:
  *   - partida pausada → continua pausada com o mesmo evento (sem sortear
@@ -104,8 +105,8 @@ function startClock() {
  *     da dupla, a tela de espectador) e o prazo de resposta continua de
  *     onde estava — ou, com a pergunta ainda por fazer, o prazo do
  *     Perguntador; a pergunta não pode ser trocada pelo F5. Um pedido de
- *     assessoria ou de ajuda ainda sem resposta é cancelado antes (ver
- *     cancelPendingAdvisory()).
+ *     assessoria ou de ajuda ainda sem resposta continua, com o prazo de
+ *     quem foi chamado (ver resumePendingAdvisory()).
  *
  * O relógio e os prazos contam pelas horas de término guardadas (hora do
  * servidor): continuam do mesmo ponto, e o que venceu durante o F5 tem o
@@ -150,12 +151,14 @@ function resumeMatchAfterReload() {
             Game.engine.turn.nextTurn();
         }
     } else {
-        if (cancelPendingAdvisory(round)) return;
         // Os prazos são armados antes das telas: a tela do host conta pela
-        // hora de término do prazo. Pergunta ainda por fazer: o prazo do
-        // Perguntador; feita, o de resposta — o que faltava quando o apoio
-        // cancelado começou, se ele estava parado.
-        if (round.asked === false) {
+        // hora de término do prazo. Apoio pendente: o prazo de quem foi
+        // chamado (o de resposta continua parado). Pergunta ainda por
+        // fazer: o prazo do Perguntador; feita, o de resposta.
+        const advisoryPending = !!round.advisory && round.advisory.status === 'pending';
+        if (advisoryPending) {
+            resumePendingAdvisory(round.advisory);
+        } else if (round.asked === false) {
             Game.engine.turn.armAskTimeout(msUntil(round.askEndsAt, CONFIG.GAME.ASK_TIMEOUT));
         } else {
             const paused = round.answerTimeLeft ?? CONFIG.GAME.ANSWER_TIMEOUT;
@@ -173,35 +176,33 @@ function resumeMatchAfterReload() {
         } else {
             Game.ui.displaySpectatorView(round.asker, round.answerer);
         }
+        // O host chamado para o apoio vê a pergunta do apoio de novo (o
+        // F5 levou a janela), se o prazo dele ainda não venceu; um guest
+        // chamado a recebe quando volta (addPlayer(), em
+        // network/messageHandler.js).
+        if (advisoryPending && round.advisory.advisorName === state.playerName && msUntil(round.advisory.endsAt) > 0) {
+            Game.engine.advisory.sendAdvisoryQuestion();
+        }
         Game.ui.refreshNewRoundButton();
     }
 }
 
 /**
- * No F5 do host, um pedido de assessoria ou de ajuda ainda sem resposta é
- * cancelado. O prazo de quem foi chamado (ADVISORY_TIMEOUT, setTimeout de
- * advisoryEngine.handleAdvisoryRequest()) se perde com a página, e o
- * chamado perde a pergunta (a reconexão fecha os modais) — sem cancelar,
- * a rodada ficaria presa esperando uma resposta que não vem. Quem
- * responde pode pedir de novo, e o prazo de resposta continua do que
- * faltava quando o apoio começou (resumeMatchAfterReload()).
- *
- * Se a resposta já tinha chegado e esperava o apoio, ela é processada
- * agora (answerEngine.handleAnswer() segue para a próxima dupla).
- * @returns {boolean} true se processou a resposta guardada (a pergunta
- *   não deve ser reexibida)
+ * No F5 do host, um pedido de assessoria ou de ajuda ainda sem resposta
+ * continua: o prazo de quem foi chamado volta a contar pela hora de
+ * término guardada (`advisory.endsAt`; vencido durante o F5, a recusa por
+ * tempo vem logo; sem a hora, rodada salva antes dela, prazo inteiro a
+ * partir de agora). O prazo de resposta continua parado, com o que
+ * faltava (`answerTimeLeft`), até o apoio terminar
+ * (advisoryEngine.handleAdvisoryAnswer()). Uma resposta que já esperava o
+ * apoio (`pendingAnswer`) continua guardada e é processada nessa hora.
  */
-function cancelPendingAdvisory(round) {
-    if (!round.advisory || round.advisory.status !== 'pending') return false;
-
-    console.log('🧭 Pedido de apoio (assessoria ou ajuda) sem resposta cancelado pelo F5 do host — quem responde pode pedir de novo.');
-    round.advisory = null;
-
-    if (!round.pendingAnswer) return false;
-    const pending = round.pendingAnswer;
-    round.pendingAnswer = null;
-    Game.engine.answer.handleAnswer(pending);
-    return true;
+function resumePendingAdvisory(advisory) {
+    console.log('🧭 Pedido de apoio (assessoria ou ajuda) sem resposta continua depois do F5 do host.');
+    if (typeof advisory.endsAt !== 'number') {
+        advisory.endsAt = Game.network.serverNow() + CONFIG.GAME.ADVISORY_TIMEOUT;
+    }
+    Game.engine.advisory.armAdvisoryTimeout(msUntil(advisory.endsAt));
 }
 
 /**

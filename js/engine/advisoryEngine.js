@@ -146,25 +146,49 @@ function handleAdvisoryRequest(msg) {
     // a tela dele (o contador) é avisada aqui.
     if (msg.requesterName === state.playerName) Game.ui.showAdvisoryStarted(startedMsg);
 
-    const question = state.currentRound.question;
+    sendAdvisoryQuestion();
+    armAdvisoryTimeout(CONFIG.GAME.ADVISORY_TIMEOUT);
+
+    Game.saveState();
+}
+
+/**
+ * Host: manda a pergunta da rodada, sem o gabarito, a quem foi chamado
+ * para o apoio pendente, com a hora de término do prazo dele. Usada no
+ * pedido e de novo quando quem foi chamado volta (addPlayer(), em
+ * network/messageHandler.js) ou quando o host chamado dá F5
+ * (resumeMatchAfterReload(), em engine/sessionEngine.js).
+ */
+function sendAdvisoryQuestion() {
+    const state = Game.state;
+    const round = state.currentRound;
+    const advisor = round && round.advisory && Game.getPlayerByName(round.advisory.advisorName);
+    if (!advisor || !round.question) return;
+    const question = round.question;
     const domainName = state.questionsData.domains[question.domain_key]?.name || question.domain_key;
 
     Game.network.sendToPlayer(advisor.peerId, {
         type: 'advisory-question',
-        kind,
+        kind: round.advisory.kind,
         question: question.question,
         domain: domainName,
         alternatives: question.alternatives,
         id: question.id,
-        endsAt
+        endsAt: round.advisory.endsAt
     });
+}
 
+/**
+ * Host: arma o prazo de quem foi chamado; no fim, o apoio é recusado por
+ * tempo. `ms` vencido ou negativo (ex.: venceu durante o F5 do host): a
+ * recusa vem logo em seguida.
+ */
+function armAdvisoryTimeout(ms) {
+    const state = Game.state;
     if (state.advisoryTimeout) clearTimeout(state.advisoryTimeout);
     state.advisoryTimeout = setTimeout(() => {
         handleAdvisoryAnswer({ alternative: null, declined: true, timeout: true });
-    }, CONFIG.GAME.ADVISORY_TIMEOUT);
-
-    Game.saveState();
+    }, Math.max(0, ms));
 }
 
 /**
@@ -225,6 +249,8 @@ window.Game.engine = window.Game.engine || {};
 window.Game.engine.advisory = {
     requestAdvisory,
     handleAdvisoryRequest,
+    sendAdvisoryQuestion,
+    armAdvisoryTimeout,
     handleAdvisoryAnswer
 };
 

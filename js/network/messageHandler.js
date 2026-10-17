@@ -261,6 +261,8 @@ function rejectJoin(fromPeerId, reason) {
  *
  * Quem é aceito entra no roster da sala (admitPlayer) e recebe o estado
  * com o cursor dos avisos para todos (feedCursor); quem é recusado não.
+ * O estado vai sem os baralhos e com a rodada como ele pode vê-la
+ * (roundAsSeenBy()).
  */
 function addPlayer(msg, fromPeerId) {
     const state = Game.state;
@@ -324,30 +326,19 @@ function addPlayer(msg, fromPeerId) {
     Game.ui.updatePlayersList();
     Game.ui.checkStartCondition();
 
-    let currentRoundForSync = state.currentRound;
-    if (currentRoundForSync && currentRoundForSync.question) {
-        const isRoundAsker = msg.playerName === currentRoundForSync.asker;
-        if (!isRoundAsker) {
-            currentRoundForSync = {
-                ...currentRoundForSync,
-                question: { ...currentRoundForSync.question, correct: undefined }
-            };
-        }
-    }
-
     // Além da rodada, o guest precisa saber em que ponto
     // ela está — ciclo encerrado aguardando o host, ou partida
     // pausada — para não reabrir uma pergunta que já acabou. O cursor
     // vai depois da lista de jogadores acima: os avisos para todos até
-    // ele já estão neste estado.
+    // ele já estão neste estado. Os baralhos (com o gabarito de todas as
+    // perguntas) não vão: ficam só com o host (SEC-005).
     Game.network.sendToPlayer(fromPeerId, {
         type: 'state-sync',
         fullState: {
             players: state.players,
-            decks: state.decks,
             // Hora de término da partida: quem volta calcula o que falta.
             endsAt: state.endsAt ?? null,
-            currentRound: currentRoundForSync,
+            currentRound: roundAsSeenBy(state.currentRound, msg.playerName),
             gameStarted: state.gameStarted,
             roundEnded: !!state.roundEnded,
             matchPaused: !!state.matchPaused,
@@ -369,7 +360,30 @@ function addPlayer(msg, fromPeerId) {
         Game.core.resumePausedMatch();
     }
 
+    // Quem foi chamado para um apoio ainda pendente recebe a pergunta do
+    // apoio de novo (o mesmo prazo), depois do state-sync: a tela do
+    // estado fecha as janelas abertas (ex.: quem voltou depois do F5 do host).
+    const advisory = state.currentRound && state.currentRound.advisory;
+    if (state.gameStarted && !state.gameOver && advisory && advisory.status === 'pending' &&
+        advisory.advisorName === msg.playerName) {
+        Game.core.sendAdvisoryQuestion();
+    }
+
     Game.saveState();
+}
+
+/**
+ * A rodada como `playerName` pode vê-la no state-sync: o gabarito da
+ * pergunta só para o Perguntador, e sem a resposta que espera o apoio
+ * (`pendingAnswer`, nem a chave). O estado do host não muda.
+ */
+function roundAsSeenBy(round, playerName) {
+    if (!round) return round;
+    const { pendingAnswer, ...visible } = round;
+    if (visible.question && playerName !== visible.asker) {
+        visible.question = { ...visible.question, correct: undefined };
+    }
+    return visible;
 }
 
 /**
@@ -458,7 +472,7 @@ function storeAnsweredThisRound(answered) {
 function restoreState(fullState) {
     const state = Game.state;
     state.players = fullState.players;
-    state.decks = fullState.decks;
+    // Os baralhos não vêm (ficam só com o host): o guest continua com os dele.
     state.endsAt = fullState.endsAt ?? null;
     state.currentRound = fullState.currentRound;
     state.gameStarted = fullState.gameStarted;
