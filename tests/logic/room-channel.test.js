@@ -6,8 +6,9 @@
 // reaproveitar sala parada, entrar, versão do jogo, F5, aceitar e tirar
 // da sala (roster), pedidos ao host (requests), avisos do host para todos
 // (feed) e para um jogador (inbox), publicar e ler o estado (público,
-// secreto e o de cada jogador), limpar e sair; e as regras do banco
-// para rooms/ (database.rules.json).
+// secreto e o de cada jogador), limpar e sair; o sinal mínimo de
+// presença, o cursor dos avisos para todos e a volta da conexão; e as
+// regras do banco para rooms/ (database.rules.json).
 // O banco é o Firebase simulado de fakeFirebase.js, com vários
 // aparelhos; as regras de verdade são conferidas no emulador (E26).
 // Rodar a partir da raiz:
@@ -46,7 +47,7 @@ function openDevice(fake, uid, clock, extra = {}) {
     vm.runInContext('var window = this;', ctx);
     const file = 'js/network/roomChannel.js';
     vm.runInContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), ctx, { filename: file });
-    const got = { requests: [], messages: [], states: [], hands: [], admitted: 0, dismissed: 0 };
+    const got = { requests: [], messages: [], states: [], hands: [], admitted: 0, dismissed: 0, presence: [], hostPresence: [], reconnected: 0 };
     const channel = ctx.Game.network.roomChannel.create({
         db: device.db,
         uid,
@@ -58,6 +59,9 @@ function openDevice(fake, uid, clock, extra = {}) {
         onHand: (hand) => got.hands.push(hand === null ? null : JSON.parse(JSON.stringify(hand))),
         onAdmitted: () => got.admitted++,
         onDismissed: () => got.dismissed++,
+        onPresence: (who, online) => got.presence.push({ uid: who, online }),
+        onHostPresence: (online) => got.hostPresence.push(online),
+        onReconnected: () => got.reconnected++,
         ...extra
     });
     return { device, channel, got, logs, ctx };
@@ -186,9 +190,12 @@ asyncTest('T155 Sala parada: o código só pode ser criado de novo depois de ROO
     check(late && late.ok === true && late.isHost === true, 'depois de 2 h parada, o código deveria poder ser criado de novo, veio: ' + JSON.stringify(late));
     check(same(fake.read('rooms/sala01/meta'), { createdAt: clock.now, hostEpoch: 1, hostUid: 'uid-caio', lastActivity: clock.now, protocolVersion: VERSION }),
         'a sala nova deveria ter Caio como dono e as horas novas, veio: ' + JSON.stringify(fake.read('rooms/sala01/meta')));
-    const leftovers = ['roster', 'public', 'secret', 'hands', 'feed', 'inbox', 'requests', 'presence']
+    const leftovers = ['roster', 'public', 'secret', 'hands', 'feed', 'inbox', 'requests']
         .filter(k => fake.read('rooms/sala01/' + k) !== undefined);
     check(leftovers.length === 0, 'o que era da sala antiga deveria ser apagado, sobrou: ' + leftovers.join(', '));
+    // A presença do host novo (gravada ao entrar) fica; a dos outros sai.
+    const oldPresence = Object.keys(fake.read('rooms/sala01/presence') || {}).filter(who => who !== 'uid-caio');
+    check(oldPresence.length === 0, 'a presença da sala antiga deveria ser apagada, sobrou: ' + oldPresence.join(', '));
     check(caio.got.requests.length === 0, 'o pedido da sala antiga não deveria chegar ao host novo, chegou: ' + JSON.stringify(caio.got.requests));
 });
 
@@ -447,6 +454,171 @@ asyncTest('T161 Limpar e sair: limpar apaga só os avisos (feed e inbox); quem s
 });
 
 // ============================================
+// PRESENÇA, CURSOR DOS AVISOS E VOLTA DA CONEXÃO (etapa 1b-α)
+// ============================================
+
+asyncTest('T163 Sinal mínimo de presença: o host grava a própria ao entrar; quem é aceito grava a sua (quem só entrou, não); o servidor grava offline quando o aparelho cai; o host é avisado de cada mudança dos outros (não da própria; ao voltar de um F5, da situação atual) e quem foi aceito, da do host; tirar da sala apaga a presença e o aparelho tirado não grava mais nada ao cair', async () => {
+    const { fake, clock, host, ana } = await roomWithGuest();
+    const presenceOf = (who) => fake.read('rooms/sala01/presence/' + who);
+    check(same(presenceOf('uid-host'), { online: true }), 'o host deveria gravar a própria presença ao criar a sala, veio: ' + JSON.stringify(fake.read('rooms/sala01/presence')));
+    check(presenceOf('uid-ana') === undefined && !ana.device.writes.some(w => /presence/.test(w.path)),
+        'quem só entrou (sem ser aceito) não deveria gravar presença, gravou: ' + JSON.stringify(ana.device.writes));
+    check(host.got.presence.length === 0, 'o host não deveria ser avisado da própria presença, veio: ' + JSON.stringify(host.got.presence));
+
+    await host.channel.admit('uid-ana');
+    await flush();
+    check(same(presenceOf('uid-ana'), { online: true }), 'aceita, Ana deveria gravar a própria presença, veio: ' + JSON.stringify(presenceOf('uid-ana')));
+    check(same(host.got.presence, [{ uid: 'uid-ana', online: true }]), 'o host deveria ser avisado de que Ana está online, veio: ' + JSON.stringify(host.got.presence));
+    check(same(ana.got.hostPresence, [true]), 'Ana, aceita, deveria saber que o host está online, veio: ' + JSON.stringify(ana.got.hostPresence));
+
+    // F5 do host: o servidor grava offline; na volta, online de novo.
+    host.device.close();
+    await flush();
+    check(same(presenceOf('uid-host'), { online: false }), 'com o host fora, o servidor deveria gravar online: false, veio: ' + JSON.stringify(presenceOf('uid-host')));
+    check(ana.got.hostPresence[ana.got.hostPresence.length - 1] === false, 'Ana deveria ver o host offline, veio: ' + JSON.stringify(ana.got.hostPresence));
+    const hostAgain = openDevice(fake, 'uid-host', clock);
+    await hostAgain.channel.joinRoom('sala01', { protocolVersion: VERSION });
+    await flush();
+    check(same(presenceOf('uid-host'), { online: true }) && ana.got.hostPresence[ana.got.hostPresence.length - 1] === true,
+        'o host de volta deveria gravar online de novo e Ana deveria ver, veio: ' + JSON.stringify(ana.got.hostPresence));
+    check(same(hostAgain.got.presence, [{ uid: 'uid-ana', online: true }]),
+        'o host de volta do F5 deveria receber a presença atual dos outros, veio: ' + JSON.stringify(hostAgain.got.presence));
+
+    ana.device.goOffline();
+    await flush();
+    check(same(presenceOf('uid-ana'), { online: false }), 'Ana caiu: o servidor deveria gravar online: false (onDisconnect), veio: ' + JSON.stringify(presenceOf('uid-ana')));
+    check(same(hostAgain.got.presence[hostAgain.got.presence.length - 1], { uid: 'uid-ana', online: false }),
+        'o host deveria ser avisado de que Ana caiu, veio: ' + JSON.stringify(hostAgain.got.presence));
+    ana.device.goOnline();
+    await flush();
+
+    const eventsBefore = hostAgain.got.presence.length;
+    await hostAgain.channel.dismiss('uid-ana');
+    await flush();
+    check(presenceOf('uid-ana') === undefined, 'tirar da sala deveria apagar a presença, sobrou: ' + JSON.stringify(presenceOf('uid-ana')));
+    check(hostAgain.got.presence.length === eventsBefore, 'a presença apagada pelo próprio host não deveria virar aviso de queda, veio: ' + JSON.stringify(hostAgain.got.presence.slice(eventsBefore)));
+    ana.device.goOffline();
+    await flush();
+    check(presenceOf('uid-ana') === undefined, 'tirada da sala, Ana não deveria deixar offline para o servidor gravar, veio: ' + JSON.stringify(presenceOf('uid-ana')));
+});
+
+asyncTest('T164 Cursor dos avisos para todos: quem pede para segurar (holdFeed) recebe a inbox na hora, mas os avisos para todos só depois de releaseFeed(cursor) — os que saíram até o cursor nunca chegam, os depois dele chegam uma vez, na ordem; null libera todos os guardados; o host diz o cursor (feedCursor: null sem avisos, avança a cada aviso, o mesmo depois de um F5); segurar de novo, já aceito, vale para a volta', async () => {
+    const { fake, clock, host, ana } = await roomWithGuest();
+    check(host.channel.feedCursor() === null, 'sem nenhum aviso, o cursor do host deveria ser null, veio: ' + JSON.stringify(host.channel.feedCursor()));
+
+    ana.channel.holdFeed();
+    await host.channel.broadcast({ type: 'before-admit' });
+    await host.channel.admit('uid-ana');
+    await host.channel.broadcast({ type: 'in-sync' });
+    const cursor = host.channel.feedCursor();
+    check(typeof cursor === 'string' && cursor.length > 0, 'depois de um aviso, o cursor deveria ser a chave dele, veio: ' + JSON.stringify(cursor));
+    const sync = { type: 'state-sync', feedCursor: cursor };
+    await host.channel.sendTo('uid-ana', sync);
+    await host.channel.broadcast({ type: 'after-sync-1' });
+    await flush();
+    check(same(ana.got.messages, [sync]), 'segurando, Ana deveria receber só a inbox (o state-sync), veio: ' + JSON.stringify(ana.got.messages));
+
+    ana.channel.releaseFeed(cursor);
+    await host.channel.broadcast({ type: 'after-sync-2' });
+    await flush();
+    check(same(ana.got.messages, [sync, { type: 'after-sync-1' }, { type: 'after-sync-2' }]),
+        'liberada, Ana deveria receber só os avisos depois do cursor, uma vez, na ordem, veio: ' + JSON.stringify(ana.got.messages));
+
+    // F5 do host: o cursor continua o do último aviso (lido do banco).
+    const last = host.channel.feedCursor();
+    host.device.close();
+    await flush();
+    const hostAgain = openDevice(fake, 'uid-host', clock);
+    await hostAgain.channel.joinRoom('sala01', { protocolVersion: VERSION });
+    await flush();
+    check(hostAgain.channel.feedCursor() === last, 'depois do F5, o cursor do host deveria continuar ' + last + ', veio: ' + JSON.stringify(hostAgain.channel.feedCursor()));
+
+    // Segurar de novo, já aceita (a volta depois de uma queda).
+    ana.channel.holdFeed();
+    await hostAgain.channel.broadcast({ type: 'while-held' });
+    const cursor2 = hostAgain.channel.feedCursor();
+    check(typeof cursor2 === 'string' && cursor2 > last, 'o cursor deveria avançar a cada aviso, veio: ' + JSON.stringify(cursor2) + ' depois de ' + last);
+    await hostAgain.channel.broadcast({ type: 'after-cursor2' });
+    await flush();
+    check(ana.got.messages.length === 3, 'segurando de novo, nenhum aviso para todos deveria chegar, chegou: ' + JSON.stringify(ana.got.messages.slice(3)));
+    ana.channel.releaseFeed(cursor2);
+    await flush();
+    check(same(ana.got.messages.slice(3), [{ type: 'after-cursor2' }]),
+        'liberada de novo, Ana deveria receber só o aviso depois do novo cursor, veio: ' + JSON.stringify(ana.got.messages.slice(3)));
+
+    // Cursor null (o host ainda não tinha avisos): tudo o que ficou guardado chega, na ordem.
+    const f2 = createFakeFirebase();
+    const c2 = { now: 1000 };
+    const host2 = openDevice(f2, 'uid-host', c2);
+    await host2.channel.createRoom('sala02', { protocolVersion: VERSION });
+    const beto = openDevice(f2, 'uid-beto', c2);
+    await beto.channel.joinRoom('sala02', { protocolVersion: VERSION });
+    await flush();
+    beto.channel.holdFeed();
+    await host2.channel.admit('uid-beto');
+    await host2.channel.broadcast({ type: 'n1' });
+    await host2.channel.broadcast({ type: 'n2' });
+    await flush();
+    check(beto.got.messages.length === 0, 'segurando, Beto não deveria receber avisos para todos, recebeu: ' + JSON.stringify(beto.got.messages));
+    beto.channel.releaseFeed(null);
+    await host2.channel.broadcast({ type: 'n3' });
+    await flush();
+    check(same(beto.got.messages, [{ type: 'n1' }, { type: 'n2' }, { type: 'n3' }]),
+        'com cursor null, Beto deveria receber todos os guardados e os novos, na ordem, veio: ' + JSON.stringify(beto.got.messages));
+});
+
+asyncTest('T165 Volta da conexão: quem perde a conexão e volta é avisado (onReconnected, uma vez por volta, nunca na primeira conexão), grava a presença de novo e deixa outra vez o offline com o servidor; vale para o host e para quem foi aceito; quem não foi aceito é avisado mas não grava presença; quem saiu da sala não é mais avisado', async () => {
+    const { fake, clock, host, ana } = await roomWithGuest();
+    const presenceOf = (who) => fake.read('rooms/sala01/presence/' + who);
+    const caio = openDevice(fake, 'uid-caio', clock);
+    await caio.channel.joinRoom('sala01', { protocolVersion: VERSION });
+    await host.channel.admit('uid-ana');
+    await flush();
+    check(host.got.reconnected === 0 && ana.got.reconnected === 0 && caio.got.reconnected === 0,
+        'a primeira conexão não deveria contar como volta, veio: ' + [host.got.reconnected, ana.got.reconnected, caio.got.reconnected].join(', '));
+
+    ana.device.goOffline();
+    await flush();
+    ana.device.goOnline();
+    await flush();
+    check(ana.got.reconnected === 1, 'Ana deveria ser avisada da volta uma vez, veio: ' + ana.got.reconnected);
+    check(same(presenceOf('uid-ana'), { online: true }), 'na volta, Ana deveria gravar online de novo, veio: ' + JSON.stringify(presenceOf('uid-ana')));
+    check(same(host.got.presence.slice(-2), [{ uid: 'uid-ana', online: false }, { uid: 'uid-ana', online: true }]),
+        'o host deveria ver Ana cair e voltar, veio: ' + JSON.stringify(host.got.presence));
+    ana.device.goOffline();
+    await flush();
+    check(same(presenceOf('uid-ana'), { online: false }), 'depois da volta, o offline deveria estar com o servidor de novo, veio: ' + JSON.stringify(presenceOf('uid-ana')));
+    ana.device.goOnline();
+    await flush();
+    check(ana.got.reconnected === 2, 'cada volta deveria avisar uma vez, veio: ' + ana.got.reconnected);
+
+    host.device.goOffline();
+    await flush();
+    check(same(presenceOf('uid-host'), { online: false }) && ana.got.hostPresence[ana.got.hostPresence.length - 1] === false,
+        'com o host sem conexão, Ana deveria ver o host offline, veio: ' + JSON.stringify(ana.got.hostPresence));
+    host.device.goOnline();
+    await flush();
+    check(host.got.reconnected === 1, 'o host deveria ser avisado da volta, veio: ' + host.got.reconnected);
+    check(same(presenceOf('uid-host'), { online: true }) && ana.got.hostPresence[ana.got.hostPresence.length - 1] === true,
+        'na volta, o host deveria gravar online de novo e Ana deveria ver, veio: ' + JSON.stringify(ana.got.hostPresence));
+
+    caio.device.goOffline();
+    await flush();
+    caio.device.goOnline();
+    await flush();
+    check(caio.got.reconnected === 1, 'quem não foi aceito também deveria ser avisado da volta (para pedir de novo), veio: ' + caio.got.reconnected);
+    check(!caio.device.writes.some(w => /presence/.test(w.path)), 'quem não foi aceito não deveria gravar presença, gravou: ' + JSON.stringify(caio.device.writes));
+
+    await ana.channel.leave();
+    await flush();
+    ana.device.goOffline();
+    await flush();
+    ana.device.goOnline();
+    await flush();
+    check(ana.got.reconnected === 2, 'quem saiu da sala não deveria ser avisado da volta, veio: ' + ana.got.reconnected);
+});
+
+// ============================================
 // REGRAS DO BANCO PARA rooms/
 // ============================================
 
@@ -499,6 +671,30 @@ asyncTest('T162 Regras do banco para rooms/: meta lida por quem fez login, criad
     const payload = request.payload || {};
     check(/isString\(\)/.test(payload['.validate'] || '') && /length\s*<=?\s*20000/.test(payload['.validate'] || ''),
         'o conteúdo do pedido deveria ser texto de até 20000 caracteres, veio: ' + payload['.validate']);
+});
+
+asyncTest('T166 Regras do banco para a presença (rooms/$code/presence): cada um grava só a própria, e só quem está no roster ou é o host; o valor tem online verdadeiro ou falso; o host lê todas e pode apagar; quem está no roster lê só a do host', async () => {
+    const rules = JSON.parse(fs.readFileSync(path.join(ROOT, 'database.rules.json'), 'utf8')).rules;
+    const room = (rules.rooms && rules.rooms.$code) || {};
+    const hostCheck = /meta\/hostUid'\)\.val\(\)\s*===\s*auth\.uid/;
+    const rosterCheck = /roster\/'\s*\+\s*auth\.uid|roster'\)\.child\(auth\.uid\)/;
+    const ownUid = /\$uid\s*===\s*auth\.uid|auth\.uid\s*===\s*\$uid/;
+    const isHostsUid = /\$uid\s*===\s*root\.child\('rooms\/'\s*\+\s*\$code\s*\+\s*'\/meta\/hostUid'\)\.val\(\)|meta\/hostUid'\)\.val\(\)\s*===\s*\$uid/;
+
+    const presence = room.presence || {};
+    check(hostCheck.test(presence['.read'] || '') && !rosterCheck.test(presence['.read'] || ''),
+        'a presença inteira deveria ser lida só pelo host, veio: ' + presence['.read']);
+    check(hostCheck.test(presence['.write'] || ''), 'o host deveria poder gravar (e apagar) a presença, veio: ' + presence['.write']);
+
+    const own = presence.$uid || {};
+    const write = own['.write'] || '';
+    check(ownUid.test(write) && rosterCheck.test(write) && hostCheck.test(write),
+        'presence/$uid deveria ser gravada só pelo próprio uid, estando no roster ou sendo o host, veio: ' + write);
+    check(/online/.test(own['.validate'] || '') && /isBoolean\(\)/.test(own['.validate'] || ''),
+        'presence/$uid deveria exigir online verdadeiro ou falso, veio: ' + own['.validate']);
+    const read = own['.read'] || '';
+    check(rosterCheck.test(read) && isHostsUid.test(read) && !ownUid.test(read),
+        'quem está no roster deveria ler só a presença do host, veio: ' + read);
 });
 
 (async () => {

@@ -167,7 +167,7 @@ async function attemptAll(player, steps) {
     }, steps);
 }
 
-test('E26 Regras do banco para as salas do jogo (rooms/), no emulador: o host cria e grava tudo; quem foi aceito lê o público e o próprio, nunca o secreto; quem não foi aceito só lê a sala, a própria inbox e manda pedido em nome próprio; sala parada há 2 h pode ser criada de novo por outro', async ({ players }) => {
+test('E26 Regras do banco para as salas do jogo (rooms/), no emulador: o host cria e grava tudo; quem foi aceito lê o público e o próprio, nunca o secreto; quem não foi aceito só lê a sala, a própria inbox e manda pedido em nome próprio; presença: cada um grava só a própria (no roster ou host), o host lê todas e quem foi aceito só a do host; sala parada há 2 h pode ser criada de novo por outro', async ({ players }) => {
     const room = 'rooms/' + roomCode();
     const ana = await players.add('Ana');
     const beto = await players.add('Beto');
@@ -189,10 +189,12 @@ test('E26 Regras do banco para as salas do jogo (rooms/), no emulador: o host cr
         ['writeHand', 'set', room + '/hands/' + betoUid, '{"question":"Q"}'],
         ['writeFeed', 'push', room + '/feed', { payload: '{"type":"round-start"}' }],
         ['writeInbox', 'push', room + '/inbox/' + caioUid, { payload: '{"type":"join-rejected"}' }],
-        ['touchActivity', 'set', room + '/meta/lastActivity', 'TIMESTAMP']
+        ['touchActivity', 'set', room + '/meta/lastActivity', 'TIMESTAMP'],
+        ['ownPresence', 'set', room + '/presence/' + anaUid, { online: true }]
     ]), 'o host').toEqual({
         createRoom: 'allowed', admitBeto: 'allowed', writePublic: 'allowed', writeSecret: 'allowed',
-        writeHand: 'allowed', writeFeed: 'allowed', writeInbox: 'allowed', touchActivity: 'allowed'
+        writeHand: 'allowed', writeFeed: 'allowed', writeInbox: 'allowed', touchActivity: 'allowed',
+        ownPresence: 'allowed'
     });
 
     expect(await attemptAll(beto, [
@@ -214,13 +216,21 @@ test('E26 Regras do banco para as salas do jogo (rooms/), no emulador: o host cr
         ['hugeRequest', 'push', room + '/requests', request(betoUid, 'x'.repeat(30000))],
         ['takeOverRoom', 'set', room + '/meta', meta(betoUid)],
         ['touchActivity', 'set', room + '/meta/lastActivity', 1],
-        ['removeRoom', 'remove', room]
+        ['removeRoom', 'remove', room],
+        ['ownPresence', 'set', room + '/presence/' + betoUid, { online: true }],
+        ['readHostPresence', 'read', room + '/presence/' + anaUid],
+        ['otherPresence', 'set', room + '/presence/' + caioUid, { online: true }],
+        ['badPresence', 'set', room + '/presence/' + betoUid, { online: 'sim' }],
+        ['readOtherPresence', 'read', room + '/presence/' + caioUid],
+        ['readAllPresence', 'read', room + '/presence']
     ]), 'quem foi aceito (Beto)').toEqual({
         readMeta: 'allowed', readPublic: 'allowed', readFeed: 'allowed', readOwnRoster: 'allowed',
         readOwnHand: 'allowed', ownRequest: 'allowed',
         readSecret: 'denied', readOtherHand: 'denied', readOtherInbox: 'denied', readRoster: 'denied',
         readRequests: 'denied', writePublic: 'denied', writeFeed: 'denied', admitCaio: 'denied',
-        fakeSender: 'denied', hugeRequest: 'denied', takeOverRoom: 'denied', touchActivity: 'denied', removeRoom: 'denied'
+        fakeSender: 'denied', hugeRequest: 'denied', takeOverRoom: 'denied', touchActivity: 'denied', removeRoom: 'denied',
+        ownPresence: 'allowed', readHostPresence: 'allowed',
+        otherPresence: 'denied', badPresence: 'denied', readOtherPresence: 'denied', readAllPresence: 'denied'
     });
 
     expect(await attemptAll(caio, [
@@ -232,18 +242,22 @@ test('E26 Regras do banco para as salas do jogo (rooms/), no emulador: o host cr
         ['readFeed', 'read', room + '/feed'],
         ['readSecret', 'read', room + '/secret'],
         ['admitSelf', 'set', room + '/roster/' + caioUid, true],
-        ['createOverActiveRoom', 'set', room + '/meta', meta(caioUid)]
+        ['createOverActiveRoom', 'set', room + '/meta', meta(caioUid)],
+        ['ownPresence', 'set', room + '/presence/' + caioUid, { online: true }],
+        ['readHostPresence', 'read', room + '/presence/' + anaUid]
     ]), 'quem não foi aceito (Caio)').toEqual({
         readMeta: 'allowed', readOwnInbox: 'allowed', readOwnRoster: 'allowed', ownRequest: 'allowed',
-        readPublic: 'denied', readFeed: 'denied', readSecret: 'denied', admitSelf: 'denied', createOverActiveRoom: 'denied'
+        readPublic: 'denied', readFeed: 'denied', readSecret: 'denied', admitSelf: 'denied', createOverActiveRoom: 'denied',
+        ownPresence: 'denied', readHostPresence: 'denied'
     });
 
-    // O host trata os pedidos e deixa a sala parada (última atividade antiga).
+    // O host lê a presença de todos, trata os pedidos e deixa a sala parada (última atividade antiga).
     expect(await attemptAll(ana, [
+        ['readPresence', 'read', room + '/presence'],
         ['readRequests', 'read', room + '/requests'],
         ['clearRequests', 'remove', room + '/requests'],
         ['oldActivity', 'set', room + '/meta/lastActivity', 1]
-    ]), 'o host tratando os pedidos').toEqual({ readRequests: 'allowed', clearRequests: 'allowed', oldActivity: 'allowed' });
+    ]), 'o host tratando os pedidos').toEqual({ readPresence: 'allowed', readRequests: 'allowed', clearRequests: 'allowed', oldActivity: 'allowed' });
 
     // Sala parada: outro cria de novo, limpa o que sobrou e passa a ser o host.
     expect(await attemptAll(caio, [
