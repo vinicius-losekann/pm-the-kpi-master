@@ -130,15 +130,17 @@ function showRoom(restored) {
     // Só o host restaura (o guest volta pelo state-sync). A retomada (o
     // que fazer conforme o momento da partida em que o F5 aconteceu) fica
     // em engine/sessionEngine.js. F5 na tela final volta à tela final.
-    if (!restored) return;
-    if (state.gameStarted && state.gameOver) {
+    if (restored && state.gameStarted && state.gameOver) {
         Game.core.showGameOver();
-    } else if (state.gameStarted) {
-        Game.core.resumeMatchAfterReload();
+    } else if (restored && state.gameStarted) {
+        if (state.isHost) {
+            Game.core.resumeMatchAfterReload();
+        }
     }
+
     // Sem restaurar, nada é gravado aqui: um estado de versão mais nova
     // continua no banco até a partida mudar.
-    Game.saveState();
+    if (restored) Game.saveState();
 }
 
 // ============================================
