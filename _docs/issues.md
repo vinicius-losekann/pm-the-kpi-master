@@ -16,7 +16,20 @@ glossário de `conventions.md` dá o nome atual.
 
 ## Em investigação
 
-Nenhum bug em investigação.
+**SEC-005 — quem entra ou volta à sala recebe o gabarito de todas as
+perguntas.** Achado em 17/10/2026, ao desenhar a etapa 2 do roadmap 2.9.
+- **Sintoma:** quem quiser abre o console (F12) depois de entrar ou
+  voltar à sala e lê a resposta certa de qualquer pergunta da partida.
+  Quem só joga não vê nada de diferente.
+- **Local:** `addPlayer()` (`network/messageHandler.js`) — o `state-sync`
+  leva `decks: state.decks`, e cada baralho guarda as perguntas inteiras,
+  com `correct` (montadas em `loadQuestions()`, `main.js`). Vale também
+  no `main`. O `state-sync` leva ainda a resposta guardada de quem
+  responde (`currentRound.pendingAnswer`), que só o host precisa ver.
+- **Causa:** o guest nunca usa os baralhos (só o host sorteia); o campo
+  ficou no `state-sync` desde que ele levava o estado inteiro.
+- **Como reproduzir:** entrar numa sala, digitar no console
+  `Game.state.decks` e abrir qualquer baralho.
 
 ---
 
@@ -104,5 +117,5 @@ automatizado — os números (T…, E…) são os de `tests/logic` e
 - **Numeração:** BUG-xxx (bug), SEC-xxx (segurança), REGRESSÃO-xxx (algo
   que funcionava e quebrou numa mudança), NOTA-xxx (limpeza ou decisão que
   não é bug). Cada série continua do maior número já usado (próximos:
-  BUG-029, SEC-005, REGRESSÃO-004, NOTA-010). NOTA-003 a NOTA-005 são
+  BUG-029, SEC-006, REGRESSÃO-004, NOTA-010). NOTA-003 a NOTA-005 são
   decisões de arquitetura e ficam em `architecture.md`.
