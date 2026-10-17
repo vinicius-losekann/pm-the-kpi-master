@@ -9,8 +9,8 @@
 ## Stack técnica
 
 - **Vanilla JavaScript**, sem framework (React, Vue, etc.) e sem bundler/build step. Todo arquivo `.js` é carregado via `<script>` simples em `game.html`/`index.html`, na ordem em que aparece — a ordem importa (um arquivo que usa `Game.domain.kpi` precisa ser carregado depois de `domain/kpiRules.js`).
-- **Namespace global único**: `window.Game`, subdividido em `Game.domain`, `Game.state` (com `Game.selectors` e `Game.mutations`), `Game.engine`, `Game.core` (a API entre camadas, ver `architecture.md`), `Game.network`, `Game.ui` e os utilitários (`Game.i18n`, `Game.persistence`, `Game.identity`, `Game.sanitize`, `Game.logger`). Todo arquivo exporta pra dentro desse namespace no final (bloco `// EXPORTAÇÃO`).
-- **PeerJS** para conexão P2P (WebRTC) — sem servidor próprio, usa o broker público gratuito do PeerJS só para sinalização inicial; depois disso a comunicação é direta entre os navegadores. Todo `new Peer(...)` recebe uma cópia de `CONFIG.PEER` (`config/game-config.js`) — é o único lugar para apontar outro servidor de sinalização.
+- **Namespace global único**: `window.Game`, subdividido em `Game.domain`, `Game.state` (com `Game.selectors` e `Game.mutations`), `Game.engine`, `Game.core` (a API entre camadas, ver `architecture.md`), `Game.network`, `Game.ui` e os utilitários (`Game.i18n`, `Game.persistence`, `Game.sanitize`, `Game.logger`). Todo arquivo exporta pra dentro desse namespace no final (bloco `// EXPORTAÇÃO`).
+- **Firebase** (plano gratuito) para a conexão — login anônimo e Realtime Database, pela API "compat" carregada de `www.gstatic.com`, sem servidor próprio: o navegador do host continua rodando as regras e todos conversam pelo banco (`network/roomChannel.js`, ligado ao jogo por `network/roomLink.js`). A configuração web fica em `CONFIG.FIREBASE` (`config/game-config.js`) e o que cada um pode ler e gravar, nas regras do banco (`database.rules.json`).
 - **CSS puro**, sem pré-processador, tema único "dark + glassmorphism" definido via custom properties em `:root` (`css/style.css`).
 - **Testes automatizados no GitHub Actions** (desde a Fase D) — ver "Testes" abaixo. O que depende de rede real, celular ou outros navegadores continua manual (`connection-tests.md`).
 
@@ -25,8 +25,8 @@ state/    → Game.state é a fonte única da verdade. selectors.js lê,
             mutations.js escreve (ver exceção abaixo).
 engine/   → orquestração: chama domain/, mexe em state, aciona
             network/ e ui/. Não tem regra de negócio própria.
-network/  → tudo que fala PeerJS: enviar, receber, rotear mensagens,
-            reconexão, migração de host.
+network/  → tudo que fala com o Firebase: login, canal da sala, enviar,
+            receber, rotear mensagens, presença e volta da conexão.
 ui/       → tudo que mexe no DOM: components/ (telas/elementos
             persistentes) e modals/ (overlays).
 ```
@@ -45,9 +45,9 @@ Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` o
 
 | Mensagem | Quem envia | Campos / observação |
 |---|---|---|
-| `player-join` | guest → host | `playerName`, `peerId`, `token` (identidade por sala; o host guarda só o hash), `protocolVersion` (versão do formato das mensagens; sem o campo conta como 1). Montada só em `sendPlayerJoin()` (`network/peerService.js`) |
-| `join-rejected` | host → quem tentou entrar | `reason`: `version-mismatch` (outra versão do jogo — conferida antes de tudo), `room-full`, `room-locked` (partida em andamento, nome novo), `name-taken`, `identity-mismatch` (token diferente do registrado) |
-| `state-sync` | host → quem entra ou volta | `fullState` com os jogadores (`players`), a rodada (`currentRound`: `event`, `asker`, `answerer`, `question`, `answered`, `asked` — a pergunta já foi feita; sem o campo, já foi), os baralhos (`decks`), o relógio, `roundEnded`, `matchPaused`, `answeredThisRound` (quem já respondeu na rodada), `gameOver` e `finalRanking` (fim de jogo) |
+| `player-join` | guest → host | `playerName`, `peerId` (o uid do aparelho, que também chega ao host como remetente do pedido), `protocolVersion` (versão do formato das mensagens; sem o campo conta como 1). Montada só em `sendPlayerJoin()` (`network/roomLink.js`), ao entrar e a cada volta da conexão |
+| `join-rejected` | host → quem tentou entrar (pela caixa de avisos dele) | `reason`: `version-mismatch` (outra versão do jogo — conferida antes de tudo), `device-in-use` (o aparelho já está na sala com outro nome), `room-full`, `room-locked` (partida em andamento, nome novo), `name-taken` (nome de quem está conectado), `identity-mismatch` (nome de quem caiu, vindo de outro aparelho). O aviso de cada motivo fica em `handleJoinRejected()` (`network/messageHandler.js`), que também mostra as recusas da abertura da sala no jogo (`room-not-found`, `tab-in-use`) |
+| `state-sync` | host → quem entra ou volta | `fullState` com os jogadores (`players`), a rodada (`currentRound`: `event`, `asker`, `answerer`, `question`, `answered`, `asked` — a pergunta já foi feita; sem o campo, já foi), os baralhos (`decks`), o relógio, `roundEnded`, `matchPaused`, `answeredThisRound` (quem já respondeu na rodada), `gameOver` e `finalRanking` (fim de jogo), `feedCursor` (o último aviso para todos que o estado já inclui) |
 | `round-start` | host → todos | `event`, `asker`, `answerer`, `answeredThisRound` |
 | `question` | host → Perguntador (no início da rodada) e Respondedor (quando a pergunta é feita) | a pergunta; `isAsker` (com o gabarito `correct`) ou `isAnswerer` (sem o gabarito) |
 | `ask-question` | Perguntador → host | `playerName` — clicou em "Fazer a pergunta" |
@@ -66,7 +66,7 @@ Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` o
 
 Mensagem que chega sem um campo novo (de uma versão anterior do jogo) mantém o comportamento antigo (ex.: `advisory-request` sem `kind` é assessoria), salvo quando o campo veio com uma versão nova do protocolo e o host precisa dele: aí o host exige o campo.
 
-**Versão do protocolo:** ao mudar o nome ou o formato de um campo de mensagem, aumentar `PROTOCOL_VERSION` (`network/peerService.js`). O host recusa quem entra com outra versão (`version-mismatch`), em vez de a partida travar quando, logo depois de um deploy, uns jogadores rodam o código novo e outros o antigo. Se o mesmo campo também é salvo no `localStorage`, aumentar junto o `STATE_VERSION`, com o passo de migração (`utils/persistence.js`).
+**Versão do protocolo:** ao mudar o nome ou o formato de um campo de mensagem, aumentar `PROTOCOL_VERSION` (`network/roomLink.js`; vai também no meta da sala, conferido pela tela inicial e ao abrir o jogo). O host recusa quem entra com outra versão (`version-mismatch`), em vez de a partida travar quando, logo depois de um deploy, uns jogadores rodam o código novo e outros o antigo. Se o mesmo campo também é salvo no `localStorage`, aumentar junto o `STATE_VERSION`, com o passo de migração (`utils/persistence.js`).
 
 ## Testes
 
@@ -109,7 +109,8 @@ A regra geral: **nome é em inglês; texto é em português.** Nome é tudo que 
   | fazer a pergunta (etapa do Perguntador) / pergunta feita / prazo do Perguntador | ask (`ask-question`, `askQuestion`) / asked (`question-asked`) / `askTimeout` (`ASK_TIMEOUT`) |
   | tempo que resta para responder / tempo esgotado | answer time left (`answerTimeLeft`) / timed out (`timedOut`) |
   | troca de host / host antigo / backup | host migration / old host / backup |
-  | token de identidade / estado salvo | identity token / saved state |
+  | identidade do aparelho (uid do login anônimo, no campo `peerId`) / estado salvo | uid / saved state |
+  | ligação do jogo ao canal da sala / login anônimo / cursor dos avisos para todos / aba com a sala aberta | room link (`roomLink`) / Firebase login (`firebaseLogin`) / feed cursor (`feedCursor`) / room tab (`tab-in-use`) |
   | teste de conexão (página `firebase-check.html`) / aparelho / mensagem de teste / resposta a ela / tempo de ida e volta / dono da sala | connection check (`connectionCheck`) / device / ping / echo / round trip (`roundTrips`) / host (`hostUid`) |
   | canal da sala pelo Firebase / jogadores aceitos na sala / pedido ao host / avisos do host para todos / avisos do host para um jogador | room channel (`roomChannel`) / roster / request (`requests`) / feed / inbox |
   | estado que os jogadores veem / parte que só o host vê / o que só um jogador vê | public state (`public/state`) / secret state (`secret/state`) / hand (`hands`) |

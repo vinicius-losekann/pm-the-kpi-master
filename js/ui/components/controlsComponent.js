@@ -52,9 +52,8 @@ function refreshNewRoundButton() {
 }
 
 /**
- * Liga os listeners de todos os botões de ação. Chamado uma única vez
- * por Game.ui.setupUI() — idempotente graças a `controlsBound` (também
- * é chamado de novo quando um guest vira host, via becomeHost()).
+ * Liga os listeners de todos os botões de ação. Chamado por
+ * Game.ui.setupUI() — idempotente graças a `controlsBound`.
  */
 function bindControls() {
     if (controlsBound) return;
@@ -69,7 +68,7 @@ function bindControls() {
     });
 
     document.getElementById('btnCopyId').addEventListener('click', () => {
-        navigator.clipboard.writeText(Game.state.peerId).then(() => {
+        navigator.clipboard.writeText(Game.state.roomName).then(() => {
             const btn = document.getElementById('btnCopyId');
             btn.textContent = Game.i18n.t('controls.copied');
             setTimeout(() => { btn.textContent = Game.i18n.t('controls.copy'); }, 2000);

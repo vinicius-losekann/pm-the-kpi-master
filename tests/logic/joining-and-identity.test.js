@@ -1189,6 +1189,12 @@ test('T176 Aparelho já na sala com outro nome: recusado com device-in-use (no l
     check(env.rejectionFor('uid-a') === 'device-in-use', 'na partida, o mesmo aparelho com outro nome deveria dar device-in-use, veio: ' + env.rejectionFor('uid-a'));
     check(!env.player('A').disconnected && env.state.players.length === 2, 'A não pode ser derrubado pela tentativa');
 
+    // O aparelho do próprio host com outro nome: ignorado, sem recusa (a
+    // recusa para ele seria tratada na hora e o tiraria da sala).
+    env.join('Y', 'peer-host');
+    check(env.rejectionFor('peer-host') === null && env.player('Host').isHost && env.state.players.length === 2,
+        'o pedido do aparelho do host deveria ser ignorado, sem recusa, veio: ' + env.rejectionFor('peer-host'));
+
     // O aviso da recusa é próprio e leva de volta à tela inicial.
     const guest = use(createEnvironment());
     const alerts = [];

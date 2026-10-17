@@ -2,7 +2,8 @@
 // PM: The KPI Master - Orquestrador Principal
 // ============================================
 // Responsabilidades:
-//   - Inicializar o jogo na ordem correta (DOM, perguntas, PeerJS)
+//   - Inicializar o jogo na ordem correta (DOM, perguntas, login
+//     anônimo, sala pelo Firebase)
 //   - Retomar partida após recarregar a página (F5) — a lógica fica em
 //     engine/sessionEngine.js (resumeMatchAfterReload)
 //   - Ponto de entrada único (DOMContentLoaded)
@@ -73,87 +74,52 @@ async function loadQuestions() {
 }
 
 // ============================================
-// CONEXÃO COM RETRY
+// SALA
 // ============================================
 
 /**
- * Inicia o PeerJS com tentativas de retry (útil após F5 do host).
+ * Login anônimo e abertura da sala (o papel, host ou guest, vem do
+ * banco). Login que falha ou sala recusada (não existe, outra versão,
+ * aberta em outra aba): avisa e não segue.
  */
-async function initPeerWithRetry(maxAttempts = 4, delayMs = 2000) {
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-            await Game.network.initPeer();
-            return;
-        } catch (err) {
-            const isLastAttempt = attempt === maxAttempts;
-            console.warn(`⚠️ Falha ao iniciar Peer (tentativa ${attempt}/${maxAttempts}):`, err?.message || err);
-
-            if (isLastAttempt) {
-                Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.couldNotConnect'));
-                throw err;
-            }
-
-            Game.ui.updateConnectionStatus('disconnected', Game.i18n.t('connection.reconnecting', { attempt, max: maxAttempts }));
-            await new Promise(res => setTimeout(res, delayMs));
-        }
-    }
-}
-
-// ============================================
-// INICIALIZAÇÃO PRINCIPAL
-// ============================================
-
-/**
- * Ponto de entrada do jogo.
- * Ordem: ler URL → restaurar estado → carregar perguntas → (host com
- * sessão restaurada: conferir se outro assumiu) → iniciar PeerJS →
- * configurar UI.
- */
-async function init() {
-    console.log('🎯 PM: The KPI Master - Inicializando...');
-    console.log('📋 Módulos:', Object.keys(Game));
-
-    const params = new URLSearchParams(window.location.search);
+async function connectToRoom(restored) {
     const state = Game.state;
-    state.isHost = params.get('host') === 'true';
-    state.roomName = params.get('room') || 'Sala';
-    state.playerName = params.get('playerName') || 'Jogador';
-    state.hostPeerId = params.get('peerId') || '';
-    state.baseRoomPeerId = state.hostPeerId;
-    state.hostVersion = 0;
-
-    console.log('🎮 Jogador:', state.playerName);
-    console.log('👑 Host:', state.isHost);
-    console.log('🏠 Sala:', state.roomName);
-
-    // Configuração inicial da UI
-    document.getElementById('lobbyRoomName').textContent = state.roomName;
-    document.getElementById('myName').textContent = state.playerName;
-    document.getElementById('myAvatar').textContent = state.playerName.charAt(0).toUpperCase();
-    // A lista de fases é desenhada por Game.ui.renderProfileCard(), com
-    // o status de cada fase, toda vez que o estado do jogador muda (via
-    // syncPlayerViews()).
-
-    const restored = Game.persistence.tryRestoreState();
-
-    await loadQuestions();
-
-    // Host recarregando uma sessão salva — antes de reabrir o
-    // ID de host, confere se outro jogador já assumiu a sala enquanto ele
-    // estava fora (o backup assume depois de CONFIG.GAME.HOST_TIMEOUT).
-    // Se sim, volta como jogador comum (isHost passa a false e a URL a
-    // host=false) e o initPeerWithRetry() abaixo já conecta como guest.
-    if (restored && state.isHost) {
-        await Game.network.rejoinAsPlayerIfTakenOver();
-    }
-
+    let login;
     try {
-        await initPeerWithRetry();
+        if (typeof firebase === 'undefined' || !CONFIG.FIREBASE) throw new Error('Firebase indisponível');
+        login = await Game.network.firebaseLogin.start({ firebase, config: CONFIG.FIREBASE, emulator: CONFIG.FIREBASE_EMULATOR });
     } catch (err) {
-        console.error('❌ Não foi possível estabelecer conexão P2P:', err);
+        console.error('❌ Não foi possível fazer o login anônimo:', err);
+        Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.couldNotConnect'));
         return;
     }
 
+    let opened;
+    try {
+        opened = await Game.network.openRoom({
+            db: login.db,
+            uid: login.uid,
+            code: state.roomName,
+            timestamp: login.timestamp,
+            onOpen: () => showRoom(restored)
+        });
+    } catch (err) {
+        console.error('❌ Não foi possível abrir a sala:', err);
+        Game.ui.updateConnectionStatus('error', Game.i18n.t('connection.error'));
+        return;
+    }
+    if (!opened.ok) {
+        Game.network.handleJoinRejected(opened.reason === 'invalid-code' ? 'room-not-found' : opened.reason);
+    }
+}
+
+/**
+ * Sala aberta: monta a tela pelo papel e, depois de um F5, volta ao
+ * ponto em que estava. Roda antes de qualquer pedido ou aviso da sala.
+ */
+function showRoom(restored) {
+    const state = Game.state;
+    console.log('👑 Host:', state.isHost);
     Game.ui.setupUI();
 
     // A retomada do host (o que fazer conforme o momento da
@@ -173,6 +139,41 @@ async function init() {
     }
 
     Game.saveState();
+}
+
+// ============================================
+// INICIALIZAÇÃO PRINCIPAL
+// ============================================
+
+/**
+ * Ponto de entrada do jogo.
+ * Ordem: ler URL (game.html?room=<código>&playerName=<nome>) → restaurar
+ * estado → carregar perguntas → login e sala → configurar UI.
+ */
+async function init() {
+    console.log('🎯 PM: The KPI Master - Inicializando...');
+    console.log('📋 Módulos:', Object.keys(Game));
+
+    const params = new URLSearchParams(window.location.search);
+    const state = Game.state;
+    state.roomName = params.get('room') || '';
+    state.playerName = params.get('playerName') || 'Jogador';
+
+    console.log('🎮 Jogador:', state.playerName);
+    console.log('🏠 Sala:', state.roomName);
+
+    // Configuração inicial da UI
+    document.getElementById('lobbyRoomName').textContent = state.roomName;
+    document.getElementById('myName').textContent = state.playerName;
+    document.getElementById('myAvatar').textContent = state.playerName.charAt(0).toUpperCase();
+    // A lista de fases é desenhada por Game.ui.renderProfileCard(), com
+    // o status de cada fase, toda vez que o estado do jogador muda (via
+    // syncPlayerViews()).
+
+    const restored = Game.persistence.tryRestoreState();
+
+    await loadQuestions();
+    await connectToRoom(restored);
 
     console.log('✅ Jogo inicializado!');
     console.log('💡 Debug: Game.debug está disponível no console (F12)');

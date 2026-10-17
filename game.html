@@ -48,7 +48,7 @@
                 </div>
 
                 <div class="room-id-section" id="hostRoomIdSection" style="display:none;">
-                    <label class="room-id-label">ID da Sala:</label>
+                    <label class="room-id-label">Código da Sala:</label>
                     <div class="room-id-box">
                         <code id="roomPeerId">---</code>
                         <button id="btnCopyId" class="btn btn-sm btn-glass">📋 Copiar</button>
@@ -337,8 +337,10 @@
     <!-- SCRIPTS (ordem importa!)                    -->
     <!-- ============================================ -->
 
-    <!-- 1. Dependências externas -->
-    <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
+    <!-- 1. Dependências externas (Firebase: login anônimo e banco) -->
+    <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-database-compat.js"></script>
 
     <!-- 2. Configuração -->
     <script src="config/game-config.js"></script>
@@ -347,10 +349,9 @@
     <script src="js/utils/i18n.js"></script>
     <script src="js/locales/pt-BR.js"></script>
 
-    <!-- 2.7. Logger, persistência e identidade -->
+    <!-- 2.7. Logger e persistência -->
     <script src="js/utils/logger.js"></script>
     <script src="js/utils/persistence.js"></script>
-    <script src="js/utils/identity.js"></script>
 
     <!-- 2.8. Sanitização (nomes de jogador em innerHTML) -->
     <script src="js/utils/sanitize.js"></script>
@@ -361,11 +362,10 @@
     <script src="js/state/store.js"></script>
 
     <!-- 3.6. Rede -->
-    <script src="js/network/connectionState.js"></script>
-    <script src="js/network/hostSearch.js"></script>
-    <script src="js/network/peerService.js"></script>
+    <script src="js/network/firebaseLogin.js"></script>
+    <script src="js/network/roomChannel.js"></script>
+    <script src="js/network/roomLink.js"></script>
     <script src="js/network/messageHandler.js"></script>
-    <script src="js/network/hostMigration.js"></script>
 
     <!-- 3.5. Regras puras de domínio (precisam vir antes de engine/) -->
     <script src="js/domain/kpiRules.js"></script>

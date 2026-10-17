@@ -77,10 +77,9 @@
 
                 <div class="form-group">
                     <label for="createRoomId" class="form-label">
-                        <span class="label-icon">🏠</span> ID da Sala
+                        <span class="label-icon">🏠</span> Código da Sala
                     </label>
                     <div class="room-id-input-group">
-                        <span class="room-id-prefix">pm-the-kpi-master-</span>
                         <input type="text" id="createRoomId" class="form-input form-input-inline"
                                placeholder="001" minlength="1" maxlength="20" required autocomplete="off" />
                     </div>
@@ -107,13 +106,13 @@
                 <h2 class="screen-title">Sala Criada com Sucesso!</h2>
 
                 <div class="room-id-display">
-                    <label class="room-id-display-label">Compartilhe este ID com os jogadores:</label>
+                    <label class="room-id-display-label">Compartilhe este código com os jogadores:</label>
                     <div class="room-id-display-box">
-                        <code id="createdRoomIdDisplay">pm-the-kpi-master-001</code>
+                        <code id="createdRoomIdDisplay">001</code>
                         <button id="btnCopyCreatedId" class="btn btn-sm btn-glass">📋 Copiar</button>
                     </div>
                     <span class="form-hint" style="display: block; margin-top: 8px; text-align: center;">
-                        Os jogadores precisarão apenas do sufixo (ex: <strong>001</strong>)
+                        Eles digitam o código em "Entrar em uma Sala"
                     </span>
                 </div>
 
@@ -148,7 +147,6 @@
                         <span class="label-icon">🔗</span> Código da Sala
                     </label>
                     <div class="room-id-input-group">
-                        <span class="room-id-prefix">pm-the-kpi-master-</span>
                         <input type="text" id="joinRoomSuffix" class="form-input form-input-inline"
                                placeholder="001" minlength="1" maxlength="20" required autocomplete="off" />
                     </div>
@@ -170,7 +168,7 @@
         <div class="entry-footer">
             <div class="players-info"><span class="info-dot"></span> 2–6 jogadores</div>
             <div class="duration-info"><span class="info-dot"></span> 90 minutos</div>
-            <div class="tech-info"><span class="info-dot"></span> Conexão P2P</div>
+            <div class="tech-info"><span class="info-dot"></span> Conexão pela internet</div>
         </div>
 
     </div>
@@ -178,9 +176,13 @@
     <!-- ============================================ -->
     <!-- SCRIPTS                                      -->
     <!-- ============================================ -->
-    <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-database-compat.js"></script>
     <script src="config/game-config.js"></script>
-    <script src="js/network/hostSearch.js"></script>
+    <script src="js/network/firebaseLogin.js"></script>
+    <script src="js/network/roomChannel.js"></script>
+    <script src="js/network/roomLink.js"></script>
     <script src="js/entry/roomEntry.js"></script>
 </body>
 </html>

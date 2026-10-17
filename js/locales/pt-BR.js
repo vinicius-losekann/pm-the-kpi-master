@@ -138,12 +138,6 @@ window.Game.locales['pt-BR'] = {
         disconnected: 'Desconectado',
         error: 'Erro de conexão',
         couldNotConnect: 'Não foi possível conectar. Recarregue a página.',
-        reconnecting: 'Reconectando ({{attempt}}/{{max}})...',
-        hostDisconnected: 'Host desconectado — tentando reconectar...',
-        reconnectingToHost: 'Reconectando ao host ({{attempt}}/{{max}})...',
-        reconnected: 'Reconectado',
-        searchingForNewHost: 'Procurando novo host ({{attempt}}/{{max}})...',
-        couldNotReconnect: 'Não foi possível reconectar. Recarregue a página.',
-        hostTakeoverFailed: 'Falha ao assumir a sala como host.',
+        hostDisconnected: 'Host desconectado — aguardando a volta dele...',
     },
 };

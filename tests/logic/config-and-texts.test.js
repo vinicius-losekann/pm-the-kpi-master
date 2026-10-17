@@ -221,7 +221,7 @@ const PEER_CONNECTION_KEYS = ['connection.reconnecting', 'connection.reconnectin
     'connection.searchingForNewHost', 'connection.couldNotReconnect', 'connection.hostTakeoverFailed'];
 const OLD_I18N_KEYS = Object.keys(I18N_RENAMES).concat(REMOVED_I18N_KEYS);
 const OLD_I18N_MARKERS = ['assessor', 'sugestao', 'perguntador', 'respondedor', 'recursos', 'valor', 'kpiRecursos'];
-const I18N_MARKERS = ['advisor', 'amount', 'answerer', 'asker', 'attempt', 'count', 'cover', 'giver', 'helper', 'kpi', 'max', 'min', 'names',
+const I18N_MARKERS = ['advisor', 'amount', 'answerer', 'asker', 'count', 'cover', 'giver', 'helper', 'kpi', 'min', 'names',
     'receiver', 'requester', 'resources', 'resourcesKpi', 'reward', 'seconds', 'suggestion', 'value'];
 
 test('T88 Textos da tela em inglês: toda chave pedida existe no pt-BR.js real, toda chave dele é usada e cada chamada passa os marcadores do texto', () => {

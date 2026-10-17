@@ -1,19 +1,15 @@
 // ============================================
 // PM: The KPI Master - Room Entry (Tela Inicial)
 // ============================================
-// Gerencia a criação e entrada em salas via PeerJS.
-//
-// Depois de uma migração de host, a sala deixa o ID base e
-// passa a existir em `<ID base>-h1`, `-h2`... Entrar e criar sala
-// procuram também essas versões (Game.network.findHost(), em
-// network/hostSearch.js, carregado antes deste arquivo no index.html).
+// Cria e confere as salas pelo Firebase (login anônimo em
+// network/firebaseLogin.js; sala em network/roomLink.js e
+// network/roomChannel.js, carregados antes deste arquivo no index.html).
+// A sala é o código digitado. Quem cria é o dono da sala no banco: ao
+// abrir o jogo no mesmo navegador (mesmo login), entra como host.
+// O jogo abre em game.html?room=<código>&playerName=<nome>.
 // ============================================
 
 console.log('[ENTRY] Inicializando...');
-console.log('[ENTRY] PeerJS disponível:', typeof Peer !== 'undefined');
-console.log('[ENTRY] CONFIG:', CONFIG);
-
-const PREFIX = CONFIG.ROOM_PREFIX;
 
 // --- Telas ---
 const screenChoose = document.getElementById('screenChoose');
@@ -42,8 +38,23 @@ const btnJoinRoom = document.getElementById('btnJoinRoom');
 const btnBackFromJoin = document.getElementById('btnBackFromJoin');
 const joinFeedback = document.getElementById('joinFeedback');
 
-let createdRoomFullId = '';
+let createdRoomCode = '';
 let createdPlayerNameValue = '';
+
+// --- Login anônimo (começa ao abrir a página; os botões esperam por ele) ---
+function startEntryLogin() {
+    if (typeof firebase === 'undefined' || !CONFIG.FIREBASE) {
+        return Promise.reject(new Error('Firebase indisponível'));
+    }
+    return Game.network.firebaseLogin.start({ firebase, config: CONFIG.FIREBASE, emulator: CONFIG.FIREBASE_EMULATOR });
+}
+const entryLogin = startEntryLogin();
+entryLogin.catch(err => console.error('[ENTRY] Login anônimo falhou:', err));
+
+/** URL do jogo para a sala e o nome. */
+function gameUrl(code, playerName) {
+    return 'game.html?' + new URLSearchParams({ room: code, playerName }).toString();
+}
 
 // --- Navegação ---
 function showScreen(screen) {
@@ -87,9 +98,9 @@ btnBackFromCreate.addEventListener('click', () => {
     hideFeedback(createFeedback);
 });
 
-btnCreateRoom.addEventListener('click', () => {
+btnCreateRoom.addEventListener('click', async () => {
     const playerName = createPlayerName.value.trim();
-    const roomSuffix = createRoomId.value.trim();
+    const roomCode = createRoomId.value.trim();
     hideFeedback(createFeedback);
 
     if (!playerName || playerName.length < 3 || playerName.length > 20) {
@@ -97,73 +108,43 @@ btnCreateRoom.addEventListener('click', () => {
         createPlayerName.focus();
         return;
     }
-    if (!roomSuffix || roomSuffix.length < 1 || roomSuffix.length > 20) {
+    if (!roomCode || roomCode.length < 1 || roomCode.length > 20) {
         showFeedback(createFeedback, '⚠️ Escolha um código para a sala (1-20 caracteres)', 'warning');
         createRoomId.focus();
         return;
     }
-    if (!/^[a-zA-Z0-9_-]+$/.test(roomSuffix)) {
+    if (!/^[a-zA-Z0-9_-]+$/.test(roomCode)) {
         showFeedback(createFeedback, '⚠️ Use apenas letras, números, hífens e underscores', 'warning');
         createRoomId.focus();
         return;
     }
 
-    createdRoomFullId = PREFIX + roomSuffix;
-    createdPlayerNameValue = playerName;
-    console.log('[ENTRY] Criando sala:', createdRoomFullId);
+    console.log('[ENTRY] Criando sala:', roomCode);
     showFeedback(createFeedback, '🔄 Verificando disponibilidade...', 'info');
-
-    const testPeer = new Peer(createdRoomFullId, { ...CONFIG.PEER });
-    let done = false;
-    let search = null;
-
-    const finish = (errorMessage) => {
-        if (done) return;
-        done = true;
-        if (search) search.cancel();
-        if (!testPeer.destroyed) testPeer.destroy();
-        if (errorMessage) {
-            showFeedback(createFeedback, errorMessage, 'error');
+    btnCreateRoom.disabled = true;
+    try {
+        const login = await entryLogin;
+        const result = await Game.network.createRoom({ db: login.db, uid: login.uid, code: roomCode, timestamp: login.timestamp });
+        if (!result.ok) {
+            showFeedback(createFeedback, '⚠️ Este código já está em uso. Escolha outro.', 'error');
             return;
         }
-        createdRoomIdDisplay.textContent = createdRoomFullId;
+        createdRoomCode = roomCode;
+        createdPlayerNameValue = playerName;
+        createdRoomIdDisplay.textContent = roomCode;
         showScreen(screenCreated);
         hideFeedback(createFeedback);
-    };
-
-    testPeer.on('open', (id) => {
-        console.log('[ENTRY] Peer ID confirmado:', id);
-        // O ID base estar livre não basta — uma partida com
-        // este código pode continuar numa versão migrada do host
-        // (`-h1`, `-h2`...). Nesse caso o código também está em uso.
-        search = Game.network.findHost(testPeer, createdRoomFullId, {
-            startVersion: 1,
-            onFound: (conn, version, foundId) => {
-                console.log('[ENTRY] Partida com este código em andamento em', foundId);
-                finish('⚠️ Este código já está em uso. Escolha outro.');
-            },
-            onGiveUp: () => finish(null)
-        });
-    });
-
-    testPeer.on('error', (err) => {
-        // 'peer-unavailable' vem da procura acima: aquela versão não existe.
-        if (err.type === 'peer-unavailable') {
-            Game.network.reportPeerUnavailable(err);
-            return;
-        }
+    } catch (err) {
         console.error('[ENTRY] Erro:', err);
-        if (err.type === 'unavailable-id') {
-            finish('⚠️ Este código já está em uso. Escolha outro.');
-        } else {
-            finish('⚠️ Erro de conexão. Verifique sua internet.');
-        }
-    });
+        showFeedback(createFeedback, '⚠️ Erro de conexão. Verifique sua internet.', 'error');
+    } finally {
+        btnCreateRoom.disabled = false;
+    }
 });
 
 // --- Botões: Sala Criada ---
 btnCopyCreatedId.addEventListener('click', () => {
-    navigator.clipboard.writeText(createdRoomFullId).then(() => {
+    navigator.clipboard.writeText(createdRoomCode).then(() => {
         btnCopyCreatedId.textContent = '✅ Copiado!';
         setTimeout(() => { btnCopyCreatedId.textContent = '📋 Copiar'; }, 2000);
     }).catch(() => {
@@ -179,19 +160,13 @@ btnCopyCreatedId.addEventListener('click', () => {
 });
 
 btnEnterCreatedRoom.addEventListener('click', () => {
-    console.log('[ENTRY] Host entrando:', createdRoomFullId);
-    const params = new URLSearchParams({
-        host: 'true',
-        room: createdRoomFullId,
-        playerName: createdPlayerNameValue,
-        peerId: createdRoomFullId
-    });
+    console.log('[ENTRY] Host entrando:', createdRoomCode);
     showFeedback(createdFeedback, '🔄 Entrando na sala...', 'info');
-    setTimeout(() => { window.location.href = `game.html?${params.toString()}`; }, 500);
+    setTimeout(() => { window.location.href = gameUrl(createdRoomCode, createdPlayerNameValue); }, 500);
 });
 
 btnBackFromCreated.addEventListener('click', () => {
-    createdRoomFullId = '';
+    createdRoomCode = '';
     createdPlayerNameValue = '';
     showScreen(screenCreate);
     hideFeedback(createdFeedback);
@@ -203,9 +178,9 @@ btnBackFromJoin.addEventListener('click', () => {
     hideFeedback(joinFeedback);
 });
 
-btnJoinRoom.addEventListener('click', () => {
+btnJoinRoom.addEventListener('click', async () => {
     const playerName = joinPlayerName.value.trim();
-    const roomSuffix = joinRoomSuffix.value.trim();
+    const roomCode = joinRoomSuffix.value.trim();
     hideFeedback(joinFeedback);
 
     if (!playerName || playerName.length < 3 || playerName.length > 20) {
@@ -213,68 +188,36 @@ btnJoinRoom.addEventListener('click', () => {
         joinPlayerName.focus();
         return;
     }
-    if (!roomSuffix) {
+    if (!roomCode) {
         showFeedback(joinFeedback, '⚠️ Informe o código da sala', 'warning');
         joinRoomSuffix.focus();
         return;
     }
 
-    const roomId = PREFIX + roomSuffix;
-    console.log('[ENTRY] Tentando entrar:', roomId);
+    console.log('[ENTRY] Tentando entrar:', roomCode);
     showFeedback(joinFeedback, '🔄 Procurando sala...', 'info');
-
-    const testPeer = new Peer({ ...CONFIG.PEER });
-    let done = false;
-    let search = null;
-
-    const closeTestPeer = () => {
-        done = true;
-        if (search) search.cancel();
-        if (!testPeer.destroyed) testPeer.destroy();
-    };
-
-    testPeer.on('open', (myTestId) => {
-        console.log('[ENTRY] Peer teste:', myTestId);
-        // Procura a sala no ID base e nas versões migradas do
-        // host. O link do jogo continua com o ID base (peerId) — o jogo
-        // faz a mesma procura ao conectar (peerService.connectToHost()).
-        search = Game.network.findHost(testPeer, roomId, {
-            onFound: (conn, version, foundId) => {
-                if (done) return;
-                console.log('[ENTRY] Sala encontrada em', foundId);
-                try { conn.close(); } catch (e) { /* ignora */ }
-                closeTestPeer();
-
-                const params = new URLSearchParams({
-                    host: 'false',
-                    room: roomId,
-                    playerName: playerName,
-                    peerId: roomId
-                });
-                showFeedback(joinFeedback, '✅ Sala encontrada! Entrando...', 'success');
-                setTimeout(() => { window.location.href = `game.html?${params.toString()}`; }, 800);
-            },
-            onGiveUp: () => {
-                if (done) return;
-                console.log('[ENTRY] Sala não encontrada:', roomId);
-                closeTestPeer();
-                showFeedback(joinFeedback, '⚠️ Sala não encontrada. Verifique o código e se o host está online.', 'error');
-            }
-        });
-    });
-
-    testPeer.on('error', (err) => {
-        // 'peer-unavailable' vem da procura acima: aquela versão da sala
-        // não existe — a procura segue com as outras.
-        if (err.type === 'peer-unavailable') {
-            Game.network.reportPeerUnavailable(err);
-            return;
-        }
-        if (done) return;
-        console.error('[ENTRY] Erro peer:', err);
-        closeTestPeer();
+    btnJoinRoom.disabled = true;
+    let result;
+    try {
+        const login = await entryLogin;
+        result = await Game.network.checkRoom({ db: login.db, code: roomCode });
+    } catch (err) {
+        console.error('[ENTRY] Erro:', err);
         showFeedback(joinFeedback, '⚠️ Erro de conexão. Verifique sua internet.', 'error');
-    });
+        btnJoinRoom.disabled = false;
+        return;
+    }
+    btnJoinRoom.disabled = false;
+
+    if (!result.ok) {
+        const message = result.reason === 'version-mismatch'
+            ? '⚠️ Esta página está desatualizada em relação à sala. Recarregue a página (Ctrl+F5; no celular, feche a aba e abra de novo) e tente de novo.'
+            : '⚠️ Sala não encontrada. Verifique o código com o host.';
+        showFeedback(joinFeedback, message, 'error');
+        return;
+    }
+    showFeedback(joinFeedback, '✅ Sala encontrada! Entrando...', 'success');
+    setTimeout(() => { window.location.href = gameUrl(roomCode, playerName); }, 800);
 });
 
 // --- Inicialização ---

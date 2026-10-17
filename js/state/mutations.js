@@ -50,8 +50,7 @@ function resetGameState(state, config) {
  * Usada ao voltar ao lobby — fora de partida, quem não está conectado
  * não ocupa vaga nem conta para o mínimo de jogadores (quem voltar
  * depois entra de novo como qualquer jogador novo). Nunca remove o
- * próprio jogador desta tela (`state.playerName`). Se o backup da
- * migração de host saiu, escolhe o próximo guest da lista.
+ * próprio jogador desta tela (`state.playerName`).
  * @param {object} state - Game.state (mutado in-place)
  * @returns {Array<string>} nomes dos jogadores removidos
  */
@@ -60,11 +59,6 @@ function removeDisconnectedPlayers(state) {
     if (removed.length === 0) return [];
 
     state.players = state.players.filter(p => !removed.includes(p));
-
-    if (removed.some(p => p.peerId === state.backupPeerId)) {
-        const nextBackup = state.players.find(p => !p.isHost);
-        state.backupPeerId = nextBackup ? nextBackup.peerId : '';
-    }
 
     return removed.map(p => p.name);
 }

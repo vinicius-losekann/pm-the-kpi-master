@@ -2,14 +2,14 @@
 // PM: The KPI Master - Network: Message Handler
 // ============================================
 // Roteia as mensagens recebidas para as funções apropriadas e mantém
-// a lista de jogadores sincronizada (lado host). Não lida com PeerJS
-// em si (isso é peerService.js) nem com migração de host (isso é
-// hostMigration.js).
+// a lista de jogadores sincronizada (lado host). Não lida com o canal da
+// sala em si (isso é roomLink.js e roomChannel.js). Quem mandou a
+// mensagem chega como o uid do aparelho (o campo `peerId` dos jogadores).
 // ============================================
 
 /**
- * Segurança: verifica se o peer que enviou a mensagem (fromPeerId) é de
- * fato o jogador que a mensagem alega representar (claimedName). Sem
+ * Segurança: verifica se o aparelho que enviou a mensagem (fromPeerId) é
+ * de fato o jogador que a mensagem alega representar (claimedName). Sem
  * isso, qualquer guest conectado poderia enviar mensagens alegando ser
  * outro jogador — respondendo no lugar dele, tirando-o da partida etc.
  * Usada apenas no HOST, no momento do despacho das mensagens que
@@ -22,7 +22,7 @@ function isSenderVerified(claimedName, fromPeerId) {
         return false;
     }
     if (player.peerId !== fromPeerId) {
-        console.warn(`⚠️ Mensagem rejeitada: "${claimedName}" foi reivindicado por um peer diferente do registrado (possível falsificação de identidade).`);
+        console.warn(`⚠️ Mensagem rejeitada: "${claimedName}" foi reivindicado por um aparelho diferente do registrado (possível falsificação de identidade).`);
         return false;
     }
     return true;
@@ -44,15 +44,7 @@ function handleMessage(msg, fromPeerId) {
 
         case 'join-rejected':
             Game.network.cleanup();
-            const reasons = {
-                'room-full': '⚠️ Sala cheia (máximo de ' + CONFIG.GAME.MAX_PLAYERS + ' jogadores).',
-                'room-locked': '⚠️ A partida desta sala já começou. Só quem já estava na partida pode reconectar — aguarde o host voltar ao lobby para entrar.',
-                'name-taken': '⚠️ Esse nome já está em uso nesta sala. Escolha outro nome e entre novamente.',
-                'identity-mismatch': '⚠️ Esse nome pertence a um jogador desta partida e não foi possível confirmar que é você. Para voltar, entre pelo mesmo navegador em que você começou a partida (sem aba anônima e sem ter apagado os dados do site) — ou aguarde o host voltar ao lobby.',
-                'version-mismatch': '⚠️ O jogo foi atualizado e esta página está desatualizada em relação à sala. Recarregue a página (Ctrl+F5; no celular, feche a aba e abra de novo) e entre de novo com o mesmo nome e código. Se continuar, peça ao host para recarregar a página também.'
-            };
-            alert(reasons[msg.reason] || reasons['name-taken']);
-            window.location.href = './';
+            handleJoinRejected(msg.reason);
             break;
 
         case 'player-list':
@@ -219,27 +211,36 @@ function handleMessage(msg, fromPeerId) {
 // GERENCIAR JOGADORES (HOST)
 // ============================================
 
-/**
- * Envia a recusa de entrada para o peer e fecha a conexão logo depois
- * (o atraso dá tempo da mensagem chegar antes do close).
- */
-function rejectJoin(fromPeerId, reason) {
-    const c = Game.network.connectionState.getConnection(fromPeerId);
-    if (c && c.open) {
-        c.send({ type: 'join-rejected', reason });
-    }
-    setTimeout(() => { if (c) c.close(); }, 300);
+// Avisos de entrada recusada (join-rejected e as recusas da abertura da
+// sala no jogo, ver main.js).
+const JOIN_REJECTED_TEXTS = {
+    'room-full': '⚠️ Sala cheia (máximo de ' + CONFIG.GAME.MAX_PLAYERS + ' jogadores).',
+    'room-locked': '⚠️ A partida desta sala já começou. Só quem já estava na partida pode reconectar — aguarde o host voltar ao lobby para entrar.',
+    'name-taken': '⚠️ Esse nome já está em uso nesta sala. Escolha outro nome e entre novamente.',
+    'identity-mismatch': '⚠️ Esse nome pertence a um jogador desta partida e não foi possível confirmar que é você. Para voltar, entre pelo mesmo navegador em que você começou a partida (sem aba anônima e sem ter apagado os dados do site) — ou aguarde o host voltar ao lobby.',
+    'device-in-use': '⚠️ Este navegador já está nesta sala com outro nome. Para voltar, entre com o mesmo nome de antes (ou use outro aparelho).',
+    'version-mismatch': '⚠️ O jogo foi atualizado e esta página está desatualizada em relação à sala. Recarregue a página (Ctrl+F5; no celular, feche a aba e abra de novo) e entre de novo com o mesmo nome e código. Se continuar, peça ao host para recarregar a página também.',
+    'room-not-found': '⚠️ Sala não encontrada. Confira o código com o host e entre de novo.',
+    'tab-in-use': '⚠️ Esta sala já está aberta em outra aba deste navegador. Continue pela outra aba (ou feche-a e entre de novo).'
+};
+
+/** Mostra o aviso da recusa e volta para a tela inicial. */
+function handleJoinRejected(reason) {
+    alert(JOIN_REJECTED_TEXTS[reason] || JOIN_REJECTED_TEXTS['name-taken']);
+    window.location.href = './';
 }
 
 /**
- * Hash do token de identidade que veio no 'player-join', ou
- * null se não veio (ou veio em formato inválido). O token em si nunca
- * é guardado — só o hash (ver utils/identity.js).
+ * Envia a recusa de entrada para o aparelho que pediu. O próprio host
+ * nunca é recusado (a recusa para ele seria tratada na hora e o tiraria
+ * da sala).
  */
-function receivedTokenHash(msg) {
-    const token = msg.token;
-    if (typeof token !== 'string' || token.length === 0 || token.length > 128) return null;
-    return Game.identity.hashToken(token);
+function rejectJoin(fromPeerId, reason) {
+    if (fromPeerId === Game.state.peerId) {
+        console.warn('⚠️ Pedido de entrada do próprio aparelho do host ignorado (' + reason + ').');
+        return;
+    }
+    Game.network.sendToPlayer(fromPeerId, { type: 'join-rejected', reason });
 }
 
 /**
@@ -250,20 +251,23 @@ function receivedTokenHash(msg) {
  * para nome novo: um jogador desconectado continua ocupando a vaga dele
  * e precisa conseguir voltar mesmo com a sala lotada.
  *
- * A reconexão exige o mesmo token de identidade da primeira
- * entrada (o hash dele fica em `tokenHash`). Sem isso, quem soubesse o
- * nome de um jogador desconectado podia entrar no lugar dele e herdar
- * KPI, recursos e fase. Token diferente ou ausente → 'identity-mismatch',
- * e o jogador original continua reservado, esperando a volta dele.
+ * A identidade é o uid do aparelho (login anônimo, que sobrevive a F5 e a
+ * fechar a aba): mesmo nome e mesmo uid volta ao lugar. Mesmo nome em
+ * outro aparelho: 'name-taken' com o dono conectado, 'identity-mismatch'
+ * com ele fora — quem soubesse o nome de um jogador desconectado não
+ * herda KPI, recursos e área foco dele; a vaga continua reservada. O
+ * aparelho que já está na sala com outro nome: 'device-in-use'.
  *
  * Antes de tudo, a versão do formato das mensagens: quem chega com outra
  * (código antigo ou mais novo em cache) é recusado com 'version-mismatch'
  * e o aviso pede para recarregar a página. Sem o campo conta como 1 (o
  * player-join de antes da versão).
+ *
+ * Quem é aceito entra no roster da sala (admitPlayer) e recebe o estado
+ * com o cursor dos avisos para todos (feedCursor); quem é recusado não.
  */
 function addPlayer(msg, fromPeerId) {
     const state = Game.state;
-    const cs = Game.network.connectionState;
 
     const version = msg.protocolVersion === undefined ? 1 : msg.protocolVersion;
     if (version !== Game.network.PROTOCOL_VERSION) {
@@ -272,38 +276,25 @@ function addPlayer(msg, fromPeerId) {
         return;
     }
 
-    const tokenHash = receivedTokenHash(msg);
+    const sameDevice = state.players.find(p => p.peerId === fromPeerId);
+    if (sameDevice && sameDevice.name !== msg.playerName) {
+        console.warn('📱 Entrada recusada: este aparelho já está na sala como "' + sameDevice.name + '".');
+        rejectJoin(fromPeerId, 'device-in-use');
+        return;
+    }
 
-    const existingIdx = state.players.findIndex(p => p.name === msg.playerName);
-    if (existingIdx >= 0) {
-        const existingPlayer = state.players[existingIdx];
-        const oldConn = cs.getConnection(existingPlayer.peerId);
-        // O próprio host nunca tem conexão consigo mesmo — sem a primeira
-        // condição, alguém entrando com o nome do host seria tratado como
-        // "reconexão" e tomaria o lugar dele na lista.
-        const oldPeerStillConnected = existingPlayer.peerId === state.peerId ||
-            (oldConn && oldConn.open && existingPlayer.peerId !== fromPeerId);
-
-        if (oldPeerStillConnected) {
-            rejectJoin(fromPeerId, 'name-taken');
+    const existingPlayer = state.players.find(p => p.name === msg.playerName);
+    if (existingPlayer) {
+        if (existingPlayer.peerId !== fromPeerId) {
+            if (existingPlayer.disconnected) {
+                console.warn('🔐 Reconexão recusada: "' + msg.playerName + '" veio de outro aparelho.');
+                rejectJoin(fromPeerId, 'identity-mismatch');
+            } else {
+                rejectJoin(fromPeerId, 'name-taken');
+            }
             return;
         }
-
-        if (existingPlayer.tokenHash) {
-            if (tokenHash !== existingPlayer.tokenHash) {
-                console.warn('🔐 Reconexão recusada: "' + msg.playerName + '" veio com um token de identidade diferente do registrado.');
-                rejectJoin(fromPeerId, 'identity-mismatch');
-                return;
-            }
-        } else if (tokenHash) {
-            // Transição: entrada registrada antes do token existir (estado
-            // salvo de uma versão anterior). Aceita pelo nome e passa a
-            // exigir este token daqui em diante.
-            existingPlayer.tokenHash = tokenHash;
-        }
-
-        state.players[existingIdx].peerId = fromPeerId;
-        state.players[existingIdx].disconnected = false;
+        existingPlayer.disconnected = false;
         console.log('🔄 Reconectado:', msg.playerName);
     } else {
         // Depois do fim de jogo a sala não fica travada — quem caiu na
@@ -328,55 +319,49 @@ function addPlayer(msg, fromPeerId) {
             activities: 0,
             isHost: false,
             waitingInLobby: false,
-            resources: CONFIG.STARTING_RESOURCES,
-            tokenHash
+            resources: CONFIG.STARTING_RESOURCES
         });
-
-        if (state.players.length === 2 && !state.backupPeerId) {
-            state.backupPeerId = fromPeerId;
-        }
     }
 
+    Game.network.admitPlayer(fromPeerId);
     Game.network.broadcastAll({ type: 'player-list', players: state.players });
     Game.ui.updatePlayersList();
     Game.ui.checkStartCondition();
 
-    const conn = cs.getConnection(fromPeerId);
-    if (conn && conn.open) {
-        let currentRoundForSync = state.currentRound;
-        if (currentRoundForSync && currentRoundForSync.question) {
-            const isRoundAsker = msg.playerName === currentRoundForSync.asker;
-            if (!isRoundAsker) {
-                currentRoundForSync = {
-                    ...currentRoundForSync,
-                    question: { ...currentRoundForSync.question, correct: undefined }
-                };
-            }
+    let currentRoundForSync = state.currentRound;
+    if (currentRoundForSync && currentRoundForSync.question) {
+        const isRoundAsker = msg.playerName === currentRoundForSync.asker;
+        if (!isRoundAsker) {
+            currentRoundForSync = {
+                ...currentRoundForSync,
+                question: { ...currentRoundForSync.question, correct: undefined }
+            };
         }
-
-        // Além da rodada, o guest precisa saber em que ponto
-        // ela está — ciclo encerrado aguardando o host, ou partida
-        // pausada — para não reabrir uma pergunta que já acabou.
-        conn.send({
-            type: 'state-sync',
-            fullState: {
-                players: state.players,
-                decks: state.decks,
-                timer: state.timer,
-                currentRound: currentRoundForSync,
-                gameStarted: state.gameStarted,
-                hostVersion: state.hostVersion,
-                roundEnded: !!state.roundEnded,
-                matchPaused: !!state.matchPaused,
-                // Quem já respondeu nesta rodada — quem volta
-                // também pode assumir como host depois.
-                answeredThisRound: state.answeredThisRound.slice(),
-                // Fim de jogo — quem volta vê o ranking final.
-                gameOver: !!state.gameOver,
-                finalRanking: state.finalRanking || null
-            }
-        });
     }
+
+    // Além da rodada, o guest precisa saber em que ponto
+    // ela está — ciclo encerrado aguardando o host, ou partida
+    // pausada — para não reabrir uma pergunta que já acabou. O cursor
+    // vai depois da lista de jogadores acima: os avisos para todos até
+    // ele já estão neste estado.
+    Game.network.sendToPlayer(fromPeerId, {
+        type: 'state-sync',
+        fullState: {
+            players: state.players,
+            decks: state.decks,
+            timer: state.timer,
+            currentRound: currentRoundForSync,
+            gameStarted: state.gameStarted,
+            roundEnded: !!state.roundEnded,
+            matchPaused: !!state.matchPaused,
+            // Quem já respondeu nesta rodada.
+            answeredThisRound: state.answeredThisRound.slice(),
+            // Fim de jogo — quem volta vê o ranking final.
+            gameOver: !!state.gameOver,
+            finalRanking: state.finalRanking || null,
+            feedCursor: Game.network.feedCursor()
+        }
+    });
 
     // Se a partida estava pausada por falta de jogadores
     // conectados, a volta deste jogador pode ser o que faltava. Fica
@@ -391,8 +376,8 @@ function addPlayer(msg, fromPeerId) {
 }
 
 /**
- * Host: trata a queda de conexão de um guest (chamada pelo 'close' da
- * conexão em peerService.js).
+ * Host: trata a queda de conexão de um guest (a presença dele ficou
+ * offline, ver receivePresence() em roomLink.js).
  *
  * Fora de partida (lobby ou fim de jogo), remove o jogador como
  * sempre. Com a partida em andamento, mantém o jogador na lista marcado
@@ -404,7 +389,7 @@ function addPlayer(msg, fromPeerId) {
 function handlePlayerDisconnect(peerId) {
     const state = Game.state;
     const player = state.players.find(p => p.peerId === peerId);
-    if (!player) return; // conexão que nunca virou jogador (ex: teste da tela de entrada) ou peerId antigo de quem já reconectou
+    if (!player) return; // aparelho que não é jogador da sala
 
     if (!state.gameStarted || state.gameOver) {
         removePlayerByPeerId(peerId);
@@ -424,16 +409,14 @@ function handlePlayerDisconnect(peerId) {
 }
 
 /**
- * Remove um jogador da sala (host) e aborta a rodada se ele for participante.
+ * Remove um jogador da sala (host): sai da lista e do roster, e a rodada
+ * é abortada se ele for participante.
  */
 function removePlayerByPeerId(peerId) {
     const state = Game.state;
     const removedPlayer = state.players.find(p => p.peerId === peerId);
     state.players = state.players.filter(p => p.peerId !== peerId);
-
-    if (state.backupPeerId === peerId && state.players.length > 1) {
-        state.backupPeerId = state.players[1]?.peerId;
-    }
+    Game.network.dismissPlayer(peerId);
 
     Game.network.broadcastAll({ type: 'player-list', players: state.players });
     Game.ui.updatePlayersList();
@@ -482,7 +465,6 @@ function restoreState(fullState) {
     state.timer = fullState.timer;
     state.currentRound = fullState.currentRound;
     state.gameStarted = fullState.gameStarted;
-    if (fullState.hostVersion !== undefined) state.hostVersion = fullState.hostVersion;
     state.roundEnded = !!fullState.roundEnded;
     storeAnsweredThisRound(fullState.answeredThisRound);
     // Host de versão anterior não manda os campos: partida não acabada.
@@ -535,6 +517,7 @@ window.Game = window.Game || {};
 window.Game.network = window.Game.network || {};
 Object.assign(window.Game.network, {
     handleMessage,
+    handleJoinRejected,
     addPlayer,
     handlePlayerDisconnect,
     removePlayerByPeerId,

@@ -500,7 +500,7 @@ function create(options) {
     }
 
     function snapshot() {
-        return { code, isHost, isAdmitted };
+        return { code, isHost, isAdmitted, hostUid };
     }
 
     return {
@@ -518,6 +518,7 @@ function create(options) {
         readSecret,
         clearMessages,
         leave,
+        detach,
         snapshot
     };
 }

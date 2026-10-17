@@ -24,7 +24,6 @@ const CONFIG = {
         MIN_PLAYERS: 2,
         SESSION_DURATION: 5400,               // 90 minutos (em segundos)
         ACTIVITIES_PER_FOCUS_AREA: 2,         // Atividades necessárias para avançar de área foco
-        HOST_TIMEOUT: 10000,                  // Prazo total (ms) que os jogadores esperam o host voltar depois de uma queda; esgotado, outro jogador assume como host
         ADVISORY_TIMEOUT: 60000,              // Tempo máximo para o assessor (ou quem ajuda) responder (ms)
         ANSWER_TIMEOUT: 90000,                // Tempo máximo para o Respondedor escolher uma alternativa (ms), contado da pergunta feita; para enquanto o apoio está pendente
         ASK_TIMEOUT: 30000,                   // Tempo para o Perguntador clicar em "Fazer a pergunta" (ms); esgotado, a pergunta vai sozinha. 0 = sem essa etapa: a pergunta vai direto para quem responde
@@ -38,23 +37,12 @@ const CONFIG = {
         { id: 'closing', name: 'Encerramento', emoji: '🏁' },
     ],
 
-    ROOM_PREFIX: 'pm-the-kpi-master-',        // Prefixo usado para identificar salas no PeerJS
-
-    // Opções passadas a TODO `new Peer(...)` do jogo (tela inicial, peer do
-    // jogador e peer de quem assume como host). É aqui que se aponta para
-    // um servidor de sinalização próprio, se um dia for preciso sair do
-    // servidor público gratuito do PeerJS — ex: { host, port, path, secure }.
-    // Quem usa passa uma cópia ({ ...CONFIG.PEER }): o PeerJS pode alterar
-    // o objeto recebido.
-    PEER: {
-        debug: 0,                             // 0 = sem logs do PeerJS no console (3 = todos)
-    },
-
-    // Configuração web do projeto do Firebase, usada pela página de teste
-    // de conexão (firebase-check.html, roadmap 2.9). É pública por natureza
-    // (vai para o navegador de quem abre a página); a proteção vem das
-    // regras do banco (database.rules.json). Nunca colocar aqui chave de
-    // conta de serviço. null = ainda não configurado (a página avisa).
+    // Configuração web do projeto do Firebase, usada pelo jogo (login
+    // anônimo e salas) e pela página de teste de conexão
+    // (firebase-check.html). É pública por natureza (vai para o navegador
+    // de quem abre a página); a proteção vem das regras do banco
+    // (database.rules.json). Nunca colocar aqui chave de conta de serviço.
+    // null = ainda não configurado (o jogo não conecta; a página avisa).
     FIREBASE: {
         apiKey: 'AIzaSyDPKTnL1DTS5b7QT3lgZXPxUCG-SWm_Ro4',
         authDomain: 'pm-the-kpi-master.firebaseapp.com',

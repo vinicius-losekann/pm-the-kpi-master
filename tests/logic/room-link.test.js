@@ -111,7 +111,7 @@ function linkedDevice(fake, uid, name, clock, browser = fakeBrowser()) {
         env, device, browser, alerts, handled, uid, name,
         types: () => handled.map(h => h.type),
         create: (code = ROOM) => env.Game.network.createRoom(link(code)),
-        open: (code = ROOM) => env.Game.network.openRoom(link(code)),
+        open: (code = ROOM, extra = {}) => env.Game.network.openRoom({ ...link(code), ...extra }),
         /** Fecha a aba (ou recarrega): o aparelho cai e os canais da aba fecham. */
         close() {
             device.close();
@@ -130,6 +130,7 @@ async function hostRoom(fake, clock) {
     const created = await entry.create();
     await settle();
     check(created && created.ok === true, 'a tela inicial deveria criar a sala, veio: ' + JSON.stringify(created));
+    check(entry.device.listenerCount() === 0, 'depois de criar, a tela inicial deveria parar de ouvir a sala (senão consumiria os pedidos de entrada), ouvintes: ' + entry.device.listenerCount());
     entry.close();
     await settle();
     const host = linkedDevice(fake, 'uid-host', 'Ana', clock, browser);
@@ -378,9 +379,15 @@ asyncTest('T172 Host que cai: os outros veem "Host desconectado" e a sala espera
     const reloaded = linkedDevice(fake, 'uid-host', 'Ana', clock, host.browser);
     reloaded.env.ctx.location.search = '?' + new URLSearchParams({ room: ROOM, playerName: 'Ana' }).toString();
     check(reloaded.env.Game.persistence.tryRestoreState() === true, 'o F5 do host deveria restaurar o estado salvo (URL só com a sala e o nome)');
-    const opened = await reloaded.open();
+    // onOpen (o main.js monta a tela e retoma a partida ali) roda com o
+    // papel já no estado e antes de o pedido que esperou ser tratado.
+    let atOpen = null;
+    const onOpen = () => { atOpen = { isHost: reloaded.env.state.isHost, players: reloaded.env.state.players.length }; };
+    const opened = await reloaded.open(ROOM, { onOpen });
     await settle();
     check(opened && opened.ok === true && opened.isHost === true && reloaded.env.state.isHost === true, 'depois do F5, Ana continua host pelo meta, veio: ' + JSON.stringify(opened));
+    check(atOpen && atOpen.isHost === true && atOpen.players === 2,
+        'onOpen deveria rodar como host e antes do pedido de Caio, veio: ' + JSON.stringify(atOpen));
     check(reloaded.env.state.players.length === 3 && reloaded.env.player('Beto') && reloaded.env.player('Caio'),
         'o host deveria ter Beto (do estado salvo) e Caio (do pedido que esperou), veio: ' + JSON.stringify(reloaded.env.state.players));
     check(caio.types().includes('state-sync') && fake.read('rooms/' + ROOM + '/requests') === undefined, 'Caio deveria receber o estado e o pedido sair do banco');

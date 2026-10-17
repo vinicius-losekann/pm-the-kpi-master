@@ -2,29 +2,16 @@
 // PM: The KPI Master - Testes no navegador: jogadores e ajudantes
 // ============================================
 // Cada "jogador" é um contexto separado do navegador: armazenamento,
-// token de identidade e abas próprios — como um navegador diferente.
-// O PeerJS vem do pacote local (mesma versão do jogo) e aponta para o
-// servidor de sinalização local; fontes e outros endereços externos
-// são bloqueados, para o teste não depender da internet.
-// Exceção: os arquivos do Firebase (gstatic.com, mesma versão da página
-// de teste de conexão) vêm da internet; o banco e o login são os do
-// emulador local (projeto "demo-", que não existe fora do emulador).
-//
-// Transição do PeerJS para o canal da sala: com js/network/roomLink.js,
-// o jogo conversa pelo canal (no emulador); sem ele, pelo PeerJS. Os
-// ajudantes abaixo valem para os dois ("PeerJS aberto ou canal pronto").
+// login anônimo (uid) e abas próprios — como um navegador diferente.
+// Os arquivos do Firebase (gstatic.com, mesma versão do jogo) vêm da
+// internet; o banco e o login são os do emulador local (projeto "demo-",
+// que não existe fora do emulador). Fontes e outros endereços externos
+// são bloqueados, para o teste não depender de mais nada.
 // ============================================
 
-const fs = require('fs');
-const path = require('path');
 const { test: base, expect } = require('@playwright/test');
 
-const ROOT = path.resolve(__dirname, '..', '..');
-const USES_ROOM_LINK = fs.existsSync(path.join(ROOT, 'js', 'network', 'roomLink.js'));
 const SITE = 'http://127.0.0.1:' + (process.env.SITE_PORT || 8080);
-const PEER_PORT = Number(process.env.PEER_PORT || 9000);
-const LOCAL_PEERJS = path.join(ROOT, 'node_modules', 'peerjs', 'dist', 'peerjs.min.js');
-const ROOM_PREFIX = 'pm-the-kpi-master-';
 // Emulador do Firebase (firebase.json); o projeto "demo-" só existe nele.
 const FIREBASE_PROJECT = 'demo-pm-the-kpi-master';
 const FIREBASE_AUTH_PORT = 9099;
@@ -35,47 +22,30 @@ function roomCode() {
     return 'e2e' + Date.now().toString(36).slice(-5) + Math.floor(Math.random() * 1000);
 }
 
-/** PeerJS: ID completo da sala (prefixo + código), como o jogo monta. */
-function roomId(code) {
-    return ROOM_PREFIX + code;
-}
-
 // Funções executadas na página (cada uma sozinha, sem nada de fora).
 
-/** O jogo está ligado à sala: PeerJS aberto ou canal pronto (host, ou guest aceito). */
+/** O jogo está ligado à sala: host, ou guest aceito. */
 function linkReadyInPage() {
     const n = window.Game && Game.network;
-    if (!n) return false;
-    if (n.linkStatus) {
-        const s = n.linkStatus();
-        return !!s && (s.isHost === true || s.isAdmitted === true);
-    }
-    const peer = n.connectionState && n.connectionState.getPeer();
-    return !!peer && peer.open === true;
+    if (!n || !n.linkStatus) return false;
+    const s = n.linkStatus();
+    return !!s && (s.isHost === true || s.isAdmitted === true);
 }
 
-/** Guest ligado ao host: conexão aberta (PeerJS) ou aceito, com o host presente e o estado recebido (canal). */
+/** Guest ligado ao host: aceito, com o host presente e o estado recebido. */
 function connectedToHostInPage() {
     const n = window.Game && Game.network;
-    if (!n || Game.state.isHost !== false) return false;
-    if (n.linkStatus) {
-        const s = n.linkStatus();
-        return !!s && s.isAdmitted === true && s.hostOnline === true && s.synced === true;
-    }
-    const c = n.connectionState.getConnection(Game.state.hostPeerId);
-    return !!c && c.open === true;
+    if (!n || !n.linkStatus || Game.state.isHost !== false) return false;
+    const s = n.linkStatus();
+    return !!s && s.isAdmitted === true && s.hostOnline === true && s.synced === true;
 }
 
-/** É o host da sala: com o ID da sala aberto (PeerJS) ou como host no canal. */
+/** É o host da sala. */
 function roomHostInPage() {
     const n = window.Game && Game.network;
-    if (!n || Game.state.isHost !== true) return false;
-    if (n.linkStatus) {
-        const s = n.linkStatus();
-        return !!s && s.isHost === true;
-    }
-    const peer = n.connectionState.getPeer();
-    return Game.state.peerId === Game.state.hostPeerId && !!peer && peer.open === true;
+    if (!n || !n.linkStatus || Game.state.isHost !== true) return false;
+    const s = n.linkStatus();
+    return !!s && s.isHost === true;
 }
 
 async function createPlayer(browser, name) {
@@ -84,24 +54,19 @@ async function createPlayer(browser, name) {
 
     await context.route('**/*', (route) => {
         const url = route.request().url();
-        // Site do jogo e servidor PeerJS local (o PeerJS pede um ID novo
-        // por HTTP a quem entra sem ID fixo).
+        // Site do jogo e emulador do Firebase (locais) e os arquivos do Firebase.
         if (url.startsWith('http://127.0.0.1:')) return route.continue();
-        if (/unpkg\.com\/peerjs@/.test(url)) {
-            return route.fulfill({ path: LOCAL_PEERJS, contentType: 'application/javascript' });
-        }
         if (/^https:\/\/www\.gstatic\.com\/firebasejs\//.test(url)) return route.continue();
         return route.abort();
     });
 
-    // Aponta o PeerJS do jogo para o servidor local e o Firebase da página
-    // de teste de conexão para o emulador: acrescenta linhas ao config
-    // servido, sem mexer no arquivo do repositório.
+    // Aponta o Firebase do jogo e da página de teste de conexão para o
+    // emulador: acrescenta linhas ao config servido, sem mexer no arquivo
+    // do repositório.
     await context.route(SITE + '/config/game-config.js', async (route) => {
         const response = await route.fetch();
         const body = (await response.text()) +
-            "\nCONFIG.PEER = { debug: 0, host: '127.0.0.1', port: " + PEER_PORT + ", path: '/', secure: false };\n" +
-            "CONFIG.FIREBASE = { apiKey: 'demo-key', authDomain: '" + FIREBASE_PROJECT + ".firebaseapp.com', " +
+            "\nCONFIG.FIREBASE = { apiKey: 'demo-key', authDomain: '" + FIREBASE_PROJECT + ".firebaseapp.com', " +
             "databaseURL: 'https://" + FIREBASE_PROJECT + "-default-rtdb.firebaseio.com', projectId: '" + FIREBASE_PROJECT + "' };\n" +
             "CONFIG.FIREBASE_EMULATOR = { host: '127.0.0.1', authPort: " + FIREBASE_AUTH_PORT +
             ", databasePort: " + FIREBASE_DATABASE_PORT + " };\n";
@@ -124,24 +89,19 @@ async function createPlayer(browser, name) {
         },
 
         /**
-         * Abre o jogo. Canal: o host cria a sala na tela inicial e entra;
-         * o guest abre o link da sala (código e nome). PeerJS: direto pelo
-         * link da partida (como o link gerado pela tela inicial). Espera
-         * o jogo ficar ligado à sala.
+         * Abre o jogo: o host cria a sala na tela inicial e entra; o guest
+         * abre o link da sala (código e nome). Espera o jogo ficar ligado
+         * à sala.
          */
         async openGame(code, { host }) {
             if (!player.page || player.page.isClosed()) await player.newTab();
-            if (USES_ROOM_LINK && host) {
+            if (host) {
                 const created = await player.createRoomFromHomeScreen(code);
                 if (!created.created) throw new Error(name + ' não conseguiu criar a sala ' + code + ': ' + created.warning);
                 await player.page.click('#btnEnterCreatedRoom');
                 await player.page.waitForURL(/game\.html/, { timeout: 20000 });
-            } else if (USES_ROOM_LINK) {
-                await player.page.goto(SITE + '/game.html?' + new URLSearchParams({ room: code, playerName: name }).toString());
             } else {
-                const id = roomId(code);
-                const params = new URLSearchParams({ host: host ? 'true' : 'false', room: id, playerName: name, peerId: id });
-                await player.page.goto(SITE + '/game.html?' + params.toString());
+                await player.page.goto(SITE + '/game.html?' + new URLSearchParams({ room: code, playerName: name }).toString());
             }
             await player.waitFor(linkReadyInPage);
         },

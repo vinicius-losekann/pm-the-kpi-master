@@ -1,7 +1,7 @@
 # Testes de conexão — o que está coberto e o que falta
 
 > **Contém:** o checklist dos casos de conexão do jogo (entrada, queda,
-> reconexão, troca de host), cada um com os testes que o cobrem (`T`
+> volta, F5, host que cai), cada um com os testes que o cobrem (`T`
 > lógica, `E` navegador, `M` manual) e a prioridade P1/P2; limitações
 > aceitas; o mapa dos cenários de `tests/browser`. **Não contém:** o passo
 > a passo dos manuais (→ `manual-test-scripts.md`) nem a causa dos bugs
@@ -22,12 +22,19 @@ ficar pendente.
 | ⚠️ | Limitação conhecida (comportamento aceito por ora) |
 | **P1** | Obrigatório antes do deploy · **P2** desejável |
 
-> Os testes de `tests/logic` simulam o PeerJS: garantem a
-> **lógica** do jogo em cada situação. Os de ponta a ponta (`tests/browser`)
-> rodam o jogo de verdade em janelas separadas do Chromium, com um
-> servidor PeerJS local — cobrem a conexão, mas não redes reais
+> O jogo conversa pelo canal da sala no Firebase (`architecture.md`,
+> seção "Conexão, identidade e F5"). Os testes de `tests/logic` garantem a
+> **lógica** do jogo em cada situação, com a rede simulada; o
+> `room-link.test.js` roda o canal e a ligação reais contra um banco
+> simulado (`fakeFirebase.js`). Os de ponta a ponta (`tests/browser`)
+> rodam o jogo de verdade em janelas separadas do Chromium, contra o
+> emulador do Firebase — cobrem a conexão, mas não redes reais
 > diferentes, celular nem outros navegadores. Esses continuam na lista
 > manual.
+>
+> **Troca de host desligada até a etapa 3 do roadmap 2.9:** se o host
+> cai, os outros veem "Host desconectado" e a sala espera por ele. Os
+> testes da troca de host voltam com o mecanismo novo.
 
 ---
 
@@ -35,42 +42,34 @@ ficar pendente.
 
 ```mermaid
 flowchart TD
-    A[Tela inicial] -->|Criar sala| B{Código livre?<br/>ID base e versões -h1..-h5}
-    B -->|sim| C[Host abre a sala]
+    A[Tela inicial] -->|Criar sala| B{Código livre<br/>ou sala parada há 2 h?}
+    B -->|sim| C[Host abre a sala<br/>o papel vem do banco]
     B -->|não| B1[Já está em uso]
-    A -->|Entrar| D{Procura a sala<br/>ID base e -h1..-h5}
-    D -->|achou| E{Situação da sala}
-    D -->|não achou| D1[Sala não encontrada]
+    A -->|Entrar| D{A sala existe<br/>e é da mesma versão?}
+    D -->|sim| E{Situação da sala}
+    D -->|não| D1[Sala não encontrada<br/>ou página desatualizada]
     E -->|lobby| F[Entra como jogador novo]
-    E -->|partida em andamento,<br/>nome da partida + token certo| G[Volta ao próprio lugar]
-    E -->|nome novo ou token errado| E1[Recusado]
+    E -->|partida em andamento,<br/>mesmo nome e mesmo aparelho| G[Volta ao próprio lugar]
+    E -->|nome novo, nome de outro aparelho<br/>ou aparelho já na sala com outro nome| E1[Recusado]
 
     G --> H[Jogando]
     F --> H
     C --> H
 
-    H -->|guest cai| I[Fica desconectado na lista<br/>rodada dele é abortada<br/>pausa se faltar gente conectada]
-    I -->|volta com o token| G
+    H -->|guest cai ou fecha a aba| I[Presença offline: fica desconectado na lista<br/>rodada dele é abortada<br/>pausa se faltar gente conectada]
+    I -->|volta a conexão ou reabre o link| G
 
-    H -->|host cai| J[Guests tentam o mesmo host<br/>por até 10s]
-    J -->|host voltou - F5| K[Reconectam, sem troca de host]
-    J -->|não voltou| L[Backup assume em -hN<br/>URL host=true]
-    L --> M[Outros guests acham o novo host]
-    L --> N[Host antigo vira jogador comum<br/>desconectado]
-    N -->|reabre o link ou entra pela tela inicial| G
+    H -->|F5 do host| K[Retoma pelo estado salvo;<br/>pedidos feitos no F5 esperam no banco]
+    H -->|host cai de vez| J[Os outros veem Host desconectado<br/>e a sala espera]
 
     H -->|guest sai da partida| O[Vai para o lobby<br/>se faltar jogador, a partida acaba]
     O --> P[Fim de jogo → Voltar ao lobby → Nova partida]
 
-    classDef ok fill:#1e5631,color:#fff,stroke:#0f3
     classDef auto fill:#1f3b5c,color:#fff,stroke:#39f
-    classDef bug fill:#6b1d1d,color:#fff,stroke:#f33
-    class A,B,B1,D,D1,E,E1,F,G,H,I,J,L,M,N,O ok
-    class C,K,P auto
+    class A,B,B1,C,D,D1,E,E1,F,G,H,I,J,K,O,P auto
 ```
 
-Cores: **verde** = automatizado e conferido manualmente · **azul** =
-só automatizado (falta o manual).
+Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 
 ---
 
@@ -79,57 +78,49 @@ só automatizado (falta o manual).
 ### Entrada na sala e identidade
 | Caso | Testes | Manual |
 |---|---|---|
-| Lobby: guest que cai sai da lista | 🤖 T1 | — |
-| Partida em andamento: nome novo recusado | 🤖 T2, T9 | 👤 (nome com maiúsculas diferentes foi recusado) |
-| Nome em uso por quem está conectado continua bloqueado | 🤖 T3 | — |
+| Lobby: guest que cai sai da lista e do roster | 🤖 T1, T170, T175 | — |
+| Partida em andamento: nome novo recusado | 🤖 T2, T9, T169 · 🌐 E6 | 👤 (nome com maiúsculas diferentes foi recusado) |
+| Nome em uso por quem está conectado continua bloqueado | 🤖 T3, T173 | — |
 | Nome do próprio host recusado, host não perde o lugar | 🤖 T3b | — |
-| Token por sala: criado uma vez, só o hash sai do navegador | 🤖 T22, T23, T24, T29 | — |
-| Reconexão com token errado ou sem token recusada | 🤖 T25 | 👤 impostor em outro navegador recusado |
-| Estado salvo antes do token (transição) | 🤖 T27 | — |
-| Guest manda o token na 1ª conexão e nas reconexões | 🤖 T28 | 👤 |
-| Jogo de outra versão (logo depois de um deploy) é recusado antes de tudo, com aviso para recarregar; quem caiu continua com a vaga reservada e volta depois de recarregar | 🤖 T76, T77, T80, T83, T86 | — |
-| Tela inicial acha a sala migrada; sala inexistente e erro de rede com a mensagem certa | 🤖 T47 | 👤 entrou pelo código depois da troca de host |
-| Criar sala com código de sala aberta ou de partida em andamento numa versão migrada: "já está em uso" em até 3s; código livre é aceito | 🤖 T47 · 🌐 E13 | ⬜ no Edge do Windows houve travamento de ~5s (seção 5) |
+| Identidade pelo uid do login anônimo: mesmo nome e mesmo aparelho volta ao lugar; o nome de quem caiu em outro aparelho é recusado (`identity-mismatch`) e a vaga continua reservada | 🤖 T175 · 🌐 E27 | ⬜ |
+| Aparelho já na sala com outro nome recusado (`device-in-use`) | 🤖 T176 | — |
+| Quem é recusado não entra no roster, não lê a partida e volta à tela inicial | 🤖 T169, T175 | — |
+| Jogo de outra versão (logo depois de um deploy) é recusado antes de tudo, com aviso para recarregar; quem caiu continua com a vaga reservada e volta depois de recarregar | 🤖 T76, T77, T80, T83, T86, T169, T177 | — |
+| Sala inexistente: o jogo não pede nada e volta à tela inicial | 🤖 T169 | — |
+| Criar sala com código de sala aberta: "já está em uso" em até 3s; código livre é aceito | 🤖 T167 · 🌐 E13 | ⬜ |
+| Sala aberta em outra aba do mesmo navegador: a segunda aba não entra (aviso próprio) e não mexe na sala | 🤖 T173 | ⬜ |
+| Login anônimo (emulador nos testes), uid e hora do servidor; falha do login vira erro | 🤖 T174 | — |
 
 ### Queda e volta de guest
 | Caso | Testes | Manual |
 |---|---|---|
+| Queda vista pela presença: no lobby, sai da lista; na partida, fica desconectado com a vaga reservada | 🤖 T170 | — |
 | Espectador cai: fica na lista, fora do sorteio, volta com tudo | 🤖 T4 | — |
 | Quem caiu não pode ser chamado como assessor nem para ajudar (recusa na hora; quem pede chama outro); quem foi chamado e cai antes de responder libera quem responde no fim do prazo (`ADVISORY_TIMEOUT`) | 🤖 T70, T119, T122 | — |
 | Participante da rodada cai: rodada abortada, nova dupla | 🤖 T5 | — |
 | Falta só conexão: partida pausa e retoma com o mesmo evento | 🤖 T6, T33 | — |
 | Ciclo da rodada termina sem esperar o desconectado | 🤖 T8 | — |
+| Volta da conexão: o guest manda o player-join de novo e retoma o lugar; nenhum aviso de antes do estado chega depois dele | 🤖 T171 | ⬜ (M7) |
+| Quem entra ou volta recebe o estado com o cursor dos avisos: nada de antes dele, os de depois uma vez, na ordem | 🤖 T168, T177 | — |
+| F5 de guest: volta ao mesmo lugar pelo uid | 🤖 T171 · 🌐 E6 | — |
 | Guest volta com o relógio andando e sem reabrir pergunta já respondida | 🤖 T30–T34 | 👤 (diferença de ~1s entre relógios, esperada) |
 | Sala cheia: 7º nome recusado no lobby; quem caiu consegue voltar | 🤖 T9 · 🌐 E16 | — (coberto por E16) |
 
-### Queda e troca de host
+### Host: F5 e queda
 | Caso | Testes | Manual |
 |---|---|---|
-| F5/fechar do host encerra as conexões sem mexer no jogo | 🤖 T12, T13 | — |
-| Host volta dentro de 10s: guests reconectam, sem troca de host | 🤖 T38 · 🌐 E1 | — (coberto por E1) |
+| Host cai: os outros veem "Host desconectado"; ninguém assume; com o host de volta, "Conectado" | 🤖 T172 | ⬜ |
+| F5 do host: continua host pelo meta da sala; os pedidos feitos durante o F5 esperam no banco e são tratados depois da retomada | 🤖 T172 · 🌐 E1 | — (coberto por E1) |
 | F5 do host com a pergunta aberta: a mesma pergunta continua; relógio e prazo de resposta religados | 🤖 T56 · 🌐 E1 | — (coberto por E1) |
-| Pergunta ainda por fazer (o Perguntador não clicou em "Fazer a pergunta"): no F5 do host, na troca de host e na volta à partida, a rodada continua esperando o clique, com o prazo do Perguntador de novo; quem volta como Respondedor vê o aviso, não as alternativas | 🤖 T138, T139, T140 | — |
+| Pergunta ainda por fazer (o Perguntador não clicou em "Fazer a pergunta"): no F5 do host e na volta à partida, a rodada continua esperando o clique, com o prazo do Perguntador de novo; quem volta como Respondedor vê o aviso, não as alternativas | 🤖 T138, T139 | — |
 | F5 do host fora da dupla com a pergunta aberta: o host vê a tela de espectador; etiquetas de domínio e área aparecem depois do F5 e para quem volta (BUG-020) | 🤖 T64, T65 | — |
 | F5 do host com a rodada encerrada: continua encerrada para todos, nada começa sozinho | 🤖 T53, T57 · 🌐 E9 | — (coberto por E9) |
 | F5 do host logo depois de uma resposta: segue para a próxima dupla ou encerra a rodada; se a resposta completou a última área foco, a partida termina | 🤖 T54, T58 · 🌐 E10 | — (coberto por E10) |
 | F5 do host com a partida pausada: continua pausada com o mesmo evento e retoma quando alguém volta | 🤖 T55, T57 · 🌐 E11 | — (coberto por E11) |
 | F5 do host com um pedido de assessoria ou de ajuda sem resposta: o pedido é cancelado, quem responde pode pedir de novo e a rodada segue; apoio já respondido continua valendo (com o honorário, a recompensa ou a cobertura) | 🤖 T59, T60, T122 · 🌐 E12 | — (coberto por E12) |
-| F5 do host logo depois de o jogo ser atualizado (estado salvo pela versão anterior): o estado é migrado e a partida continua de onde estava (pergunta aberta, pausa, rodada encerrada); recursos, área foco e ranking final dos jogadores e a assessoria da rodada (pendente é cancelada; sugestão ou recusa continuam) chegam iguais | 🤖 T78, T79, T81, T82, T84, T85, T125 | — |
-| Host não volta: backup assume em ~10s, não antes | 🤖 T39, T40 · 🌐 E2 | 👤 |
-| Backup desconectado é pulado, o próximo assume | 🤖 T10 | — |
-| Novo host marca os outros como desconectados, pausa e retoma | 🤖 T17, T21, T21b | 👤 |
-| Todos recebem quem já respondeu na rodada (resposta, nova dupla, reconexão) | 🤖 T49 | — |
-| Troca de host com a rodada encerrada: continua encerrada, nada começa sozinho | 🤖 T35, T50 · 🌐 E5 | 👤 |
-| Troca de host no meio da rodada: quem ia responder não perde a vez; ninguém responde duas vezes | 🤖 T50, T51 · 🌐 E4 | — (coberto por E4) |
-| Novo host confere o token pelos hashes da lista | 🤖 T26 | — |
-| Troca de host no lobby: os outros voltam como jogadores novos; host antigo pelo link antigo vira jogador comum | 🤖 T18 · 🌐 E14 | — (coberto por E14) |
-| Duas trocas de host seguidas: sala em `-h2`, achada pela tela inicial e pelo link antigo do host de `-h1` | 🌐 E15 | — (coberto por E15) |
-| Host antigo volta como jogador comum, com o KPI dele | 🤖 T41, T43 · 🌐 E5 (link antigo), E3 (tela inicial) | 👤 (pela tela inicial) |
-| Quem assumiu fica com `host=true` na URL (F5 continua host) | 🤖 T42 · 🌐 E2 | — (coberto por E2) |
-| Guest acha o host em qualquer versão (`-h1`, `-h2`...) | 🤖 T44, T45 | 👤 (versão 0 e -h1) |
-| Assumir como host sem o erro "cannot reconnect" | 🤖 T46 | 👤 |
-| Erros do PeerJS depois de aberto não derrubam o peer | 🤖 T19, T20 | — |
-| Todo peer usa a configuração única (`CONFIG.PEER`) | 🤖 T36, T37 | — |
+| F5 do host logo depois de o jogo ser atualizado (estado salvo pela versão anterior): o estado é migrado e a partida continua de onde estava (pergunta aberta, pausa, rodada encerrada); recursos, área foco e ranking final dos jogadores e a assessoria da rodada (pendente é cancelada; sugestão ou recusa continuam) chegam iguais; os campos da conexão antiga saem | 🤖 T78, T79, T81, T82, T84, T85, T125, T178 | — |
+| Todos recebem quem já respondeu na rodada (resposta, nova dupla, volta) | 🤖 T49 | — |
+| Sair da sala: o guest para de ouvir; o host apaga a sala | 🤖 T174 | — |
 
 ### Fim de partida e lobby
 | Caso | Testes | Manual |
@@ -157,46 +148,44 @@ com sintoma, causa e correção.
 ## 4. Falta testar manualmente
 
 Cada teste com navegadores **diferentes** (não duas abas do mesmo
-navegador — elas compartilham o estado salvo e o token) e com as
-janelas visíveis lado a lado (aba em segundo plano fica mais lenta).
+navegador — elas compartilham o estado salvo e o login, e a segunda aba
+não entra na sala) e com as janelas visíveis lado a lado (aba em segundo
+plano fica mais lenta).
 
 | # | Prioridade | Caso | Como testar | Esperado |
 |---|---|---|---|---|
-| M1 | ✅ 🌐 E1 | F5 do host no meio de uma pergunta | Host dá F5 com a pergunta aberta | Guests reconectam em poucos segundos, sem troca de host; a partida segue |
-| M2 | ✅ 🌐 E9 | F5 do host com "rodada encerrada" | Host dá F5 esperando o "Nova Rodada" | Continua "Rodada encerrada" para todos, esperando o clique (B3 corrigido na D3f) |
-| M3 | ✅ 🌐 E2 | F5 do novo host depois da troca | Depois que o guest assumiu, ele dá F5 | Volta como host na mesma sala; os outros reconectam |
-| M4 | ✅ 🌐 E5 | Host antigo reabre o **link antigo** da partida (não a tela inicial), em até 5 min | Fechar a aba do host, esperar a troca, reabrir pelo histórico | Entra como jogador comum; URL passa a `host=false` |
-| M5 | ✅ 🌐 E4 | Troca de host com 3 jogadores | Host fecha a aba | O backup assume e o terceiro jogador acha o novo host sozinho |
+| M1 | ✅ 🌐 E1 | F5 do host no meio de uma pergunta | Host dá F5 com a pergunta aberta | Guests continuam ligados, sem troca de host; a partida segue |
+| M2 | ✅ 🌐 E9 | F5 do host com "rodada encerrada" | Host dá F5 esperando o "Nova Rodada" | Continua "Rodada encerrada" para todos, esperando o clique |
 | M6 | ✅ 🌐 E6 | Guest cai e volta | Guest dá F5 no meio da própria pergunta; outro guest fecha e volta pela tela inicial | Voltam ao próprio lugar, com KPI; rodada tratada como nos testes T5/T34 |
-| M7 | **P1** | Queda de rede real (não fechar aba) | Roteiro M7 de `manual-test-scripts.md` (queda curta e longa de guest, do backup e do host) | Guest: volta sozinho ou ao recarregar. Host: troca de host depois de perceber a queda (mais lento que fechar a aba) |
-| M8 | **P1** | Celular com tela bloqueada / navegador em segundo plano | Roteiro M8 de `manual-test-scripts.md` (tela bloqueada, outro app na frente) | Ao desbloquear, volta à partida (ou ao recarregar) |
-| M9 | **P1** | Redes diferentes | Roteiro M9 de `manual-test-scripts.md` (todos na rede da instituição; host na instituição e guest no 4G) | Conecta. **Risco:** redes corporativas/universitárias podem bloquear a conexão direta entre navegadores sem um servidor de retransmissão (TURN) |
+| M7 | **P1** | Queda de rede real (não fechar aba) | Roteiro novo sobre o Firebase na etapa 4 do roadmap 2.9 (o de `manual-test-scripts.md` é da conexão antiga) | Guest: volta sozinho quando a rede volta. Host: os outros veem "Host desconectado" e a sala espera |
+| M8 | **P1** | Celular com tela bloqueada / navegador em segundo plano | Roteiro novo sobre o Firebase na etapa 4 do roadmap 2.9 | Ao desbloquear, volta à partida |
+| M9 | — | Redes diferentes (conexão direta entre navegadores) | — | Sem efeito com o Firebase (não há conexão direta); a rede de cada lugar é conferida pelo M21. Como fechar a Fase D se decide na fase do Firebase |
 | M10 | ✅ 🌐 E8 | Nova partida depois de "saiu da partida" | 2 jogadores; guest sai; host volta ao lobby e inicia outra | Conferido em 30/09/2026 |
-| M11 | ✅ 🌐 E15 | Duas trocas de host seguidas | 3 jogadores: host sai; depois o novo host sai | Sala vai para `-h2`; entrar pela tela inicial com o código funciona |
-| M12 | ✅ 🌐 E14 | Troca de host no lobby | Host fecha a aba antes de iniciar | Backup assume; os outros voltam como jogadores novos |
-| M13 | ✅ 🌐 E17 | Host sai com a partida pausada | Guest cai (a partida pausa), depois o host fecha a aba e a reabre | Continua pausada com o mesmo evento e retoma quando o guest volta. Obs.: a partida só pausa quando o host é o único conectado, então não sobra ninguém para assumir — o caso real é o host voltar em até 5 min (M16) |
-| M14 | ✅ 🌐 E13 | Criar sala com código em uso | Código de sala aberta e de sala migrada | "Já está em uso", em até ~2s (no teste, até 3s) |
+| M13 | ✅ 🌐 E17 | Host sai com a partida pausada | Guest cai (a partida pausa), depois o host fecha a aba e a reabre | Continua pausada com o mesmo evento e retoma quando o guest volta |
+| M14 | ✅ 🌐 E13 | Criar sala com código em uso | Código de sala aberta | "Já está em uso", em até 3s |
 | M15 | ✅ 🌐 E16 | Sala cheia (6 jogadores) | 6 navegadores/dispositivos; 1 cai e volta | Volta ao lugar; 7º nome é recusado |
 | M16 | ✅ 🌐 E17, E18 | Reusar o código depois que todos saem | Todos fecham; reabrir em 1 min e depois de 5 min | Até 5 min restaura a partida; depois, lobby novo |
 | M17 | P2 | Navegadores | Chrome, Edge (inclusive InPrivate), Firefox, Safari no iPhone | Mesmo comportamento |
 | M18 | P2 | Aba em segundo plano por muito tempo | Deixar a aba escondida 10 min | Ao voltar, o jogo se recupera (pode precisar de F5) |
-| M19 | ✅ 👤 🌐 E5 | Troca de host com a rodada encerrada | Todos respondem; com "Rodada encerrada" na tela, o host fecha a aba | O novo host vê "Rodada encerrada" com o "Nova Rodada" liberado; quando os outros voltam, nada começa sozinho |
-| M20 | ✅ 🌐 E4 | Troca de host no meio da rodada | 3 jogadores; o host fecha a aba no meio de uma pergunta que não é do novo host | A partida pausa e, quando alguém volta, continua com quem ainda não respondeu; ninguém responde duas vezes na mesma rodada |
-| M21 | **P1** (roadmap 2.9) | Teste de conexão pelo Firebase em redes reais | Roteiro M21 de `manual-test-scripts.md` (em casa: computador no Wi-Fi e celular nos dados móveis; na instituição: celular no 5G e computador na rede dela), na página `firebase-check.html` | Cria, entra, troca mensagens (com o tempo de ida e volta), volta sozinho depois do F5 e do modo avião. Decide se o roadmap 2.9 segue (lógica coberta por 🤖 T143–T153 e 🌐 E24, E25). **Em casa ✅ 👤 (17/10/2026, computador no Wi-Fi e celular no 4G):** todos os passos; ida e volta de 382–434 ms; volta em 1–2 s depois do modo avião e na hora depois da tela bloqueada. O servidor tira da lista quem cai sem aviso em ~2 min (modo avião) e em menos de 1 min (tela bloqueada). **Falta a parte na instituição.** |
+| M21 | **P1** (roadmap 2.9) | Teste de conexão pelo Firebase em redes reais | Roteiro M21 de `manual-test-scripts.md` (em casa: computador no Wi-Fi e celular nos dados móveis; na instituição: celular no 5G e computador na rede dela), na página `firebase-check.html` | Cria, entra, troca mensagens (com o tempo de ida e volta), volta sozinho depois do F5 e do modo avião (lógica coberta por 🤖 T143–T153 e 🌐 E24, E25). **Em casa ✅ 👤 (17/10/2026, computador no Wi-Fi e celular no 4G):** todos os passos; ida e volta de 382–434 ms; volta em 1–2 s depois do modo avião e na hora depois da tela bloqueada. O servidor tira da lista quem cai sem aviso em ~2 min (modo avião) e em menos de 1 min (tela bloqueada). **Falta a parte na instituição.** |
+
+Os manuais da troca de host (M3, M4, M5, M11, M12, M19, M20) ficam
+suspensos até a etapa 3 do roadmap 2.9, que traz a troca de host pelo
+banco.
 
 ---
 
 ## 5. Limitações conhecidas (aceitas por ora)
 
+- ⚠️ Sem troca de host até a etapa 3 do roadmap 2.9: se o host cai de vez, a sala espera por ele.
+- ⚠️ Sinal de vida mínimo até a etapa 3: o host vê a queda quando o servidor do Firebase percebe a conexão fechada — na hora quando a aba fecha; até ~2 min numa queda de rede sem aviso. Uma queda percebida tarde pode marcar como desconectado quem já voltou (até a próxima queda e volta dele).
+- ⚠️ A última atividade da sala (`meta/lastActivity`) só passa a andar com o estado no banco (etapa 2): até lá, uma sala com mais de 2 h desde a criação conta como parada, e o código pode ser criado de novo por outra pessoa.
 - ⚠️ Nomes diferenciam maiúsculas: "vHost" e "Vhost" são jogadores diferentes — durante a partida, a grafia errada é recusada. Melhoria futura (roadmap 8.5).
-- ⚠️ Abas do mesmo navegador compartilham o token e o estado salvo; trocar de navegador, usar aba anônima ou limpar os dados no meio da partida perde a identidade (só volta no lobby).
-- ⚠️ Janela de menos de 1s em que o host antigo, recarregando exatamente enquanto o backup assume, pode reabrir a sala antiga (dois hosts).
-- ⚠️ A procura da sala olha até 5 trocas de host seguidas (`-h5`).
-- ⚠️ As respostas não são secretas: `data/questions.pt-BR.json` é público no site e quem reconecta recebe o baralho com o gabarito (quem assume como host precisa dele). Ocultar é melhoria futura (roadmap 4.4); por ora, vale a regra da aula.
-- ⚠️ Depois de 5 tentativas sem achar o novo host, o guest desiste (precisa recarregar). Essas tentativas (`attemptReconnectToNewHost()`) procuram só a versão seguinte da sala e não recriam a conexão local com o servidor de sinalização, se ela tiver caído.
+- ⚠️ Abas do mesmo navegador compartilham o login (uid) e o estado salvo: a segunda aba com a mesma sala não entra. Trocar de navegador, usar aba anônima ou limpar os dados no meio da partida perde a identidade (só volta no lobby).
+- ⚠️ As respostas não são secretas: `data/questions.pt-BR.json` é público no site e quem volta recebe o baralho com o gabarito. Ocultar é melhoria futura (roadmap 4.4); por ora, vale a regra da aula.
 - ⚠️ A lista "Em jogo" da tela de espera do lobby (`showLobbyWaitingView`) não mostra os jogadores desconectados.
-- ⚠️ Ao criar sala, a tela inicial testa o código conectando ao ID base; se a partida daquele código migrou, o novo host registra essa conexão de teste (e a saída dela) como se fosse o host antigo. Inofensivo.
-- ⚠️ Diferença de ~1s entre o relógio do host e o dos guests que reconectam.
+- ⚠️ Diferença de ~1s entre o relógio do host e o dos guests que voltam.
+- ⚠️ Dependem da internet dos domínios do Google (`gstatic.com`, `firebaseio.com`) e do limite de 100 aparelhos ao mesmo tempo do plano gratuito do Firebase.
 - ⚠️ **Em investigação:** travamentos do Edge no Windows (uma vez travou o computador inteiro; outra, ~5s ao criar sala). Reproduzindo o mesmo cenário no Chromium (mesmo motor do Edge), a página não travou: nenhuma tarefa acima de 100 ms, e memória e elementos da página estáveis durante a partida. Falta medir no próprio Edge (Gerenciador de Tarefas do navegador, Shift+Esc) e comparar com o Chrome na mesma máquina.
 
 ---
@@ -204,27 +193,22 @@ janelas visíveis lado a lado (aba em segundo plano fica mais lenta).
 ## 6. Testes de ponta a ponta (`tests/browser`)
 
 O jogo de verdade, em janelas separadas do Chromium (cada uma com
-armazenamento e token próprios, como navegadores diferentes), com um
-servidor PeerJS e o site servidos localmente dentro do GitHub Actions —
-sem depender da internet nem do servidor público. Os arquivos do jogo
-não mudam: o teste só aponta o PeerJS para o servidor local.
+armazenamento e login próprios, como navegadores diferentes), com o site
+e o emulador do Firebase (login e banco, com as regras de
+`database.rules.json`) locais, dentro do GitHub Actions. Só os arquivos
+do Firebase (gstatic.com) vêm da internet. Os arquivos do jogo não mudam:
+o teste só aponta o Firebase para o emulador.
 
 | # | Cenário | Cobre |
 |---|---|---|
-| E1 | F5 do host no meio da pergunta: o outro reconecta ao mesmo host, sem troca de host; a rodada vai até o fim | M1 |
-| E2 | Host fecha a aba: outro assume em ~10s (não antes de 7s); URL `host=true`; F5 do novo host continua host | M3 |
-| E3 | Host antigo volta pela tela inicial digitando o código: acha a sala em `-h1` e entra como jogador comum, com o KPI dele | — |
-| E4 | 3 jogadores, host sai no meio da pergunta de um guest (com alguém já tendo respondido): o terceiro acha o novo host; ninguém responde duas vezes; quem ia responder não perde a vez | M5, M20 |
-| E5 | Troca de host com a rodada encerrada: continua encerrada; host antigo volta pelo link antigo como jogador comum; nada começa até o "Nova Rodada" | M4, M19 |
+| E1 | F5 do host no meio da pergunta: o outro continua ligado ao mesmo host, sem troca de host; a rodada vai até o fim | M1 |
 | E6 | Jogador dá F5; outro fecha e volta pela tela inicial; nome novo é recusado; a rodada vai até o fim | M6 |
 | E8 | Jogador sai da partida, ela acaba; voltar ao lobby e iniciar outra | M10 |
 | E9 | F5 do host com a rodada encerrada: continua encerrada para os dois, "Nova Rodada" liberado, nada começa sozinho | M2, B3 |
 | E10 | F5 do host logo depois de responder: a partida segue (próxima dupla ou fim da rodada) e a rodada seguinte começa | B4 |
 | E11 | F5 do host com a partida pausada: continua pausada com o mesmo evento, sem mostrar outro; retoma quando o outro volta | B5 |
 | E12 | 3 jogadores; um guest pede assessoria, o assessor não responde e o host dá F5: o guest volta com os botões e o "Pedir Assessoria" liberados, responde e a partida segue | BUG-019 |
-| E13 | Criar sala pela tela inicial com o código de uma sala aberta e, depois da troca de host, de uma sala migrada: "já está em uso" em até 3s, sem derrubar ninguém; código livre chega a "Sala criada" | M14 |
-| E14 | Host fecha a aba no lobby: outro assume em `-h1` e fica só com quem voltou; o terceiro entra como jogador novo; o host antigo reabre o link antigo e vira jogador comum; a partida começa com os três | M12 |
-| E15 | Duas trocas de host seguidas (sala em `-h2`): o primeiro host volta pela tela inicial, com o KPI dele; o host de `-h1` reabre o link dele e vira jogador comum; a partida retoma | M11 |
+| E13 | Criar sala pela tela inicial com o código de uma sala aberta: "já está em uso" em até 3s, sem derrubar ninguém; código livre chega a "Sala criada" | M14 |
 | E16 | 6 jogadores: o 7º é recusado no lobby ("Sala cheia"); com a partida em andamento, um cai e volta ao próprio lugar | M15 |
 | E17 | Guest sai (pausa), depois o host; o host reabre: continua pausada com o mesmo evento, sem mostrar outro; retoma quando o guest volta | M13, M16 (até 5 min) |
 | E18 | Todos saem e voltam depois de 5 min: lobby novo, quem volta entra como jogador novo e uma partida nova começa | M16 (depois de 5 min) |
@@ -233,26 +217,19 @@ não mudam: o teste só aponta o PeerJS para o servidor local.
 | E21 | Celular baixo (375×480) com a pergunta aberta: a janela de resposta cabe na tela e rola até a última alternativa | BUG-026 (layout) |
 | E22 | Celular (375 px) no fim de partida: o detalhe de cada jogador no ranking fica abaixo do nome | BUG-027 (layout) |
 | E23 | Quem responde vê o aviso de quem vai perguntar, sem a janela de resposta; o Perguntador clica em "Fazer a pergunta" e a janela abre com o prazo inteiro | — (etapa "Fazer a pergunta") |
-| E24 | Página de teste de conexão, com o emulador do Firebase: sala inexistente recusada; criar, entrar, mensagem de teste com eco e tempo; F5 volta sozinho à sala; quem fecha a aba sai da lista | M21 (a parte que não depende da rede real) |
+| E24 | Página de teste de conexão: sala inexistente recusada; criar, entrar, mensagem de teste com eco e tempo; F5 volta sozinho à sala; quem fecha a aba sai da lista | M21 (a parte que não depende da rede real) |
 | E25 | Regras do banco no emulador: sem login não lê; fora da sala, sala de outro, aparelho de outro, mensagem em nome de outro e conteúdo grande demais são recusados; ler a sala e gravar o próprio aparelho e a própria mensagem passam | — (segurança do banco) |
-| E26 | Regras do banco para as salas do jogo (`rooms/`), no emulador: o host grava tudo; quem foi aceito lê o estado público e o próprio, nunca o secreto, e não grava o que é do host; quem não foi aceito só lê a sala, a própria caixa de avisos e manda pedido em nome próprio; presença: cada um grava só a própria (estando no roster ou sendo o host), o host lê todas e quem foi aceito só a do host; sala parada há 2 h pode ser criada de novo por outro, e o host antigo perde o acesso | — (segurança do banco; lógica do canal em 🤖 T154–T166) |
-
-Os cenários E24, E25 e E26 usam o emulador do Firebase, também local; só os
-arquivos do Firebase (gstatic.com) vêm da internet.
-
-Queda de rede (M7) não entrou: a simulação de "sem rede" do navegador
-não derruba a conexão direta entre janelas na mesma máquina (conferido —
-as mensagens continuaram chegando), então o cenário não testaria nada.
-Continua manual.
+| E26 | Regras do banco para as salas do jogo (`rooms/`): o host grava tudo; quem foi aceito lê o estado público e o próprio, nunca o secreto, e não grava o que é do host; quem não foi aceito só lê a sala, a própria caixa de avisos e manda pedido em nome próprio; presença: cada um grava só a própria (estando no roster ou sendo o host), o host lê todas e quem foi aceito só a do host; sala parada há 2 h pode ser criada de novo por outro, e o host antigo perde o acesso | — (segurança do banco; lógica do canal em 🤖 T154–T166) |
+| E27 | Outro navegador com o nome de quem caiu é recusado e a vaga continua reservada; o dono volta ao lugar pelo mesmo navegador, com KPI e recursos | — |
 
 No E18, os 5 minutos não são esperados de verdade (cada cenário tem
 limite de 2 minutos): antes de reabrir, o teste muda a hora gravada no
 estado salvo de cada navegador para 6 minutos atrás — o mesmo dado que
 o jogo usa para decidir se restaura.
 
-**Continuam manuais:** M7 (queda de rede real), M8 (celular), M9 (redes
-reais diferentes) — roteiros em `manual-test-scripts.md` —, M17 (Firefox, Safari) e M18
-(aba esquecida em segundo plano).
+**Continuam manuais:** M7 (queda de rede real), M8 (celular), M21 (redes
+reais), M17 (Firefox, Safari) e M18 (aba esquecida em segundo plano).
 
-Rodar localmente (precisa de Node): `npm ci`, `npx playwright install
-chromium` e `npx playwright test --config tests/browser/playwright.config.js`.
+Rodar localmente (precisa de Node e de Java 21 para o emulador): `npm ci`,
+`npx playwright install chromium`, `npm install -g firebase-tools@15.32.1`
+e `npx playwright test --config tests/browser/playwright.config.js`.

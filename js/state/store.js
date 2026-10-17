@@ -14,11 +14,7 @@ const gameState = {
     isHost: false,
     roomName: '',
     playerName: '',
-    peerId: '',
-    hostPeerId: '',
-    backupPeerId: '',
-    baseRoomPeerId: '',          // ID base da sala (nunca muda)
-    hostVersion: 0,              // Número de migrações de host
+    peerId: '',                  // uid deste aparelho (login anônimo)
     players: [],
     currentRound: null,
     decks: {},
@@ -39,8 +35,6 @@ const gameState = {
 // ============================================
 window.Game = window.Game || {};
 window.Game.state = gameState;
-// Game.computeHostPeerId (ID do host em cada versão de migração) fica em
-// network/hostSearch.js — a tela inicial também usa.
 
 // --- Atalhos (ver nota no topo do arquivo) ---
 window.Game.getFocusAreaById = (id) => Game.selectors.getFocusAreaById(CONFIG.FOCUS_AREAS, id);

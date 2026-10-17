@@ -11,13 +11,12 @@ const ROOM_STATE_KEY = 'pmKPI_roomState';
 const MY_DATA_KEY = 'pmKPI_myData';
 const RESTORE_WINDOW_MS = 5 * 60 * 1000;
 
-// Roadmap 3.1: versão do formato do estado salvo (campo stateVersion —
-// não confundir com hostVersion, que conta as trocas de host). Ao mudar
+// Roadmap 3.1: versão do formato do estado salvo (campo stateVersion). Ao mudar
 // o formato (ex.: renomear um campo), aumentar a versão e acrescentar
 // em STATE_MIGRATIONS o passo que converte da versão anterior. Estado
 // salvo sem versão (antes do 3.1) é a versão 1. O número vale para as
 // duas chaves (são sempre gravadas juntas).
-const STATE_VERSION = 7;
+const STATE_VERSION = 8;
 
 /**
  * Cópia de `obj` com os campos renomeados conforme `names`
@@ -171,6 +170,24 @@ function addSupportKind(roomState, myData) {
     return { roomState: room, myData };
 }
 
+/**
+ * Versão 7 → 8: saem os campos da conexão pelo PeerJS — os IDs do host,
+ * do backup e da sala, o número da troca de host e o hash do token de
+ * cada jogador (a identidade passou a ser o uid do aparelho, no
+ * `peerId`). O resto, inclusive o ranking final e pmKPI_myData, não muda.
+ */
+function removePeerConnectionFields(roomState, myData) {
+    const { hostPeerId, backupPeerId, baseRoomPeerId, hostVersion, ...room } = roomState;
+    if (Array.isArray(room.players)) {
+        room.players = room.players.map(p => {
+            if (!p || typeof p !== 'object') return p;
+            const { tokenHash, ...player } = p;
+            return player;
+        });
+    }
+    return { roomState: room, myData };
+}
+
 // Passo N: converte da versão N para N+1. Recebe (roomState, myData) e
 // devolve { roomState, myData }.
 const STATE_MIGRATIONS = {
@@ -179,7 +196,8 @@ const STATE_MIGRATIONS = {
     3: migrateAdvisoryFieldsToEnglish,
     4: migrateEventFieldsToEnglish,
     5: migrateFocusAreaIdsToEnglish,
-    6: addSupportKind
+    6: addSupportKind,
+    7: removePeerConnectionFields
 };
 
 /**
@@ -209,10 +227,6 @@ function saveState() {
     const state = Game.state;
     localStorage.setItem(ROOM_STATE_KEY, JSON.stringify({
         stateVersion: STATE_VERSION,
-        hostPeerId: state.hostPeerId,
-        backupPeerId: state.backupPeerId,
-        baseRoomPeerId: state.baseRoomPeerId,
-        hostVersion: state.hostVersion,
         roomName: state.roomName,
         players: state.players,
         currentRound: state.currentRound,
@@ -278,13 +292,8 @@ function tryRestoreState() {
         const currentParams = new URLSearchParams(window.location.search);
         const currentRoom = currentParams.get('room') || 'Sala';
         const currentPlayer = currentParams.get('playerName') || 'Jogador';
-        const currentBasePeerId = currentParams.get('peerId') || '';
 
-        const savedBasePeerId = saved.baseRoomPeerId || saved.hostPeerId || '';
-
-        if (saved.roomName !== currentRoom ||
-            savedBasePeerId !== currentBasePeerId ||
-            myData.playerName !== currentPlayer) {
+        if (saved.roomName !== currentRoom || myData.playerName !== currentPlayer) {
             console.log('💾 Estado salvo pertence a outra sala/jogador. Ignorando.');
             return false;
         }
@@ -298,10 +307,6 @@ function tryRestoreState() {
 
         console.log('💾 Estado restaurado do localStorage');
 
-        Game.state.hostPeerId = saved.hostPeerId;
-        Game.state.backupPeerId = saved.backupPeerId;
-        Game.state.baseRoomPeerId = saved.baseRoomPeerId || saved.hostPeerId;
-        Game.state.hostVersion = saved.hostVersion || 0;
         Game.state.roomName = saved.roomName;
         Game.state.players = saved.players || [];
         Game.state.timer = saved.timer ?? CONFIG.GAME.SESSION_DURATION;

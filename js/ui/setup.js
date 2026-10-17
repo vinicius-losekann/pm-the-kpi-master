@@ -13,8 +13,8 @@
 let commonListenersBound = false;
 
 /**
- * Configura a UI. É chamada uma vez na inicialização e novamente
- * quando um guest se torna host (para ativar controles de host).
+ * Configura a UI. É chamada na inicialização, depois de a sala abrir
+ * (o papel vem do banco).
  */
 function setupUI() {
     const state = Game.state;
@@ -23,7 +23,7 @@ function setupUI() {
         document.getElementById('hostControls').style.display = 'block';
         document.getElementById('playerWaiting').style.display = 'none';
         document.getElementById('hostRoomIdSection').style.display = 'block';
-        document.getElementById('roomPeerId').textContent = state.peerId;
+        document.getElementById('roomPeerId').textContent = state.roomName;
         document.getElementById('btnEndSession').style.display = 'inline-block';
         document.getElementById('btnEndMatch').style.display = 'block';
         document.getElementById('btnNewRound').style.display = 'block';
@@ -31,10 +31,7 @@ function setupUI() {
         document.getElementById('btnLeaveSession').style.display = 'none';
         document.getElementById('btnLeaveMatch').style.display = 'none';
 
-        // A entrada do host também leva o hash do token de
-        // identidade dele (ver utils/identity.js), para a lista ficar
-        // uniforme. Um guest que vira host (becomeHost()) não passa por
-        // aqui — a entrada dele já existe, com o hash de quando entrou.
+        // Depois de um F5, a entrada do host já veio do estado salvo.
         if (!state.players.find(p => p.isHost)) {
             state.players.unshift({
                 name: state.playerName,
@@ -44,8 +41,7 @@ function setupUI() {
                 activities: 0,
                 isHost: true,
                 waitingInLobby: false,
-                resources: CONFIG.STARTING_RESOURCES,
-                tokenHash: Game.identity.myTokenHash(state.baseRoomPeerId)
+                resources: CONFIG.STARTING_RESOURCES
             });
         }
         Game.ui.updatePlayersList();
@@ -65,8 +61,7 @@ function setupUI() {
     Game.ui.bindControls();
 
     // Recalcula o estado real do botão "Nova Rodada" (ciclo completo ou
-    // não) — cobre tanto a inicialização normal quanto becomeHost()
-    // (guest assumindo como host no meio de uma partida em andamento).
+    // não) — inclusive depois de um F5 do host no meio da partida.
     Game.ui.refreshNewRoundButton();
 
     if (commonListenersBound) return;

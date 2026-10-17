@@ -44,8 +44,7 @@ function startGame() {
  * Usada também quando um guest volta para uma partida em andamento
  * (restoreState(), em network/messageHandler.js) — sem ela, o relógio
  * de quem volta só andaria de 10 em 10 segundos, a cada
- * 'timer-update' — e por quem assume como host (becomeHost(), em
- * network/hostMigration.js).
+ * 'timer-update'.
  */
 function startClock() {
     const state = Game.state;
@@ -80,8 +79,7 @@ function startClock() {
  *     o setTimeout de answerEngine.handleAnswer() se perde com a página)
  *     → encerra a partida, se essa resposta completou a última área foco,
  *     ou segue com nextTurn() (próxima dupla ou fim da rodada). "Já
- *     respondida" = `answered` ou o Respondedor já no rodízio, o mesmo
- *     critério de becomeHost() (network/hostMigration.js);
+ *     respondida" = `answered` ou o Respondedor já no rodízio;
  *   - pergunta em aberto → reexibe a mesma pergunta (ou, com o host fora
  *     da dupla, a tela de espectador) e rearma o prazo de resposta — ou,
  *     com a pergunta ainda por fazer, o prazo do Perguntador; a
