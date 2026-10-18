@@ -130,6 +130,11 @@ async function uidOf(player) {
     return player.page.evaluate(() => firebase.auth().currentUser.uid);
 }
 
+/** Valor de um caminho do banco, lido pela página do jogador (com o login dele). */
+async function valueAt(player, path) {
+    return player.page.evaluate(async (p) => (await firebase.database().ref(p).once('value')).val(), path);
+}
+
 /**
  * Tenta cada operação no banco, pela página do jogador (com o login
  * dele), e diz se as regras deixaram ('allowed') ou recusaram
@@ -169,7 +174,7 @@ async function attemptAll(player, steps) {
     }, steps);
 }
 
-test('E26 Regras do banco para as salas do jogo (rooms/), no emulador: o host cria e grava tudo; quem foi aceito lê o público e o próprio, nunca o secreto; quem não foi aceito só lê a sala, a própria inbox e manda pedido em nome próprio; presença: cada um grava só a própria (no roster ou host), com online e lastSeen = hora do servidor (sem lastSeen ou com hora inventada é recusada; o offline deixado com o servidor vale, com a hora da queda), o host lê todas e quem foi aceito só a do host; sala parada há 2 h pode ser criada de novo por outro', async ({ players }) => {
+test('E26 Regras do banco para as salas do jogo (rooms/), no emulador: o host cria e grava tudo; quem foi aceito lê o público e o próprio, nunca o secreto; quem não foi aceito só lê a sala, a própria inbox e manda pedido em nome próprio; presença: cada um grava só a própria (no roster ou host), com online e lastSeen = hora do servidor (sem lastSeen ou com hora inventada é recusada; o offline deixado com o servidor vale, com a hora da queda), o host lê todas e quem foi aceito só a do host; troca de host: só por quem está no roster, com hostEpoch + 1, a mesma versão e criação e o sinal do host parado há mais de 5 s (ou sem presença) — depois dela, o host novo lê o secreto e o antigo perde a escrita; sala parada há 2 h pode ser criada de novo por outro', async ({ players }) => {
     const room = 'rooms/' + roomCode();
     const ana = await players.add('Ana');
     const beto = await players.add('Beto');
@@ -240,6 +245,56 @@ test('E26 Regras do banco para as salas do jogo (rooms/), no emulador: o host cr
         otherPresence: 'denied', badPresence: 'denied', presenceWithoutLastSeen: 'denied', presenceWithMadeUpTime: 'denied',
         readOtherPresence: 'denied', readAllPresence: 'denied', offlineWhenGone: 'allowed'
     });
+
+    // Troca de host numa segunda sala: Ana é o host, Beto foi aceito, Caio não.
+    const room2 = 'rooms/' + roomCode();
+    expect(await attemptAll(ana, [
+        ['createRoom', 'set', room2 + '/meta', meta(anaUid)],
+        ['admitBeto', 'set', room2 + '/roster/' + betoUid, true],
+        ['ownPresence', 'set', room2 + '/presence/' + anaUid, signal(true)]
+    ]), 'o host da segunda sala').toEqual({ createRoom: 'allowed', admitBeto: 'allowed', ownPresence: 'allowed' });
+    const meta2 = await valueAt(beto, room2 + '/meta');
+    const takeover = (uid, changes = {}) => ({ ...meta2, hostUid: uid, hostEpoch: meta2.hostEpoch + 1, ...changes });
+
+    expect(await attemptAll(beto, [['hostAlive', 'set', room2 + '/meta', takeover(betoUid)]]), 'troca com o host vivo')
+        .toEqual({ hostAlive: 'denied' });
+    expect(await attemptAll(ana, [['offlineNow', 'set', room2 + '/presence/' + anaUid, signal(false)]]), 'o host fica offline agora')
+        .toEqual({ offlineNow: 'allowed' });
+    expect(await attemptAll(beto, [['hostJustGone', 'set', room2 + '/meta', takeover(betoUid)]]), 'troca com o sinal do host de menos de 5 s')
+        .toEqual({ hostJustGone: 'denied' });
+
+    // Passado o piso de 5 s sem sinal do host.
+    await ana.page.waitForTimeout(6000);
+    expect(await attemptAll(caio, [['outsideRoster', 'set', room2 + '/meta', takeover(caioUid)]]), 'troca por quem não está no roster (Caio)')
+        .toEqual({ outsideRoster: 'denied' });
+    expect(await attemptAll(beto, [
+        ['skipEpoch', 'set', room2 + '/meta', takeover(betoUid, { hostEpoch: meta2.hostEpoch + 2 })],
+        ['sameEpoch', 'set', room2 + '/meta', takeover(betoUid, { hostEpoch: meta2.hostEpoch })],
+        ['otherVersion', 'set', room2 + '/meta', takeover(betoUid, { protocolVersion: meta2.protocolVersion + 1 })],
+        ['otherCreatedAt', 'set', room2 + '/meta', takeover(betoUid, { createdAt: meta2.createdAt - 1 })],
+        ['someoneElse', 'set', room2 + '/meta', takeover(caioUid)],
+        ['takeOver', 'set', room2 + '/meta', takeover(betoUid)],
+        ['readSecret', 'read', room2 + '/secret'],
+        ['readPresence', 'read', room2 + '/presence']
+    ]), 'troca de host por quem foi aceito (Beto), com o host parado').toEqual({
+        skipEpoch: 'denied', sameEpoch: 'denied', otherVersion: 'denied', otherCreatedAt: 'denied', someoneElse: 'denied',
+        takeOver: 'allowed', readSecret: 'allowed', readPresence: 'allowed'
+    });
+    expect(await attemptAll(ana, [
+        ['writePublic', 'set', room2 + '/public/state', '{}'],
+        ['ownPresence', 'set', room2 + '/presence/' + anaUid, signal(true)],
+        ['takeBack', 'set', room2 + '/meta', { ...meta2, hostUid: anaUid, hostEpoch: meta2.hostEpoch + 2 }]
+    ]), 'o host antigo, depois da troca').toEqual({ writePublic: 'denied', ownPresence: 'denied', takeBack: 'denied' });
+
+    // Terceira sala: o host nunca gravou presença — a falta do sinal conta como sinal parado.
+    const room3 = 'rooms/' + roomCode();
+    expect(await attemptAll(ana, [
+        ['createRoom', 'set', room3 + '/meta', meta(anaUid)],
+        ['admitBeto', 'set', room3 + '/roster/' + betoUid, true]
+    ]), 'o host da terceira sala').toEqual({ createRoom: 'allowed', admitBeto: 'allowed' });
+    const meta3 = await valueAt(beto, room3 + '/meta');
+    expect(await attemptAll(beto, [['noHostPresence', 'set', room3 + '/meta', { ...meta3, hostUid: betoUid, hostEpoch: meta3.hostEpoch + 1 }]]),
+        'troca com o host sem presença').toEqual({ noHostPresence: 'allowed' });
 
     // Beto fecha a aba: o servidor grava o offline que ele deixou, com a hora da queda.
     const closedAt = await ana.page.evaluate(async () => {

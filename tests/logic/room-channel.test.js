@@ -8,8 +8,8 @@
 // (feed) e para um jogador (inbox), publicar e ler o estado (público,
 // secreto e o de cada jogador), limpar e sair; a presença, o cursor dos
 // avisos para todos e a volta da conexão; o sinal de vida (lastSeen) e a
-// tolerância de quem cai; e as regras do banco para rooms/
-// (database.rules.json).
+// tolerância de quem cai; a troca de host (transação no meta); e as
+// regras do banco para rooms/ (database.rules.json).
 // O banco é o Firebase simulado de fakeFirebase.js, com vários
 // aparelhos; as regras de verdade são conferidas no emulador (E26).
 // Rodar a partir da raiz:
@@ -120,7 +120,7 @@ function openDevice(fake, uid, clock, extra = {}) {
     vm.runInContext('var window = this;', ctx);
     const file = 'js/network/roomChannel.js';
     vm.runInContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), ctx, { filename: file });
-    const got = { requests: [], messages: [], states: [], hands: [], admitted: 0, dismissed: 0, presence: [], hostPresence: [], reconnected: 0 };
+    const got = { requests: [], messages: [], states: [], hands: [], admitted: 0, dismissed: 0, presence: [], hostPresence: [], reconnected: 0, hostChanged: [] };
     const channel = ctx.Game.network.roomChannel.create({
         db: device.db,
         uid,
@@ -136,6 +136,7 @@ function openDevice(fake, uid, clock, extra = {}) {
         onPresence: (who, online) => got.presence.push({ uid: who, online }),
         onHostPresence: (online) => got.hostPresence.push(online),
         onReconnected: () => got.reconnected++,
+        onHostChanged: (who, hostEpoch) => got.hostChanged.push({ uid: who, hostEpoch }),
         ...extra
     });
     return {
@@ -553,6 +554,40 @@ asyncTest('T161 Limpar e sair: limpar apaga só os avisos (feed e inbox); quem s
     check(host.device.listenerCount() === 0, 'o host deveria parar de ouvir');
 });
 
+/**
+ * Espia as transações do aparelho (a troca de host é uma transação no
+ * meta): `calls` guarda o caminho de cada uma. Com `rejectNext` > 0, a
+ * próxima é recusada (como as regras do banco recusariam); com `hold`,
+ * cada uma fica parada em `held` até o teste chamar a função guardada —
+ * assim duas tentativas ficam abertas ao mesmo tempo, como no banco real.
+ */
+function watchTransactions(d) {
+    const spy = { calls: [], rejectNext: 0, hold: false, held: [] };
+    const realRef = d.device.db.ref;
+    d.device.db.ref = (p) => {
+        const r = realRef(p);
+        const real = r.transaction;
+        r.transaction = (fn, ...rest) => {
+            spy.calls.push(String(p));
+            if (spy.rejectNext > 0) {
+                spy.rejectNext--;
+                return Promise.reject(new Error('PERMISSION_DENIED'));
+            }
+            if (spy.hold) return new Promise((resolve, reject) => spy.held.push(() => real(fn, ...rest).then(resolve, reject)));
+            return real(fn, ...rest);
+        };
+        return r;
+    };
+    return spy;
+}
+
+/** O host manda um sinal agora e congela (o sinal para; a conexão fica). */
+async function stopHostSignal(host) {
+    host.document.setVisibility('visible');
+    await flush();
+    host.frozen = true;
+}
+
 // ============================================
 // PRESENÇA, CURSOR DOS AVISOS E VOLTA DA CONEXÃO (etapa 1b-α)
 // ============================================
@@ -901,6 +936,9 @@ asyncTest('T188 Sinal de vida: o host e quem foi aceito gravam { online: true, l
 asyncTest('T189 Tolerância: para o host, quem está offline com o sinal recente continua presente e só cai com o sinal parado há mais de presenceTimeout — também com online: true (aba congelada), conferido sozinho, sem esperar mudança no banco — e volta com o sinal; para quem foi aceito, o host offline aparece na hora e o host com o sinal parado há mais de hostTimeout também; cada mudança é avisada uma vez', async () => {
     const { fake, clock, host, ana } = await roomWithGuest();
     const presenceOf = (who) => fake.read('rooms/sala01/presence/' + who);
+    // Aqui só a presença importa: toda tentativa de Ana de assumir a sala
+    // com o host parado é recusada (a troca de host está no T192–T195).
+    watchTransactions(ana).rejectNext = Infinity;
     await host.channel.admit('uid-ana');
     await flush();
     check(same(host.got.presence, [{ uid: 'uid-ana', online: true }]), 'pré-condição: o host vê Ana presente, veio: ' + JSON.stringify(host.got.presence));
@@ -1011,6 +1049,212 @@ asyncTest('T190 F5 dentro da tolerância não é queda: quem fecha a página e a
     await flush();
     check(host.got.presence.length === 3 && same(lastOf(host.got.presence), { uid: 'uid-ana', online: true }),
         'de volta, Ana deveria aparecer presente, veio: ' + JSON.stringify(host.got.presence));
+});
+
+// ============================================
+// TROCA DE HOST (etapa 3b)
+// ============================================
+
+asyncTest('T192 Troca de host — quem tenta: com o host vivo, ninguém; com o sinal do host parado, o guest aceito tenta por transação no meta só depois de hostTimeout (a opção, não um número fixo), com hostUid = ele, hostEpoch + 1 e o resto igual; a tentativa recusada se repete no segundo seguinte; não tenta quem não foi aceito, quem está sem conexão nem quem acabou de voltar dela; as regras têm o piso de 5 s e o HOST_TIMEOUT do config não fica abaixo dele', async () => {
+    const { fake, clock, host, ana, beto } = await roomWithTwoAdmitted();
+    const caio = openDevice(fake, 'uid-caio', clock);
+    await caio.channel.joinRoom('sala01', { protocolVersion: VERSION });
+    await flush();
+    const spies = { ana: watchTransactions(ana), beto: watchTransactions(beto), caio: watchTransactions(caio) };
+    const tries = () => ({ ana: spies.ana.calls.length, beto: spies.beto.calls.length, caio: spies.caio.calls.length });
+    const hostUidNow = () => fake.read('rooms/sala01/meta/hostUid');
+
+    await elapse(clock, TIMING.hostTimeout * 3);
+    check(same(tries(), { ana: 0, beto: 0, caio: 0 }), 'com o host vivo, ninguém deveria tentar assumir, veio: ' + JSON.stringify(tries()));
+
+    // Beto perde a conexão; o host congela logo depois de um sinal.
+    beto.device.goOffline();
+    await flush();
+    const metaBefore = fake.read('rooms/sala01/meta');
+    await stopHostSignal(host);
+    await elapse(clock, TIMING.hostTimeout - 1000);
+    check(spies.ana.calls.length === 0 && hostUidNow() === 'uid-host',
+        'com o sinal do host parado há menos de hostTimeout (' + TIMING.hostTimeout + ' ms), Ana não deveria tentar, tentou ' + spies.ana.calls.length + ' vez(es)');
+    spies.ana.rejectNext = 1;
+    await elapse(clock, 2000);
+    check(spies.ana.calls.length === 1 && spies.ana.calls[0] === 'rooms/sala01/meta' && hostUidNow() === 'uid-host',
+        'passado hostTimeout, Ana deveria tentar uma vez, por transação no meta (esta recusada pelas regras), veio: ' + JSON.stringify(spies.ana.calls));
+    await elapse(clock, 1000);
+    check(spies.ana.calls.length === 2 && same(fake.read('rooms/sala01/meta'), { ...metaBefore, hostUid: 'uid-ana', hostEpoch: metaBefore.hostEpoch + 1 }),
+        'a tentativa recusada deveria se repetir no segundo seguinte e passar, com hostUid = Ana, hostEpoch + 1 e o resto igual, veio: ' +
+        JSON.stringify(fake.read('rooms/sala01/meta')) + ' depois de ' + spies.ana.calls.length + ' tentativa(s)');
+    check(spies.caio.calls.length === 0 && spies.beto.calls.length === 0,
+        'quem não foi aceito (Caio) e quem está sem conexão (Beto) não deveriam tentar, veio: ' + JSON.stringify(tries()));
+
+    // Sem conexão e logo depois da volta dela, o sinal do host pode só não ter chegado: não tenta.
+    const room = await roomWithGuest();
+    await room.host.channel.admit('uid-ana');
+    await flush();
+    const spy = watchTransactions(room.ana);
+    room.ana.device.goOffline();
+    await flush();
+    await stopHostSignal(room.host);
+    await elapse(room.clock, TIMING.hostTimeout * 2);
+    check(spy.calls.length === 0, 'sem conexão, Ana não deveria tentar assumir, tentou ' + spy.calls.length + ' vez(es)');
+    room.ana.device.goOnline();
+    await flush();
+    await elapse(room.clock, 1000);
+    check(spy.calls.length === 0 && room.fake.read('rooms/sala01/meta/hostUid') === 'uid-host',
+        'logo depois da volta da conexão, Ana não deveria tentar, tentou ' + spy.calls.length + ' vez(es)');
+    await elapse(room.clock, 2 * TIMING.heartbeatInterval + 1000);
+    check(room.fake.read('rooms/sala01/meta/hostUid') === 'uid-ana',
+        'passada a carência da volta, com o host ainda parado, Ana deveria assumir, veio: ' + JSON.stringify(room.fake.read('rooms/sala01/meta')));
+
+    // Regras: o piso de 5 s pelo lastSeen do host antigo; o config não fica abaixo dele.
+    const rules = JSON.parse(fs.readFileSync(path.join(ROOT, 'database.rules.json'), 'utf8')).rules;
+    const metaWrite = (((rules.rooms || {}).$code || {}).meta || {})['.write'] || '';
+    check(/roster\/'\s*\+\s*auth\.uid/.test(metaWrite) && /hostEpoch'\)\.val\(\)\s*\+\s*1\b/.test(metaWrite) &&
+        /protocolVersion'\)\.val\(\)\s*===\s*data\.child\('protocolVersion'\)/.test(metaWrite) &&
+        /createdAt'\)\.val\(\)\s*===\s*data\.child\('createdAt'\)/.test(metaWrite) &&
+        /lastSeen/.test(metaWrite) && /now\s*-\s*5000\b/.test(metaWrite),
+        'a regra do meta deveria aceitar a troca só de quem está no roster, com hostEpoch + 1, a mesma versão e criação e o lastSeen do host antigo há mais de 5000 ms, veio: ' + metaWrite);
+    const configText = fs.readFileSync(path.join(ROOT, 'config/game-config.js'), 'utf8');
+    const hostTimeout = Number((configText.match(/HOST_TIMEOUT:\s*(\d+)/) || [])[1]);
+    check(hostTimeout >= 5000, 'o HOST_TIMEOUT do config não pode ficar abaixo do piso de 5000 ms das regras, veio: ' + hostTimeout);
+});
+
+asyncTest('T193 Troca de host — dois tentam ao mesmo tempo: só um grava, o hostEpoch sobe uma vez (2, não 3), quem perdeu desiste ao ver o meta trocado e não tenta mais; cada um tem uma tentativa aberta por vez', async () => {
+    const { fake, clock, host, ana, beto } = await roomWithTwoAdmitted();
+    const spyAna = watchTransactions(ana);
+    const spyBeto = watchTransactions(beto);
+    spyAna.hold = true;
+    spyBeto.hold = true;
+
+    await stopHostSignal(host);
+    await elapse(clock, TIMING.hostTimeout + 3000);
+    check(spyAna.calls.length === 1 && spyBeto.calls.length === 1,
+        'com a tentativa ainda aberta, cada um deveria ter uma só, veio: Ana ' + spyAna.calls.length + ', Beto ' + spyBeto.calls.length);
+    check(fake.read('rooms/sala01/meta/hostEpoch') === 1, 'pré-condição: nada gravado enquanto as tentativas estão abertas');
+
+    // O banco trata a da Ana primeiro; a do Beto chega com o meta já trocado.
+    spyAna.held.shift()();
+    await flush();
+    spyBeto.held.shift()();
+    await flush();
+    const meta = fake.read('rooms/sala01/meta');
+    check(meta.hostUid === 'uid-ana' && meta.hostEpoch === 2,
+        'só a primeira deveria valer: hostUid = Ana e hostEpoch 2 (quem chega depois desiste, sem subir para 3), veio: ' + JSON.stringify(meta));
+    check(!beto.device.writes.some(w => /\/meta$/.test(w.path)), 'Beto não deveria gravar o meta, gravou: ' + JSON.stringify(beto.device.writes.filter(w => /meta/.test(w.path))));
+
+    spyAna.hold = false;
+    spyBeto.hold = false;
+    await elapse(clock, TIMING.hostTimeout * 2);
+    check(spyAna.calls.length === 1 && spyBeto.calls.length === 1,
+        'depois da troca, ninguém deveria tentar de novo, veio: Ana ' + spyAna.calls.length + ', Beto ' + spyBeto.calls.length);
+    check(same(fake.read('rooms/sala01/meta'), meta), 'o meta não deveria mudar mais, veio: ' + JSON.stringify(fake.read('rooms/sala01/meta')));
+    const s = beto.channel.snapshot();
+    check(s.hostUid === 'uid-ana' && s.hostEpoch === 2, 'o canal do Beto deveria ter o host novo e o hostEpoch 2, veio: ' + JSON.stringify(s));
+});
+
+asyncTest('T194 Troca de host — todos ficam sabendo: onHostChanged(host novo, hostEpoch) uma vez para quem assumiu, o outro guest, quem não foi aceito, o host antigo parado e o host antigo que volta da queda de rede; publicar (só lastActivity muda) não avisa; quem fica como guest passa a ver o host novo; o host antigo deixa de ser host no canal: para o sinal, não recebe nem apaga os pedidos e não grava nada', async () => {
+    const { fake, clock, host, ana, beto } = await roomWithTwoAdmitted();
+    const caio = openDevice(fake, 'uid-caio', clock);
+    await caio.channel.joinRoom('sala01', { protocolVersion: VERSION });
+    await flush();
+    const all = { host, ana, beto, caio };
+
+    await elapse(clock, 1000);
+    await host.channel.publish({ publicState: { round: 1 } });
+    await flush();
+    const early = Object.keys(all).filter(k => all[k].got.hostChanged.length > 0);
+    check(early.length === 0, 'publicar (só o lastActivity muda) não deveria avisar troca de host, avisou: ' + early.join(', '));
+
+    await stopHostSignal(host);
+    await elapse(clock, TIMING.hostTimeout + 2000);
+    const winner = fake.read('rooms/sala01/meta/hostUid');
+    check(winner === 'uid-ana' || winner === 'uid-beto', 'pré-condição: um dos guests aceitos assumiu, veio: ' + winner);
+    const lost = winner === 'uid-ana' ? beto : ana;
+    await elapse(clock, TIMING.hostTimeout);
+    for (const name of Object.keys(all)) {
+        check(same(all[name].got.hostChanged, [{ uid: winner, hostEpoch: 2 }]),
+            name + ' deveria receber onHostChanged uma vez, com o host novo e o hostEpoch 2, veio: ' + JSON.stringify(all[name].got.hostChanged));
+    }
+    const s = lost.channel.snapshot();
+    check(s.hostUid === winner && s.hostEpoch === 2 && s.isHost === false, 'quem perdeu continua guest, com o host novo, veio: ' + JSON.stringify(s));
+    check(caio.channel.snapshot().hostUid === winner, 'quem não foi aceito também deveria passar ao host novo, veio: ' + JSON.stringify(caio.channel.snapshot()));
+    check(lastOf(lost.got.hostPresence) === true,
+        'quem fica como guest deveria passar a ver a presença do host novo (vivo), não a do antigo, veio: ' + JSON.stringify(lost.got.hostPresence));
+
+    // O host antigo descongela: não é mais host no canal.
+    const hs = host.channel.snapshot();
+    check(hs.isHost === false && hs.hostUid === winner && hs.hostEpoch === 2, 'o host antigo deveria deixar de ser host no canal, veio: ' + JSON.stringify(hs));
+    host.frozen = false;
+    const writesBefore = host.device.writes.length;
+    host.document.setVisibility('visible');
+    await elapse(clock, TIMING.heartbeatInterval * 2);
+    await host.channel.publish({ publicState: { stale: true } });
+    await host.channel.broadcast({ type: 'stale' });
+    await flush();
+    check(host.device.writes.length === writesBefore,
+        'o host antigo não deveria gravar mais nada (sinal, publicação, aviso), gravou: ' + JSON.stringify(host.device.writes.slice(writesBefore)));
+    await lost.channel.sendToHost({ type: 'answer', alternative: 'a' });
+    await flush();
+    check(host.got.requests.length === 0 && Object.keys(fake.read('rooms/sala01/requests') || {}).length === 1,
+        'o pedido mandado depois da troca não deveria chegar ao host antigo e deveria esperar no banco pelo host novo, veio: ' +
+        JSON.stringify(host.got.requests) + ' / ' + JSON.stringify(fake.read('rooms/sala01/requests')));
+
+    // O host antigo que estava sem conexão fica sabendo quando ela volta.
+    const room = await roomWithGuest();
+    await room.host.channel.admit('uid-ana');
+    await flush();
+    room.host.device.goOffline();
+    await flush();
+    await elapse(room.clock, TIMING.hostTimeout + 2000);
+    check(room.fake.read('rooms/sala01/meta/hostUid') === 'uid-ana', 'pré-condição: Ana assumiu com o host sem conexão, veio: ' + JSON.stringify(room.fake.read('rooms/sala01/meta')));
+    room.host.device.goOnline();
+    await flush();
+    check(same(room.host.got.hostChanged, [{ uid: 'uid-ana', hostEpoch: 2 }]) && room.host.channel.snapshot().isHost === false,
+        'o host antigo, de volta da queda de rede, deveria receber onHostChanged e deixar de ser host, veio: ' +
+        JSON.stringify(room.host.got.hostChanged) + ' / ' + JSON.stringify(room.host.channel.snapshot()));
+});
+
+asyncTest('T195 Troca de host — o host volta antes de hostTimeout (aba congelada, queda de rede curta ou F5): ninguém assume e o hostEpoch continua 1; a contagem recomeça do último sinal: numa queda seguinte, a troca só vem hostTimeout depois dela', async () => {
+    const { fake, clock, host, ana } = await roomWithGuest();
+    await host.channel.admit('uid-ana');
+    await flush();
+    const spy = watchTransactions(ana);
+    const metaNow = () => fake.read('rooms/sala01/meta');
+
+    // Aba congelada que volta.
+    await stopHostSignal(host);
+    await elapse(clock, TIMING.hostTimeout - 2000);
+    host.frozen = false;
+    host.document.setVisibility('visible');
+    await elapse(clock, TIMING.hostTimeout * 2);
+    check(spy.calls.length === 0, 'o host que descongela antes de hostTimeout: Ana não deveria tentar, tentou ' + spy.calls.length + ' vez(es)');
+
+    // Queda de rede curta.
+    host.device.goOffline();
+    await elapse(clock, TIMING.hostTimeout - 2000);
+    host.device.goOnline();
+    await elapse(clock, TIMING.hostTimeout * 2);
+    check(spy.calls.length === 0, 'o host que volta da queda de rede antes de hostTimeout: Ana não deveria tentar, tentou ' + spy.calls.length + ' vez(es)');
+
+    // F5 do host.
+    host.device.close();
+    await elapse(clock, TIMING.hostTimeout - 3000);
+    const hostAgain = openDevice(fake, 'uid-host', clock);
+    const back = await hostAgain.channel.joinRoom('sala01', { protocolVersion: VERSION });
+    await elapse(clock, TIMING.hostTimeout * 2);
+    check(spy.calls.length === 0 && back && back.isHost === true && metaNow().hostUid === 'uid-host' && metaNow().hostEpoch === 1,
+        'o F5 do host antes de hostTimeout: ninguém assume e ele continua host com o hostEpoch 1, veio: ' + JSON.stringify(metaNow()) + ', tentativas ' + spy.calls.length);
+    check(ana.got.hostChanged.length === 0, 'sem troca, Ana não deveria receber onHostChanged, veio: ' + JSON.stringify(ana.got.hostChanged));
+
+    // A contagem recomeça do último sinal: parado 6 s, volta, para de novo.
+    await stopHostSignal(hostAgain);
+    await elapse(clock, TIMING.hostTimeout - 2000);
+    await stopHostSignal(hostAgain);
+    await elapse(clock, TIMING.hostTimeout - 1000);
+    check(spy.calls.length === 0 && metaNow().hostUid === 'uid-host',
+        'a contagem deveria recomeçar do último sinal: com ele parado há menos de hostTimeout, Ana não deveria tentar, tentou ' + spy.calls.length + ' vez(es)');
+    await elapse(clock, 2000);
+    check(metaNow().hostUid === 'uid-ana' && metaNow().hostEpoch === 2,
+        'com o sinal parado há mais de hostTimeout desde o último, Ana deveria assumir (hostEpoch 2), veio: ' + JSON.stringify(metaNow()));
 });
 
 (async () => {
