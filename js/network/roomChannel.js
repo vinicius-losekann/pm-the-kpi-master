@@ -150,6 +150,8 @@ function create(options) {
     // e se já esteve conectado nesta sala.
     let lastConnected;
     let everConnected = false;
+    // Hora (do servidor) da última volta da conexão; null = nenhuma.
+    let reconnectedAt = null;
     // Guest: avisos para todos guardados enquanto segura o feed, e o
     // cursor depois do qual os avisos chegam (null = todos).
     let holding = false;
@@ -259,9 +261,13 @@ function create(options) {
     }
 
     // Host: avisa cada mudança dos outros, já com a tolerância. Guest
-    // aceito: avisa cada mudança do host.
+    // aceito: avisa cada mudança do host. Sem conexão com o banco, os
+    // sinais dos outros param de chegar e pareceriam velhos: nada se
+    // conclui até a conexão voltar e, depois dela, por dois ritmos do
+    // sinal (o "conectado" pode chegar antes dos sinais novos).
     function checkPresence() {
-        if (!code) return;
+        if (!code || lastConnected === false) return;
+        if (reconnectedAt !== null && now() - reconnectedAt < 2 * heartbeatInterval) return;
         if (isHost) {
             Object.keys(presenceList).forEach(who => {
                 if (who === uid) return;
@@ -324,6 +330,7 @@ function create(options) {
         lastConnected = connected;
         if (connected) everConnected = true;
         if (!cameBack) return;
+        reconnectedAt = now();
         if (isHost || isAdmitted) announcePresence();
         call('onReconnected');
     }
@@ -405,6 +412,7 @@ function create(options) {
         knownPresence = {};
         lastConnected = undefined;
         everConnected = false;
+        reconnectedAt = null;
         seen = new Set();
         if (hasDocument()) document.addEventListener('visibilitychange', onVisibilityChange);
         if (asHost) {

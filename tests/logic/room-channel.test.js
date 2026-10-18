@@ -959,6 +959,25 @@ asyncTest('T189 Tolerância: para o host, quem está offline com o sinal recente
     await flush();
     check(lastOf(seen) === true, 'com o sinal do host de volta, Ana deveria vê-lo de novo, veio: ' + JSON.stringify(seen));
     check(seen.every((v, i) => i === 0 || v !== seen[i - 1]), 'Ana deveria ser avisada só das mudanças do host, sem repetir, veio: ' + JSON.stringify(seen));
+
+    // Sem conexão, ninguém conclui nada: o host fora da rede por mais que a
+    // tolerância não derruba quem continuou mandando o sinal, e Ana, sem
+    // conexão, não vê o host cair e voltar (só a própria volta conta).
+    const hostEvents = host.got.presence.length;
+    host.device.goOffline();
+    await elapse(clock, TIMING.presenceTimeout + 2000);
+    host.device.goOnline();
+    await flush();
+    await elapse(clock, 1500);
+    check(host.got.presence.length === hostEvents,
+        'o host sem conexão não deveria dar Ana como caída (o sinal dela só não chegava), veio: ' + JSON.stringify(host.got.presence.slice(hostEvents)));
+    const anaSeen = seen.length;
+    ana.device.goOffline();
+    await elapse(clock, TIMING.hostTimeout + 2000);
+    ana.device.goOnline();
+    await flush();
+    await elapse(clock, 1500);
+    check(seen.length === anaSeen, 'Ana sem conexão não deveria ver o host cair e voltar, veio: ' + JSON.stringify(seen.slice(anaSeen)));
 });
 
 asyncTest('T190 F5 dentro da tolerância não é queda: quem fecha a página e abre de novo antes de presenceTimeout nunca aparece caído para o host; o F5 que passa da tolerância aparece como queda e volta', async () => {
