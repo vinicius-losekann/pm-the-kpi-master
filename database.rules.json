@@ -32,7 +32,7 @@
         ".write": "auth !== null && data.child('meta/hostUid').val() === auth.uid && !newData.exists()",
         "meta": {
           ".read": "auth !== null",
-          ".write": "auth !== null && newData.child('hostUid').val() === auth.uid && (!data.exists() || data.child('lastActivity').val() < now - 7200000)",
+          ".write": "auth !== null && newData.child('hostUid').val() === auth.uid && (!data.exists() || data.child('lastActivity').val() < now - 7200000 || (root.child('rooms/' + $code + '/roster/' + auth.uid).exists() && newData.child('hostEpoch').val() === data.child('hostEpoch').val() + 1 && newData.child('protocolVersion').val() === data.child('protocolVersion').val() && newData.child('createdAt').val() === data.child('createdAt').val() && (!root.child('rooms/' + $code + '/presence/' + data.child('hostUid').val() + '/lastSeen').exists() || root.child('rooms/' + $code + '/presence/' + data.child('hostUid').val() + '/lastSeen').val() < now - 5000)))",
           ".validate": "newData.hasChildren(['hostUid', 'hostEpoch', 'protocolVersion', 'createdAt', 'lastActivity']) && newData.child('hostUid').isString() && newData.child('hostEpoch').isNumber() && newData.child('protocolVersion').isNumber() && newData.child('createdAt').isNumber()",
           "lastActivity": {
             ".write": "auth !== null && data.parent().child('hostUid').val() === auth.uid",

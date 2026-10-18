@@ -36,6 +36,17 @@
 // offline dele ou com o sinal parado há mais de hostTimeout. Os dois
 // conferem a cada PRESENCE_CHECK_MS e a cada mudança no banco.
 //
+// Troca de host: todo aparelho na sala escuta o meta. O guest aceito,
+// conectado (e fora da carência da volta da conexão), que vê o sinal do
+// host parado há mais de hostTimeout tenta, a cada PRESENCE_CHECK_MS e
+// uma tentativa por vez, uma transação no meta: hostUid = ele, hostEpoch
+// + 1, o resto igual. O banco aceita uma só; as regras exigem estar no
+// roster e o sinal do host antigo parado há mais de 5 s pela hora do
+// servidor. Quando o hostEpoch sobe, todos são avisados (onHostChanged):
+// o guest que fica passa a ouvir a presença do host novo, e o host antigo
+// deixa de ser host no canal (para o sinal de vida, os pedidos e a
+// presença dos outros).
+//
 // Cursor dos avisos para todos: o estado de quem entra (ou volta) chega
 // pela inbox e os avisos para todos pelo feed — caminhos separados. Um
 // aviso gravado entre os dois se perderia. Por isso o guest pode pedir
@@ -105,6 +116,8 @@ function parseJson(text) {
  *   host, a cada mudança
  * @param {Function} [options.onReconnected] - a conexão com o banco voltou
  *   (nunca na primeira conexão)
+ * @param {Function} [options.onHostChanged] - (uid do host novo, hostEpoch)
+ *   quando outro aparelho assume a sala
  */
 function create(options) {
     const db = options.db;
@@ -124,7 +137,8 @@ function create(options) {
         onDismissed: options.onDismissed || noop,
         onPresence: options.onPresence || noop,
         onHostPresence: options.onHostPresence || noop,
-        onReconnected: options.onReconnected || noop
+        onReconnected: options.onReconnected || noop,
+        onHostChanged: options.onHostChanged || noop
     };
 
     let code = null;
@@ -132,6 +146,11 @@ function create(options) {
     let isHost = false;
     let isAdmitted = false;
     let hostUid = null;
+    let hostEpoch = null;
+    // Guest: uma tentativa de assumir a sala aberta por vez.
+    let migrating = false;
+    // Guest aceito: ouvinte da presença do host ({ ref, cb }).
+    let hostWatch = null;
     // Host: chave do último aviso para todos (feedCursor).
     let lastFeedKey = null;
     // Host: a presença de todos como está no banco, e o que já foi
@@ -162,8 +181,10 @@ function create(options) {
     let admission = 0;
     // Pedidos e avisos já vistos (os que existiam ao entrar contam como vistos).
     let seen = new Set();
-    // Ouvintes registrados: os da sala e os que só valem enquanto aceito.
+    // Ouvintes registrados: os da sala, os que só valem enquanto host e os
+    // que só valem enquanto aceito.
     const roomListeners = [];
+    const hostListeners = [];
     const admittedListeners = [];
 
     function call(name, ...args) {
@@ -268,8 +289,9 @@ function create(options) {
     }
 
     // Host: avisa cada mudança dos outros, já com a tolerância. Guest
-    // aceito: avisa cada mudança do host. Sem conexão com o banco, os
-    // sinais dos outros param de chegar e pareceriam velhos: nada se
+    // aceito: avisa cada mudança do host e, com o sinal dele parado há
+    // mais de hostTimeout, tenta assumir a sala. Sem conexão com o banco,
+    // os sinais dos outros param de chegar e pareceriam velhos: nada se
     // conclui até a conexão voltar.
     function checkPresence() {
         if (!code || lastConnected === false) return;
@@ -283,10 +305,84 @@ function create(options) {
             });
         } else if (isAdmitted && hostSignal !== undefined) {
             const online = !!hostSignal && hostSignal.online === true && isRecent(hostSignal, hostTimeout);
-            if (knownHostOnline === online) return;
-            knownHostOnline = online;
-            call('onHostPresence', online);
+            if (knownHostOnline !== online) {
+                knownHostOnline = online;
+                call('onHostPresence', online);
+            }
+            if (lastConnected === true && !isRecent(hostSignal, hostTimeout)) tryHostMigration();
         }
+    }
+
+    // Guest: tenta ficar com a sala. A transação desiste se o meta já não
+    // é o do host que este aparelho viu cair (outro assumiu antes); o
+    // false deixa os ouvintes verem só o que o banco aceitar.
+    function tryHostMigration() {
+        if (migrating) return;
+        migrating = true;
+        const fromUid = hostUid;
+        const fromEpoch = hostEpoch;
+        db.ref(base + '/meta').transaction(current => {
+            if (!code || !current || current.hostUid !== fromUid || current.hostEpoch !== fromEpoch) return undefined;
+            return { ...current, hostUid: uid, hostEpoch: fromEpoch + 1 };
+        }, undefined, false).then(result => {
+            if (result && result.committed) console.log('👑 Este aparelho assumiu a sala ' + code + ' (troca de host ' + (fromEpoch + 1) + ').');
+        }).catch(e => {
+            console.warn('⚠️ Tentativa de assumir a sala recusada pelo banco:', e && e.message);
+        }).then(() => {
+            migrating = false;
+        });
+    }
+
+    /** Guest aceito: passa a ouvir a presença do host atual (não a própria, se é ele quem assumiu). */
+    function watchHostPresence() {
+        unwatchHostPresence();
+        if (hostUid === uid) return;
+        const ref = db.ref(base + '/presence/' + hostUid);
+        const cb = snap => {
+            hostSignal = snap.val();
+            checkPresence();
+        };
+        // Depois de uma troca, as regras deixam de liberar a presença do
+        // host antigo e o Firebase cancela esse ouvinte: não é erro.
+        ref.on('value', cb, () => {});
+        hostWatch = { ref, cb };
+    }
+
+    function unwatchHostPresence() {
+        if (hostWatch) hostWatch.ref.off('value', hostWatch.cb);
+        hostWatch = null;
+        hostSignal = undefined;
+        knownHostOnline = undefined;
+    }
+
+    // Todos: o meta mudou. Só a subida do hostEpoch é troca de host (a
+    // publicação do host só anda o lastActivity; sala apagada não é troca).
+    function onMeta(snap) {
+        if (!code) return;
+        const meta = snap.val();
+        if (!meta || typeof meta.hostEpoch !== 'number' || !(meta.hostEpoch > hostEpoch)) return;
+        const wasHost = isHost;
+        hostUid = meta.hostUid;
+        hostEpoch = meta.hostEpoch;
+        if (wasHost) {
+            stopBeingHost();
+        } else if (isAdmitted) {
+            watchHostPresence();
+        }
+        console.log('🔗 Sala ' + code + ': host novo (troca de host ' + hostEpoch + ').');
+        call('onHostChanged', hostUid, hostEpoch);
+    }
+
+    // O host antigo: outro assumiu a sala. Para o sinal de vida e de ouvir
+    // os pedidos e a presença dos outros (as regras já não deixam), e o
+    // offline deixado com o servidor não vale mais.
+    function stopBeingHost() {
+        isHost = false;
+        stopHeartbeat();
+        stopListening(hostListeners);
+        presenceList = {};
+        knownPresence = {};
+        presenceRef().onDisconnect().cancel();
     }
 
     // A aba voltou a ficar visível (ex.: tela desbloqueada): sinal na hora,
@@ -364,12 +460,7 @@ function create(options) {
         call('onAdmitted');
         announcePresence();
         startHeartbeat();
-        hostSignal = undefined;
-        knownHostOnline = undefined;
-        listen(admittedListeners, db.ref(base + '/presence/' + hostUid), 'value', snap => {
-            hostSignal = snap.val();
-            checkPresence();
-        });
+        watchHostPresence();
         const feed = db.ref(base + '/feed');
         // Segurando o feed, os avisos que já existiam também ficam
         // guardados: o cursor do host diz quais descartar.
@@ -389,8 +480,7 @@ function create(options) {
         held = [];
         skipUpTo = null;
         stopHeartbeat();
-        hostSignal = undefined;
-        knownHostOnline = undefined;
+        unwatchHostPresence();
         stopListening(admittedListeners);
     }
 
@@ -407,12 +497,14 @@ function create(options) {
         }
     }
 
-    async function enter(roomCode, asHost, roomHostUid) {
+    async function enter(roomCode, asHost, roomHostUid, roomHostEpoch) {
         code = roomCode;
         base = 'rooms/' + roomCode;
         isHost = asHost;
         isAdmitted = false;
         hostUid = roomHostUid;
+        hostEpoch = roomHostEpoch;
+        migrating = false;
         presenceList = {};
         knownPresence = {};
         lastConnected = undefined;
@@ -420,11 +512,15 @@ function create(options) {
         reconnectedAt = null;
         seen = new Set();
         if (hasDocument()) document.addEventListener('visibilitychange', onVisibilityChange);
+        // O meta primeiro: a troca de host vale antes do resto (ex.: o host
+        // antigo que volta da queda deixa de ser host antes de regravar a
+        // presença).
+        listen(roomListeners, db.ref(base + '/meta'), 'value', onMeta);
         if (asHost) {
-            listen(roomListeners, db.ref(base + '/requests'), 'child_added', onRequestAdded);
+            listen(hostListeners, db.ref(base + '/requests'), 'child_added', onRequestAdded);
             // Depois de um F5, o cursor continua o do último aviso no banco.
             lastFeedKey = lastKeyOf((await db.ref(base + '/feed').once('value')).val());
-            listen(roomListeners, db.ref(base + '/presence'), 'value', onPresenceList);
+            listen(hostListeners, db.ref(base + '/presence'), 'value', onPresenceList);
             announcePresence();
             startHeartbeat();
         } else {
@@ -442,11 +538,13 @@ function create(options) {
         stopAdmitted();
         stopHeartbeat();
         if (hasDocument()) document.removeEventListener('visibilitychange', onVisibilityChange);
+        stopListening(hostListeners);
         stopListening(roomListeners);
         code = null;
         base = null;
         isHost = false;
         hostUid = null;
+        hostEpoch = null;
         lastFeedKey = null;
         holding = false;
     }
@@ -482,7 +580,7 @@ function create(options) {
             ROOM_PARTS.forEach(part => { leftovers[part] = null; });
             await db.ref(roomBase).update(leftovers);
         }
-        await enter(roomCode, true, uid);
+        await enter(roomCode, true, uid, 1);
         return { ok: true, isHost: true };
     }
 
@@ -499,7 +597,7 @@ function create(options) {
         const meta = snap.val() || {};
         if (meta.protocolVersion !== opts.protocolVersion) return { ok: false, reason: 'version-mismatch' };
         const asHost = meta.hostUid === uid;
-        await enter(roomCode, asHost, meta.hostUid);
+        await enter(roomCode, asHost, meta.hostUid, meta.hostEpoch);
         return { ok: true, isHost: asHost };
     }
 
@@ -613,7 +711,7 @@ function create(options) {
     }
 
     function snapshot() {
-        return { code, isHost, isAdmitted, hostUid };
+        return { code, isHost, isAdmitted, hostUid, hostEpoch };
     }
 
     return {

@@ -32,9 +32,10 @@ ficar pendente.
 > diferentes, celular nem outros navegadores. Esses continuam na lista
 > manual.
 >
-> **Troca de host desligada até a etapa 3 do roadmap 2.9:** se o host
-> cai, os outros veem "Host desconectado" e a sala espera por ele. Os
-> testes da troca de host voltam com o mecanismo novo.
+> **Troca de host só no canal da sala até a etapa 3c do roadmap 2.9:** se
+> o host cai, os outros veem "Host desconectado" e, depois de
+> `HOST_TIMEOUT`, um deles assume a sala no banco (`meta`), mas o jogo
+> ainda não reage. Os testes do jogo na troca voltam com a etapa 3c.
 
 ---
 
@@ -111,7 +112,8 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 ### Host: F5 e queda
 | Caso | Testes | Manual |
 |---|---|---|
-| Host cai: os outros veem "Host desconectado"; ninguém assume; com o host de volta, "Conectado" | 🤖 T172 | ⬜ |
+| Host cai: os outros veem "Host desconectado"; com o host de volta, "Conectado" | 🤖 T172 | ⬜ |
+| Troca de host no canal: com o sinal do host parado há mais de `HOST_TIMEOUT`, um guest aceito e conectado assume o `meta` por transação (`hostEpoch` + 1, uma só vence); o host que volta antes disso (aba congelada, queda curta, F5) continua host; todos ficam sabendo (`onHostChanged`) e o host antigo deixa de ser host no canal; as regras recusam a troca de fora do roster, com epoch, versão ou criação errados e com o sinal do host de menos de 5 s | 🤖 T192–T195 · 🌐 E26 | — (o jogo na troca: etapa 3c) |
 | F5 do host: continua host pelo meta da sala e volta com o estado da partida gravado no banco (`secret/state`, lido antes de montar a tela); os pedidos feitos durante o F5 esperam no banco e são tratados depois da retomada; quem ficou na sala pede o estado de novo quando o host volta | 🤖 T172, T184, T185 · 🌐 E1, E9 | — (coberto por E1) |
 | F5 do host com a pergunta aberta: a mesma pergunta continua; relógio e prazo de resposta continuam de onde estavam; prazo vencido durante o F5 tem o efeito na retomada | 🤖 T56, T182 · 🌐 E1, E28 | ⬜ (contador da tela do host que responde, depois do F5 dele) |
 | Pergunta ainda por fazer (o Perguntador não clicou em "Fazer a pergunta"): no F5 do host e na volta à partida, a rodada continua esperando o clique, com o prazo do Perguntador continuando de onde estava (vencido: a pergunta vai na retomada); quem volta como Respondedor vê o aviso, não as alternativas | 🤖 T138, T139, T181 | — |
@@ -179,7 +181,7 @@ banco.
 
 ## 5. Limitações conhecidas (aceitas por ora)
 
-- ⚠️ Sem troca de host até a etapa 3 do roadmap 2.9: se o host cai de vez, a sala espera por ele.
+- ⚠️ Troca de host só no canal até a etapa 3c do roadmap 2.9: se o host cai de vez, outro jogador assume a sala no banco, mas o jogo não reage e a partida fica parada.
 - ⚠️ Tolerância de 20 s (`PRESENCE_TIMEOUT`): quem fecha a aba sai da lista do lobby, ou do sorteio na partida, só ~20 s depois; quem está na dupla e cai de vez segura a rodada esse tempo.
 - ⚠️ Chrome e Edge espaçam os timers de aba escondida há mais de 5 min (1 por minuto): o sinal de vida de 2 s fica de minuto em minuto, e o jogador sai do sorteio até a aba voltar a ficar visível. Com o host, os outros veriam "Host desconectado" — conferir no M18 com o host.
 - ⚠️ Nomes diferenciam maiúsculas: "vHost" e "Vhost" são jogadores diferentes — durante a partida, a grafia errada é recusada. Melhoria futura (roadmap 8.5).
@@ -219,7 +221,7 @@ o teste só aponta o Firebase para o emulador.
 | E23 | Quem responde vê o aviso de quem vai perguntar, sem a janela de resposta; o Perguntador clica em "Fazer a pergunta" e a janela abre com o prazo inteiro | — (etapa "Fazer a pergunta") |
 | E24 | Página de teste de conexão: sala inexistente recusada; criar, entrar, mensagem de teste com eco e tempo; F5 volta sozinho à sala; quem fecha a aba sai da lista | M21 (a parte que não depende da rede real) |
 | E25 | Regras do banco no emulador: sem login não lê; fora da sala, sala de outro, aparelho de outro, mensagem em nome de outro e conteúdo grande demais são recusados; ler a sala e gravar o próprio aparelho e a própria mensagem passam | — (segurança do banco) |
-| E26 | Regras do banco para as salas do jogo (`rooms/`): o host grava tudo; quem foi aceito lê o estado público e o próprio, nunca o secreto, e não grava o que é do host; quem não foi aceito só lê a sala, a própria caixa de avisos e manda pedido em nome próprio; presença: cada um grava só a própria (estando no roster ou sendo o host), com `online` e `lastSeen` igual à hora do servidor (sem `lastSeen` ou com hora inventada é recusada; o offline deixado com o servidor passa, com a hora da queda), o host lê todas e quem foi aceito só a do host; sala parada há 2 h pode ser criada de novo por outro, e o host antigo perde o acesso | — (segurança do banco; lógica do canal em 🤖 T154–T166) |
+| E26 | Regras do banco para as salas do jogo (`rooms/`): o host grava tudo; quem foi aceito lê o estado público e o próprio, nunca o secreto, e não grava o que é do host; quem não foi aceito só lê a sala, a própria caixa de avisos e manda pedido em nome próprio; presença: cada um grava só a própria (estando no roster ou sendo o host), com `online` e `lastSeen` igual à hora do servidor (sem `lastSeen` ou com hora inventada é recusada; o offline deixado com o servidor passa, com a hora da queda), o host lê todas e quem foi aceito só a do host; troca de host só por quem está no roster, com `hostEpoch` + 1, a mesma versão e criação e o sinal do host parado há mais de 5 s (ou sem presença) — depois dela, o host novo lê o secreto e o antigo perde a escrita; sala parada há 2 h pode ser criada de novo por outro, e o host antigo perde o acesso | — (segurança do banco; lógica do canal em 🤖 T154–T166) |
 | E27 | Outro navegador com o nome de quem caiu é recusado e a vaga continua reservada; o dono volta ao lugar pelo mesmo navegador, com KPI e recursos | — |
 | E28 | Um navegador com o relógio 30 s adiantado (`page.clock`) mostra o mesmo tempo do host; o F5 do host ~12 s depois do início continua o relógio do mesmo ponto | — (relógio pela hora do servidor) |
 | E29 | 3 jogadores; um guest pede apoio, quem foi chamado não responde e o host dá F5: o pedido continua pendente (quem pediu segue com os botões travados), quem foi chamado vê a pergunta do apoio de novo e responde, quem pediu recebe a sugestão, responde e a rodada segue | BUG-019 |
