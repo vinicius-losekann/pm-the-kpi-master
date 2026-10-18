@@ -5,9 +5,9 @@
 #   - "testes": tests/logic/*.test.js — lógica do jogo, com rede e tela
 #     simuladas (rápido, sem dependências); uma tabela por arquivo.
 #   - "ponta-a-ponta": tests/browser — o jogo de verdade em várias
-#     janelas do Chromium, com servidor PeerJS e site locais (alguns
-#     minutos), e a página de teste de conexão com o emulador do
-#     Firebase (precisa de Java).
+#     janelas do Chromium, com o site e o emulador do Firebase (login e
+#     banco; precisa de Java) locais, e a página de teste de conexão
+#     (alguns minutos).
 # Resultado: aba "Actions" do repositório — tabelas de resumo na página
 # da execução; log dos testes (artefato "resultado-testes") e relatório
 # do navegador com o console de cada jogador nos cenários que falharem
@@ -74,8 +74,18 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Instalar dependências dos testes
-        run: npm ci
+      # Temporário (um commit só): "npm install" no lugar do "npm ci" para
+      # gerar o package-lock.json sem os pacotes do PeerJS; o arquivo novo
+      # fica no artefato "package-lock".
+      - name: Instalar dependências dos testes (gera o package-lock.json novo)
+        run: npm install
+
+      - name: Guardar o package-lock.json novo
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-lock
+          path: package-lock.json
+          retention-days: 14
 
       - name: Instalar o Chromium
         run: npx playwright install --with-deps chromium

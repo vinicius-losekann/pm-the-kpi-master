@@ -16,7 +16,7 @@
 
 ## Padrão de arquitetura: camadas
 
-O tipo de arquitetura (aplicação estática, rede P2P com host autoritativo, regras puras + orquestração, estado centralizado) está resumido no início de `architecture.md`. As camadas e o que cada uma pode fazer:
+O tipo de arquitetura (aplicação estática, host autoritativo que conversa com todos pelo Firebase, regras puras + orquestração, estado centralizado) está resumido no início de `architecture.md`. As camadas e o que cada uma pode fazer:
 
 ```
 domain/   → regras puras (sem DOM, sem rede, sem Game.state). Recebem

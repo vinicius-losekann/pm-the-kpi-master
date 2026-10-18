@@ -19,14 +19,10 @@
 
 | # | Melhoria | Justificativa |
 |---|----------|---------------|
-| 2.1 | **Política de retry mais inteligente** | Em `initPeerWithRetry`, as tentativas são fixas. Poderiam ser exponenciais com jitter para evitar sobrecarga do servidor. |
 | 2.2 | **Timeouts em todas as operações de rede** | Além do timeout de resposta, implementar timeouts para envio de mensagens, reconexão, etc. |
 | 2.3 | **Religar `Game.logger.*` no lugar de `console.*`** | Infraestrutura já pronta (`utils/logger.js`). Prioritário: com múltiplas salas simultâneas em produção, não dá para depurar via `console.log` de uma sala que ninguém está observando ao vivo. Trabalho mecânico, mas espalhado por praticamente todo arquivo `.js` — ver **NOTA-004** em `architecture.md`. |
-| 2.4 | **Validação de dados recebidos via rede** | Mensagens de outros peers podem estar malformadas; validar com esquemas (ex: JSON Schema) para evitar crashes. |
-| 2.5 | **Fallback para quando o host migra** | Garantir que a migração de host seja atômica e que o novo host sincronize completamente o estado com todos os peers. Grande parte feita na **Fase D** (`../CHANGELOG.md`): prazo de 10s, sala encontrada em qualquer versão do host, host antigo volta como jogador comum, rodízio da rodada preservado. Resta: janela de menos de 1s com dois hosts, se o host antigo recarregar exatamente enquanto o outro assume. |
-| 2.6 | **Relógio pela hora de término** | Guests que reconectam ficam ~1s diferentes do host (a contagem é local, corrigida a cada 10s). Mandar a hora de término em vez do tempo restante acabaria com a diferença, mas exige estimar a diferença entre os relógios dos aparelhos (que podem divergir em vários segundos) — sem isso, fica pior que hoje. Baixa prioridade: a diferença atual é imperceptível no jogo. |
+| 2.4 | **Validação de dados recebidos via rede** | Mensagens de outros jogadores podem estar malformadas; validar com esquemas (ex: JSON Schema) para evitar crashes. As regras do banco (`database.rules.json`) já limitam quem grava o quê e o tamanho, não o formato de cada mensagem. |
 | 2.8 | **Travamento do Edge no Windows** | Relatado em teste (uma vez travou o computador inteiro; outra, ~5s ao criar sala). Não reproduz no Chromium. Investigar: Chrome na mesma máquina, Edge sem aceleração de hardware, Gerenciador de Tarefas aberto antes. |
-| 2.9 | **Sincronia pelo Firebase no lugar do P2P** | Em partida de teste na UFSM (10/2026), um celular no 5G não achou a sala, e jogadores que caíram não conseguiram voltar. A conexão direta entre navegadores (WebRTC, via PeerJS) esbarra no bloqueio das redes de instituição e na tradução de endereços das operadoras móveis. Pelo Firebase (Realtime Database), tudo passa por HTTPS, que as redes não bloqueiam, e o estado da partida fica fora do navegador do host, o que também simplifica o F5 e a troca de host. A configuração web do Firebase é pública por natureza; a proteção vem das regras de segurança do banco. Começa por um protótipo num branch próprio (criar sala, entrar, trocar mensagens) para medir o trabalho antes de trocar a camada `network/`. |
 
 ---
 
@@ -100,9 +96,7 @@
 
 ## 9. Pendências da Fase D
 
-| # | Melhoria | Justificativa |
-|---|----------|---------------|
-| 9.5 | **Testes manuais P1 de conexão** | O que não dá para automatizar: M9 (redes diferentes), M7 (queda de rede real) e M8 (celular com tela bloqueada). Roteiros em `manual-test-scripts.md`. Fecham a Fase D. |
+> Sem itens em aberto: a Fase D fechou em 18/10/2026 (`../CHANGELOG.md`).
 
 ---
 
@@ -113,8 +107,10 @@ números não são reaproveitados.
 
 | # | Item | Saiu em | Motivo |
 |---|---|---|---|
+| 2.1 | Política de retry mais inteligente (tentativas do `initPeerWithRetry` exponenciais) | 18/10/2026 | Sem objeto: o PeerJS saiu, e a volta da conexão com o Firebase é feita pela própria biblioteca dele |
 | 2.7 | Servidor de retransmissão (TURN) para redes restritivas | 15/10/2026 | Substituído pelo 2.9: em vez de um TURN com credenciais temporárias para remendar o P2P, a sincronia passa pelo Firebase (titular, 15/10/2026) |
 | 4.3 | Criptografia de ponta a ponta | 05/10/2026 | A conexão WebRTC entre os navegadores já é sempre criptografada (DTLS), e a opção `secure` do PeerJS trata só da conexão com o servidor de sinalização, que no servidor público já é HTTPS |
 | 6.2 | Virtualização de listas | 05/10/2026 | Com no máximo 6 jogadores, as listas são pequenas demais para ganhar algo com isso |
 | 7.5 | Separar helpers (ex.: `buildRanking`) | 05/10/2026 | Já estava feito: o ranking fica em `js/domain/rankingRules.js` |
 | 7.9 | Simulador de partidas para balanceamento | 06/10/2026 | Feito: `tests/simulation/`, workflow "Simulação de partidas" (ver `architecture.md`). Os ajustes do config que o relatório sugerir são decididos com o titular, cada um como frente própria |
+| 9.5 | Testes manuais P1 de conexão (M9, M7, M8 sobre o P2P) | 18/10/2026 | A conexão P2P foi trocada pelo Firebase antes desses testes: o M9 perdeu o objeto, e os roteiros novos (M7, M8, M18, M21, M22) são P1 antes do deploy no checklist de `connection-tests.md`, seção 4 |

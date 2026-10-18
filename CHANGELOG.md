@@ -37,7 +37,21 @@
 - **Aviso de tempo esgotado:** quando o tempo de resposta acaba, o
   resultado mostra "⌛ Tempo esgotado!" em vez de "Errou"; continua
   contando como erro. Teste T137.
-- São 139 testes de lógica em 12 arquivos e 22 cenários no navegador.
+- **Página de teste de conexão** (`firebase-check.html`, fora do jogo,
+  sem link nele): cria sala, entra e troca mensagens pelo Firebase,
+  mostrando o tempo de ida e volta, para conferir antes da aula se a
+  rede de cada lugar deixa o jogo funcionar (roteiro M21 em
+  `_docs/manual-test-scripts.md`). Testes T143–T153 e cenários E24 e
+  E25.
+- **Troca de host que continua a partida:** se o host cai (fecha a aba,
+  perde a rede, celular bloqueado), outro jogador assume cerca de 10
+  segundos depois do último sinal dele; a tela de quem assume recarrega
+  uma vez, todos veem "Fulano agora é o host" e a mesma pergunta
+  continua, com o tempo sem host devolvido aos prazos da rodada. A troca
+  é decidida pelo banco: só um assume, mesmo que vários tentem juntos. O
+  host antigo que volta entra como jogador comum, com KPI e recursos.
+  Testes T192–T204 e cenários E26 e E31–E36.
+- São 167 testes de lógica em 15 arquivos e 27 cenários no navegador.
 
 ### Changed
 - **Estouro de orçamento:** o recurso pode ficar negativo. Errar com 0
@@ -95,6 +109,32 @@
 - **Prazos:** quem responde tem 1 minuto e 30 segundos (antes, 1 minuto)
   e quem é chamado para assessorar ou ajudar tem 1 minuto (antes, 20
   segundos). Teste T142.
+- **Sincronia pelo Firebase no lugar da conexão direta (P2P):** na
+  partida de teste da UFSM, um celular no 5G não achou a sala e quem caiu
+  não conseguia voltar, porque a conexão direta entre navegadores (PeerJS)
+  esbarra no bloqueio das redes de instituição e das operadoras móveis.
+  Agora todos conversam pelo Firebase (plano gratuito: login anônimo e
+  Realtime Database), que passa por HTTPS, e o estado da partida fica
+  guardado no banco, não só no navegador do host. Para quem joga:
+  - quem cai volta sozinho em 1–2 segundos quando a conexão volta;
+  - o F5 de quem está na dupla não sorteia outra dupla: a mesma pergunta
+    continua, com o mesmo prazo;
+  - o F5 do host continua a partida com o relógio e os prazos de onde
+    estavam (antes, os prazos voltavam do zero), e um pedido de
+    assessoria ou de ajuda sem resposta continua valendo;
+  - todos veem o mesmo tempo, mesmo com o relógio do aparelho errado;
+  - quem fecha a aba, bloqueia a tela ou fica sem rede sai do sorteio
+    depois de 20 segundos sem sinal (antes, na hora): um F5 ou uma queda
+    curta não tira ninguém da rodada;
+  - a identidade de cada jogador passa a ser o login anônimo do
+    navegador; a partida salva vale enquanto a sala existir (antes, 5
+    minutos depois de todos saírem);
+  - do clique ao resultado, cerca de meio segundo (antes, ~0,1 s).
+  O protocolo passou da 9 para a 12 e o estado salvo da 7 para a 9: quem
+  estiver com a página antiga aberta é recusado ao entrar na sala e vê o
+  aviso para recarregar. Testes T154–T191 e cenários E26–E30. Conclui o
+  roadmap 2.9, o 2.6 (relógio pela hora de término) e o 2.5 (troca de
+  host sem dois hosts ao mesmo tempo).
 
 ### Fixed
 - **Tempo de quem responde durante o apoio (BUG-028):** com a assessoria
@@ -121,6 +161,32 @@
   vendas e compras, do mercado de recursos que não existe mais. Com o
   pedido de ajuda como fiança, o texto passou a "acertos", porque o KPI
   acumulado só vem do acerto.
+
+### Removed
+- **PeerJS:** a conexão direta, a procura da sala nas versões `-h1`,
+  `-h2`... depois de uma troca de host, o token de identidade por sala
+  (`js/utils/identity.js`), a janela de 5 minutos da partida salva no
+  navegador e, nos testes, o servidor PeerJS local e os pacotes `peer` e
+  `peerjs`. Saiu com eles a janela de menos de 1 s com dois hosts.
+
+### Security
+- **SEC-005:** quem entrava ou voltava à sala podia ler, pelo console do
+  navegador, a resposta certa de qualquer pergunta da partida (os
+  baralhos iam no estado mandado a ele). Agora o estado vai sem os
+  baralhos e sem a resposta guardada de quem responde, e o gabarito da
+  pergunta da vez só vai para o Perguntador. Teste T186.
+- As regras do banco (`database.rules.json`) decidem quem lê e grava o
+  quê: só o host lê o estado completo da partida, cada um grava só o
+  próprio sinal e os próprios pedidos, e a troca de host só vale com o
+  host antigo parado há mais de 5 segundos. Conferidas no emulador pelos
+  cenários E25 e E26.
+
+### Known issues
+- Quem fecha a aba sai da lista do lobby só ~20 segundos depois, e a
+  sala fica ~10 segundos sem host numa troca. Com a aba do host escondida
+  por mais de 5 minutos, o Chrome e o Edge espaçam o sinal de vida dele, e
+  os outros podem tomar o host (conferir no teste manual M18). Lista
+  completa em `_docs/connection-tests.md`, seção 5.
 
 ---
 
@@ -174,16 +240,17 @@ Os nomes citados nas entradas anteriores deste arquivo (ex.: `CONFIG.JOGO`,
 
 ---
 
-## [Sem versão] - 2026-10-03 — Fase D: conexão, identidade e troca de host (em fechamento)
+## [Sem versão] - 2026-10-03 — Fase D: conexão, identidade e troca de host
 
 Detalhes de cada bug corrigido (sintoma, causa e testes) em
 `_docs/issues.md`; mapa de casos cobertos e testes manuais pendentes em
 `_docs/connection-tests.md`.
 
-**Pendente para fechar a fase:** os testes manuais P1 que não dão para
-automatizar — M9 (redes diferentes), M7 (queda de rede real) e M8
-(celular com tela bloqueada). Os roteiros estão em
-`_docs/manual-test-scripts.md`.
+**Fechada em 18/10/2026 sem os testes manuais P1** M9 (redes
+diferentes), M7 (queda de rede real) e M8 (celular com tela bloqueada):
+antes deles, a conexão direta (P2P) foi trocada pelo Firebase (bloco
+acima). O M9 perdeu o objeto; o M7 e o M8 foram reescritos para o
+Firebase, em `_docs/manual-test-scripts.md`.
 
 ### Added
 - **Sala travada durante a partida:** nome novo é recusado; só volta
@@ -213,8 +280,8 @@ automatizar — M9 (redes diferentes), M7 (queda de rede real) e M8
   jogo com rede simulada (`tests/logic`, 78 testes em 8 arquivos por
   assunto) e o jogo real em várias janelas do Chromium
   (`tests/browser`, 17 cenários).
-- **Roteiros dos testes manuais P1** (M9, M7, M8), hoje em
-  `_docs/manual-test-scripts.md`.
+- **Roteiros dos testes manuais P1** (M9, M7, M8), substituídos depois
+  pelos roteiros sobre o Firebase em `_docs/manual-test-scripts.md`.
 
 ### Changed
 - Saída da página (fechar aba, F5) encerra as conexões na hora, para os

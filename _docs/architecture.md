@@ -59,7 +59,7 @@ pm-the-kpi-master/
 │   ├── conventions.md           # padrões de código, arquitetura, stack
 │   ├── roadmap.md               # melhorias planejadas
 │   ├── connection-tests.md      # checklist de conexão: coberto, pendente, limitações
-│   ├── manual-test-scripts.md   # passo a passo dos testes manuais P1 (M9, M7, M8)
+│   ├── manual-test-scripts.md   # passo a passo dos testes manuais P1 (M21, M22, M7, M8, M18)
 │   └── issues.md                # bugs em aberto e corrigidos, limpezas (NOTA)
 │
 ├── config/
@@ -94,7 +94,7 @@ pm-the-kpi-master/
 │   │   └── run.js               # lê o formulário do workflow e grava o relatório
 │   └── browser/                 # o jogo real no Chromium (Playwright)
 │       ├── playwright.config.js
-│       ├── servers.js           # site local (e o servidor PeerJS, que sai com o pacote peer)
+│       ├── servers.js           # site local (o emulador do Firebase sobe à parte, pelo Playwright)
 │       ├── players.js           # jogadores (contextos separados) e ajudantes
 │       ├── summary.js           # tabela de resultados no Actions
 │       └── *.spec.js            # cenários (connection, host-reload, host-migration, layout, question-pace, connection-check)

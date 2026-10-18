@@ -1,6 +1,6 @@
 # 🎯 PM: The KPI Master — v1.0
 
-> **Quiz multiplayer P2P sobre os Domínios de Desempenho do PMBOK (8ª Edição)**
+> **Quiz multiplayer no navegador sobre os Domínios de Desempenho do PMBOK (8ª Edição)**
 >
 ---
 
@@ -234,7 +234,7 @@ Respondedor recebe pergunta
 
 | Tecnologia | Uso |
 |---|---|
-| **PeerJS (WebRTC)** | Comunicação P2P |
+| **Firebase** (plano gratuito: login anônimo e Realtime Database) | Sincronia da sala: todos conversam pelo banco, e o estado da partida fica guardado nele |
 | **Vanilla JavaScript** | Sem frameworks |
 | **CSS3** | Glassmorphism, animações |
 | **GitHub Pages** | Hospedagem gratuita |
@@ -273,6 +273,7 @@ repositório). Localmente, com Node.js:
 node tests/logic/host-reload.test.js                             # lógica (um arquivo por assunto)
 npm test                                                         # lógica (todos os arquivos)
 npm ci && npx playwright install chromium                        # no navegador (1ª vez)
+npm install -g firebase-tools@15.32.1                            # emulador do Firebase (1ª vez; precisa de Java 21)
 npx playwright test --config tests/browser/playwright.config.js
 ```
 
@@ -290,7 +291,7 @@ Localmente, com Node.js: `node tests/simulation/run.js`.
 
 | Funcionalidade | Status |
 |---|---|
-| 🔗 Conexão P2P | ✅ |
+| 🔗 Sincronia pelo Firebase (funciona em rede de instituição e nos dados móveis) | ✅ |
 | 👥 2-6 jogadores | ✅ |
 | 📚 71 perguntas (7 Domínios de Desempenho: Governança, Escopo, Cronograma, Finanças, Partes Interessadas, Recursos, Riscos) | ✅ |
 | ⭐ KPI fixo (10 por acerto) | ✅ |
@@ -302,8 +303,8 @@ Localmente, com Node.js: `node tests/simulation/run.js`.
 | ⏱️ Timer 90min | ✅ |
 | 🏆 Ranking com KPI Final | ✅ |
 | 🚪 Sair/Encerrar | ✅ |
-| 👑 Troca de host (outro jogador assume se o host sair) | ✅ |
-| 🔌 Reconexão no meio da partida (com identidade por navegador) | ✅ |
+| 👑 Troca de host (se o host cair, outro jogador assume em ~10 s e a pergunta continua) | ✅ |
+| 🔌 Reconexão no meio da partida (com identidade por navegador) e F5 sem perder a partida | ✅ |
 | 🧪 Testes automatizados (lógica e ponta a ponta) | ✅ |
 
 ---

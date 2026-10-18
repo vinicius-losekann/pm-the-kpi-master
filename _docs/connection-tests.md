@@ -107,9 +107,9 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 ### Host: F5 e queda
 | Caso | Testes | Manual |
 |---|---|---|
-| Host cai e volta antes do `HOST_TIMEOUT`: os outros veem "Host desconectado"; com o host de volta, "Conectado" | 🤖 T172 | ⬜ |
+| Host cai e volta antes do `HOST_TIMEOUT`: os outros veem "Host desconectado"; com o host de volta, "Conectado" | 🤖 T172 | ⬜ (M7.3) |
 | Troca de host no canal: com o sinal do host parado há mais de `HOST_TIMEOUT`, um guest aceito e conectado assume o `meta` por transação (`hostEpoch` + 1, uma só vence); o host que volta antes disso (aba congelada, queda curta, F5) continua host; todos ficam sabendo (`onHostChanged`) e o host antigo deixa de ser host no canal; as regras recusam a troca de fora do roster, com epoch, versão ou criação errados e com o sinal do host de menos de 5 s | 🤖 T192–T195 · 🌐 E26 | — |
-| Troca de host no jogo, com a pergunta aberta: outro assume entre 10 e 20 s depois (não antes de 10); quem assume recarrega e abre como host com o estado da partida; a mesma pergunta continua (dupla, gabarito, quem já respondeu); quem fica passa ao host novo e vê "Fulano agora é o host"; o F5 do host novo continua host | 🤖 T196 · 🌐 E31 | ⬜ (computador e celular, redes reais) |
+| Troca de host no jogo, com a pergunta aberta: outro assume entre 10 e 20 s depois (não antes de 10); quem assume recarrega e abre como host com o estado da partida; a mesma pergunta continua (dupla, gabarito, quem já respondeu); quem fica passa ao host novo e vê "Fulano agora é o host"; o F5 do host novo continua host | 🤖 T196 · 🌐 E31 | ⬜ (M22) |
 | Troca de host com a rodada encerrada, com a partida pausada, no lobby (ninguém entra de novo) e com a pergunta ainda por fazer: tudo continua como estava, para o host novo e para quem fica | 🤖 T197–T199, T201 · 🌐 E33, E34 | — |
 | Host antigo na dupla: a rodada é a de quem cai (dupla nova entre os que ficaram) | 🤖 T200 | — |
 | Resposta mandada durante a troca espera no banco e vale uma vez; resposta já tratada pelo host antigo não se repete (o rodízio continua) | 🤖 T202 · 🌐 E32 | — |
@@ -163,22 +163,22 @@ plano fica mais lenta).
 | M1 | ✅ 🌐 E1 | F5 do host no meio de uma pergunta | Host dá F5 com a pergunta aberta | Guests continuam ligados, sem troca de host; a partida segue |
 | M2 | ✅ 🌐 E9 | F5 do host com "rodada encerrada" | Host dá F5 esperando o "Nova Rodada" | Continua "Rodada encerrada" para todos, esperando o clique |
 | M6 | ✅ 🌐 E6 | Guest cai e volta | Guest dá F5 no meio da própria pergunta; outro guest fecha e volta pela tela inicial | Voltam ao próprio lugar, com KPI; rodada tratada como nos testes T5/T34 |
-| M7 | **P1** | Queda de rede real (não fechar aba) | Roteiro novo sobre o Firebase na etapa 4 do roadmap 2.9 (o de `manual-test-scripts.md` é da conexão antiga) | Guest: volta sozinho quando a rede volta. Host: os outros veem "Host desconectado" e a sala espera |
-| M8 | **P1** | Celular com tela bloqueada / navegador em segundo plano | Roteiro novo sobre o Firebase na etapa 4 do roadmap 2.9 | Ao desbloquear, volta à partida |
-| M9 | — | Redes diferentes (conexão direta entre navegadores) | — | Sem efeito com o Firebase (não há conexão direta); a rede de cada lugar é conferida pelo M21. Como fechar a Fase D se decide na fase do Firebase |
+| M7 | **P1** ⬜ | Queda de rede real (não fechar a aba) | Roteiro M7 de `manual-test-scripts.md`: quedas curta e longa de um guest e do host | Queda curta: nada muda. Guest: 📴 ~20 s depois, volta sozinho quando a rede volta. Host: outro assume em ~10–20 s; quando a rede do host volta, a página dele recarrega e ele entra como jogador comum |
+| M8 | **P1** ⬜ | Celular com tela bloqueada / navegador em segundo plano | Roteiro M8 de `manual-test-scripts.md` (inclusive o celular como host) | Bloqueio curto respondendo: a pergunta continua. Bloqueio longo: fora do sorteio ~20 s depois, volta sozinho ao desbloquear. Celular host: outro assume, e ele volta como jogador comum |
+| M9 | — | Redes diferentes (conexão direta entre navegadores) | Retirado em 18/10/2026 | Sem objeto com o Firebase (não há conexão direta); a rede de cada lugar é conferida pelo M21 |
 | M10 | ✅ 🌐 E8 | Nova partida depois de "saiu da partida" | 2 jogadores; guest sai; host volta ao lobby e inicia outra | Conferido em 30/09/2026 |
 | M13 | ✅ 🌐 E17 | Host sai com a partida pausada | Guest cai (a partida pausa), depois o host fecha a aba e a reabre | Continua pausada com o mesmo evento e retoma quando o guest volta |
 | M14 | ✅ 🌐 E13 | Criar sala com código em uso | Código de sala aberta | "Já está em uso", em até 3s |
 | M15 | ✅ 🌐 E16 | Sala cheia (6 jogadores) | 6 navegadores/dispositivos; 1 cai e volta | Volta ao lugar; 7º nome é recusado |
 | M16 | ✅ 🌐 E17 | Reusar o código depois que todos saem | Todos fecham; o host reabre (em 1 min ou depois de mais tempo) | A partida é restaurada enquanto a sala existir, sem prazo de validade |
 | M17 | P2 | Navegadores | Chrome, Edge (inclusive InPrivate), Firefox, Safari no iPhone | Mesmo comportamento |
-| M18 | P2 | Aba em segundo plano por muito tempo | Deixar a aba escondida 10 min | Ao voltar, o jogo se recupera (pode precisar de F5) |
+| M18 | **P1** ⬜ (com o host; com um jogador, P2) | Aba em segundo plano por muito tempo | Roteiro M18 de `manual-test-scripts.md`: aba do host escondida 10 min atrás de outra (o professor nos slides); depois, a de um jogador | Ideal: o host continua host. Mede se o Chrome/Edge, espaçando os timers da aba escondida, faz os outros assumirem (seção 5); ao voltar à aba, tudo se recupera |
 | M21 | **P1** (roadmap 2.9) | Teste de conexão pelo Firebase em redes reais | Roteiro M21 de `manual-test-scripts.md` (em casa: computador no Wi-Fi e celular nos dados móveis; na instituição: celular no 5G e computador na rede dela), na página `firebase-check.html` | Cria, entra, troca mensagens (com o tempo de ida e volta), volta sozinho depois do F5 e do modo avião (lógica coberta por 🤖 T143–T153 e 🌐 E24, E25). **Em casa ✅ 👤 (17/10/2026, computador no Wi-Fi e celular no 4G):** todos os passos; ida e volta de 382–434 ms; volta em 1–2 s depois do modo avião e na hora depois da tela bloqueada. O servidor tira da lista quem cai sem aviso em ~2 min (modo avião) e em menos de 1 min (tela bloqueada). **Falta a parte na instituição.** |
+| M22 | **P1** ⬜ | Troca de host em navegadores e redes reais, com a pergunta aberta | Roteiro M22 de `manual-test-scripts.md` (computador no Wi-Fi, outro navegador, celular nos dados móveis); inclui o F5 de um jogador com a sala sem host | Outro assume em ~10–20 s, a mesma pergunta continua e a resposta vale; o host antigo volta como jogador comum; o F5 com a sala sem host volta à partida em até ~20 s (nos automatizados: troca em 10,7 s no E31 e F5 em 9,0 s no E36, 18/10/2026) |
 
 Os manuais da troca de host M3, M4, M5, M11, M12, M19 e M20 passaram a
-ser cobertos pelos cenários E31–E35. Continua manual, antes da aula, uma
-troca de host em navegadores e redes reais (computador e celular), com a
-pergunta aberta — roteiro na etapa 4 do roadmap 2.9, junto com M7 e M8.
+ser cobertos pelos cenários E31–E35; o M22 confere a troca com aparelhos
+e redes de verdade.
 
 ---
 
@@ -242,7 +242,8 @@ partida só era restaurada até 5 min depois de todos saírem; hoje vale
 enquanto a sala existir).
 
 **Continuam manuais:** M7 (queda de rede real), M8 (celular), M21 (redes
-reais), M17 (Firefox, Safari) e M18 (aba esquecida em segundo plano).
+reais), M22 (troca de host em redes reais), M17 (Firefox, Safari) e M18
+(aba esquecida em segundo plano).
 
 Rodar localmente (precisa de Node e de Java 21 para o emulador): `npm ci`,
 `npx playwright install chromium`, `npm install -g firebase-tools@15.32.1`
