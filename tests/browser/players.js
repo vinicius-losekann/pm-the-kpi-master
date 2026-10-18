@@ -333,7 +333,24 @@ async function waitForHostBack(host) {
     await host.waitFor(() => Game.state.gameStarted === true, { timeout: 25000 });
 }
 
+/**
+ * Troca de host: espera um dos `candidates` virar o host da sala (quem
+ * assume recarrega a página antes) e o devolve. Durante a recarga, a
+ * página não responde: conta como "ainda não".
+ */
+async function waitForNewHost(candidates, timeout = 25000) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+        for (const p of candidates) {
+            if (!p.page || p.page.isClosed()) continue;
+            if (await p.isRoomHost().catch(() => false)) return p;
+        }
+        await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    throw new Error('Nenhum de ' + candidates.map(p => p.name).join('/') + ' assumiu a sala em ' + (timeout / 1000) + 's');
+}
+
 module.exports = {
     test, expect, roomCode, startMatch, answerUntilRoundEnds,
-    waitForOpenQuestion, waitForHostBack, SITE, DROP_WAIT
+    waitForOpenQuestion, waitForHostBack, waitForNewHost, SITE, DROP_WAIT
 };

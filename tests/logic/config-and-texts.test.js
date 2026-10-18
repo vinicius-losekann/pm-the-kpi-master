@@ -222,7 +222,7 @@ const PEER_CONNECTION_KEYS = ['connection.reconnecting', 'connection.reconnectin
     'connection.searchingForNewHost', 'connection.couldNotReconnect', 'connection.hostTakeoverFailed'];
 const OLD_I18N_KEYS = Object.keys(I18N_RENAMES).concat(REMOVED_I18N_KEYS);
 const OLD_I18N_MARKERS = ['assessor', 'sugestao', 'perguntador', 'respondedor', 'recursos', 'valor', 'kpiRecursos'];
-const I18N_MARKERS = ['advisor', 'amount', 'answerer', 'asker', 'count', 'cover', 'giver', 'helper', 'kpi', 'min', 'names',
+const I18N_MARKERS = ['advisor', 'amount', 'answerer', 'asker', 'count', 'cover', 'giver', 'helper', 'kpi', 'min', 'name', 'names',
     'receiver', 'requester', 'resources', 'resourcesKpi', 'reward', 'seconds', 'suggestion', 'value'];
 
 test('T88 Textos da tela em inglês: toda chave pedida existe no pt-BR.js real, toda chave dele é usada e cada chamada passa os marcadores do texto', () => {
@@ -230,7 +230,7 @@ test('T88 Textos da tela em inglês: toda chave pedida existe no pt-BR.js real, 
     const textKeys = keyPaths(dict).filter(p => typeof valueAt(dict, p) === 'string');
 
     // 1) O dicionário tem as chaves e os marcadores novos e nenhum antigo.
-    const missingNew = Object.values(I18N_RENAMES).concat(['lobby.badgeHost', 'advisory.timeout', 'result.kpiZero'])
+    const missingNew = Object.values(I18N_RENAMES).concat(['lobby.badgeHost', 'advisory.timeout', 'result.kpiZero', 'connection.newHost'])
         .filter(k => !PEER_CONNECTION_KEYS.includes(k) && !textKeys.includes(k));
     check(missingNew.length === 0, 'faltam no pt-BR.js as chaves novas: ' + missingNew.join(', '));
     const oldKeys = textKeys.filter(k => OLD_I18N_KEYS.includes(k));

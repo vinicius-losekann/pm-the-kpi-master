@@ -6,8 +6,8 @@
 // anônimo e a hora do servidor: criar a sala na tela inicial e abrir o jogo (o papel vem do
 // banco), pedidos ao host, avisos para todos e para um jogador, o cursor
 // dos avisos de quem entra, recusa, queda e volta pela presença, F5 de
-// guest e do host, host que cai (sem troca de host), aba duplicada e
-// sair da sala.
+// guest e do host, host que cai e volta antes do HOST_TIMEOUT, troca de
+// host no jogo (T196–T204), aba duplicada e sair da sala.
 // Cada aparelho é um ambiente do environment.js com o canal e a ligação
 // reais, ligado ao Firebase simulado de fakeFirebase.js (o mesmo banco
 // para todos). Os arquivos são carregados dentro de cada teste.
@@ -16,7 +16,7 @@
 // ============================================
 
 const { fs, path, vm, ROOT, createEnvironment, test, check, start, finish, recordScreens } = require('./environment');
-const { createFakeFirebase, flush } = require('./fakeFirebase');
+const { createFakeFirebase, flush, SERVER_TIMESTAMP } = require('./fakeFirebase');
 
 start('O jogo pelo canal da sala');
 
@@ -119,7 +119,10 @@ function fakeBrowser() {
  * Uma aba com o jogo aberto, no navegador `browser`: ambiente com o
  * canal e a ligação reais (o envio vai pelo banco), o aparelho `uid` no
  * banco simulado e o relógio `clock`. Cada mensagem que o jogo trata
- * (Game.network.handleMessage) fica em `handled`, com quem mandou.
+ * (Game.network.handleMessage) fica em `handled`, com quem mandou; cada
+ * recarga da página que o jogo pede (location.reload()), em `reloads`
+ * (a hora do pedido) — a recarga em si é do teste (reloadTab()). Com o
+ * banco de timedFake(), a hora gravada é a do servidor.
  */
 function linkedDevice(fake, uid, name, clock, browser = fakeBrowser()) {
     for (const file of ['js/network/roomChannel.js', 'js/network/roomLink.js']) {
@@ -144,9 +147,12 @@ function linkedDevice(fake, uid, name, clock, browser = fakeBrowser()) {
     const timers = tabTimers(clock, device);
     env.ctx.setInterval = timers.setInterval;
     env.ctx.clearInterval = timers.clearInterval;
-    const link = (code) => ({ db: device.db, uid, code, now: () => clock.now, timestamp: () => clock.now });
+    const reloads = [];
+    env.ctx.location.reload = () => { reloads.push(clock.now); };
+    const timestamp = () => (fake.serverTime ? SERVER_TIMESTAMP : clock.now);
+    const link = (code) => ({ db: device.db, uid, code, now: () => clock.now, timestamp });
     return {
-        env, device, browser, alerts, handled, uid, name,
+        env, device, browser, alerts, handled, uid, name, reloads,
         types: () => handled.map(h => h.type),
         create: (code = ROOM) => env.Game.network.createRoom(link(code)),
         open: (code = ROOM, extra = {}) => env.Game.network.openRoom({ ...link(code), ...extra }),
@@ -392,7 +398,7 @@ asyncTest('T171 Volta da conexão e F5 de guest: quem volta manda o player-join 
     check(again.env.state.gameStarted === true, 'Beto deveria voltar à partida');
 });
 
-asyncTest('T172 Host que cai: os outros veem "Host desconectado" e a sala espera, sem troca de host; F5 do host pelo estado no banco (restaurado antes do onOpen) trata os pedidos que esperaram no banco', async () => {
+asyncTest('T172 Host que cai e volta antes do HOST_TIMEOUT: os outros veem "Host desconectado" e a sala espera, sem troca de host; F5 do host pelo estado no banco (restaurado antes do onOpen) trata os pedidos que esperaram no banco', async () => {
     const fake = createFakeFirebase();
     const clock = { now: 1000 };
     const host = await hostRoom(fake, clock);
@@ -833,6 +839,460 @@ asyncTest('T191 F5 de quem responde: dentro da tolerância, ninguém cai — a m
         'o config real deveria ter HEARTBEAT_INTERVAL 2000, PRESENCE_TIMEOUT 20000 e HOST_TIMEOUT 10000 (não abaixo do piso de 5000 das regras), veio: ' +
         JSON.stringify({ HEARTBEAT_INTERVAL: R.HEARTBEAT_INTERVAL, PRESENCE_TIMEOUT: R.PRESENCE_TIMEOUT, HOST_TIMEOUT: R.HOST_TIMEOUT }));
     check(host.env.Game.network.PROTOCOL_VERSION >= 12, 'o protocolo deveria ser 12 ou mais (aparelho sem lastSeen cairia aos 20 s), veio: ' + host.env.Game.network.PROTOCOL_VERSION);
+});
+
+// ============================================
+// TROCA DE HOST NO JOGO (etapa 3c)
+// ============================================
+
+/**
+ * Banco simulado com a hora do servidor no relógio do teste: o sinal de
+ * vida e o offline deixado com o servidor (onDisconnect) ficam com a hora
+ * em que chegam ao banco — a da queda, como no real.
+ */
+function timedFake(clock) {
+    const fake = createFakeFirebase({ serverNow: () => clock.now });
+    fake.serverTime = true;
+    return fake;
+}
+
+/**
+ * Ana (host), Beto e Caio na sala, no banco de timedFake(). `random` fixa
+ * o sorteio no host (0.99: Caio responde e Beto pergunta; 0: Ana responde
+ * e Beto pergunta); `prepare(host)` roda antes de os guests entrarem (ex.:
+ * o ASK_TIMEOUT); `start: false` fica no lobby.
+ */
+async function roomOfThree(clock, { random = 0.99, start = true, prepare } = {}) {
+    const fake = timedFake(clock);
+    const host = await hostRoom(fake, clock);
+    vm.runInContext('Math.random = () => ' + random, host.env.ctx);
+    if (prepare) prepare(host);
+    const beto = await guestJoins(fake, clock, 'uid-beto', 'Beto');
+    const caio = await guestJoins(fake, clock, 'uid-caio', 'Caio');
+    if (start) {
+        host.env.startMatch();
+        await settle();
+    }
+    return { fake, host, beto, caio };
+}
+
+/**
+ * O host sai (`leave`: fecha a aba, por padrão) e o tempo passa até um dos
+ * `guests` assumir a sala no meta. Devolve quem ganhou (`winner`: a aba de
+ * antes da recarga, ainda aberta — a recarga é do teste, reloadTab()) e
+ * os outros.
+ */
+async function waitForTakeover(fake, clock, host, guests, leave = () => host.close()) {
+    leave();
+    await passTime(clock, host.env.CONFIG.GAME.HOST_TIMEOUT + 3000);
+    const uid = fake.read('rooms/' + ROOM + '/meta/hostUid');
+    const winner = guests.find(g => g.uid === uid);
+    check(winner, 'pré-condição: um guest deveria assumir a sala no meta, veio: ' + JSON.stringify(fake.read('rooms/' + ROOM + '/meta')));
+    return { winner, others: guests.filter(g => g !== winner) };
+}
+
+/**
+ * A aba recarrega (o location.reload() que o jogo pede): fecha e o jogo
+ * abre de novo no mesmo navegador, com o onOpen do main.js (showRoom():
+ * com o estado restaurado, retoma a partida e grava). `prepare(again)` roda
+ * antes de abrir (ex.: o sorteio fixo, o ASK_TIMEOUT). `atOpen` guarda o
+ * que o onOpen viu, antes da retomada.
+ */
+async function reloadTab(fake, clock, tab, prepare) {
+    tab.close();
+    await settle();
+    const again = linkedDevice(fake, tab.uid, tab.name, clock, tab.browser);
+    if (prepare) prepare(again);
+    const s = again.env.state;
+    let atOpen = null;
+    const opened = await again.open(ROOM, {
+        onOpen: (result) => {
+            atOpen = {
+                result: copy(result), isHost: s.isHost, players: copy(s.players), currentRound: copy(s.currentRound),
+                endsAt: s.endsAt, roundEnded: s.roundEnded, matchPaused: copy(s.matchPaused), answeredThisRound: copy(s.answeredThisRound)
+            };
+            const core = again.env.Game.core;
+            if (result.restored && s.gameStarted && s.gameOver) {
+                core.showGameOver();
+            } else if (result.restored && s.gameStarted && s.isHost) {
+                core.resumeMatchAfterReload();
+            }
+            if (result.restored) again.env.Game.saveState();
+        }
+    });
+    await settle();
+    return { again, opened, atOpen };
+}
+
+/** O i18n da aba devolve a chave seguida dos valores (para o teste ver o nome no aviso). */
+function showTextValues(tab) {
+    tab.env.Game.i18n.t = (key, values) => key + (values ? ' ' + JSON.stringify(values) : '');
+}
+
+const roundStartsOf = (tab) => tab.types().filter(t => t === 'round-start').length;
+
+asyncTest('T196 Troca de host com a pergunta aberta: o host fecha a aba; quem assume pede a recarga da página uma vez e abre como host com o estado da partida (takenOver); o host antigo fica isHost false e desconectado, quem assumiu isHost true; a mesma pergunta continua (dupla, pergunta com o gabarito, quem já respondeu); o outro guest não recarrega, passa ao host novo (player-join e state-sync dele) e mostra "Fulano agora é o host", que continua depois da recarga do host novo', async () => {
+    const clock = { now: 1000 };
+    const { fake, host, beto, caio } = await roomOfThree(clock);
+    const round = copy(host.env.state.currentRound);
+    check(round && round.asker === 'Beto' && round.answerer === 'Caio' && round.question && !round.answered,
+        'pré-condição: Beto pergunta e Caio responde, com a pergunta aberta, veio: ' + JSON.stringify(round && { asker: round.asker, answerer: round.answerer }));
+    const screens = {};
+    for (const g of [beto, caio]) {
+        screens[g.uid] = recordScreens(g.env);
+        showTextValues(g);
+    }
+    const startsBefore = { 'uid-beto': roundStartsOf(beto), 'uid-caio': roundStartsOf(caio) };
+
+    const { winner, others } = await waitForTakeover(fake, clock, host, [beto, caio]);
+    const other = others[0];
+    check(winner.reloads.length === 1, 'quem assumiu a sala deveria pedir a recarga da página uma vez, pediu ' + winner.reloads.length + ' vez(es)');
+    check(other.reloads.length === 0 && other.env.state.isHost === false, 'o outro guest não recarrega e continua guest, recarregou ' + other.reloads.length + ' vez(es)');
+
+    const { again, opened, atOpen } = await reloadTab(fake, clock, winner);
+    check(opened && opened.ok === true && opened.isHost === true && opened.restored === true && opened.takenOver === true,
+        'depois da recarga, quem assumiu deveria abrir como host, com o estado da partida restaurado e takenOver, veio: ' + JSON.stringify(opened));
+    check(atOpen && atOpen.isHost === true && atOpen.result && atOpen.result.takenOver === true, 'o onOpen deveria rodar como host, com takenOver, veio: ' + JSON.stringify(atOpen && atOpen.result));
+    const s = again.env.state;
+    const ana = again.env.player('Ana');
+    const me = again.env.player(winner.name);
+    check(ana && ana.isHost === false && ana.disconnected === true && ana.peerId === 'uid-host',
+        'o host antigo deveria ficar na partida como isHost false e desconectado, veio: ' + JSON.stringify(ana));
+    check(me && me.isHost === true && me.disconnected !== true && s.players.filter(p => p.isHost).length === 1,
+        'quem assumiu deveria ser o único isHost, conectado, veio: ' + JSON.stringify(s.players));
+    const now = s.currentRound;
+    check(now && now.event && now.event.id === round.event.id && now.question.question === round.question.question && now.question.correct === round.question.correct &&
+        now.asker === 'Beto' && now.answerer === 'Caio' && !now.answered && JSON.stringify(s.answeredThisRound) === JSON.stringify(atOpen.answeredThisRound),
+        'a mesma pergunta deveria continuar no host novo (evento, dupla, pergunta com o gabarito, quem já respondeu), veio: ' +
+        JSON.stringify(now && { event: now.event && now.event.id, asker: now.asker, answerer: now.answerer, answered: now.answered }));
+
+    check(roundStartsOf(other) === startsBefore[other.uid], 'nenhuma dupla nova deveria ser sorteada, ' + other.name + ' recebeu: ' + JSON.stringify(other.types()));
+    check(again.handled.some(h => h.type === 'player-join' && h.from === other.uid),
+        'o player-join de ' + other.name + ' deveria chegar ao host novo, o host tratou: ' + JSON.stringify(again.handled.map(h => h.type + ':' + h.from)));
+    check(other.handled.some(h => h.type === 'state-sync' && h.from === winner.uid),
+        other.name + ' deveria receber o estado do host novo, recebeu: ' + JSON.stringify(other.handled.map(h => h.type + ':' + h.from)));
+    const seen = other.env.state;
+    const seenHosts = seen.players.filter(p => p.isHost).map(p => p.name);
+    check(JSON.stringify(seenHosts) === JSON.stringify([winner.name]) && seen.currentRound && seen.currentRound.answerer === 'Caio' &&
+        seen.currentRound.question && seen.currentRound.question.question === round.question.question,
+        other.name + ' deveria ver ' + winner.name + ' como host e a mesma pergunta, viu: ' + JSON.stringify({ hosts: seenHosts, round: seen.currentRound && seen.currentRound.answerer }));
+    const statuses = screens[other.uid].filter(c => c.name === 'updateConnectionStatus');
+    const last = statuses[statuses.length - 1];
+    check(statuses.some(c => /^connection\.newHost /.test(String(c.args[1]))) && last && last.args[0] === 'connected' &&
+        /^connection\.newHost /.test(String(last.args[1])) && String(last.args[1]).includes('"name":"' + winner.name + '"'),
+        other.name + ' deveria ver "Fulano agora é o host" (connection.newHost, com o nome de quem assumiu), também depois da recarga do host novo, viu: ' +
+        JSON.stringify(statuses.slice(-3).map(c => c.args)));
+    check(fake.read('rooms/' + ROOM + '/requests') === undefined, 'os pedidos que esperaram deveriam ser tratados e apagados, sobrou: ' + JSON.stringify(fake.read('rooms/' + ROOM + '/requests')));
+});
+
+asyncTest('T197 Troca de host com a rodada encerrada: continua encerrada no host novo e para quem fica, nenhuma dupla começa sozinha; o "Nova Rodada" do host novo começa a próxima, sem o host antigo', async () => {
+    const clock = { now: 1000 };
+    const { fake, host, beto, caio } = await roomOfThree(clock);
+    const h = host.env.state;
+    h.currentRound.answered = true;
+    h.answeredThisRound = ['Caio', 'Beto', 'Ana'];
+    h.roundEnded = true;
+    host.env.Game.network.broadcastAll({ type: 'round-ended' });
+    host.env.Game.saveState();
+    await settle();
+    check(beto.env.state.roundEnded === true && caio.env.state.roundEnded === true, 'pré-condição: a rodada encerrada para todos');
+    const startsBefore = { 'uid-beto': roundStartsOf(beto), 'uid-caio': roundStartsOf(caio) };
+
+    const { winner, others } = await waitForTakeover(fake, clock, host, [beto, caio]);
+    const other = others[0];
+    const { again, opened } = await reloadTab(fake, clock, winner);
+    const s = again.env.state;
+    check(opened && opened.takenOver === true && s.roundEnded === true && !s.matchPaused,
+        'no host novo, a rodada deveria continuar encerrada, veio: ' + JSON.stringify({ opened, roundEnded: s.roundEnded, paused: s.matchPaused }));
+    check(roundStartsOf(other) === startsBefore[other.uid] && other.env.state.roundEnded === true &&
+        other.handled.some(h => h.type === 'state-sync' && h.from === winner.uid),
+        other.name + ' deveria continuar com a rodada encerrada, sem dupla nova, pelo estado do host novo, recebeu: ' + JSON.stringify(other.types()));
+
+    again.env.Game.core.startNewRound();
+    await settle();
+    const r = s.currentRound;
+    check(s.roundEnded === false && r && !r.answered && r.asker !== 'Ana' && r.answerer !== 'Ana' && roundStartsOf(other) === startsBefore[other.uid] + 1,
+        'o "Nova Rodada" do host novo deveria começar a próxima, sem o host antigo na dupla, veio: ' + JSON.stringify(r && { asker: r.asker, answerer: r.answerer }));
+});
+
+asyncTest('T198 Troca de host com a partida pausada: quem assume continua pausado com o mesmo evento, sem dupla nova; volta conectado e isHost mesmo que o host antigo o tivesse dado como caído, e o pedido de entrada que ele tinha mandado ao host antigo não volta para ele como estado; com a volta do outro, retoma com o mesmo evento', async () => {
+    const clock = { now: 1000 };
+    const { fake, host, beto, caio } = await roomOfThree(clock);
+    const G = host.env.CONFIG.GAME;
+    beto.device.goOffline();
+    caio.device.goOffline();
+    await passTime(clock, G.PRESENCE_TIMEOUT + 2000);
+    const paused = copy(host.env.state.matchPaused);
+    check(paused && paused.event && host.env.player('Beto').disconnected === true && host.env.player('Caio').disconnected === true,
+        'pré-condição: partida pausada, com Beto e Caio desconectados, veio: ' + JSON.stringify({ paused, players: host.env.state.players }));
+
+    // O host fecha a aba; Beto volta da queda e é o único que pode assumir.
+    host.close();
+    beto.device.goOnline();
+    await passTime(clock, G.HOST_TIMEOUT + 2 * G.HEARTBEAT_INTERVAL + 3000);
+    check(fake.read('rooms/' + ROOM + '/meta/hostUid') === 'uid-beto', 'pré-condição: Beto deveria assumir a sala, veio: ' + JSON.stringify(fake.read('rooms/' + ROOM + '/meta')));
+    check(beto.reloads.length === 1, 'Beto deveria pedir a recarga da página uma vez, pediu ' + beto.reloads.length);
+
+    const { again, opened } = await reloadTab(fake, clock, beto);
+    const s = again.env.state;
+    check(opened && opened.takenOver === true && s.matchPaused && s.matchPaused.event && s.matchPaused.event.id === paused.event.id && !s.currentRound,
+        'Beto deveria continuar com a partida pausada, com o mesmo evento e sem dupla, veio: ' + JSON.stringify({ paused: s.matchPaused, round: s.currentRound }));
+    const b = again.env.player('Beto');
+    check(b && b.isHost === true && b.disconnected !== true && again.env.player('Ana').disconnected === true && again.env.player('Caio').disconnected === true,
+        'Beto deveria ser o host, conectado; Ana e Caio desconectados, veio: ' + JSON.stringify(s.players));
+    check(!again.handled.some(h => h.type === 'state-sync'),
+        'o pedido de entrada que Beto mandou ao host antigo não deveria voltar para ele mesmo como estado (state-sync), o host tratou: ' + JSON.stringify(again.types()));
+
+    // Caio volta: a partida retoma com o mesmo evento.
+    caio.device.goOnline();
+    await passTime(clock, 3000);
+    const r = s.currentRound;
+    check(!s.matchPaused && r && r.event && r.event.id === paused.event.id && again.env.player('Caio').disconnected === false,
+        'com a volta de Caio, a partida deveria retomar com o mesmo evento, veio: ' + JSON.stringify({ paused: s.matchPaused, event: r && r.event && r.event.id }));
+    const seen = caio.env.state.currentRound;
+    check(seen && seen.event && seen.event.id === paused.event.id && seen.answerer === r.answerer && caio.env.state.players.find(p => p.name === 'Beto').isHost === true,
+        'Caio deveria ficar com a rodada retomada pelo host novo, veio: ' + JSON.stringify({ round: seen && { event: seen.event && seen.event.id, answerer: seen.answerer }, types: caio.types() }));
+});
+
+asyncTest('T199 Troca de host no lobby: o host antigo sai da lista; quem fica não precisa entrar de novo (continua no roster, sem recusa) e vê a lista sem ele; o host antigo que volta pelo link entra como jogador comum; o host novo começa a partida para todos', async () => {
+    const clock = { now: 1000 };
+    const { fake, host, beto, caio } = await roomOfThree(clock, { start: false });
+    const { winner, others } = await waitForTakeover(fake, clock, host, [beto, caio]);
+    const other = others[0];
+    const { again, opened } = await reloadTab(fake, clock, winner);
+    const names = () => again.env.state.players.map(p => p.name).sort();
+    check(opened && opened.takenOver === true && JSON.stringify(names()) === '["Beto","Caio"]' && again.env.player(winner.name).isHost === true,
+        'no lobby, o host antigo deveria sair da lista e quem assumiu ser o host, veio: ' + JSON.stringify({ takenOver: opened && opened.takenOver, players: again.env.state.players }));
+    check(fake.read('rooms/' + ROOM + '/roster/' + other.uid) === true && !other.types().includes('join-rejected') &&
+        JSON.stringify(other.env.state.players.map(p => p.name).sort()) === '["Beto","Caio"]',
+        other.name + ' deveria continuar na sala, sem recusa, vendo a lista sem Ana, veio: ' + JSON.stringify({ types: other.types(), players: other.env.state.players.map(p => p.name) }));
+
+    const anaBack = linkedDevice(fake, 'uid-host', 'Ana', clock, host.browser);
+    const back = await anaBack.open();
+    await settle();
+    const a = again.env.player('Ana');
+    check(back && back.ok === true && back.isHost === false && anaBack.env.state.isHost === false && anaBack.types().includes('state-sync') &&
+        a && a.isHost === false && again.env.state.players.length === 3,
+        'Ana, de volta pelo link, deveria entrar como jogadora comum, veio: ' + JSON.stringify({ back, ana: a }));
+
+    again.env.Game.core.startGame();
+    await settle();
+    check(again.env.state.gameStarted === true && again.env.state.currentRound && other.env.state.gameStarted === true && anaBack.env.state.gameStarted === true,
+        'o host novo deveria começar a partida para todos, veio: ' + JSON.stringify({ other: other.env.state.gameStarted, ana: anaBack.env.state.gameStarted }));
+});
+
+asyncTest('T200 Troca de host com o host antigo na dupla: a rodada é tratada como a de quem cai — dupla nova entre os que ficaram, avisada a todos; ninguém ganha nem perde KPI e o host antigo não entra em quem já respondeu', async () => {
+    const clock = { now: 1000 };
+    const { fake, host, beto, caio } = await roomOfThree(clock, { random: 0 });
+    const round = copy(host.env.state.currentRound);
+    check(round && round.answerer === 'Ana' && round.asker === 'Beto' && !round.answered,
+        'pré-condição: Ana responde e Beto pergunta, veio: ' + JSON.stringify(round && { asker: round.asker, answerer: round.answerer }));
+    const kpis = JSON.stringify(host.env.state.players.map(p => [p.name, p.kpi]));
+
+    const { winner, others } = await waitForTakeover(fake, clock, host, [beto, caio]);
+    const other = others[0];
+    const { again, opened } = await reloadTab(fake, clock, winner);
+    const s = again.env.state;
+    const r = s.currentRound;
+    check(opened && opened.takenOver === true && r && !r.answered && r.asker !== 'Ana' && r.answerer !== 'Ana' && ['Beto', 'Caio'].includes(r.answerer),
+        'o host novo deveria sortear uma dupla nova entre Beto e Caio, veio: ' + JSON.stringify(r && { asker: r.asker, answerer: r.answerer, answered: r.answered }));
+    // A dupla nova é sorteada na retomada, antes de o pedido de entrada do
+    // outro guest ser tratado: chega a ele pelo estado do host novo.
+    const seen = other.env.state.currentRound;
+    check(seen && seen.asker === r.asker && seen.answerer === r.answerer && !seen.answered && other.handled.some(h => h.type === 'state-sync' && h.from === winner.uid),
+        other.name + ' deveria ficar com a dupla nova pelo estado do host novo, veio: ' + JSON.stringify(seen && { asker: seen.asker, answerer: seen.answerer }));
+    check(JSON.stringify(s.players.map(p => [p.name, p.kpi])) === kpis && !s.answeredThisRound.includes('Ana'),
+        'ninguém deveria ganhar ou perder KPI e Ana não entra em quem já respondeu, veio: ' + JSON.stringify({ players: s.players.map(p => [p.name, p.kpi]), answered: s.answeredThisRound }));
+});
+
+asyncTest('T201 Troca de host com a pergunta ainda por fazer: quem assume continua esperando o Perguntador (a pergunta não vai sozinha nem chega a quem responde); com o clique do Perguntador, ela chega a quem responde uma vez', async () => {
+    const clock = { now: 1000 };
+    const askTimeout = 25000;
+    const { fake, host, beto, caio } = await roomOfThree(clock, { prepare: (h) => { h.env.CONFIG.GAME.ASK_TIMEOUT = askTimeout; } });
+    const round = copy(host.env.state.currentRound);
+    check(round && round.asker === 'Beto' && round.answerer === 'Caio' && round.asked === false,
+        'pré-condição: Beto ainda não fez a pergunta a Caio, veio: ' + JSON.stringify(round && { asker: round.asker, answerer: round.answerer, asked: round.asked }));
+
+    const { winner, others } = await waitForTakeover(fake, clock, host, [beto, caio]);
+    const { again, opened, atOpen } = await reloadTab(fake, clock, winner, (t) => { t.env.CONFIG.GAME.ASK_TIMEOUT = askTimeout; });
+    const tabOf = (name) => (name === winner.name ? again : others[0]);
+    const s = again.env.state;
+    const questionsTo = (tab) => tab.handled.filter(h => h.type === 'question' && h.msg.isAnswerer === true).length;
+    check(opened && opened.takenOver === true && atOpen.currentRound && atOpen.currentRound.asked === false && s.currentRound && s.currentRound.asked === false &&
+        s.currentRound.asker === 'Beto' && s.currentRound.answerer === 'Caio' && questionsTo(tabOf('Caio')) === 0,
+        'o host novo deveria continuar esperando o clique de Beto, sem mandar a pergunta a Caio, veio: ' +
+        JSON.stringify({ asked: s.currentRound && s.currentRound.asked, toCaio: questionsTo(tabOf('Caio')) }));
+
+    const asker = tabOf('Beto');
+    const ask = { type: 'ask-question', playerName: 'Beto' };
+    if (asker === again) {
+        again.env.Game.core.handleAskQuestion(ask);
+    } else {
+        asker.env.Game.network.sendToHost(ask);
+    }
+    await settle();
+    check(s.currentRound.asked === true && questionsTo(tabOf('Caio')) === 1,
+        'com o clique de Beto, a pergunta deveria chegar a Caio uma vez, veio: ' + JSON.stringify({ asked: s.currentRound.asked, toCaio: questionsTo(tabOf('Caio')) }));
+});
+
+asyncTest('T202 Troca de host e a vez de responder: a resposta mandada durante a troca espera no banco e vale uma vez no host novo (mandada de novo, não conta); resposta já tratada pelo host antigo não se repete — o rodízio segue com quem ainda não respondeu', async () => {
+    // A resposta de Caio espera no banco.
+    const clock = { now: 1000 };
+    const { fake, host, beto, caio } = await roomOfThree(clock);
+    const round = copy(host.env.state.currentRound);
+    check(round && round.answerer === 'Caio' && round.question && round.question.correct, 'pré-condição: Caio responde, veio: ' + JSON.stringify(round && round.answerer));
+    const kpiBefore = host.env.player('Caio').kpi;
+    host.close();
+    await passTime(clock, 1000);
+    const answer = { type: 'answer', alternative: round.question.correct, playerName: 'Caio' };
+    caio.env.Game.network.sendToHost(answer);
+    await settle();
+    check(Object.keys(fake.read('rooms/' + ROOM + '/requests') || {}).length >= 1, 'pré-condição: a resposta de Caio espera no banco');
+    const { winner } = await waitForTakeover(fake, clock, host, [beto, caio], () => {});
+    const { again, opened } = await reloadTab(fake, clock, winner);
+    const s = again.env.state;
+    const kpiAfter = again.env.player('Caio').kpi;
+    check(opened && opened.takenOver === true, 'quem assumiu deveria abrir com o estado de outro host (takenOver), veio: ' + JSON.stringify(opened));
+    check(s.currentRound && s.currentRound.answered === true && s.answeredThisRound.filter(n => n === 'Caio').length === 1 && kpiAfter > kpiBefore,
+        'a resposta (certa) que esperou no banco deveria valer uma vez no host novo, veio: ' + JSON.stringify({ answered: s.answeredThisRound, kpiBefore, kpiAfter }));
+    again.env.Game.network.receiveRequest(answer, 'uid-caio');
+    await settle();
+    check(again.env.player('Caio').kpi === kpiAfter && s.answeredThisRound.filter(n => n === 'Caio').length === 1,
+        'a mesma resposta mandada de novo não deveria contar, veio: ' + JSON.stringify({ kpi: again.env.player('Caio').kpi, answered: s.answeredThisRound }));
+
+    // Caio responde ao host antigo, que cai antes da próxima dupla.
+    const clock2 = { now: 1000 };
+    const room = await roomOfThree(clock2);
+    const q = room.host.env.state.currentRound.question;
+    room.caio.env.Game.network.sendToHost({ type: 'answer', alternative: q.correct, playerName: 'Caio' });
+    await settle();
+    check(room.host.env.state.currentRound.answered === true && room.host.env.state.answeredThisRound.includes('Caio'), 'pré-condição: o host antigo tratou a resposta de Caio');
+    const kpi = room.host.env.player('Caio').kpi;
+    const t = await waitForTakeover(room.fake, clock2, room.host, [room.beto, room.caio]);
+    const reopened = await reloadTab(room.fake, clock2, t.winner);
+    const s2 = reopened.again.env.state;
+    check(reopened.opened && reopened.opened.takenOver === true && reopened.again.env.player('Ana').disconnected === true,
+        'quem assumiu deveria abrir com o estado de outro host (takenOver), com Ana desconectada, veio: ' + JSON.stringify({ opened: reopened.opened, ana: reopened.again.env.player('Ana') }));
+    check(s2.currentRound && s2.currentRound.answerer === 'Beto' && !s2.currentRound.answered &&
+        s2.answeredThisRound.filter(n => n === 'Caio').length === 1 && reopened.again.env.player('Caio').kpi === kpi,
+        'o host novo deveria seguir para a próxima dupla (Beto responde), sem Caio responder de novo nem mudar o KPI dele, veio: ' +
+        JSON.stringify({ round: s2.currentRound && { asker: s2.currentRound.asker, answerer: s2.currentRound.answerer, answered: s2.currentRound.answered }, answered: s2.answeredThisRound, kpi: reopened.again.env.player('Caio').kpi }));
+});
+
+asyncTest('T203 O host antigo volta como jogador comum, com KPI e recursos: pelo link depois de fechar a aba, ou da queda de rede — nesse caso, a página dele pede a recarga ao saber da troca, sem apagar a sala, e volta como guest; quem assumiu pede a recarga uma vez e o outro guest nenhuma', async () => {
+    // Ana fecha a aba e volta pelo link.
+    const clock = { now: 1000 };
+    const { fake, host, beto, caio } = await roomOfThree(clock);
+    host.env.player('Ana').kpi = 30;
+    host.env.player('Ana').resources = 7;
+    host.env.Game.saveState();
+    await settle();
+    const { winner, others } = await waitForTakeover(fake, clock, host, [beto, caio]);
+    const { again } = await reloadTab(fake, clock, winner);
+    const anaBack = linkedDevice(fake, 'uid-host', 'Ana', clock, host.browser);
+    const back = await anaBack.open();
+    await settle();
+    const a = again.env.player('Ana');
+    check(back && back.ok === true && back.isHost === false && anaBack.env.state.isHost === false && anaBack.types().includes('state-sync'),
+        'Ana, de volta pelo link, deveria abrir como guest e receber o estado do host novo, veio: ' + JSON.stringify({ back, types: anaBack.types() }));
+    check(a && a.isHost === false && a.disconnected === false && a.kpi === 30 && a.resources === 7 && a.peerId === 'uid-host',
+        'Ana deveria voltar como jogadora comum, conectada, com o KPI e os recursos dela, veio: ' + JSON.stringify(a));
+    const hosts = anaBack.env.state.players.filter(p => p.isHost).map(p => p.name);
+    check(JSON.stringify(hosts) === JSON.stringify([winner.name]), 'Ana deveria ver ' + winner.name + ' como host, viu: ' + JSON.stringify(hosts));
+    check(winner.reloads.length === 1 && others[0].reloads.length === 0, 'quem assumiu pede a recarga uma vez, o outro guest nenhuma, veio: ' + JSON.stringify([winner.reloads.length, others[0].reloads.length]));
+
+    // A conexão de Ana cai e volta depois da troca.
+    const clock2 = { now: 1000 };
+    const room = await roomOfThree(clock2);
+    room.host.env.player('Ana').kpi = 20;
+    room.host.env.Game.saveState();
+    await settle();
+    const t = await waitForTakeover(room.fake, clock2, room.host, [room.beto, room.caio], () => room.host.device.goOffline());
+    const reopened = await reloadTab(room.fake, clock2, t.winner);
+    const meta = copy(room.fake.read('rooms/' + ROOM + '/meta'));
+    room.host.device.goOnline();
+    await settle();
+    check(room.host.reloads.length === 1, 'a página de Ana, de volta da queda, deveria pedir a recarga ao saber da troca, pediu ' + room.host.reloads.length + ' vez(es)');
+    check(JSON.stringify(room.fake.read('rooms/' + ROOM + '/meta')) === JSON.stringify(meta) && room.fake.read('rooms/' + ROOM + '/secret/state'),
+        'a volta de Ana não deveria mexer no meta nem apagar a sala, veio: ' + JSON.stringify(room.fake.read('rooms/' + ROOM + '/meta')));
+    const anaAgain = await reloadTab(room.fake, clock2, room.host);
+    const a2 = reopened.again.env.player('Ana');
+    check(anaAgain.opened && anaAgain.opened.ok === true && anaAgain.opened.isHost === false && anaAgain.again.env.state.isHost === false &&
+        a2 && a2.isHost === false && a2.disconnected === false && a2.kpi === 20,
+        'depois da recarga, Ana deveria voltar como jogadora comum, com o KPI dela, veio: ' + JSON.stringify({ opened: anaAgain.opened, ana: a2 }));
+});
+
+asyncTest('T204 Prazos na troca de host: o tempo sem host não conta — cada prazo da rodada que ainda corria no último sinal do host antigo (resposta, apoio) ganha a folga (hora de abrir − lastSeen dele), e quem responde recebe o prazo novo; o prazo que já tinha vencido antes, o prazo de resposta parado pelo apoio e o relógio da partida não mudam; sem lastSeen, folga zero; no F5 do host (sem troca), nenhum prazo muda', async () => {
+    // Prazo de resposta correndo; o do Perguntador já vencido.
+    const clock = { now: 1000 };
+    const r1 = await roomOfThree(clock);
+    const closeAt = clock.now;
+    const round1 = r1.host.env.state.currentRound;
+    round1.askEndsAt = closeAt - 1000;
+    round1.answerEndsAt = closeAt + 50000;
+    r1.host.env.Game.saveState();
+    await settle();
+    const endsAt1 = r1.host.env.state.endsAt;
+    const t1 = await waitForTakeover(r1.fake, clock, r1.host, [r1.beto, r1.caio]);
+    const slack1 = clock.now - closeAt;
+    const o1 = await reloadTab(r1.fake, clock, t1.winner);
+    const at1 = o1.atOpen && o1.atOpen.currentRound;
+    check(o1.opened && o1.opened.takenOver === true && at1 && at1.answerEndsAt === closeAt + 50000 + slack1 && at1.askEndsAt === closeAt - 1000 && o1.atOpen.endsAt === endsAt1,
+        'o prazo de resposta deveria ganhar a folga de ' + slack1 + ' ms (o do Perguntador, vencido antes, e o relógio da partida não mudam), veio: ' +
+        JSON.stringify(at1 && { answerEndsAt: at1.answerEndsAt - closeAt, askEndsAt: at1.askEndsAt - closeAt, endsAtSame: o1.atOpen.endsAt === endsAt1 }));
+    const r1now = o1.again.env.state.currentRound;
+    check(r1now && r1now.answerEndsAt === closeAt + 50000 + slack1, 'depois da retomada, o prazo de resposta continua o prorrogado, veio: ' + (r1now && r1now.answerEndsAt - closeAt));
+    const otherRound = t1.others[0].env.state.currentRound;
+    check(otherRound && otherRound.answerEndsAt === closeAt + 50000 + slack1,
+        t1.others[0].name + ' deveria receber o prazo prorrogado no estado do host novo, veio: ' + (otherRound && otherRound.answerEndsAt - closeAt));
+
+    // Apoio pendente: o prazo de quem foi chamado ganha a folga; o de resposta continua parado.
+    const clock2 = { now: 1000 };
+    const r2 = await roomOfThree(clock2);
+    const closeAt2 = clock2.now;
+    const round2 = r2.host.env.state.currentRound;
+    round2.answerEndsAt = null;
+    round2.answerTimeLeft = 12345;
+    round2.advisory = { kind: 'advisory', advisorName: 'Ana', status: 'pending', suggestion: null, endsAt: closeAt2 + 40000 };
+    r2.host.env.Game.saveState();
+    await settle();
+    const t2 = await waitForTakeover(r2.fake, clock2, r2.host, [r2.beto, r2.caio]);
+    const slack2 = clock2.now - closeAt2;
+    const o2 = await reloadTab(r2.fake, clock2, t2.winner);
+    const at2 = o2.atOpen && o2.atOpen.currentRound;
+    check(at2 && at2.advisory && at2.advisory.status === 'pending' && at2.advisory.endsAt === closeAt2 + 40000 + slack2 && at2.answerTimeLeft === 12345 && at2.answerEndsAt == null,
+        'o prazo do apoio deveria ganhar a folga de ' + slack2 + ' ms e o de resposta continuar parado (answerTimeLeft), veio: ' +
+        JSON.stringify(at2 && { advisoryEndsAt: at2.advisory && at2.advisory.endsAt - closeAt2, answerTimeLeft: at2.answerTimeLeft, answerEndsAt: at2.answerEndsAt }));
+
+    // Sem lastSeen do host antigo: folga zero.
+    const clock3 = { now: 1000 };
+    const r3 = await roomOfThree(clock3);
+    const round3 = r3.host.env.state.currentRound;
+    round3.answerEndsAt = clock3.now + 50000;
+    r3.host.env.Game.saveState();
+    await settle();
+    const before3 = round3.answerEndsAt;
+    const t3 = await waitForTakeover(r3.fake, clock3, r3.host, [r3.beto, r3.caio], () => {
+        r3.host.close();
+        r3.fake.write('rooms/' + ROOM + '/presence/uid-host', null);
+    });
+    const o3 = await reloadTab(r3.fake, clock3, t3.winner);
+    check(o3.opened && o3.opened.takenOver === true && o3.atOpen.currentRound && o3.atOpen.currentRound.answerEndsAt === before3,
+        'sem lastSeen do host antigo, nenhum prazo deveria mudar, veio: ' + JSON.stringify(o3.atOpen.currentRound && o3.atOpen.currentRound.answerEndsAt - before3));
+
+    // F5 do host, sem troca: nenhum prazo muda.
+    const clock4 = { now: 1000 };
+    const r4 = await roomOfThree(clock4);
+    const round4 = r4.host.env.state.currentRound;
+    round4.answerEndsAt = clock4.now + 50000;
+    r4.host.env.Game.saveState();
+    await settle();
+    const before4 = round4.answerEndsAt;
+    r4.host.close();
+    await passTime(clock4, 3000);
+    const o4 = await reloadTab(r4.fake, clock4, r4.host);
+    check(o4.opened && o4.opened.isHost === true && !o4.opened.takenOver && o4.atOpen.currentRound && o4.atOpen.currentRound.answerEndsAt === before4,
+        'no F5 do host, sem troca, o prazo não deveria mudar, veio: ' + JSON.stringify({ opened: o4.opened, diff: o4.atOpen.currentRound && o4.atOpen.currentRound.answerEndsAt - before4 }));
 });
 
 (async () => {
