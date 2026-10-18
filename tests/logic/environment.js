@@ -64,7 +64,12 @@ var CONFIG = {
         // quem responde. Os testes dessa etapa (question-pace.test.js)
         // trocam por outro valor.
         ASK_TIMEOUT: 0,
-        ACTIVITIES_PER_FOCUS_AREA: 2
+        ACTIVITIES_PER_FOCUS_AREA: 2,
+        // Sinal de vida: diferentes dos reais (2000, 20000 e 10000) — o
+        // jogo tem de ler o CONFIG, não um número fixo.
+        HEARTBEAT_INTERVAL: 3000,
+        PRESENCE_TIMEOUT: 15000,
+        HOST_TIMEOUT: 8000
     },
     FOCUS_AREAS: [
         { id: 'initiating', name: 'Iniciação', emoji: '🚀' },

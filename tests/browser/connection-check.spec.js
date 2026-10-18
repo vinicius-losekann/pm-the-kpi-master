@@ -134,8 +134,9 @@ async function uidOf(player) {
  * Tenta cada operação no banco, pela página do jogador (com o login
  * dele), e diz se as regras deixaram ('allowed') ou recusaram
  * ('denied'). Cada passo: [nome, operação, caminho, valor]; operação
- * 'read', 'set', 'push', 'update' ou 'remove'; o valor 'TIMESTAMP' (ou
- * um campo com ele) vira a hora do servidor.
+ * 'read', 'set', 'push', 'update', 'remove' ou 'onDisconnectSet' (deixa o
+ * valor com o servidor para quando a página cair); o valor 'TIMESTAMP'
+ * (ou um campo com ele) vira a hora do servidor.
  */
 async function attemptAll(player, steps) {
     return player.page.evaluate(async (list) => {
@@ -158,6 +159,7 @@ async function attemptAll(player, steps) {
                 else if (op === 'push') await ref.push(withTime(value));
                 else if (op === 'update') await ref.update(withTime(value));
                 else if (op === 'remove') await ref.remove();
+                else if (op === 'onDisconnectSet') await ref.onDisconnect().set(withTime(value));
                 out[name] = 'allowed';
             } catch (e) {
                 out[name] = 'denied';
@@ -167,7 +169,7 @@ async function attemptAll(player, steps) {
     }, steps);
 }
 
-test('E26 Regras do banco para as salas do jogo (rooms/), no emulador: o host cria e grava tudo; quem foi aceito lê o público e o próprio, nunca o secreto; quem não foi aceito só lê a sala, a própria inbox e manda pedido em nome próprio; presença: cada um grava só a própria (no roster ou host), o host lê todas e quem foi aceito só a do host; sala parada há 2 h pode ser criada de novo por outro', async ({ players }) => {
+test('E26 Regras do banco para as salas do jogo (rooms/), no emulador: o host cria e grava tudo; quem foi aceito lê o público e o próprio, nunca o secreto; quem não foi aceito só lê a sala, a própria inbox e manda pedido em nome próprio; presença: cada um grava só a própria (no roster ou host), com online e lastSeen = hora do servidor (sem lastSeen ou com hora inventada é recusada; o offline deixado com o servidor vale, com a hora da queda), o host lê todas e quem foi aceito só a do host; sala parada há 2 h pode ser criada de novo por outro', async ({ players }) => {
     const room = 'rooms/' + roomCode();
     const ana = await players.add('Ana');
     const beto = await players.add('Beto');
@@ -176,6 +178,8 @@ test('E26 Regras do banco para as salas do jogo (rooms/), no emulador: o host cr
     const [anaUid, betoUid, caioUid] = [await uidOf(ana), await uidOf(beto), await uidOf(caio)];
     const meta = (uid) => ({ hostUid: uid, hostEpoch: 1, protocolVersion: 10, createdAt: 'TIMESTAMP', lastActivity: 'TIMESTAMP' });
     const request = (uid, payload) => ({ from: uid, payload });
+    // Sinal de vida: online e a hora do servidor.
+    const signal = (online) => ({ online, lastSeen: 'TIMESTAMP' });
 
     // Sem login (pelo endereço do banco).
     const anonymous = await fetch(DATABASE_URL + '/' + room + '/meta.json?ns=' + DATABASE_NAMESPACE);
@@ -190,7 +194,7 @@ test('E26 Regras do banco para as salas do jogo (rooms/), no emulador: o host cr
         ['writeFeed', 'push', room + '/feed', { payload: '{"type":"round-start"}' }],
         ['writeInbox', 'push', room + '/inbox/' + caioUid, { payload: '{"type":"join-rejected"}' }],
         ['touchActivity', 'set', room + '/meta/lastActivity', 'TIMESTAMP'],
-        ['ownPresence', 'set', room + '/presence/' + anaUid, { online: true }]
+        ['ownPresence', 'set', room + '/presence/' + anaUid, signal(true)]
     ]), 'o host').toEqual({
         createRoom: 'allowed', admitBeto: 'allowed', writePublic: 'allowed', writeSecret: 'allowed',
         writeHand: 'allowed', writeFeed: 'allowed', writeInbox: 'allowed', touchActivity: 'allowed',
@@ -217,12 +221,15 @@ test('E26 Regras do banco para as salas do jogo (rooms/), no emulador: o host cr
         ['takeOverRoom', 'set', room + '/meta', meta(betoUid)],
         ['touchActivity', 'set', room + '/meta/lastActivity', 1],
         ['removeRoom', 'remove', room],
-        ['ownPresence', 'set', room + '/presence/' + betoUid, { online: true }],
+        ['ownPresence', 'set', room + '/presence/' + betoUid, signal(true)],
         ['readHostPresence', 'read', room + '/presence/' + anaUid],
-        ['otherPresence', 'set', room + '/presence/' + caioUid, { online: true }],
-        ['badPresence', 'set', room + '/presence/' + betoUid, { online: 'sim' }],
+        ['otherPresence', 'set', room + '/presence/' + caioUid, signal(true)],
+        ['badPresence', 'set', room + '/presence/' + betoUid, { online: 'sim', lastSeen: 'TIMESTAMP' }],
+        ['presenceWithoutLastSeen', 'set', room + '/presence/' + betoUid, { online: true }],
+        ['presenceWithMadeUpTime', 'set', room + '/presence/' + betoUid, { online: true, lastSeen: 1 }],
         ['readOtherPresence', 'read', room + '/presence/' + caioUid],
-        ['readAllPresence', 'read', room + '/presence']
+        ['readAllPresence', 'read', room + '/presence'],
+        ['offlineWhenGone', 'onDisconnectSet', room + '/presence/' + betoUid, signal(false)]
     ]), 'quem foi aceito (Beto)').toEqual({
         readMeta: 'allowed', readPublic: 'allowed', readFeed: 'allowed', readOwnRoster: 'allowed',
         readOwnHand: 'allowed', ownRequest: 'allowed',
@@ -230,8 +237,21 @@ test('E26 Regras do banco para as salas do jogo (rooms/), no emulador: o host cr
         readRequests: 'denied', writePublic: 'denied', writeFeed: 'denied', admitCaio: 'denied',
         fakeSender: 'denied', hugeRequest: 'denied', takeOverRoom: 'denied', touchActivity: 'denied', removeRoom: 'denied',
         ownPresence: 'allowed', readHostPresence: 'allowed',
-        otherPresence: 'denied', badPresence: 'denied', readOtherPresence: 'denied', readAllPresence: 'denied'
+        otherPresence: 'denied', badPresence: 'denied', presenceWithoutLastSeen: 'denied', presenceWithMadeUpTime: 'denied',
+        readOtherPresence: 'denied', readAllPresence: 'denied', offlineWhenGone: 'allowed'
     });
+
+    // Beto fecha a aba: o servidor grava o offline que ele deixou, com a hora da queda.
+    const closedAt = await ana.page.evaluate(async () => {
+        const offset = (await firebase.database().ref('.info/serverTimeOffset').once('value')).val() || 0;
+        return Date.now() + offset;
+    });
+    await beto.closeTab();
+    await expect.poll(() => ana.page.evaluate(async (path) => (await firebase.database().ref(path).once('value')).val(), room + '/presence/' + betoUid),
+        { timeout: 20000, message: 'o offline do Beto (onDisconnect) deveria passar pelas regras e ser gravado com a hora da queda' })
+        .toEqual(expect.objectContaining({ online: false, lastSeen: expect.any(Number) }));
+    const gone = await ana.page.evaluate(async (path) => (await firebase.database().ref(path).once('value')).val(), room + '/presence/' + betoUid);
+    expect(gone.lastSeen, 'a hora do offline deveria ser a da queda, não uma antiga').toBeGreaterThanOrEqual(closedAt - 5000);
 
     expect(await attemptAll(caio, [
         ['readMeta', 'read', room + '/meta'],
@@ -243,7 +263,7 @@ test('E26 Regras do banco para as salas do jogo (rooms/), no emulador: o host cr
         ['readSecret', 'read', room + '/secret'],
         ['admitSelf', 'set', room + '/roster/' + caioUid, true],
         ['createOverActiveRoom', 'set', room + '/meta', meta(caioUid)],
-        ['ownPresence', 'set', room + '/presence/' + caioUid, { online: true }],
+        ['ownPresence', 'set', room + '/presence/' + caioUid, signal(true)],
         ['readHostPresence', 'read', room + '/presence/' + anaUid]
     ]), 'quem não foi aceito (Caio)').toEqual({
         readMeta: 'allowed', readOwnInbox: 'allowed', readOwnRoster: 'allowed', ownRequest: 'allowed',

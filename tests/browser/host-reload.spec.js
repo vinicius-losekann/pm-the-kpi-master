@@ -9,7 +9,7 @@
 // partida pela hora do servidor, com um navegador de relógio errado (E28).
 // ============================================
 
-const { test, expect, roomCode, startMatch, answerUntilRoundEnds, waitForOpenQuestion, waitForHostBack } = require('./players');
+const { test, expect, roomCode, startMatch, answerUntilRoundEnds, waitForOpenQuestion, waitForHostBack, DROP_WAIT } = require('./players');
 
 test('E9 F5 do host com a rodada encerrada: continua encerrada para todos, "Nova Rodada" liberado, nada começa sozinho', async ({ players }) => {
     const code = roomCode();
@@ -82,7 +82,7 @@ test('E11 F5 do host com a partida pausada: continua pausada com o mesmo evento 
 
     // Beto fecha a aba: só a Ana fica conectada e a partida pausa.
     const betoLink = await beto.closeTab();
-    await ana.waitFor(() => !!Game.state.matchPaused && !!Game.state.matchPaused.event);
+    await ana.waitFor(() => !!Game.state.matchPaused && !!Game.state.matchPaused.event, { timeout: DROP_WAIT });
     const eventId = await ana.state(() => Game.state.matchPaused.event.id);
 
     await ana.page.reload();
@@ -113,7 +113,7 @@ test('E17 Todos saem (o host por último, com a partida pausada) e voltam: conti
 
     // Beto sai: a partida pausa. Depois a Ana (host) também fecha a aba.
     const betoLink = await beto.closeTab();
-    await ana.waitFor(() => !!Game.state.matchPaused && !!Game.state.matchPaused.event);
+    await ana.waitFor(() => !!Game.state.matchPaused && !!Game.state.matchPaused.event, { timeout: DROP_WAIT });
     const eventId = await ana.state(() => Game.state.matchPaused.event.id);
     const anaLink = await ana.closeTab();
 

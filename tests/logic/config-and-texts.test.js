@@ -61,6 +61,7 @@ test('T87 CONFIG em inglês: o jogo e os testes só usam chaves que existem no c
     // 1) O config real tem as chaves novas e nenhuma antiga.
     for (const keyPath of ['GAME.MAX_PLAYERS', 'GAME.MIN_PLAYERS', 'GAME.SESSION_DURATION', 'GAME.ACTIVITIES_PER_FOCUS_AREA',
         'GAME.ADVISORY_TIMEOUT', 'GAME.ANSWER_TIMEOUT', 'GAME.ASK_TIMEOUT', 'STARTING_RESOURCES',
+        'GAME.HEARTBEAT_INTERVAL', 'GAME.PRESENCE_TIMEOUT', 'GAME.HOST_TIMEOUT',
         'KPI.CORRECT_ANSWER', 'KPI.FINAL_RESOURCE_VALUE', 'RESOURCES.ADVISORY_FEE', 'RESOURCES.HELP_REWARD', 'RESOURCES.HELP_COVER']) {
         check(typeof valueAt(C, keyPath) === 'number', 'config/game-config.js deveria ter CONFIG.' + keyPath + ' (número)');
     }

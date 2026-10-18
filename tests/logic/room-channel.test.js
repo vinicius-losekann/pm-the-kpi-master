@@ -6,9 +6,10 @@
 // reaproveitar sala parada, entrar, versão do jogo, F5, aceitar e tirar
 // da sala (roster), pedidos ao host (requests), avisos do host para todos
 // (feed) e para um jogador (inbox), publicar e ler o estado (público,
-// secreto e o de cada jogador), limpar e sair; o sinal mínimo de
-// presença, o cursor dos avisos para todos e a volta da conexão; e as
-// regras do banco para rooms/ (database.rules.json).
+// secreto e o de cada jogador), limpar e sair; a presença, o cursor dos
+// avisos para todos e a volta da conexão; o sinal de vida (lastSeen) e a
+// tolerância de quem cai; e as regras do banco para rooms/
+// (database.rules.json).
 // O banco é o Firebase simulado de fakeFirebase.js, com vários
 // aparelhos; as regras de verdade são conferidas no emulador (E26).
 // Rodar a partir da raiz:
@@ -16,7 +17,7 @@
 // ============================================
 
 const { fs, path, vm, ROOT, test, check, start, finish } = require('./environment');
-const { createFakeFirebase, flush } = require('./fakeFirebase');
+const { createFakeFirebase, flush, SERVER_TIMESTAMP } = require('./fakeFirebase');
 
 start('Canal da sala pelo Firebase');
 
@@ -30,11 +31,77 @@ function asyncTest(name, fn) {
 const VERSION = 10;
 const HOUR_MS = 60 * 60 * 1000;
 
+// Tempos do sinal de vida passados ao canal. Diferentes dos reais do
+// config (2 s, 20 s e 10 s): o canal tem de usar as opções, não um número fixo.
+const TIMING = { heartbeatInterval: 3000, presenceTimeout: 15000, hostTimeout: 8000 };
+
+/**
+ * Timers de um aparelho (setInterval/clearInterval do contexto dele),
+ * guardados no relógio do teste: elapse() os roda conforme a hora anda.
+ * Os de aparelho fechado (F5) ou congelado (tela bloqueada) não rodam.
+ */
+function deviceTimers(clock, owner) {
+    clock.timers = clock.timers || [];
+    return {
+        setInterval(fn, ms) {
+            const every = Math.max(ms || 0, 100);
+            clock.timers.push({ fn, every, next: clock.now + every, active: true, owner });
+            return clock.timers.length;
+        },
+        clearInterval(id) {
+            if (clock.timers && clock.timers[id - 1]) clock.timers[id - 1].active = false;
+        }
+    };
+}
+
+/** A hora anda `ms`, de 500 em 500 ms, rodando os timers que vencem e as promessas. */
+async function elapse(clock, ms) {
+    const end = clock.now + ms;
+    while (clock.now < end) {
+        clock.now = Math.min(clock.now + 500, end);
+        for (const t of (clock.timers || []).slice()) {
+            if (!t.active || t.owner.device.closed || t.owner.frozen) {
+                // Timer parado não acumula: volta a contar de agora.
+                t.next = Math.max(t.next, clock.now + t.every);
+                continue;
+            }
+            while (t.active && t.next <= clock.now) {
+                t.next += t.every;
+                t.fn();
+            }
+        }
+        await flush();
+    }
+}
+
+/** Aba do navegador: visibilityState e o aviso visibilitychange. */
+function fakeDocument() {
+    const listeners = [];
+    const doc = {
+        visibilityState: 'visible',
+        hidden: false,
+        addEventListener(type, fn) { if (type === 'visibilitychange') listeners.push(fn); },
+        removeEventListener(type, fn) { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); },
+        /** A aba fica escondida ('hidden') ou volta a ficar visível ('visible'). */
+        setVisibility(state) {
+            doc.visibilityState = state;
+            doc.hidden = state !== 'visible';
+            listeners.slice().forEach(fn => fn({ type: 'visibilitychange' }));
+        },
+        listenerCount: () => listeners.length
+    };
+    return doc;
+}
+
 /**
  * Um aparelho com o jogo aberto: carrega o js/network/roomChannel.js
  * real num contexto isolado e cria o canal ligado ao banco simulado,
  * com o uid e o relógio informados. Tudo o que o canal entrega ao jogo
- * fica em `got`. `extra` troca opções do canal (ex.: timestamp).
+ * fica em `got`. `extra` troca opções do canal (ex.: timestamp). Com o
+ * banco simulado criado com serverNow, as horas vão como
+ * ServerValue.TIMESTAMP (o banco grava a hora do servidor); sem ele, como
+ * a hora do relógio. `frozen = true` congela os timers do aparelho (tela
+ * bloqueada: a conexão fica, o sinal para); `document` é a aba.
  */
 function openDevice(fake, uid, clock, extra = {}) {
     const device = fake.client(uid);
@@ -43,7 +110,13 @@ function openDevice(fake, uid, clock, extra = {}) {
     ['log', 'warn', 'error', 'info'].forEach(level => {
         silent[level] = (...args) => logs.push(level + ': ' + args.join(' '));
     });
-    const ctx = vm.createContext({ console: silent, setTimeout, clearTimeout });
+    const owner = { device, frozen: false };
+    const timers = deviceTimers(clock, owner);
+    const document = fakeDocument();
+    const ctx = vm.createContext({
+        console: silent, setTimeout, clearTimeout,
+        setInterval: timers.setInterval, clearInterval: timers.clearInterval, document
+    });
     vm.runInContext('var window = this;', ctx);
     const file = 'js/network/roomChannel.js';
     vm.runInContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), ctx, { filename: file });
@@ -52,7 +125,8 @@ function openDevice(fake, uid, clock, extra = {}) {
         db: device.db,
         uid,
         now: () => clock.now,
-        timestamp: () => clock.now,
+        timestamp: fake.hasServerTime ? () => SERVER_TIMESTAMP : () => clock.now,
+        ...TIMING,
         onRequest: (msg, from) => got.requests.push({ msg: JSON.parse(JSON.stringify(msg)), from }),
         onMessage: (msg) => got.messages.push(JSON.parse(JSON.stringify(msg))),
         onState: (state) => got.states.push(state === null ? null : JSON.parse(JSON.stringify(state))),
@@ -64,7 +138,30 @@ function openDevice(fake, uid, clock, extra = {}) {
         onReconnected: () => got.reconnected++,
         ...extra
     });
-    return { device, channel, got, logs, ctx };
+    return {
+        device, channel, got, logs, ctx, document,
+        get frozen() { return owner.frozen; },
+        set frozen(value) { owner.frozen = value; }
+    };
+}
+
+/** Banco simulado que grava a hora do servidor (o relógio do teste) no lugar de ServerValue.TIMESTAMP. */
+function fakeWithServerTime(clock) {
+    const fake = createFakeFirebase({ serverNow: () => clock.now });
+    fake.hasServerTime = true;
+    return fake;
+}
+
+/** É o sinal de vida esperado: { online, lastSeen } com a hora `at` (número). */
+function isSignal(value, online, at) {
+    return !!value && value.online === online && typeof value.lastSeen === 'number' && (at === undefined || value.lastSeen === at) &&
+        Object.keys(value).sort().join(',') === 'lastSeen,online';
+}
+
+/** Quantas vezes o aparelho gravou a própria presença. */
+function presenceWrites(d, uid) {
+    const own = 'rooms/sala01/presence/' + uid;
+    return d.device.writes.filter(w => w.path === own || w.path === own + '/lastSeen').length;
 }
 
 /** Valor com as chaves dos objetos em ordem alfabética (o banco não garante a ordem dos campos). */
@@ -79,10 +176,10 @@ function sorted(value) {
 }
 const same = (a, b) => JSON.stringify(sorted(a)) === JSON.stringify(sorted(b));
 
-/** O host cria a sala "sala01" e Ana entra (ainda sem ser aceita). */
+/** O host cria a sala "sala01" e Ana entra (ainda sem ser aceita). O banco grava a hora do servidor. */
 async function roomWithGuest() {
-    const fake = createFakeFirebase();
     const clock = { now: 1000 };
+    const fake = fakeWithServerTime(clock);
     const host = openDevice(fake, 'uid-host', clock);
     const created = await host.channel.createRoom('sala01', { protocolVersion: VERSION });
     await flush();
@@ -460,38 +557,40 @@ asyncTest('T161 Limpar e sair: limpar apaga só os avisos (feed e inbox); quem s
 // PRESENÇA, CURSOR DOS AVISOS E VOLTA DA CONEXÃO (etapa 1b-α)
 // ============================================
 
-asyncTest('T163 Sinal mínimo de presença: o host grava a própria ao entrar; quem é aceito grava a sua (quem só entrou, não); o servidor grava offline quando o aparelho cai; o host é avisado de cada mudança dos outros (não da própria; ao voltar de um F5, da situação atual) e quem foi aceito, da do host; tirar da sala apaga a presença e o aparelho tirado não grava mais nada ao cair; o host que encerra a sala não a recria ao cair', async () => {
+asyncTest('T163 Presença: o host grava a própria ao entrar; quem é aceito grava a sua (quem só entrou, não), sempre { online, lastSeen } com a hora do servidor; o servidor grava offline com a hora da queda quando o aparelho cai; o host é avisado de cada mudança dos outros (não da própria; ao voltar de um F5, da situação atual; a queda, só depois da tolerância) e quem foi aceito, da do host; tirar da sala apaga a presença e o aparelho tirado não grava mais nada ao cair; o host que encerra a sala não a recria ao cair', async () => {
     const { fake, clock, host, ana } = await roomWithGuest();
     const presenceOf = (who) => fake.read('rooms/sala01/presence/' + who);
-    check(same(presenceOf('uid-host'), { online: true }), 'o host deveria gravar a própria presença ao criar a sala, veio: ' + JSON.stringify(fake.read('rooms/sala01/presence')));
+    check(isSignal(presenceOf('uid-host'), true, 1000), 'o host deveria gravar a própria presença ao criar a sala ({ online: true, lastSeen: hora do servidor }), veio: ' + JSON.stringify(fake.read('rooms/sala01/presence')));
     check(presenceOf('uid-ana') === undefined && !ana.device.writes.some(w => /presence/.test(w.path)),
         'quem só entrou (sem ser aceito) não deveria gravar presença, gravou: ' + JSON.stringify(ana.device.writes));
     check(host.got.presence.length === 0, 'o host não deveria ser avisado da própria presença, veio: ' + JSON.stringify(host.got.presence));
 
     await host.channel.admit('uid-ana');
     await flush();
-    check(same(presenceOf('uid-ana'), { online: true }), 'aceita, Ana deveria gravar a própria presença, veio: ' + JSON.stringify(presenceOf('uid-ana')));
+    check(isSignal(presenceOf('uid-ana'), true, clock.now), 'aceita, Ana deveria gravar a própria presença com a hora do servidor, veio: ' + JSON.stringify(presenceOf('uid-ana')));
     check(same(host.got.presence, [{ uid: 'uid-ana', online: true }]), 'o host deveria ser avisado de que Ana está online, veio: ' + JSON.stringify(host.got.presence));
     check(same(ana.got.hostPresence, [true]), 'Ana, aceita, deveria saber que o host está online, veio: ' + JSON.stringify(ana.got.hostPresence));
 
-    // F5 do host: o servidor grava offline; na volta, online de novo.
+    // F5 do host: o servidor grava offline (com a hora da queda); na volta, online de novo.
     host.device.close();
     await flush();
-    check(same(presenceOf('uid-host'), { online: false }), 'com o host fora, o servidor deveria gravar online: false, veio: ' + JSON.stringify(presenceOf('uid-host')));
+    check(isSignal(presenceOf('uid-host'), false, clock.now), 'com o host fora, o servidor deveria gravar online: false com a hora da queda, veio: ' + JSON.stringify(presenceOf('uid-host')));
     check(ana.got.hostPresence[ana.got.hostPresence.length - 1] === false, 'Ana deveria ver o host offline, veio: ' + JSON.stringify(ana.got.hostPresence));
     const hostAgain = openDevice(fake, 'uid-host', clock);
     await hostAgain.channel.joinRoom('sala01', { protocolVersion: VERSION });
     await flush();
-    check(same(presenceOf('uid-host'), { online: true }) && ana.got.hostPresence[ana.got.hostPresence.length - 1] === true,
+    check(isSignal(presenceOf('uid-host'), true) && ana.got.hostPresence[ana.got.hostPresence.length - 1] === true,
         'o host de volta deveria gravar online de novo e Ana deveria ver, veio: ' + JSON.stringify(ana.got.hostPresence));
     check(same(hostAgain.got.presence, [{ uid: 'uid-ana', online: true }]),
         'o host de volta do F5 deveria receber a presença atual dos outros, veio: ' + JSON.stringify(hostAgain.got.presence));
 
     ana.device.goOffline();
     await flush();
-    check(same(presenceOf('uid-ana'), { online: false }), 'Ana caiu: o servidor deveria gravar online: false (onDisconnect), veio: ' + JSON.stringify(presenceOf('uid-ana')));
+    check(isSignal(presenceOf('uid-ana'), false, clock.now), 'Ana caiu: o servidor deveria gravar online: false com a hora da queda (onDisconnect), veio: ' + JSON.stringify(presenceOf('uid-ana')));
+    check(hostAgain.got.presence.length === 1, 'dentro da tolerância, o host não deveria ser avisado da queda de Ana, veio: ' + JSON.stringify(hostAgain.got.presence));
+    await elapse(clock, TIMING.presenceTimeout + 1500);
     check(same(hostAgain.got.presence[hostAgain.got.presence.length - 1], { uid: 'uid-ana', online: false }),
-        'o host deveria ser avisado de que Ana caiu, veio: ' + JSON.stringify(hostAgain.got.presence));
+        'passada a tolerância, o host deveria ser avisado de que Ana caiu, veio: ' + JSON.stringify(hostAgain.got.presence));
     ana.device.goOnline();
     await flush();
 
@@ -577,7 +676,7 @@ asyncTest('T164 Cursor dos avisos para todos: quem pede para segurar (holdFeed) 
         'com cursor null, Beto deveria receber todos os guardados e os novos, na ordem, veio: ' + JSON.stringify(beto.got.messages));
 });
 
-asyncTest('T165 Volta da conexão: quem perde a conexão e volta é avisado (onReconnected, uma vez por volta, nunca na primeira conexão, nem depois de um "desconectado" inicial), grava a presença de novo e deixa outra vez o offline com o servidor; vale para o host e para quem foi aceito; quem não foi aceito é avisado mas não grava presença; quem saiu da sala não é mais avisado', async () => {
+asyncTest('T165 Volta da conexão: quem perde a conexão e volta é avisado (onReconnected, uma vez por volta, nunca na primeira conexão, nem depois de um "desconectado" inicial), grava a presença de novo e deixa outra vez o offline com o servidor; a queda curta, dentro da tolerância, não chega ao host; vale para o host e para quem foi aceito; quem não foi aceito é avisado mas não grava presença; quem saiu da sala não é mais avisado', async () => {
     const { fake, clock, host, ana } = await roomWithGuest();
     const presenceOf = (who) => fake.read('rooms/sala01/presence/' + who);
     const caio = openDevice(fake, 'uid-caio', clock);
@@ -592,24 +691,24 @@ asyncTest('T165 Volta da conexão: quem perde a conexão e volta é avisado (onR
     ana.device.goOnline();
     await flush();
     check(ana.got.reconnected === 1, 'Ana deveria ser avisada da volta uma vez, veio: ' + ana.got.reconnected);
-    check(same(presenceOf('uid-ana'), { online: true }), 'na volta, Ana deveria gravar online de novo, veio: ' + JSON.stringify(presenceOf('uid-ana')));
-    check(same(host.got.presence.slice(-2), [{ uid: 'uid-ana', online: false }, { uid: 'uid-ana', online: true }]),
-        'o host deveria ver Ana cair e voltar, veio: ' + JSON.stringify(host.got.presence));
+    check(isSignal(presenceOf('uid-ana'), true), 'na volta, Ana deveria gravar online de novo, veio: ' + JSON.stringify(presenceOf('uid-ana')));
+    check(same(host.got.presence, [{ uid: 'uid-ana', online: true }]),
+        'a queda curta de Ana (dentro da tolerância) não deveria chegar ao host, veio: ' + JSON.stringify(host.got.presence));
     ana.device.goOffline();
     await flush();
-    check(same(presenceOf('uid-ana'), { online: false }), 'depois da volta, o offline deveria estar com o servidor de novo, veio: ' + JSON.stringify(presenceOf('uid-ana')));
+    check(isSignal(presenceOf('uid-ana'), false), 'depois da volta, o offline deveria estar com o servidor de novo, veio: ' + JSON.stringify(presenceOf('uid-ana')));
     ana.device.goOnline();
     await flush();
     check(ana.got.reconnected === 2, 'cada volta deveria avisar uma vez, veio: ' + ana.got.reconnected);
 
     host.device.goOffline();
     await flush();
-    check(same(presenceOf('uid-host'), { online: false }) && ana.got.hostPresence[ana.got.hostPresence.length - 1] === false,
+    check(isSignal(presenceOf('uid-host'), false) && ana.got.hostPresence[ana.got.hostPresence.length - 1] === false,
         'com o host sem conexão, Ana deveria ver o host offline, veio: ' + JSON.stringify(ana.got.hostPresence));
     host.device.goOnline();
     await flush();
     check(host.got.reconnected === 1, 'o host deveria ser avisado da volta, veio: ' + host.got.reconnected);
-    check(same(presenceOf('uid-host'), { online: true }) && ana.got.hostPresence[ana.got.hostPresence.length - 1] === true,
+    check(isSignal(presenceOf('uid-host'), true) && ana.got.hostPresence[ana.got.hostPresence.length - 1] === true,
         'na volta, o host deveria gravar online de novo e Ana deveria ver, veio: ' + JSON.stringify(ana.got.hostPresence));
 
     caio.device.goOffline();
@@ -692,7 +791,7 @@ asyncTest('T162 Regras do banco para rooms/: meta lida por quem fez login, criad
         'o conteúdo do pedido deveria ser texto de até 20000 caracteres, veio: ' + payload['.validate']);
 });
 
-asyncTest('T166 Regras do banco para a presença (rooms/$code/presence): cada um grava só a própria, e só quem está no roster ou é o host; o valor tem online verdadeiro ou falso; o host lê todas e pode apagar; quem está no roster lê só a do host', async () => {
+asyncTest('T166 Regras do banco para a presença (rooms/$code/presence): cada um grava só a própria, e só quem está no roster ou é o host; o valor tem online verdadeiro ou falso e lastSeen igual à hora do servidor (now); o host lê todas e pode apagar; quem está no roster lê só a do host', async () => {
     const rules = JSON.parse(fs.readFileSync(path.join(ROOT, 'database.rules.json'), 'utf8')).rules;
     const room = (rules.rooms && rules.rooms.$code) || {};
     const hostCheck = /meta\/hostUid'\)\.val\(\)\s*===\s*auth\.uid/;
@@ -709,11 +808,190 @@ asyncTest('T166 Regras do banco para a presença (rooms/$code/presence): cada um
     const write = own['.write'] || '';
     check(ownUid.test(write) && rosterCheck.test(write) && hostCheck.test(write),
         'presence/$uid deveria ser gravada só pelo próprio uid, estando no roster ou sendo o host, veio: ' + write);
-    check(/online/.test(own['.validate'] || '') && /isBoolean\(\)/.test(own['.validate'] || ''),
-        'presence/$uid deveria exigir online verdadeiro ou falso, veio: ' + own['.validate']);
+    const validate = own['.validate'] || '';
+    check(/online/.test(validate) && /isBoolean\(\)/.test(validate),
+        'presence/$uid deveria exigir online verdadeiro ou falso, veio: ' + validate);
+    check(/hasChildren\(\[[^\]]*'online'[^\]]*\]\)/.test(validate) && /hasChildren\(\[[^\]]*'lastSeen'[^\]]*\]\)/.test(validate) &&
+        /newData\.child\('lastSeen'\)\.val\(\)\s*===\s*now\b/.test(validate),
+        'presence/$uid deveria exigir online e lastSeen, com lastSeen igual à hora do servidor (=== now: ninguém grava sinal com hora inventada), veio: ' + validate);
     const read = own['.read'] || '';
     check(rosterCheck.test(read) && isHostsUid.test(read) && !ownUid.test(read),
         'quem está no roster deveria ler só a presença do host, veio: ' + read);
+});
+
+// ============================================
+// SINAL DE VIDA E TOLERÂNCIA (etapa 3a)
+// ============================================
+
+const lastOf = (list) => list[list.length - 1];
+
+asyncTest('T188 Sinal de vida: o host e quem foi aceito gravam { online: true, lastSeen: hora do servidor } ao entrar, a cada heartbeatInterval (a opção, não um número fixo) e na hora em que a aba volta a ficar visível; quem não foi aceito não grava; o servidor grava offline com a hora da queda; quem é tirado da sala ou sai dela para de gravar', async () => {
+    const { fake, clock, host, ana } = await roomWithGuest();
+    const presenceOf = (who) => fake.read('rooms/sala01/presence/' + who);
+    const beat = TIMING.heartbeatInterval;
+
+    await elapse(clock, beat * 2);
+    check(presenceWrites(ana, 'uid-ana') === 0, 'quem ainda não foi aceito não deveria mandar sinal, gravou ' + presenceWrites(ana, 'uid-ana') + ' vez(es)');
+
+    const hostBefore = presenceWrites(host, 'uid-host');
+    await elapse(clock, beat * 3);
+    check(presenceWrites(host, 'uid-host') - hostBefore === 3,
+        'em 3 × heartbeatInterval (' + beat + ' ms), o host deveria mandar 3 sinais, mandou ' + (presenceWrites(host, 'uid-host') - hostBefore));
+    const hostSignal = presenceOf('uid-host');
+    check(isSignal(hostSignal, true) && clock.now - hostSignal.lastSeen < beat,
+        'o sinal do host deveria ser { online: true, lastSeen } com a hora do servidor do último sinal, veio: ' + JSON.stringify(hostSignal) + ' às ' + clock.now);
+
+    await host.channel.admit('uid-ana');
+    await flush();
+    const admittedAt = clock.now;
+    check(isSignal(presenceOf('uid-ana'), true, admittedAt), 'aceita, Ana deveria mandar o sinal na hora, veio: ' + JSON.stringify(presenceOf('uid-ana')));
+    const anaBefore = presenceWrites(ana, 'uid-ana');
+    await elapse(clock, beat * 3);
+    check(presenceWrites(ana, 'uid-ana') - anaBefore === 3,
+        'em 3 × heartbeatInterval, Ana deveria mandar 3 sinais, mandou ' + (presenceWrites(ana, 'uid-ana') - anaBefore));
+    const anaSignal = presenceOf('uid-ana');
+    check(isSignal(anaSignal, true) && anaSignal.lastSeen > admittedAt && clock.now - anaSignal.lastSeen < beat,
+        'o sinal de Ana deveria andar com a hora do servidor, veio: ' + JSON.stringify(anaSignal) + ' às ' + clock.now);
+
+    // A aba volta a ficar visível: sinal na hora, sem esperar o ritmo.
+    await elapse(clock, 1000);
+    const hiddenBefore = presenceWrites(ana, 'uid-ana');
+    ana.document.setVisibility('hidden');
+    await flush();
+    check(presenceWrites(ana, 'uid-ana') === hiddenBefore, 'esconder a aba não deveria mandar sinal');
+    ana.document.setVisibility('visible');
+    await flush();
+    check(presenceWrites(ana, 'uid-ana') === hiddenBefore + 1 && isSignal(presenceOf('uid-ana'), true, clock.now),
+        'a aba que volta a ficar visível deveria mandar o sinal na hora, veio: ' + JSON.stringify(presenceOf('uid-ana')) + ' às ' + clock.now);
+
+    // Queda: o que ficou com o servidor (onDisconnect) leva a hora da queda.
+    await elapse(clock, 1000);
+    ana.device.goOffline();
+    await flush();
+    check(isSignal(presenceOf('uid-ana'), false, clock.now),
+        'na queda, o servidor deveria gravar { online: false, lastSeen: hora da queda }, veio: ' + JSON.stringify(presenceOf('uid-ana')) + ' às ' + clock.now);
+    ana.device.goOnline();
+    await flush();
+    check(isSignal(presenceOf('uid-ana'), true, clock.now), 'na volta da conexão, Ana deveria mandar o sinal de novo, veio: ' + JSON.stringify(presenceOf('uid-ana')));
+
+    // Tirada da sala: para de mandar sinal (as regras recusariam).
+    await host.channel.dismiss('uid-ana');
+    await flush();
+    const afterDismiss = presenceWrites(ana, 'uid-ana');
+    await elapse(clock, beat * 2);
+    ana.document.setVisibility('hidden');
+    ana.document.setVisibility('visible');
+    await flush();
+    check(presenceWrites(ana, 'uid-ana') === afterDismiss && presenceOf('uid-ana') === undefined,
+        'tirada da sala, Ana não deveria mandar mais sinal, mandou ' + (presenceWrites(ana, 'uid-ana') - afterDismiss) + ' vez(es)');
+
+    // O host encerra a sala: para de mandar sinal e não a recria.
+    await host.channel.leave();
+    await flush();
+    const afterLeave = host.device.writes.length;
+    await elapse(clock, beat * 2);
+    host.document.setVisibility('hidden');
+    host.document.setVisibility('visible');
+    await flush();
+    check(host.device.writes.length === afterLeave && fake.read('rooms/sala01') === undefined,
+        'depois de sair, o host não deveria gravar mais nada, gravou: ' + JSON.stringify(host.device.writes.slice(afterLeave)));
+    check(host.document.listenerCount() === 0, 'depois de sair, o canal não deveria continuar ouvindo a aba');
+});
+
+asyncTest('T189 Tolerância: para o host, quem está offline com o sinal recente continua presente e só cai com o sinal parado há mais de presenceTimeout — também com online: true (aba congelada), conferido sozinho, sem esperar mudança no banco — e volta com o sinal; para quem foi aceito, o host offline aparece na hora e o host com o sinal parado há mais de hostTimeout também; cada mudança é avisada uma vez', async () => {
+    const { fake, clock, host, ana } = await roomWithGuest();
+    const presenceOf = (who) => fake.read('rooms/sala01/presence/' + who);
+    await host.channel.admit('uid-ana');
+    await flush();
+    check(same(host.got.presence, [{ uid: 'uid-ana', online: true }]), 'pré-condição: o host vê Ana presente, veio: ' + JSON.stringify(host.got.presence));
+
+    // Ana cai (offline): continua presente durante a tolerância.
+    ana.device.goOffline();
+    await flush();
+    await elapse(clock, TIMING.presenceTimeout - 1000);
+    check(host.got.presence.length === 1,
+        'offline com o sinal de há menos de presenceTimeout (' + TIMING.presenceTimeout + ' ms), Ana deveria continuar presente, veio: ' + JSON.stringify(host.got.presence));
+    await elapse(clock, 2500);
+    check(same(host.got.presence.slice(1), [{ uid: 'uid-ana', online: false }]),
+        'com o sinal parado há mais de presenceTimeout, o host deveria ver Ana cair, veio: ' + JSON.stringify(host.got.presence));
+    await elapse(clock, TIMING.presenceTimeout);
+    check(host.got.presence.length === 2, 'a queda deveria ser avisada uma vez só, veio: ' + JSON.stringify(host.got.presence));
+    ana.device.goOnline();
+    await flush();
+    check(same(lastOf(host.got.presence), { uid: 'uid-ana', online: true }) && host.got.presence.length === 3,
+        'com o sinal de volta, Ana deveria aparecer presente, veio: ' + JSON.stringify(host.got.presence));
+
+    // Aba congelada (tela bloqueada): a conexão fica, o sinal para.
+    ana.document.setVisibility('visible');
+    await flush();
+    ana.frozen = true;
+    await elapse(clock, TIMING.presenceTimeout - 1000);
+    check(host.got.presence.length === 3, 'congelada há menos de presenceTimeout, Ana deveria continuar presente, veio: ' + JSON.stringify(host.got.presence));
+    await elapse(clock, 2500);
+    check(presenceOf('uid-ana').online === true && same(lastOf(host.got.presence), { uid: 'uid-ana', online: false }),
+        'congelada (online: true no banco, sinal parado), Ana deveria cair para o host, veio: ' + JSON.stringify(host.got.presence));
+    ana.frozen = false;
+    ana.document.setVisibility('visible');
+    await flush();
+    check(same(lastOf(host.got.presence), { uid: 'uid-ana', online: true }), 'desbloqueada, Ana deveria voltar, veio: ' + JSON.stringify(host.got.presence));
+
+    // Quem foi aceito: o host offline aparece na hora.
+    const seen = ana.got.hostPresence;
+    host.device.goOffline();
+    await flush();
+    check(lastOf(seen) === false, 'com o host offline, Ana deveria ver na hora, veio: ' + JSON.stringify(seen));
+    host.device.goOnline();
+    await flush();
+    check(lastOf(seen) === true, 'com o host de volta, Ana deveria ver, veio: ' + JSON.stringify(seen));
+
+    // O host congelado: online: true no banco, sinal parado há mais de hostTimeout.
+    host.document.setVisibility('visible');
+    await flush();
+    host.frozen = true;
+    const before = seen.length;
+    await elapse(clock, TIMING.hostTimeout - 1000);
+    check(seen.length === before, 'com o sinal do host parado há menos de hostTimeout (' + TIMING.hostTimeout + ' ms), Ana não deveria vê-lo caído, veio: ' + JSON.stringify(seen));
+    await elapse(clock, 2500);
+    check(presenceOf('uid-host').online === true && lastOf(seen) === false,
+        'com o sinal do host parado há mais de hostTimeout, Ana deveria vê-lo caído (mesmo com online: true), veio: ' + JSON.stringify(seen));
+    host.frozen = false;
+    host.document.setVisibility('visible');
+    await flush();
+    check(lastOf(seen) === true, 'com o sinal do host de volta, Ana deveria vê-lo de novo, veio: ' + JSON.stringify(seen));
+    check(seen.every((v, i) => i === 0 || v !== seen[i - 1]), 'Ana deveria ser avisada só das mudanças do host, sem repetir, veio: ' + JSON.stringify(seen));
+});
+
+asyncTest('T190 F5 dentro da tolerância não é queda: quem fecha a página e abre de novo antes de presenceTimeout nunca aparece caído para o host; o F5 que passa da tolerância aparece como queda e volta', async () => {
+    const { fake, clock, host, ana } = await roomWithGuest();
+    const presenceOf = (who) => fake.read('rooms/sala01/presence/' + who);
+    await host.channel.admit('uid-ana');
+    await flush();
+
+    // F5 de Ana: a página fecha e abre de novo uns segundos depois.
+    ana.device.close();
+    await flush();
+    check(isSignal(presenceOf('uid-ana'), false, clock.now), 'ao fechar, o servidor deveria gravar offline com a hora, veio: ' + JSON.stringify(presenceOf('uid-ana')));
+    await elapse(clock, 4000);
+    const again = openDevice(fake, 'uid-ana', clock);
+    await again.channel.joinRoom('sala01', { protocolVersion: VERSION });
+    await flush();
+    check(again.got.admitted === 1 && isSignal(presenceOf('uid-ana'), true, clock.now),
+        'de volta do F5, Ana (ainda no roster) deveria mandar o sinal, veio: ' + JSON.stringify(presenceOf('uid-ana')));
+    await elapse(clock, TIMING.presenceTimeout * 2);
+    check(same(host.got.presence, [{ uid: 'uid-ana', online: true }]),
+        'F5 dentro da tolerância: o host nunca deveria ver Ana cair, veio: ' + JSON.stringify(host.got.presence));
+
+    // F5 que demora mais que a tolerância: cai e volta.
+    again.device.close();
+    await flush();
+    await elapse(clock, TIMING.presenceTimeout + 2000);
+    check(same(lastOf(host.got.presence), { uid: 'uid-ana', online: false }),
+        'F5 mais longo que presenceTimeout: o host deveria ver Ana cair, veio: ' + JSON.stringify(host.got.presence));
+    const third = openDevice(fake, 'uid-ana', clock);
+    await third.channel.joinRoom('sala01', { protocolVersion: VERSION });
+    await flush();
+    check(host.got.presence.length === 3 && same(lastOf(host.got.presence), { uid: 'uid-ana', online: true }),
+        'de volta, Ana deveria aparecer presente, veio: ' + JSON.stringify(host.got.presence));
 });
 
 (async () => {

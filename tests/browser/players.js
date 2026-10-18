@@ -322,6 +322,11 @@ async function waitForOpenQuestion(host, everyone, targets) {
     throw new Error('Nenhuma pergunta abriu para ' + targets.map(p => p.name).join('/') + ' em 60s');
 }
 
+// Quanto esperar pela queda de quem fecha a aba: o host só dá o jogador
+// como caído com o sinal de vida parado há mais de PRESENCE_TIMEOUT (20 s
+// no config real), conferido a cada 1 s — mais a folga do Actions.
+const DROP_WAIT = 35000;
+
 /** Espera o host voltar (F5 ou aba reaberta): de novo host da sala, com a partida em andamento. */
 async function waitForHostBack(host) {
     await expect.poll(() => host.isRoomHost(), { timeout: 25000, message: host.name + ' deveria voltar como host da sala' }).toBe(true);
@@ -330,5 +335,5 @@ async function waitForHostBack(host) {
 
 module.exports = {
     test, expect, roomCode, startMatch, answerUntilRoundEnds,
-    waitForOpenQuestion, waitForHostBack, SITE
+    waitForOpenQuestion, waitForHostBack, SITE, DROP_WAIT
 };

@@ -18,6 +18,12 @@
 // vazios, e guarda lista como objeto com chaves "0", "1"... — é por isso
 // que as mensagens viajam como texto JSON (T151).
 //
+// Hora do servidor: com createFakeFirebase({ serverNow }), o valor
+// { '.sv': 'timestamp' } (firebase.database.ServerValue.TIMESTAMP) vira
+// serverNow() na hora em que chega ao banco — inclusive o que o aparelho
+// deixou no onDisconnect(), gravado com a hora da queda, como no real.
+// Sem serverNow, fica guardado como veio.
+//
 // O que NÃO é simulado: as regras de segurança (testadas no emulador,
 // tests/browser/connection-check.spec.js, e no T153) e os tempos de rede.
 // Os avisos (on) chegam na hora, dentro da própria gravação.
@@ -68,11 +74,26 @@ function infoValue(client, path) {
     return undefined;
 }
 
-function createFakeFirebase() {
+/** É o valor que pede a hora do servidor ({ '.sv': 'timestamp' })? */
+function isServerTimestamp(value) {
+    return !!value && typeof value === 'object' && Object.keys(value).length === 1 && value['.sv'] === 'timestamp';
+}
+
+function createFakeFirebase(options = {}) {
     let tree;            // o banco inteiro (undefined = vazio)
     let pushCounter = 0;
     const clients = [];
     const listeners = []; // { client, path, event, cb, last }
+
+    /** Troca cada { '.sv': 'timestamp' } pela hora do servidor (só com serverNow). */
+    function withServerTime(value) {
+        if (!options.serverNow) return value;
+        if (isServerTimestamp(value)) return options.serverNow();
+        if (!value || typeof value !== 'object') return value;
+        const out = Array.isArray(value) ? [] : {};
+        Object.keys(value).forEach(key => { out[key] = withServerTime(value[key]); });
+        return out;
+    }
 
     function readAt(path) {
         let node = tree;
@@ -85,7 +106,7 @@ function createFakeFirebase() {
 
     function writeAt(path, value) {
         const parts = splitPath(path);
-        const v = stored(value);
+        const v = stored(withServerTime(value));
         if (parts.length === 0) { tree = v; return; }
         const root = tree && typeof tree === 'object' ? tree : {};
         let node = root;
@@ -277,4 +298,7 @@ function flush() {
     return new Promise(resolve => setImmediate(resolve)).then(() => new Promise(resolve => setImmediate(resolve)));
 }
 
-module.exports = { createFakeFirebase, flush, stored };
+/** O valor que o jogo grava como hora do servidor (firebase.database.ServerValue.TIMESTAMP). */
+const SERVER_TIMESTAMP = { '.sv': 'timestamp' };
+
+module.exports = { createFakeFirebase, flush, stored, SERVER_TIMESTAMP };

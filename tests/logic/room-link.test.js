@@ -38,6 +38,41 @@ async function settle() {
 const copy = (x) => (x === undefined ? undefined : JSON.parse(JSON.stringify(x)));
 
 /**
+ * setInterval/clearInterval de uma aba, guardados no relógio do teste:
+ * passTime() os roda conforme a hora anda (o sinal de vida, a conferência
+ * da tolerância e o relógio da partida). Os da aba fechada não rodam.
+ */
+function tabTimers(clock, device) {
+    clock.timers = clock.timers || [];
+    return {
+        setInterval(fn, ms) {
+            const every = Math.max(ms || 0, 100);
+            clock.timers.push({ fn, every, next: clock.now + every, active: true, device });
+            return clock.timers.length;
+        },
+        clearInterval(id) {
+            if (clock.timers && clock.timers[id - 1]) clock.timers[id - 1].active = false;
+        }
+    };
+}
+
+/** A hora anda `ms`, de 500 em 500 ms, rodando os timers das abas abertas e as promessas. */
+async function passTime(clock, ms) {
+    const end = clock.now + ms;
+    while (clock.now < end) {
+        clock.now = Math.min(clock.now + 500, end);
+        for (const t of (clock.timers || []).slice()) {
+            if (!t.active || t.device.closed) continue;
+            while (t.active && t.next <= clock.now) {
+                t.next += t.every;
+                t.fn();
+            }
+        }
+        await settle();
+    }
+}
+
+/**
  * Um navegador: o localStorage de todas as abas dele e o
  * BroadcastChannel que liga as abas (só as do mesmo navegador). Cada aba
  * tem o próprio construtor; fechar a aba fecha os canais dela.
@@ -106,6 +141,9 @@ function linkedDevice(fake, uid, name, clock, browser = fakeBrowser()) {
         return handleMessage(msg, from);
     };
     const device = fake.client(uid);
+    const timers = tabTimers(clock, device);
+    env.ctx.setInterval = timers.setInterval;
+    env.ctx.clearInterval = timers.clearInterval;
     const link = (code) => ({ db: device.db, uid, code, now: () => clock.now, timestamp: () => clock.now });
     return {
         env, device, browser, alerts, handled, uid, name,
@@ -280,16 +318,19 @@ asyncTest('T169 Recusa pela inbox: quem é recusado vê o aviso, volta à tela i
         'sala de outra versão deveria dar version-mismatch sem gravar nada, veio: ' + JSON.stringify(mismatch));
 });
 
-asyncTest('T170 Queda pela presença: no lobby, quem cai sai da lista e do roster; na partida, fica desconectado com a vaga reservada; os outros veem', async () => {
+asyncTest('T170 Queda pela presença, depois da tolerância (PRESENCE_TIMEOUT): no lobby, quem cai sai da lista e do roster; na partida, fica desconectado com a vaga reservada; os outros veem; antes da tolerância, nada muda', async () => {
     const fake = createFakeFirebase();
     const clock = { now: 1000 };
     const host = await hostRoom(fake, clock);
     const beto = await guestJoins(fake, clock, 'uid-beto', 'Beto');
     const caio = await guestJoins(fake, clock, 'uid-caio', 'Caio');
+    const tolerance = host.env.CONFIG.GAME.PRESENCE_TIMEOUT;
 
     beto.device.goOffline();
     await settle();
-    check(!host.env.player('Beto'), 'no lobby, quem cai deveria sair da lista do host');
+    check(!!host.env.player('Beto'), 'dentro da tolerância, quem cai no lobby continua na lista do host');
+    await passTime(clock, tolerance + 2000);
+    check(!host.env.player('Beto'), 'no lobby, quem cai deveria sair da lista do host depois da tolerância');
     check(fake.read('rooms/' + ROOM + '/roster/uid-beto') === undefined && fake.read('rooms/' + ROOM + '/presence/uid-beto') === undefined,
         'no lobby, quem cai deveria sair do roster e da presença');
     check(caio.env.state.players.length === 2 && !caio.env.state.players.some(p => p.name === 'Beto'), 'Caio deveria ver a lista sem Beto');
@@ -303,6 +344,8 @@ asyncTest('T170 Queda pela presença: no lobby, quem cai sai da lista e do roste
     await settle();
     dani.close();
     await settle();
+    check(host2.env.player('Dani').disconnected !== true, 'dentro da tolerância, Dani não deveria aparecer desconectada');
+    await passTime(clock, tolerance + 2000);
     const d = host2.env.player('Dani');
     check(d && d.disconnected === true && d.peerId === 'uid-dani', 'na partida, Dani deveria ficar na lista como desconectada, veio: ' + JSON.stringify(d));
     check(fake2.read('rooms/' + ROOM + '/roster/uid-dani') === true, 'na partida, a vaga de Dani continua no roster');
@@ -310,7 +353,7 @@ asyncTest('T170 Queda pela presença: no lobby, quem cai sai da lista e do roste
     check(seen && seen.disconnected === true, 'Eli deveria ver Dani desconectada');
 });
 
-asyncTest('T171 Volta da conexão e F5 de guest: quem volta manda o player-join de novo e retoma o lugar pelo uid; nenhum aviso de antes do estado chega depois dele', async () => {
+asyncTest('T171 Volta da conexão e F5 de guest: quem volta manda o player-join de novo e retoma o lugar pelo uid; nenhum aviso de antes do estado chega depois dele; o F5 rápido não aparece como queda', async () => {
     const fake = createFakeFirebase();
     const clock = { now: 1000 };
     const host = await hostRoom(fake, clock);
@@ -318,9 +361,9 @@ asyncTest('T171 Volta da conexão e F5 de guest: quem volta manda o player-join 
     host.env.startMatch();
     await settle();
 
-    // A conexão de Beto cai (a partida pausa) e volta.
+    // A conexão de Beto cai (passada a tolerância, a partida pausa) e volta.
     beto.device.goOffline();
-    await settle();
+    await passTime(clock, host.env.CONFIG.GAME.PRESENCE_TIMEOUT + 2000);
     check(host.env.state.matchPaused && host.env.player('Beto').disconnected === true, 'pré-condição: partida pausada com Beto desconectado');
     beto.handled.length = 0;
     beto.device.goOnline();
@@ -338,7 +381,7 @@ asyncTest('T171 Volta da conexão e F5 de guest: quem volta manda o player-join 
     // F5 de Beto: aba nova, mesmo navegador, mesmo uid.
     beto.close();
     await settle();
-    check(host.env.player('Beto').disconnected === true, 'pré-condição: Beto desconectado durante o F5');
+    check(host.env.player('Beto').disconnected === false, 'durante o F5 (dentro da tolerância), Beto não deveria aparecer desconectado');
     const again = linkedDevice(fake, 'uid-beto', 'Beto', clock, beto.browser);
     const opened = await again.open();
     await settle();
@@ -524,8 +567,8 @@ asyncTest('T174 Login anônimo (firebaseLogin.js): emulador quando configurado, 
     check(beto.device.listenerCount() === 0, 'o guest que sai deveria parar de ouvir a sala, ouvintes: ' + beto.device.listenerCount());
     check(!('pmKPI_roomState' in beto.browser.storage), 'o guest que sai deveria apagar o estado salvo');
     beto.close();
-    await settle();
-    check(!host.env.player('Beto'), 'o host deveria ver a saída de Beto (pela presença)');
+    await passTime(clock, host.env.CONFIG.GAME.PRESENCE_TIMEOUT + 2000);
+    check(!host.env.player('Beto'), 'o host deveria ver a saída de Beto (pela presença, depois da tolerância)');
     host.env.Game.network.cleanup();
     await settle();
     check(fake.read('rooms/' + ROOM) === undefined, 'o host que sai deveria apagar a sala, sobrou: ' + JSON.stringify(fake.read('rooms/' + ROOM)));
@@ -724,6 +767,72 @@ asyncTest('T185 F5 do host pelo banco: ao abrir a sala, o host lê o secret/stat
     const main = fs.readFileSync(path.join(ROOT, 'js/main.js'), 'utf8');
     check(/showRoom\(\s*\w+\.restored\s*\)/.test(main), 'o main.js deveria montar a tela com o restored do resultado da abertura (onOpen)');
     check(!/tryRestoreState|localStorage/.test(main), 'o main.js não deveria restaurar pelo localStorage');
+});
+
+asyncTest('T191 F5 de quem responde: dentro da tolerância, ninguém cai — a mesma pergunta continua (dupla, pergunta, prazo), quem responde a recebe de novo sem o gabarito e a resposta dele vale; a ligação passa ao canal os tempos do sinal de vida do config (2 s, 20 s e 10 s no config real, HOST_TIMEOUT no piso de 5 s ou acima) e a sala usa o protocolo 12', async () => {
+    const fake = createFakeFirebase();
+    const clock = { now: 1000 };
+    const host = await hostRoom(fake, clock);
+    // Sorteio fixo: com Ana, Beto e Caio, Caio responde e Beto pergunta.
+    vm.runInContext('Math.random = () => 0.99', host.env.ctx);
+    const beto = await guestJoins(fake, clock, 'uid-beto', 'Beto');
+    const caio = await guestJoins(fake, clock, 'uid-caio', 'Caio');
+    host.env.startMatch();
+    await settle();
+    const round = copy(host.env.state.currentRound);
+    check(round && round.answerer === 'Caio' && round.asker === 'Beto' && round.question && !round.answered,
+        'pré-condição: Caio responde e Beto pergunta, com a pergunta aberta, veio: ' + JSON.stringify(round && { asker: round.asker, answerer: round.answerer }));
+    check(caio.types().includes('question'), 'pré-condição: Caio recebeu a pergunta, recebeu: ' + JSON.stringify(caio.types()));
+    const roundStarts = beto.types().filter(t => t === 'round-start').length;
+
+    // F5 de Caio: a página fecha e o jogo abre de novo uns segundos depois.
+    caio.close();
+    await passTime(clock, 3000);
+    check(host.env.player('Caio').disconnected !== true, 'durante o F5, Caio não deveria aparecer desconectado');
+    const again = linkedDevice(fake, 'uid-caio', 'Caio', clock, caio.browser);
+    const screens = recordScreens(again.env);
+    const channelOptions = [];
+    const realCreate = again.env.Game.network.roomChannel.create;
+    again.env.Game.network.roomChannel.create = (options) => {
+        channelOptions.push(options);
+        return realCreate(options);
+    };
+    const opened = await again.open();
+    await settle();
+    check(opened && opened.ok === true && again.types().includes('state-sync'), 'Caio deveria voltar à sala, veio: ' + JSON.stringify(opened));
+
+    const now = host.env.state.currentRound;
+    check(now && now.question.id === round.question.id && now.asker === 'Beto' && now.answerer === 'Caio' && !now.answered &&
+        now.answerEndsAt === round.answerEndsAt,
+        'no host, a mesma pergunta deveria continuar (mesma dupla, pergunta e prazo), veio: ' + JSON.stringify(now && { id: now.question.id, asker: now.asker, answerer: now.answerer, answered: now.answered }));
+    check(!host.env.player('Caio').disconnected && !host.env.state.matchPaused, 'Caio deveria continuar conectado, sem pausa');
+    check(beto.types().filter(t => t === 'round-start').length === roundStarts, 'nenhuma dupla nova deveria ser sorteada, Beto recebeu: ' + JSON.stringify(beto.types()));
+
+    const seen = again.env.state.currentRound;
+    check(seen && seen.answerer === 'Caio' && seen.question && seen.question.id === round.question.id && seen.question.correct === undefined &&
+        seen.answerEndsAt === round.answerEndsAt,
+        'Caio deveria receber a mesma pergunta, sem o gabarito, com o mesmo prazo, veio: ' + JSON.stringify(seen));
+    check(screens.some(s => s.name === 'displayQuestion'), 'a pergunta deveria abrir de novo na tela de Caio, telas: ' + JSON.stringify(screens.map(s => s.name)));
+
+    again.env.Game.network.sendToHost({ type: 'answer', alternative: round.question.correct, playerName: 'Caio' });
+    await settle();
+    check(host.env.state.answeredThisRound.includes('Caio') && host.env.player('Caio').kpi > 0,
+        'a resposta (certa) de Caio depois do F5 deveria valer, veio: ' + JSON.stringify({ answered: host.env.state.answeredThisRound, kpi: host.env.player('Caio').kpi }));
+
+    // Tempos do sinal de vida: do config para o canal.
+    const G = host.env.CONFIG.GAME;
+    const opts = channelOptions[0] || {};
+    check(typeof G.HEARTBEAT_INTERVAL === 'number' && typeof G.PRESENCE_TIMEOUT === 'number' && typeof G.HOST_TIMEOUT === 'number' &&
+        opts.heartbeatInterval === G.HEARTBEAT_INTERVAL && opts.presenceTimeout === G.PRESENCE_TIMEOUT && opts.hostTimeout === G.HOST_TIMEOUT,
+        'a ligação deveria passar ao canal os tempos do CONFIG.GAME (HEARTBEAT_INTERVAL, PRESENCE_TIMEOUT, HOST_TIMEOUT), passou: ' +
+        JSON.stringify({ heartbeatInterval: opts.heartbeatInterval, presenceTimeout: opts.presenceTimeout, hostTimeout: opts.hostTimeout }));
+    const real = vm.createContext({});
+    vm.runInContext('var window = this;' + fs.readFileSync(path.join(ROOT, 'config/game-config.js'), 'utf8'), real);
+    const R = vm.runInContext('CONFIG', real).GAME;
+    check(R.HEARTBEAT_INTERVAL === 2000 && R.PRESENCE_TIMEOUT === 20000 && R.HOST_TIMEOUT === 10000 && R.HOST_TIMEOUT >= 5000,
+        'o config real deveria ter HEARTBEAT_INTERVAL 2000, PRESENCE_TIMEOUT 20000 e HOST_TIMEOUT 10000 (não abaixo do piso de 5000 das regras), veio: ' +
+        JSON.stringify({ HEARTBEAT_INTERVAL: R.HEARTBEAT_INTERVAL, PRESENCE_TIMEOUT: R.PRESENCE_TIMEOUT, HOST_TIMEOUT: R.HOST_TIMEOUT }));
+    check(host.env.Game.network.PROTOCOL_VERSION >= 12, 'o protocolo deveria ser 12 ou mais (aparelho sem lastSeen cairia aos 20 s), veio: ' + host.env.Game.network.PROTOCOL_VERSION);
 });
 
 (async () => {

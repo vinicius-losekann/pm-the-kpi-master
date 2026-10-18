@@ -14,7 +14,13 @@ class Summary {
 
     onTestEnd(test, result) {
         // Com repetição, vale o último resultado de cada cenário.
-        this.results.set(test.id, { title: test.title, result, attempts: result.retry + 1 });
+        // Medidas que o cenário anotou (type 'measure', ex.: o tempo do F5
+        // do host no E1) vão para a coluna "Detalhe".
+        const notes = [...(test.annotations || []), ...(result.annotations || [])]
+            .filter(a => a && a.type === 'measure' && a.description)
+            .map(a => a.description);
+        const measures = notes.filter((d, i) => notes.indexOf(d) === i);
+        this.results.set(test.id, { title: test.title, result, attempts: result.retry + 1, measures });
     }
 
     onEnd() {
@@ -39,6 +45,9 @@ class Summary {
                 detail = String(r.result.error.message || '').split('\n')[0].replace(/\|/g, '\\|').slice(0, 200);
             } else if (ok && r.attempts > 1) {
                 detail = 'passou na repetição';
+            }
+            if (ok && r.measures.length) {
+                detail = [detail, ...r.measures].filter(Boolean).join(' · ').replace(/\|/g, '\\|');
             }
             lines.push('| ' + (ok ? '✅' : '❌') + ' | ' + r.title + ' | ' + seconds + ' | ' + detail + ' |');
         }

@@ -113,6 +113,7 @@ A regra geral: **nome é em inglês; texto é em português.** Nome é tudo que 
   | tempo que resta para responder / tempo esgotado | answer time left (`answerTimeLeft`) / timed out (`timedOut`) |
   | hora do servidor / hora de término (da partida, do prazo do Perguntador, do prazo de resposta, do prazo do apoio) | server now (`serverNow`, `serverTimeOffset`) / ends at (`endsAt`, `askEndsAt`, `answerEndsAt`, `advisory.endsAt`) |
   | troca de host / host antigo / backup | host migration / old host / backup |
+  | sinal de vida / hora do último sinal / ritmo do sinal / tolerância de quem cai / espera pelo host caído | heartbeat / last seen (`lastSeen`) / `HEARTBEAT_INTERVAL` / presence timeout (`PRESENCE_TIMEOUT`) / host timeout (`HOST_TIMEOUT`) |
   | identidade do aparelho (uid do login anônimo, no campo `peerId`) / estado salvo | uid / saved state |
   | ligação do jogo ao canal da sala / login anônimo / cursor dos avisos para todos / aba com a sala aberta | room link (`roomLink`) / Firebase login (`firebaseLogin`) / feed cursor (`feedCursor`) / room tab (`tab-in-use`) |
   | teste de conexão (página `firebase-check.html`) / aparelho / mensagem de teste / resposta a ela / tempo de ida e volta / dono da sala | connection check (`connectionCheck`) / device / ping / echo / round trip (`roundTrips`) / host (`hostUid`) |

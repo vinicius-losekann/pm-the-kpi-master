@@ -6,17 +6,24 @@
 
 const {
     test, expect, roomCode, startMatch, answerUntilRoundEnds,
-    waitForOpenQuestion, waitForHostBack
+    waitForOpenQuestion, waitForHostBack, DROP_WAIT
 } = require('./players');
 
-test('E1 F5 do host no meio da question: o outro reconecta ao mesmo host, sem troca, e a partida segue', async ({ players }) => {
+test('E1 F5 do host no meio da question: o outro reconecta ao mesmo host, sem troca, e a partida segue; o log mostra quanto o F5 do host demora', async ({ players }) => {
     const code = roomCode();
     const ana = await players.add('Ana');
     const beto = await players.add('Beto');
     await startMatch(ana, [beto], code);
     await waitForOpenQuestion(ana, [ana, beto], [ana, beto]);
 
+    // Medida para rever o HOST_TIMEOUT: do F5 até o host estar de novo no
+    // canal da sala (é quando o sinal de vida dele volta).
+    const reloadedAt = Date.now();
     await ana.page.reload();
+    await expect.poll(() => ana.isRoomHost(), { timeout: 25000, intervals: [100], message: 'Ana deveria voltar como host da sala' }).toBe(true);
+    const measure = 'F5 do host: ' + (Date.now() - reloadedAt) + ' ms até voltar ao canal da sala (o sinal fica parado esse tempo, mais até 2 s do ritmo)';
+    console.log('📏 ' + measure);
+    test.info().annotations.push({ type: 'measure', description: measure });
     await waitForHostBack(ana);
     await expect.poll(() => beto.isConnectedToHost(), { timeout: 25000, message: 'Beto deveria reconectar ao mesmo host' }).toBe(true);
     await ana.waitFor(() => {
@@ -48,7 +55,7 @@ test('E6 Jogador dá F5, outro fecha e volta pela tela inicial, nome novo é rec
 
     // Caio fecha a aba e volta pela tela inicial (mesmo navegador = mesma identidade).
     await caio.closeTab();
-    await expect.poll(() => isConnected('Caio'), { message: 'a queda do Caio deveria ser percebida' }).toBe(false);
+    await expect.poll(() => isConnected('Caio'), { timeout: DROP_WAIT, message: 'a queda do Caio deveria ser percebida' }).toBe(false);
     await caio.joinFromHomeScreen(code);
     await expect.poll(() => isConnected('Caio'), { timeout: 25000, message: 'Caio deveria voltar ao lugar dele' }).toBe(true);
 
@@ -135,7 +142,7 @@ test('E16 Sala cheia: o 7º nome é recusado no lobby; com 6 na partida, quem ca
     const caio = guests[1];
     const before = await ana.state(() => Game.state.players.find(p => p.name === 'Caio'));
     const caioLink = await caio.closeTab();
-    await ana.waitFor(() => Game.state.players.find(p => p.name === 'Caio').disconnected === true);
+    await ana.waitFor(() => Game.state.players.find(p => p.name === 'Caio').disconnected === true, { timeout: DROP_WAIT });
     await caio.reopen(caioLink);
     await expect.poll(() => caio.isConnectedToHost(), { timeout: 25000, message: 'Caio deveria voltar ligado ao host' }).toBe(true);
     await ana.waitFor(() => {
@@ -159,7 +166,7 @@ test('E27 Outro navegador com o nome de quem caiu é recusado e a vaga continua 
 
     // Beto fecha a aba: fica na lista, desconectado.
     const betoLink = await beto.closeTab();
-    await ana.waitFor(() => Game.state.players.find(p => p.name === 'Beto').disconnected === true, { timeout: 25000 });
+    await ana.waitFor(() => Game.state.players.find(p => p.name === 'Beto').disconnected === true, { timeout: DROP_WAIT });
 
     // Outro navegador entra pela tela inicial com o nome do Beto: recusado.
     const other = await players.add('Beto');
@@ -178,6 +185,32 @@ test('E27 Outro navegador com o nome de quem caiu é recusado e a vaga continua 
     const back = await betoInList();
     expect(back.kpi, 'Beto volta com o KPI dele').toBe(before.kpi);
     expect(back.resources, 'Beto volta com os recursos dele').toBe(before.resources);
+});
+
+test('E30 Quem responde dá F5 no meio da pergunta: ninguém cai, a mesma pergunta continua (mesma dupla e prazo) e a resposta dele vale', async ({ players }) => {
+    const code = roomCode();
+    const ana = await players.add('Ana');
+    const beto = await players.add('Beto');
+    await startMatch(ana, [beto], code);
+    await waitForOpenQuestion(ana, [ana, beto], [beto]);
+    const roundNow = () => ana.state(() => {
+        const r = Game.state.currentRound;
+        return r && { question: r.question && r.question.question, asker: r.asker, answerer: r.answerer, answerEndsAt: r.answerEndsAt, answered: r.answered };
+    });
+    const before = await roundNow();
+    expect(before.answerer, 'pré-condição: Beto responde').toBe('Beto');
+
+    await beto.page.reload();
+    await expect.poll(() => beto.isConnectedToHost(), { timeout: 25000, message: 'Beto deveria voltar ligado ao host' }).toBe(true);
+    await expect.poll(() => beto.hasOpenQuestion(), { timeout: 15000, message: 'Beto deveria ver a pergunta aberta de novo' }).toBe(true);
+
+    expect(await roundNow(), 'no host, a mesma pergunta deveria continuar, com a mesma dupla e o mesmo prazo').toEqual(before);
+    expect(await beto.state(() => Game.state.currentRound.question.question), 'Beto deveria ver a mesma pergunta').toBe(before.question);
+    expect(await ana.state(() => Game.state.players.find(p => p.name === 'Beto').disconnected), 'Beto não deveria ter caído').toBe(false);
+    expect(await ana.state(() => !!Game.state.matchPaused), 'a partida não deveria ter pausado').toBe(false);
+
+    await beto.answerIfMyTurn();
+    await ana.waitFor(() => Game.state.answeredThisRound.includes('Beto'), { timeout: 10000 });
 });
 
 test('E19 Pedido de ajuda com 3 jogadores: quem está sem recursos pede ajuda na vez de responder, segue a sugestão certa e quem ajudou ganha a recompensa do patrocinador', async ({ players }) => {
