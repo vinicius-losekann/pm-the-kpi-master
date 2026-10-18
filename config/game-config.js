@@ -27,6 +27,9 @@ const CONFIG = {
         ADVISORY_TIMEOUT: 60000,              // Tempo máximo para o assessor (ou quem ajuda) responder (ms)
         ANSWER_TIMEOUT: 90000,                // Tempo máximo para o Respondedor escolher uma alternativa (ms), contado da pergunta feita; para enquanto o apoio está pendente
         ASK_TIMEOUT: 30000,                   // Tempo para o Perguntador clicar em "Fazer a pergunta" (ms); esgotado, a pergunta vai sozinha. 0 = sem essa etapa: a pergunta vai direto para quem responde
+        HEARTBEAT_INTERVAL: 2000,             // Sinal de vida: de quanto em quanto tempo cada aparelho avisa o banco que está na sala (ms)
+        PRESENCE_TIMEOUT: 20000,              // Tolerância: o host dá o jogador como caído com o sinal parado há mais que isso (ms) — um F5 rápido não é queda
+        HOST_TIMEOUT: 10000,                  // Os jogadores dão o host como caído com o sinal dele parado há mais que isso (ms); não pode ficar abaixo de 5000
     },
 
     FOCUS_AREAS: [

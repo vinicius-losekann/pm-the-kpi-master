@@ -16,11 +16,12 @@
 // (feedCursor), e os avisos de depois chegam na ordem (ver
 // roomChannel.js, "Cursor dos avisos para todos").
 //
-// Queda de jogador: o host vê pela presença (o servidor grava offline
-// quando a aba fecha ou a conexão cai). Volta da conexão: o guest manda o
-// player-join de novo; quando o host volta (F5 ou queda), também. Sem
-// troca de host: se o host cai, os outros veem "Host desconectado" e a
-// sala espera por ele.
+// Queda de jogador: o host vê pela presença, com a tolerância do sinal de
+// vida (CONFIG.GAME.PRESENCE_TIMEOUT): só cai quem está com o sinal
+// parado — um F5 rápido não é queda e quem está na dupla continua com a
+// mesma pergunta. Volta da conexão: o guest manda o player-join de novo;
+// quando o host volta (F5 ou queda), também. Sem troca de host: se o host
+// cai, os outros veem "Host desconectado" e a sala espera por ele.
 // ============================================
 
 // Versão do formato das mensagens de rede. Vai no meta da sala e no
@@ -29,7 +30,7 @@
 // novo e os outros, o antigo — com nomes de campo diferentes, a partida
 // travaria sem aviso. Aumentar ao mudar o nome ou o formato de um campo
 // de mensagem.
-const PROTOCOL_VERSION = 11;
+const PROTOCOL_VERSION = 12;
 
 // Quanto a aba espera a resposta de outra aba do mesmo navegador que já
 // esteja com a sala aberta (as duas teriam o mesmo uid).
@@ -93,6 +94,15 @@ function releaseRoomTab() {
     roomLinkState.tab = null;
 }
 
+/** Tempos do sinal de vida, do config, nas opções do canal da sala. */
+function heartbeatOptions() {
+    return {
+        heartbeatInterval: CONFIG.GAME.HEARTBEAT_INTERVAL,
+        presenceTimeout: CONFIG.GAME.PRESENCE_TIMEOUT,
+        hostTimeout: CONFIG.GAME.HOST_TIMEOUT
+    };
+}
+
 // ============================================
 // TELA INICIAL
 // ============================================
@@ -104,7 +114,7 @@ function releaseRoomTab() {
  * `room-exists`).
  */
 async function createRoom({ db, uid, code, now, timestamp }) {
-    const channel = Game.network.roomChannel.create({ db, uid, now, timestamp });
+    const channel = Game.network.roomChannel.create({ db, uid, now, timestamp, ...heartbeatOptions() });
     const result = await channel.createRoom(code, { protocolVersion: PROTOCOL_VERSION });
     channel.detach();
     return result;
@@ -155,6 +165,7 @@ async function openRoom({ db, uid, code, now, timestamp, onOpen }) {
     const ready = (fn) => (...args) => whenReady(() => fn(...args));
     const channel = Game.network.roomChannel.create({
         db, uid, now, timestamp,
+        ...heartbeatOptions(),
         onRequest: ready(receiveRequest),
         onPresence: ready(receivePresence),
         onMessage: ready(deliverFromHost),
@@ -212,7 +223,7 @@ function receiveRequest(msg, uid) {
     Game.network.handleMessage(msg, uid);
 }
 
-/** Host: presença de outro aparelho; offline = quedas e abas fechadas. */
+/** Host: presença de outro aparelho; offline = sinal parado além da tolerância (queda, aba fechada, tela bloqueada). */
 function receivePresence(uid, online) {
     if (!online) Game.network.handlePlayerDisconnect(uid);
 }

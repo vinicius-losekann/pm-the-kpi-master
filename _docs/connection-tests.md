@@ -94,7 +94,7 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 ### Queda e volta de guest
 | Caso | Testes | Manual |
 |---|---|---|
-| Queda vista pela presença: no lobby, sai da lista; na partida, fica desconectado com a vaga reservada | 🤖 T170 | — |
+| Queda vista pela presença, depois da tolerância (sinal de vida parado há mais de 20 s, também com a aba congelada): no lobby, sai da lista; na partida, fica desconectado com a vaga reservada | 🤖 T170, T188, T189 · 🌐 E6, E16, E27 | — |
 | Espectador cai: fica na lista, fora do sorteio, volta com tudo | 🤖 T4 | — |
 | Quem caiu não pode ser chamado como assessor nem para ajudar (recusa na hora; quem pede chama outro); quem foi chamado e cai antes de responder libera quem responde no fim do prazo (`ADVISORY_TIMEOUT`) | 🤖 T70, T119, T122 | — |
 | Participante da rodada cai: rodada abortada, nova dupla | 🤖 T5 | — |
@@ -103,7 +103,7 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 | Volta da conexão: o guest manda o player-join de novo e retoma o lugar; nenhum aviso de antes do estado chega depois dele | 🤖 T171 | ⬜ (M7) |
 | Quem entra ou volta recebe o estado com o cursor dos avisos: nada de antes dele, os de depois uma vez, na ordem | 🤖 T168, T177 | — |
 | O estado de quem entra ou volta não leva os baralhos nem a resposta que espera o apoio; o gabarito da pergunta da vez só vai para o Perguntador (SEC-005) | 🤖 T79, T80, T186 | — |
-| F5 de guest: volta ao mesmo lugar pelo uid | 🤖 T171 · 🌐 E6 | — |
+| F5 de guest: volta ao mesmo lugar pelo uid; dentro da tolerância não é queda — quem está na dupla continua com a mesma pergunta, com o mesmo prazo, e a resposta vale | 🤖 T171, T190, T191 · 🌐 E6, E30 | — |
 | Guest volta com o relógio andando e sem reabrir pergunta já respondida | 🤖 T30–T34 | — |
 | Relógio e prazos pela hora do servidor: todos mostram o mesmo tempo, mesmo com o relógio do aparelho errado; quem volta à pergunta vê o que falta do prazo, não o prazo inteiro | 🤖 T179–T182 · 🌐 E28 | — |
 | Sala cheia: 7º nome recusado no lobby; quem caiu consegue voltar | 🤖 T9 · 🌐 E16 | — (coberto por E16) |
@@ -180,7 +180,8 @@ banco.
 ## 5. Limitações conhecidas (aceitas por ora)
 
 - ⚠️ Sem troca de host até a etapa 3 do roadmap 2.9: se o host cai de vez, a sala espera por ele.
-- ⚠️ Sinal de vida mínimo até a etapa 3: o host vê a queda quando o servidor do Firebase percebe a conexão fechada — na hora quando a aba fecha; até ~2 min numa queda de rede sem aviso. Uma queda percebida tarde pode marcar como desconectado quem já voltou (até a próxima queda e volta dele).
+- ⚠️ Tolerância de 20 s (`PRESENCE_TIMEOUT`): quem fecha a aba sai da lista do lobby, ou do sorteio na partida, só ~20 s depois; quem está na dupla e cai de vez segura a rodada esse tempo.
+- ⚠️ Chrome e Edge espaçam os timers de aba escondida há mais de 5 min (1 por minuto): o sinal de vida de 2 s fica de minuto em minuto, e o jogador sai do sorteio até a aba voltar a ficar visível. Com o host, os outros veriam "Host desconectado" — conferir no M18 com o host.
 - ⚠️ Nomes diferenciam maiúsculas: "vHost" e "Vhost" são jogadores diferentes — durante a partida, a grafia errada é recusada. Melhoria futura (roadmap 8.5).
 - ⚠️ Abas do mesmo navegador compartilham o login (uid): a segunda aba com a mesma sala não entra. Trocar de navegador, usar aba anônima ou limpar os dados no meio da partida perde a identidade (só volta no lobby).
 - ⚠️ As respostas não são secretas: `data/questions.pt-BR.json` é público no site (o `state-sync` não leva mais os baralhos, SEC-005, mas o arquivo continua aberto). Ocultar é melhoria futura (roadmap 4.4); por ora, vale a regra da aula.
@@ -202,7 +203,7 @@ o teste só aponta o Firebase para o emulador.
 
 | # | Cenário | Cobre |
 |---|---|---|
-| E1 | F5 do host no meio da pergunta: o outro continua ligado ao mesmo host, sem troca de host; a rodada vai até o fim | M1 |
+| E1 | F5 do host no meio da pergunta: o outro continua ligado ao mesmo host, sem troca de host; a rodada vai até o fim. Mede quanto o F5 do host demora até voltar ao canal da sala (coluna "Detalhe" do resumo do Actions) | M1 |
 | E6 | Jogador dá F5; outro fecha e volta pela tela inicial; nome novo é recusado; a rodada vai até o fim | M6 |
 | E8 | Jogador sai da partida, ela acaba; voltar ao lobby e iniciar outra | M10 |
 | E9 | F5 do host com a rodada encerrada: continua encerrada para os dois, "Nova Rodada" liberado, nada começa sozinho | M2, B3 |
@@ -218,10 +219,11 @@ o teste só aponta o Firebase para o emulador.
 | E23 | Quem responde vê o aviso de quem vai perguntar, sem a janela de resposta; o Perguntador clica em "Fazer a pergunta" e a janela abre com o prazo inteiro | — (etapa "Fazer a pergunta") |
 | E24 | Página de teste de conexão: sala inexistente recusada; criar, entrar, mensagem de teste com eco e tempo; F5 volta sozinho à sala; quem fecha a aba sai da lista | M21 (a parte que não depende da rede real) |
 | E25 | Regras do banco no emulador: sem login não lê; fora da sala, sala de outro, aparelho de outro, mensagem em nome de outro e conteúdo grande demais são recusados; ler a sala e gravar o próprio aparelho e a própria mensagem passam | — (segurança do banco) |
-| E26 | Regras do banco para as salas do jogo (`rooms/`): o host grava tudo; quem foi aceito lê o estado público e o próprio, nunca o secreto, e não grava o que é do host; quem não foi aceito só lê a sala, a própria caixa de avisos e manda pedido em nome próprio; presença: cada um grava só a própria (estando no roster ou sendo o host), o host lê todas e quem foi aceito só a do host; sala parada há 2 h pode ser criada de novo por outro, e o host antigo perde o acesso | — (segurança do banco; lógica do canal em 🤖 T154–T166) |
+| E26 | Regras do banco para as salas do jogo (`rooms/`): o host grava tudo; quem foi aceito lê o estado público e o próprio, nunca o secreto, e não grava o que é do host; quem não foi aceito só lê a sala, a própria caixa de avisos e manda pedido em nome próprio; presença: cada um grava só a própria (estando no roster ou sendo o host), com `online` e `lastSeen` igual à hora do servidor (sem `lastSeen` ou com hora inventada é recusada; o offline deixado com o servidor passa, com a hora da queda), o host lê todas e quem foi aceito só a do host; sala parada há 2 h pode ser criada de novo por outro, e o host antigo perde o acesso | — (segurança do banco; lógica do canal em 🤖 T154–T166) |
 | E27 | Outro navegador com o nome de quem caiu é recusado e a vaga continua reservada; o dono volta ao lugar pelo mesmo navegador, com KPI e recursos | — |
 | E28 | Um navegador com o relógio 30 s adiantado (`page.clock`) mostra o mesmo tempo do host; o F5 do host ~12 s depois do início continua o relógio do mesmo ponto | — (relógio pela hora do servidor) |
 | E29 | 3 jogadores; um guest pede apoio, quem foi chamado não responde e o host dá F5: o pedido continua pendente (quem pediu segue com os botões travados), quem foi chamado vê a pergunta do apoio de novo e responde, quem pediu recebe a sugestão, responde e a rodada segue | BUG-019 |
+| E30 | Quem responde dá F5 no meio da pergunta: ninguém cai, a mesma pergunta continua (mesma dupla e prazo) e a resposta dele vale | — (tolerância do sinal de vida) |
 
 Números retirados (não se reaproveitam): E12 (o apoio pendente era
 cancelado no F5 do host; o E29 confere o comportamento atual) e E18 (a

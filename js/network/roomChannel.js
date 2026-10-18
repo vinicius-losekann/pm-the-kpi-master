@@ -19,12 +19,22 @@
 //   feed/<id>       { payload } — aviso do host para todos
 //   inbox/<uid>/<id> { payload } — aviso do host para um jogador
 //   requests/<id>   { from, payload } — pedido de um jogador ao host
-//   presence/<uid>  { online } — sinal mínimo de presença: o aparelho
-//                   grava online e deixa com o servidor (onDisconnect) o
-//                   offline de quando cair ou fechar a aba
+//   presence/<uid>  { online, lastSeen } — sinal de vida: o aparelho grava
+//                   online com a hora do servidor ao entrar, a cada
+//                   heartbeatInterval e quando a aba volta a ficar
+//                   visível, e deixa com o servidor (onDisconnect) o
+//                   offline com a hora de quando cair ou fechar a aba
 // Todo conteúdo viaja como texto JSON: o banco apaga null e listas
 // vazias de um objeto gravado. Quem pode ler e gravar cada parte está
 // em database.rules.json.
+//
+// Tolerância: "vivo" é ter o último sinal (lastSeen) recente pela hora do
+// servidor — o offline sozinho não derruba ninguém (um F5 ou uma queda
+// curta passam sem aviso), e a aba congelada (tela bloqueada), ainda
+// online, cai do mesmo jeito. O host dá o jogador como caído com o sinal
+// parado há mais de presenceTimeout; o guest dá o host como caído no
+// offline dele ou com o sinal parado há mais de hostTimeout. Os dois
+// conferem a cada PRESENCE_CHECK_MS e a cada mudança no banco.
 //
 // Cursor dos avisos para todos: o estado de quem entra (ou volta) chega
 // pela inbox e os avisos para todos pelo feed — caminhos separados. Um
@@ -42,6 +52,10 @@ const ROOM_CODE_PATTERN = /^[a-zA-Z0-9_-]{1,20}$/;
 // código pode ser criado de novo. O mesmo número está nas regras do banco
 // (database.rules.json, meta), que conferem pela hora do servidor.
 const ROOM_IDLE_MS = 2 * 60 * 60 * 1000;
+
+// De quanto em quanto tempo a tolerância é conferida sem mudança no banco
+// (o sinal de quem caiu para de mudar: só o relógio diz que ficou velho).
+const PRESENCE_CHECK_MS = 1000;
 
 // O que sobra de uma sala parada e é apagado por quem cria a sala de novo.
 const ROOM_PARTS = ['roster', 'public', 'secret', 'hands', 'feed', 'inbox', 'requests', 'presence'];
@@ -75,15 +89,20 @@ function parseJson(text) {
  * @param {Function} [options.now] - relógio em ms (padrão: Date.now)
  * @param {Function} [options.timestamp] - valor gravado como hora (no
  *   jogo, firebase.database.ServerValue.TIMESTAMP; padrão: now())
+ * @param {number} options.heartbeatInterval - ms entre um sinal de vida e outro
+ * @param {number} options.presenceTimeout - host: ms de sinal parado até o jogador cair
+ * @param {number} options.hostTimeout - guest: ms de sinal parado até o host cair
  * @param {Function} [options.onRequest] - host: (msg, uid de quem pediu)
  * @param {Function} [options.onMessage] - guest: aviso do host (para todos ou só para ele)
  * @param {Function} [options.onState] - guest aceito: estado público (ou null)
  * @param {Function} [options.onHand] - guest aceito: o que só ele vê (ou null)
  * @param {Function} [options.onAdmitted] - guest: foi aceito na sala
  * @param {Function} [options.onDismissed] - guest: saiu do roster
- * @param {Function} [options.onPresence] - host: (uid, online) a cada
- *   mudança da presença de outro aparelho (e a atual, ao entrar)
- * @param {Function} [options.onHostPresence] - guest aceito: (online) do host
+ * @param {Function} [options.onPresence] - host: (uid, vivo) a cada
+ *   mudança da presença de outro aparelho, já com a tolerância (e a
+ *   atual, ao entrar)
+ * @param {Function} [options.onHostPresence] - guest aceito: (online) do
+ *   host, a cada mudança
  * @param {Function} [options.onReconnected] - a conexão com o banco voltou
  *   (nunca na primeira conexão)
  */
@@ -92,6 +111,9 @@ function create(options) {
     const uid = options.uid;
     const now = options.now || (() => Date.now());
     const timestamp = options.timestamp || now;
+    const heartbeatInterval = options.heartbeatInterval;
+    const presenceTimeout = options.presenceTimeout;
+    const hostTimeout = options.hostTimeout;
     const noop = () => {};
     const handlers = {
         onRequest: options.onRequest || noop,
@@ -112,8 +134,18 @@ function create(options) {
     let hostUid = null;
     // Host: chave do último aviso para todos (feedCursor).
     let lastFeedKey = null;
-    // Host: presença conhecida de cada outro aparelho (uid → online).
+    // Host: a presença de todos como está no banco, e o que já foi
+    // avisado de cada outro aparelho (uid → vivo).
+    let presenceList = {};
     let knownPresence = {};
+    // Guest aceito: a presença do host como está no banco (undefined =
+    // ainda não leu; null = não há), e o que já foi avisado (undefined =
+    // ainda nada).
+    let hostSignal;
+    let knownHostOnline;
+    // Timers do sinal de vida e da conferência da tolerância.
+    let heartbeatTimer = null;
+    let checkTimer = null;
     // Última situação da conexão com o banco (undefined = ainda não sabe)
     // e se já esteve conectado nesta sala.
     let lastConnected;
@@ -199,30 +231,87 @@ function create(options) {
         return db.ref(base + '/presence/' + uid);
     }
 
-    // Grava online e deixa com o servidor o offline de quando cair. O
-    // onDisconnect é registrado de novo a cada volta da conexão: o
-    // anterior já foi executado pelo servidor na queda.
-    function announcePresence() {
-        const ref = presenceRef();
-        ref.onDisconnect().set({ online: false });
-        return ref.set({ online: true });
+    /** Sinal de vida: online e a hora do servidor (o banco a grava). */
+    function signal(online) {
+        return { online, lastSeen: timestamp() };
     }
 
-    // Host: avisa cada mudança da presença dos outros. Presença apagada
-    // (o próprio host tirou da sala) não é queda: só sai da lista.
+    // Grava online e deixa com o servidor o offline de quando cair (com a
+    // hora da queda). O onDisconnect é registrado de novo a cada volta da
+    // conexão: o anterior já foi executado pelo servidor na queda.
+    function announcePresence() {
+        const ref = presenceRef();
+        ref.onDisconnect().set(signal(false));
+        return ref.set(signal(true));
+    }
+
+    /** Sinal de vida de agora — só de quem pode gravar a presença (host ou aceito). */
+    function beat() {
+        if (!code || !(isHost || isAdmitted)) return;
+        presenceRef().set(signal(true)).catch(e => {
+            console.warn('⚠️ Sinal de vida recusado pelo banco:', e && e.message);
+        });
+    }
+
+    /** O último sinal tem até `limit` ms, pela hora do servidor? */
+    function isRecent(value, limit) {
+        return !!value && typeof value.lastSeen === 'number' && now() - value.lastSeen <= limit;
+    }
+
+    // Host: avisa cada mudança dos outros, já com a tolerância. Guest
+    // aceito: avisa cada mudança do host.
+    function checkPresence() {
+        if (!code) return;
+        if (isHost) {
+            Object.keys(presenceList).forEach(who => {
+                if (who === uid) return;
+                const alive = isRecent(presenceList[who], presenceTimeout);
+                if (knownPresence[who] === alive) return;
+                knownPresence[who] = alive;
+                call('onPresence', who, alive);
+            });
+        } else if (isAdmitted && hostSignal !== undefined) {
+            const online = !!hostSignal && hostSignal.online === true && isRecent(hostSignal, hostTimeout);
+            if (knownHostOnline === online) return;
+            knownHostOnline = online;
+            call('onHostPresence', online);
+        }
+    }
+
+    // A aba voltou a ficar visível (ex.: tela desbloqueada): sinal na hora,
+    // sem esperar o ritmo, e confere a tolerância.
+    function onVisibilityChange() {
+        if (document.visibilityState !== 'visible') return;
+        beat();
+        checkPresence();
+    }
+
+    function hasDocument() {
+        return typeof document !== 'undefined' && !!document && typeof document.addEventListener === 'function';
+    }
+
+    function startHeartbeat() {
+        stopHeartbeat();
+        heartbeatTimer = setInterval(beat, heartbeatInterval);
+        checkTimer = setInterval(checkPresence, PRESENCE_CHECK_MS);
+    }
+
+    function stopHeartbeat() {
+        clearInterval(heartbeatTimer);
+        clearInterval(checkTimer);
+        heartbeatTimer = null;
+        checkTimer = null;
+    }
+
+    // Host: guarda a presença de todos e confere. Presença apagada (o
+    // próprio host tirou da sala) não é queda: só sai da lista.
     function onPresenceList(snap) {
         if (!code) return;
-        const list = snap.val() || {};
+        presenceList = snap.val() || {};
         Object.keys(knownPresence).forEach(who => {
-            if (!(who in list)) delete knownPresence[who];
+            if (!(who in presenceList)) delete knownPresence[who];
         });
-        Object.keys(list).forEach(who => {
-            if (who === uid) return;
-            const online = !!list[who] && list[who].online === true;
-            if (knownPresence[who] === online) return;
-            knownPresence[who] = online;
-            call('onPresence', who, online);
-        });
+        checkPresence();
     }
 
     // Volta = conectado depois de ter estado conectado e caído. O
@@ -255,16 +344,19 @@ function create(options) {
 
     // Guest: só depois de aceito (roster) começa a ouvir o estado e os
     // avisos para todos — antes disso as regras recusariam a leitura e o
-    // Firebase cancelaria o ouvinte. Aceito, grava a própria presença e
-    // passa a ouvir a do host.
+    // Firebase cancelaria o ouvinte. Aceito, grava a própria presença,
+    // passa a mandar o sinal de vida e a ouvir a presença do host.
     async function startAdmitted() {
         isAdmitted = true;
         const id = ++admission;
         call('onAdmitted');
         announcePresence();
+        startHeartbeat();
+        hostSignal = undefined;
+        knownHostOnline = undefined;
         listen(admittedListeners, db.ref(base + '/presence/' + hostUid), 'value', snap => {
-            const value = snap.val();
-            call('onHostPresence', !!value && value.online === true);
+            hostSignal = snap.val();
+            checkPresence();
         });
         const feed = db.ref(base + '/feed');
         // Segurando o feed, os avisos que já existiam também ficam
@@ -284,6 +376,9 @@ function create(options) {
         admission++;
         held = [];
         skipUpTo = null;
+        stopHeartbeat();
+        hostSignal = undefined;
+        knownHostOnline = undefined;
         stopListening(admittedListeners);
     }
 
@@ -306,16 +401,19 @@ function create(options) {
         isHost = asHost;
         isAdmitted = false;
         hostUid = roomHostUid;
+        presenceList = {};
         knownPresence = {};
         lastConnected = undefined;
         everConnected = false;
         seen = new Set();
+        if (hasDocument()) document.addEventListener('visibilitychange', onVisibilityChange);
         if (asHost) {
             listen(roomListeners, db.ref(base + '/requests'), 'child_added', onRequestAdded);
             // Depois de um F5, o cursor continua o do último aviso no banco.
             lastFeedKey = lastKeyOf((await db.ref(base + '/feed').once('value')).val());
             listen(roomListeners, db.ref(base + '/presence'), 'value', onPresenceList);
             announcePresence();
+            startHeartbeat();
         } else {
             const inbox = db.ref(base + '/inbox/' + uid);
             markExisting('inbox:', await inbox.once('value'));
@@ -326,9 +424,11 @@ function create(options) {
         console.log('🔗 Canal da sala: ' + roomCode + (asHost ? ' (host)' : ''));
     }
 
-    /** Para de ouvir a sala, sem gravar nada. */
+    /** Para de ouvir a sala e de mandar o sinal de vida, sem gravar nada. */
     function detach() {
         stopAdmitted();
+        stopHeartbeat();
+        if (hasDocument()) document.removeEventListener('visibilitychange', onVisibilityChange);
         stopListening(roomListeners);
         code = null;
         base = null;
