@@ -74,18 +74,8 @@ jobs:
           node-version: 20
           cache: npm
 
-      # Temporário (um commit só): "npm install" no lugar do "npm ci" para
-      # gerar o package-lock.json sem os pacotes do PeerJS; o arquivo novo
-      # fica no artefato "package-lock".
-      - name: Instalar dependências dos testes (gera o package-lock.json novo)
-        run: npm install
-
-      - name: Guardar o package-lock.json novo
-        uses: actions/upload-artifact@v7
-        with:
-          name: package-lock
-          path: package-lock.json
-          retention-days: 14
+      - name: Instalar dependências dos testes
+        run: npm ci
 
       - name: Instalar o Chromium
         run: npx playwright install --with-deps chromium
