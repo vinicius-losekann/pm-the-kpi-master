@@ -255,19 +255,24 @@ function create(options) {
         });
     }
 
-    /** O último sinal tem até `limit` ms, pela hora do servidor? */
+    /**
+     * O último sinal tem até `limit` ms, pela hora do servidor? Logo
+     * depois da volta da conexão (dois ritmos do sinal), todo sinal conta
+     * como recente: o "conectado" pode chegar antes dos sinais novos, e o
+     * que está guardado pareceria velho.
+     */
     function isRecent(value, limit) {
-        return !!value && typeof value.lastSeen === 'number' && now() - value.lastSeen <= limit;
+        if (!value || typeof value.lastSeen !== 'number') return false;
+        const justReconnected = reconnectedAt !== null && now() - reconnectedAt < 2 * heartbeatInterval;
+        return justReconnected || now() - value.lastSeen <= limit;
     }
 
     // Host: avisa cada mudança dos outros, já com a tolerância. Guest
     // aceito: avisa cada mudança do host. Sem conexão com o banco, os
     // sinais dos outros param de chegar e pareceriam velhos: nada se
-    // conclui até a conexão voltar e, depois dela, por dois ritmos do
-    // sinal (o "conectado" pode chegar antes dos sinais novos).
+    // conclui até a conexão voltar.
     function checkPresence() {
         if (!code || lastConnected === false) return;
-        if (reconnectedAt !== null && now() - reconnectedAt < 2 * heartbeatInterval) return;
         if (isHost) {
             Object.keys(presenceList).forEach(who => {
                 if (who === uid) return;
