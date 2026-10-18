@@ -689,6 +689,18 @@ function create(options) {
         return value === undefined ? null : value;
     }
 
+    /**
+     * Host: hora do último sinal de vida de um aparelho (presence/<uid>/lastSeen,
+     * hora do servidor) — ex.: a do host antigo, depois de uma troca de host;
+     * null se não há.
+     */
+    async function readLastSeen(targetUid) {
+        if (!code || !isHost) return null;
+        const snap = await db.ref(base + '/presence/' + targetUid + '/lastSeen').once('value');
+        const value = snap.val();
+        return typeof value === 'number' ? value : null;
+    }
+
     /** Host: apaga os avisos já entregues (para todos e para cada um). */
     function clearMessages() {
         if (!code || !isHost) return Promise.resolve();
@@ -727,6 +739,7 @@ function create(options) {
         dismiss,
         publish,
         readSecret,
+        readLastSeen,
         clearMessages,
         leave,
         detach,

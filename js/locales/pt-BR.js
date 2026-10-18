@@ -139,5 +139,7 @@ window.Game.locales['pt-BR'] = {
         error: 'Erro de conexão',
         couldNotConnect: 'Não foi possível conectar. Recarregue a página.',
         hostDisconnected: 'Host desconectado — aguardando a volta dele...',
+        // Depois de uma troca de host (ver network/roomLink.js).
+        newHost: 'Conectado — {{name}} agora é o host',
     },
 };

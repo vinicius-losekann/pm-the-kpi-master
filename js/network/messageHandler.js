@@ -267,6 +267,15 @@ function rejectJoin(fromPeerId, reason) {
 function addPlayer(msg, fromPeerId) {
     const state = Game.state;
 
+    // O próprio aparelho do host já está na lista. Depois de uma troca de
+    // host, o pedido que ele mandou ao host antigo, quando ainda era guest,
+    // espera no banco: tratado, voltaria a ele mesmo como state-sync (sem o
+    // gabarito da rodada).
+    if (fromPeerId === state.peerId) {
+        console.warn('⚠️ Pedido de entrada do próprio aparelho do host ignorado.');
+        return;
+    }
+
     const version = msg.protocolVersion === undefined ? 1 : msg.protocolVersion;
     if (version !== Game.network.PROTOCOL_VERSION) {
         console.warn('🧩 Entrada recusada: "' + msg.playerName + '" está com outra versão do jogo (' + JSON.stringify(msg.protocolVersion) + ').');

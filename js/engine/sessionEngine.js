@@ -206,6 +206,55 @@ function resumePendingAdvisory(advisory) {
 }
 
 /**
+ * Host, ao abrir a sala com o estado gravado por outro host (troca de
+ * host: o host antigo caiu e este aparelho assumiu a sala no banco).
+ * Chamada por openRoom() (network/roomLink.js), antes da retomada
+ * (resumeMatchAfterReload(), que segue como no F5):
+ *   - o host antigo deixa de ser host: no lobby, sai da lista (como quem
+ *     cai no lobby); na partida e no fim de jogo, fica desconectado, com
+ *     KPI e recursos guardados — volta como jogador comum;
+ *   - este jogador vira o host, conectado (o host antigo pode tê-lo dado
+ *     como caído);
+ *   - com o host antigo na dupla e a pergunta sem resposta, a rodada é a
+ *     de quem cai: fica sem rodada e a retomada sorteia outra dupla;
+ *   - senão, o tempo sem host não conta: cada prazo da rodada que ainda
+ *     corria no último sinal do host antigo (`slackMs` atrás) ganha
+ *     `slackMs` — o do Perguntador, o de resposta e o de quem foi chamado
+ *     para o apoio. O prazo de resposta parado pelo apoio (answerTimeLeft)
+ *     e o relógio da partida (endsAt) não mudam.
+ */
+function takeOverMatch({ fromUid, toUid, slackMs }) {
+    const state = Game.state;
+    const previous = state.players.find(p => p.peerId === fromUid);
+    const me = state.players.find(p => p.peerId === toUid);
+    console.log('👑 Troca de host: este aparelho assume a partida' + (previous ? ' de ' + previous.name : '') + ' (folga de ' + slackMs + ' ms).');
+    if (me) {
+        me.isHost = true;
+        me.disconnected = false;
+    }
+    if (!previous) return;
+    previous.isHost = false;
+    if (!state.gameStarted) {
+        state.players = state.players.filter(p => p !== previous);
+        return;
+    }
+    previous.disconnected = true;
+
+    const round = state.currentRound;
+    if (!round || state.gameOver) return;
+    if (!round.answered && (round.asker === previous.name || round.answerer === previous.name)) {
+        console.warn('⚠️ O host antigo estava na dupla — a retomada sorteia outra.');
+        state.currentRound = null;
+        return;
+    }
+    const lastSeen = Game.network.serverNow() - slackMs;
+    const extended = (endsAt) => typeof endsAt === 'number' && endsAt > lastSeen;
+    if (extended(round.askEndsAt)) round.askEndsAt += slackMs;
+    if (extended(round.answerEndsAt)) round.answerEndsAt += slackMs;
+    if (round.advisory && extended(round.advisory.endsAt)) round.advisory.endsAt += slackMs;
+}
+
+/**
  * O jogador terminou a última área foco? Mesma condição usada por
  * answerEngine.handleAnswer() para encerrar a partida depois da resposta.
  */
@@ -466,6 +515,7 @@ window.Game.engine.session = {
     startGame,
     startClock,
     resumeMatchAfterReload,
+    takeOverMatch,
     endGame,
     showGameOver,
     endMatch,

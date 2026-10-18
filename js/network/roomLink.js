@@ -20,8 +20,16 @@
 // vida (CONFIG.GAME.PRESENCE_TIMEOUT): só cai quem está com o sinal
 // parado — um F5 rápido não é queda e quem está na dupla continua com a
 // mesma pergunta. Volta da conexão: o guest manda o player-join de novo;
-// quando o host volta (F5 ou queda), também. Sem troca de host: se o host
-// cai, os outros veem "Host desconectado" e a sala espera por ele.
+// quando o host volta (F5 ou queda), também.
+//
+// Troca de host: se o host cai, os outros veem "Host desconectado" e, com o
+// sinal dele parado há mais de CONFIG.GAME.HOST_TIMEOUT, um deles assume a
+// sala no banco (roomChannel.js, "Troca de host"). Quem assumiu e o host
+// antigo recarregam a página e abrem pelo caminho do F5: o primeiro como
+// host, com o estado da partida passado para ele (restoreAsHost()); o
+// segundo como guest, que pede para entrar e volta como jogador comum. Os
+// outros guests ficam na página, passam ao host novo e pedem para entrar
+// de novo (handleHostChanged()).
 // ============================================
 
 // Versão do formato das mensagens de rede. Vai no meta da sala e no
@@ -50,6 +58,9 @@ const roomLinkState = {
     hostOnline: null,
     // Guest: recebeu o state-sync depois do último player-join.
     synced: false,
+    // Guest, depois de uma troca de host: "Fulano agora é o host", mostrado
+    // no lugar do "Conectado" (null = sem troca).
+    hostNotice: null,
     // BroadcastChannel que marca a sala como aberta nesta aba.
     tab: null
 };
@@ -171,7 +182,8 @@ async function openRoom({ db, uid, code, now, timestamp, onOpen }) {
         onMessage: ready(deliverFromHost),
         onHostPresence: ready(showHostPresence),
         onDismissed: ready(handleDismissed),
-        onReconnected: ready(() => { if (!Game.state.isHost) sendPlayerJoin(); })
+        onReconnected: ready(() => { if (!Game.state.isHost) sendPlayerJoin(); }),
+        onHostChanged: ready(handleHostChanged)
     });
     roomLinkState.channel = channel;
     roomLinkState.isReady = false;
@@ -184,7 +196,7 @@ async function openRoom({ db, uid, code, now, timestamp, onOpen }) {
         // Leitura que falha não abre a sala: abrir sem o estado e gravar
         // por cima apagaria a partida.
         result = joined.ok && joined.isHost
-            ? { ...joined, restored: Game.persistence.restoreSavedState(await channel.readSecret()) }
+            ? await restoreAsHost(channel, uid, joined)
             : joined.ok ? { ...joined, restored: false } : joined;
     } finally {
         if (!result || !result.ok) {
@@ -212,6 +224,24 @@ async function openRoom({ db, uid, code, now, timestamp, onOpen }) {
     });
     if (!result.isHost) sendPlayerJoin();
     return result;
+}
+
+/**
+ * Host, ao abrir a sala: restaura o estado da partida do banco. Se o
+ * estado é de outro host (troca de host: o jogador isHost dele não é este
+ * aparelho), passa a partida para este (Game.core.takeOverMatch()), com a
+ * folga = o tempo desde o último sinal de vida do host antigo (sem o
+ * sinal, zero). Devolve o resultado da abertura com `restored` e, na
+ * troca, `takenOver`.
+ */
+async function restoreAsHost(channel, uid, joined) {
+    const restored = Game.persistence.restoreSavedState(await channel.readSecret());
+    const previous = restored ? Game.state.players.find(p => p.isHost) : null;
+    if (!previous || previous.peerId === uid) return { ...joined, restored };
+    const lastSeen = await channel.readLastSeen(previous.peerId);
+    const slackMs = typeof lastSeen === 'number' ? Math.max(0, serverNow() - lastSeen) : 0;
+    Game.core.takeOverMatch({ fromUid: previous.peerId, toUid: uid, slackMs });
+    return { ...joined, restored, takenOver: true };
 }
 
 // ============================================
@@ -258,11 +288,34 @@ function showHostPresence(online) {
     const cameBack = online && roomLinkState.hostOnline === false;
     roomLinkState.hostOnline = online;
     if (online) {
-        Game.ui.updateConnectionStatus('connected', Game.i18n.t('connection.connected'));
+        Game.ui.updateConnectionStatus('connected', roomLinkState.hostNotice || Game.i18n.t('connection.connected'));
         if (cameBack) sendPlayerJoin();
     } else {
         Game.ui.updateConnectionStatus('disconnected', Game.i18n.t('connection.hostDisconnected'));
     }
+}
+
+/**
+ * Troca de host (o canal avisa quando outro aparelho assume a sala). Quem
+ * assumiu e o host antigo recarregam a página e abrem pelo caminho do F5:
+ * um como host (restoreAsHost()), o outro como guest, que pede para entrar.
+ * Sem cleanup(): no host, ele apagaria a sala. Os outros guests ficam na
+ * página: passam ao host novo, mostram quem ele é e pedem para entrar de
+ * novo — o estado vem do host novo, depois que ele abrir.
+ */
+function handleHostChanged(uid) {
+    const state = Game.state;
+    if (uid === state.peerId || state.isHost) {
+        console.log('🔁 Troca de host: a página recarrega para abrir ' + (uid === state.peerId ? 'como host.' : 'como jogador.'));
+        window.location.reload();
+        return;
+    }
+    roomLinkState.hostUid = uid;
+    const newHost = state.players.find(p => p.peerId === uid);
+    const name = newHost ? newHost.name : '?';
+    roomLinkState.hostNotice = Game.i18n.t('connection.newHost', { name });
+    Game.ui.updateConnectionStatus('connected', roomLinkState.hostNotice);
+    sendPlayerJoin();
 }
 
 // Tirado da sala (ex.: o host viu a queda no lobby): ao voltar a
@@ -368,7 +421,7 @@ function cleanup() {
     clearInterval(Game.state.timerInterval);
     releaseRoomTab();
     const channel = roomLinkState.channel;
-    Object.assign(roomLinkState, { channel: null, hostUid: null, isReady: false, waiting: [], hostOnline: null, synced: false });
+    Object.assign(roomLinkState, { channel: null, hostUid: null, isReady: false, waiting: [], hostOnline: null, synced: false, hostNotice: null });
     return channel ? channel.leave() : Promise.resolve();
 }
 

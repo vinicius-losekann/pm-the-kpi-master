@@ -31,11 +31,6 @@ ficar pendente.
 > emulador do Firebase — cobrem a conexão, mas não redes reais
 > diferentes, celular nem outros navegadores. Esses continuam na lista
 > manual.
->
-> **Troca de host só no canal da sala até a etapa 3c do roadmap 2.9:** se
-> o host cai, os outros veem "Host desconectado" e, depois de
-> `HOST_TIMEOUT`, um deles assume a sala no banco (`meta`), mas o jogo
-> ainda não reage. Os testes do jogo na troca voltam com a etapa 3c.
 
 ---
 
@@ -61,7 +56,7 @@ flowchart TD
     I -->|volta a conexão ou reabre o link| G
 
     H -->|F5 do host| K[Retoma pelo estado gravado no banco;<br/>pedidos feitos no F5 esperam no banco]
-    H -->|host cai de vez| J[Os outros veem Host desconectado<br/>e a sala espera]
+    H -->|host cai de vez| J[Depois de HOST_TIMEOUT, outro jogador assume;<br/>a mesma pergunta continua, sem contar o tempo sem host]
 
     H -->|guest sai da partida| O[Vai para o lobby<br/>se faltar jogador, a partida acaba]
     O --> P[Fim de jogo → Voltar ao lobby → Nova partida]
@@ -112,8 +107,15 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 ### Host: F5 e queda
 | Caso | Testes | Manual |
 |---|---|---|
-| Host cai: os outros veem "Host desconectado"; com o host de volta, "Conectado" | 🤖 T172 | ⬜ |
-| Troca de host no canal: com o sinal do host parado há mais de `HOST_TIMEOUT`, um guest aceito e conectado assume o `meta` por transação (`hostEpoch` + 1, uma só vence); o host que volta antes disso (aba congelada, queda curta, F5) continua host; todos ficam sabendo (`onHostChanged`) e o host antigo deixa de ser host no canal; as regras recusam a troca de fora do roster, com epoch, versão ou criação errados e com o sinal do host de menos de 5 s | 🤖 T192–T195 · 🌐 E26 | — (o jogo na troca: etapa 3c) |
+| Host cai e volta antes do `HOST_TIMEOUT`: os outros veem "Host desconectado"; com o host de volta, "Conectado" | 🤖 T172 | ⬜ |
+| Troca de host no canal: com o sinal do host parado há mais de `HOST_TIMEOUT`, um guest aceito e conectado assume o `meta` por transação (`hostEpoch` + 1, uma só vence); o host que volta antes disso (aba congelada, queda curta, F5) continua host; todos ficam sabendo (`onHostChanged`) e o host antigo deixa de ser host no canal; as regras recusam a troca de fora do roster, com epoch, versão ou criação errados e com o sinal do host de menos de 5 s | 🤖 T192–T195 · 🌐 E26 | — |
+| Troca de host no jogo, com a pergunta aberta: outro assume entre 10 e 20 s depois (não antes de 10); quem assume recarrega e abre como host com o estado da partida; a mesma pergunta continua (dupla, gabarito, quem já respondeu); quem fica passa ao host novo e vê "Fulano agora é o host"; o F5 do host novo continua host | 🤖 T196 · 🌐 E31 | ⬜ (computador e celular, redes reais) |
+| Troca de host com a rodada encerrada, com a partida pausada, no lobby (ninguém entra de novo) e com a pergunta ainda por fazer: tudo continua como estava, para o host novo e para quem fica | 🤖 T197–T199, T201 · 🌐 E33, E34 | — |
+| Host antigo na dupla: a rodada é a de quem cai (dupla nova entre os que ficaram) | 🤖 T200 | — |
+| Resposta mandada durante a troca espera no banco e vale uma vez; resposta já tratada pelo host antigo não se repete (o rodízio continua) | 🤖 T202 · 🌐 E32 | — |
+| Host antigo volta (pelo link ou da queda de rede, quando a página dele recarrega) como jogador comum, com KPI e recursos | 🤖 T203 · 🌐 E33 | — |
+| Prazos na troca: o tempo sem host não conta (os prazos da rodada que ainda corriam ganham a folga desde o último sinal do host antigo); o que já tinha vencido, o prazo parado pelo apoio e o relógio da partida não mudam; no F5 do host, nada muda | 🤖 T204 | — |
+| Duas trocas seguidas; guest que dá F5 com o host caído, antes da troca (espera medida, até 20 s) | 🌐 E35, E36 | — |
 | F5 do host: continua host pelo meta da sala e volta com o estado da partida gravado no banco (`secret/state`, lido antes de montar a tela); os pedidos feitos durante o F5 esperam no banco e são tratados depois da retomada; quem ficou na sala pede o estado de novo quando o host volta | 🤖 T172, T184, T185 · 🌐 E1, E9 | — (coberto por E1) |
 | F5 do host com a pergunta aberta: a mesma pergunta continua; relógio e prazo de resposta continuam de onde estavam; prazo vencido durante o F5 tem o efeito na retomada | 🤖 T56, T182 · 🌐 E1, E28 | ⬜ (contador da tela do host que responde, depois do F5 dele) |
 | Pergunta ainda por fazer (o Perguntador não clicou em "Fazer a pergunta"): no F5 do host e na volta à partida, a rodada continua esperando o clique, com o prazo do Perguntador continuando de onde estava (vencido: a pergunta vai na retomada); quem volta como Respondedor vê o aviso, não as alternativas | 🤖 T138, T139, T181 | — |
@@ -173,15 +175,16 @@ plano fica mais lenta).
 | M18 | P2 | Aba em segundo plano por muito tempo | Deixar a aba escondida 10 min | Ao voltar, o jogo se recupera (pode precisar de F5) |
 | M21 | **P1** (roadmap 2.9) | Teste de conexão pelo Firebase em redes reais | Roteiro M21 de `manual-test-scripts.md` (em casa: computador no Wi-Fi e celular nos dados móveis; na instituição: celular no 5G e computador na rede dela), na página `firebase-check.html` | Cria, entra, troca mensagens (com o tempo de ida e volta), volta sozinho depois do F5 e do modo avião (lógica coberta por 🤖 T143–T153 e 🌐 E24, E25). **Em casa ✅ 👤 (17/10/2026, computador no Wi-Fi e celular no 4G):** todos os passos; ida e volta de 382–434 ms; volta em 1–2 s depois do modo avião e na hora depois da tela bloqueada. O servidor tira da lista quem cai sem aviso em ~2 min (modo avião) e em menos de 1 min (tela bloqueada). **Falta a parte na instituição.** |
 
-Os manuais da troca de host (M3, M4, M5, M11, M12, M19, M20) ficam
-suspensos até a etapa 3 do roadmap 2.9, que traz a troca de host pelo
-banco.
+Os manuais da troca de host M3, M4, M5, M11, M12, M19 e M20 passaram a
+ser cobertos pelos cenários E31–E35. Continua manual, antes da aula, uma
+troca de host em navegadores e redes reais (computador e celular), com a
+pergunta aberta — roteiro na etapa 4 do roadmap 2.9, junto com M7 e M8.
 
 ---
 
 ## 5. Limitações conhecidas (aceitas por ora)
 
-- ⚠️ Troca de host só no canal até a etapa 3c do roadmap 2.9: se o host cai de vez, outro jogador assume a sala no banco, mas o jogo não reage e a partida fica parada.
+- ⚠️ Troca de host: a sala fica ~10–13 s sem host (o `HOST_TIMEOUT` e a recarga de quem assume); a tela de quem assume recarrega uma vez. O contador de quem responde pode chegar a zero nesse intervalo e voltar com o tempo devolvido quando chega o estado do host novo. O host antigo chamado para um apoio deixa o pedido esperar até o fim do prazo (como qualquer assessor que cai). Um F5 do host que demora mais de 10 s (celular, rede ruim) vira troca, e ele volta como jogador comum.
 - ⚠️ Tolerância de 20 s (`PRESENCE_TIMEOUT`): quem fecha a aba sai da lista do lobby, ou do sorteio na partida, só ~20 s depois; quem está na dupla e cai de vez segura a rodada esse tempo.
 - ⚠️ Chrome e Edge espaçam os timers de aba escondida há mais de 5 min (1 por minuto): o sinal de vida de 2 s fica de minuto em minuto, e o jogador sai do sorteio até a aba voltar a ficar visível. Com o host, os outros veriam "Host desconectado" — conferir no M18 com o host.
 - ⚠️ Nomes diferenciam maiúsculas: "vHost" e "Vhost" são jogadores diferentes — durante a partida, a grafia errada é recusada. Melhoria futura (roadmap 8.5).
@@ -226,6 +229,12 @@ o teste só aponta o Firebase para o emulador.
 | E28 | Um navegador com o relógio 30 s adiantado (`page.clock`) mostra o mesmo tempo do host; o F5 do host ~12 s depois do início continua o relógio do mesmo ponto | — (relógio pela hora do servidor) |
 | E29 | 3 jogadores; um guest pede apoio, quem foi chamado não responde e o host dá F5: o pedido continua pendente (quem pediu segue com os botões travados), quem foi chamado vê a pergunta do apoio de novo e responde, quem pediu recebe a sugestão, responde e a rodada segue | BUG-019 |
 | E30 | Quem responde dá F5 no meio da pergunta: ninguém cai, a mesma pergunta continua (mesma dupla e prazo) e a resposta dele vale | — (tolerância do sinal de vida) |
+| E31 | 3 jogadores; o host fecha a aba com a pergunta aberta fora da dupla dele: outro assume entre 10 e 20 s depois (medida na coluna "Detalhe"), a mesma pergunta continua, quem ficou vê "Fulano agora é o host", a resposta vale; o F5 do host novo continua host | M3, M5 |
+| E32 | 3 jogadores; quem responde clica logo depois da queda do host, antes de o host novo abrir: a resposta espera, vale uma vez e a partida segue com a próxima dupla | M20 |
+| E33 | Troca com a rodada encerrada: continua encerrada, nada começa sozinho; o host antigo volta pelo link como jogador comum, com KPI e recursos; o "Nova Rodada" do host novo começa a próxima | M4, M19 |
+| E34 | Troca no lobby: quem fica não entra de novo, o host antigo sai da lista e o host novo inicia a partida | M12 |
+| E35 | 4 jogadores, duas trocas seguidas: a partida continua com os dois que ficaram | M11 |
+| E36 | O host cai e um guest dá F5 antes da troca: mede quanto ele espera até receber o estado do host novo (ou virar o host), coluna "Detalhe"; falha acima de 20 s | — |
 
 Números retirados (não se reaproveitam): E12 (o apoio pendente era
 cancelado no F5 do host; o E29 confere o comportamento atual) e E18 (a

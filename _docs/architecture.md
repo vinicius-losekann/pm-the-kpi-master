@@ -23,8 +23,8 @@
   papel de servidor: guarda o estado oficial, valida os pedidos
   (`*-request`) e distribui os resultados. Os pedidos e os avisos passam
   pelo banco (seção "Conexão, identidade e F5"). Se o host cai, outro
-  jogador assume a sala no banco (`meta`); o jogo na troca é a etapa 3c
-  do roadmap 2.9.
+  jogador assume a sala no banco (`meta`) e continua a partida a partir
+  do estado gravado nele.
 - **Camadas** (`domain → state → engine → network/ui`), com a direção
   de dependência descrita em `conventions.md`.
 - **Núcleo de regras puras + orquestração.** `domain/` calcula (KPI,
@@ -87,7 +87,7 @@ pm-the-kpi-master/
 │   │   ├── simulation.test.js   # simulador de partidas: regras reais, contas, semente, relatório
 │   │   ├── connection-check.test.js # teste de conexão pelo Firebase: sala, presença, F5, mensagens, regras do banco
 │   │   ├── room-channel.test.js # canal da sala pelo Firebase: sala parada, roster, pedidos, avisos, estado, presença, sinal de vida e tolerância, cursor dos avisos, volta da conexão, regras de rooms/
-│   │   ├── room-link.test.js    # o jogo pelo canal da sala: papel pelo banco, pedidos e avisos, cursor, recusa, queda e volta, F5, host que cai, aba duplicada, login anônimo e hora do servidor
+│   │   ├── room-link.test.js    # o jogo pelo canal da sala: papel pelo banco, pedidos e avisos, cursor, recusa, queda e volta, F5, host que cai, troca de host no jogo, aba duplicada, login anônimo e hora do servidor
 │   │   └── fakeFirebase.js      # Realtime Database simulado em memória, com vários aparelhos, queda e volta e a diferença do relógio do servidor
 │   ├── simulation/              # simulador de partidas para balanceamento (Node, sem dependências)
 │   │   ├── simulator.js         # partidas com robôs, regras reais, relatório e CSV
@@ -97,7 +97,7 @@ pm-the-kpi-master/
 │       ├── servers.js           # site local (e o servidor PeerJS, que sai com o pacote peer)
 │       ├── players.js           # jogadores (contextos separados) e ajudantes
 │       ├── summary.js           # tabela de resultados no Actions
-│       └── *.spec.js            # cenários (connection, host-reload, layout, question-pace, connection-check)
+│       └── *.spec.js            # cenários (connection, host-reload, host-migration, layout, question-pace, connection-check)
 │
 ├── index.html
 ├── game.html
@@ -141,7 +141,7 @@ pm-the-kpi-master/
     ├── network/
     │   ├── firebaseLogin.js     # Firebase, login anônimo e hora do servidor (emulador nos testes)
     │   ├── roomChannel.js       # canal da sala pelo Firebase: sala, roster, pedidos ao host, avisos (com cursor para quem entra), estado público/secreto, presença com sinal de vida e tolerância, volta da conexão, troca de host (transação no meta)
-    │   ├── roomLink.js          # liga o jogo ao canal: abrir a sala (papel pelo banco), enviar, receber, aba duplicada, sair; PROTOCOL_VERSION
+    │   ├── roomLink.js          # liga o jogo ao canal: abrir a sala (papel pelo banco, estado de outro host), enviar, receber, troca de host, aba duplicada, sair; PROTOCOL_VERSION
     │   ├── messageHandler.js    # roteamento de mensagens (switch/case), entrada e queda de jogador
     │   └── connectionCheck.js   # teste de conexão pelo Firebase: sala, presença, mensagem de teste com eco (não usado pelo jogo)
     │
@@ -326,8 +326,9 @@ Resumo dos mecanismos; detalhes nos comentários de cada arquivo e no checklist 
 - **Cursor dos avisos para todos:** o guest segura os avisos do `feed` antes de mandar o `player-join` (`holdFeed`); o `state-sync` leva o `feedCursor` (o último aviso que o estado já inclui) e a ligação libera os guardados a partir dele (`releaseFeed`). Assim, quem entra ou volta não recebe aviso de antes do estado depois dele, e recebe os de depois uma vez, na ordem.
 - **Volta da conexão:** quando a conexão com o banco volta (`onReconnected`), o guest manda o `player-join` de novo e retoma o lugar pelo uid.
 - **Sinal de vida e tolerância:** o host e quem foi aceito gravam `presence/<uid>` = `{ online: true, lastSeen }` (hora do servidor; as regras exigem `lastSeen === now`) ao entrar, a cada `CONFIG.GAME.HEARTBEAT_INTERVAL` (2 s) e quando a aba volta a ficar visível. "Vivo" é ter o último sinal recente: o host dá o jogador como caído com o sinal parado há mais de `PRESENCE_TIMEOUT` (20 s), conferido a cada 1 s e a cada mudança — o `online: false` sozinho não derruba ninguém, e a aba congelada (tela bloqueada), ainda online, cai do mesmo jeito. Assim, um F5 ou uma queda curta não viram queda: quem está na dupla continua com a mesma pergunta. O guest vê o host caído no `online: false` dele ou com o sinal parado há mais de `HOST_TIMEOUT` (10 s). Os tempos vão do config para o canal pela ligação (`heartbeatOptions()`).
-- **Host que cai:** os outros veem "Host desconectado" (a presença dele) e a sala espera; quando ele volta (F5 ou queda), "Conectado", e cada guest manda o `player-join` de novo e recebe o estado do host — assim chega a eles o que mudou enquanto o host estava fora, e quem foi chamado para um apoio pendente recebe a pergunta do apoio de novo.
-- **Troca de host (no canal):** o guest aceito e conectado que vê o sinal do host parado há mais de `HOST_TIMEOUT` (10 s; fora da carência logo depois da volta da própria conexão) tenta, a cada 1 s e uma tentativa por vez, uma transação no `meta`: `hostUid` = ele, `hostEpoch` + 1, o resto igual. O banco aceita uma só; as regras exigem estar no `roster`, `hostEpoch` + 1, a mesma versão e criação e o `lastSeen` do host antigo há mais de 5 s (ou sem presença) pela hora do servidor — o config não fica abaixo desse piso. Todas as outras regras de `rooms/` decidem pelo `meta/hostUid`: trocado o `meta`, o host novo passa a ler o `secret` e o antigo perde a escrita. Quando o `hostEpoch` sobe, todos são avisados (`onHostChanged`): o guest que fica passa a ouvir a presença do host novo, e o host antigo deixa de ser host no canal (para o sinal de vida e de ouvir os pedidos e a presença). O jogo ainda não reage à troca (recarga de quem assume e do host antigo, retomada da partida pelo host novo): etapa 3c do roadmap 2.9.
+- **Host que cai:** os outros veem "Host desconectado" (a presença dele) e a sala espera, até ele voltar ou, com o sinal dele parado há mais de `HOST_TIMEOUT`, outro jogador assumir (troca de host, abaixo); quando ele volta antes disso (F5 ou queda curta), "Conectado", e cada guest manda o `player-join` de novo e recebe o estado do host — assim chega a eles o que mudou enquanto o host estava fora, e quem foi chamado para um apoio pendente recebe a pergunta do apoio de novo.
+- **Troca de host (no canal):** o guest aceito e conectado que vê o sinal do host parado há mais de `HOST_TIMEOUT` (10 s; fora da carência logo depois da volta da própria conexão) tenta, a cada 1 s e uma tentativa por vez, uma transação no `meta`: `hostUid` = ele, `hostEpoch` + 1, o resto igual. O banco aceita uma só; as regras exigem estar no `roster`, `hostEpoch` + 1, a mesma versão e criação e o `lastSeen` do host antigo há mais de 5 s (ou sem presença) pela hora do servidor — o config não fica abaixo desse piso. Todas as outras regras de `rooms/` decidem pelo `meta/hostUid`: trocado o `meta`, o host novo passa a ler o `secret` e o antigo perde a escrita. Quando o `hostEpoch` sobe, todos são avisados (`onHostChanged`): o guest que fica passa a ouvir a presença do host novo, e o host antigo deixa de ser host no canal (para o sinal de vida e de ouvir os pedidos e a presença).
+- **Troca de host (no jogo, `handleHostChanged()` em `network/roomLink.js`):** quem assumiu e o host antigo recarregam a página e abrem pelo caminho do F5 — o primeiro como host, o segundo como guest, que pede para entrar e volta como jogador comum, com KPI e recursos. Os outros guests ficam na página: passam ao host novo, mostram "Fulano agora é o host" na linha de status (`connection.newHost`, no lugar do "Conectado" dali em diante) e mandam o `player-join` (o estado vem do host novo depois que ele abre). Ao abrir com o estado gravado por outro host (o jogador `isHost` do `secret/state` não é este aparelho; `restoreAsHost()`), antes da retomada, `Game.core.takeOverMatch()` (`engine/sessionEngine.js`): o host antigo deixa de ser host (no lobby, sai da lista; na partida e no fim de jogo, fica desconectado), este vira o host, conectado; com o host antigo na dupla e a pergunta sem resposta, a rodada é a de quem cai (a retomada sorteia outra dupla); senão, a mesma pergunta continua e o tempo sem host não conta — cada prazo da rodada que ainda corria no último sinal do host antigo (`askEndsAt`, `answerEndsAt`, `advisory.endsAt`) ganha a folga = hora do servidor ao abrir − `lastSeen` dele (`readLastSeen()`; sem o sinal, zero). O prazo de resposta parado pelo apoio e o relógio da partida não mudam. Os pedidos que esperaram no banco (inclusive os mandados ao host antigo) são tratados depois da retomada, já com os prazos prorrogados; o próprio `player-join` que quem assumiu tinha mandado como guest é ignorado. O resultado da abertura leva `takenOver`. Um F5 do host que demora mais de `HOST_TIMEOUT` vira troca: ele volta como jogador comum.
 - **Jogador desconectado:** durante a partida, quem cai continua na lista com `disconnected: true` (KPI, recursos e vaga preservados), fora do sorteio, do rodízio, dos efeitos de evento e da escolha de assessor ou de quem ajuda (BUG-022). No lobby e no fim de jogo, quem cai sai da lista. `getActivePlayers()` exclui desconectados; `getMatchPlayers()` inclui.
 - **Sala travada:** com a partida em andamento, nome novo é recusado (`join-rejected` com `room-locked`); só volta quem já estava na partida.
 - **Pausa:** se faltam jogadores *conectados* mas não jogadores da partida, a partida pausa (`match-paused`) e retoma sozinha quando alguém volta, com o mesmo evento. Se todos os conectados já tinham respondido, a rodada é encerrada em vez de recomeçar (D3e).
