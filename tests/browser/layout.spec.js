@@ -99,6 +99,11 @@ test('E37 Ranking e lista de jogadores numa janela de 1000 px e no celular (375 
     // da pergunta); 375 px: uma coluna só.
     for (const width of [1000, 375]) {
         await ana.page.setViewportSize({ width, height: 800 });
+        // Os cards têm `transition: all`: ao estreitar a janela, a posição
+        // na ordem (order) leva 0,3 s para chegar; medir antes pegaria o
+        // perfil ainda acima da pergunta. As animações sem fim (ex.: o ⏳)
+        // não são transição e não contam.
+        await ana.waitFor(() => !document.getAnimations().some(a => a instanceof CSSTransition));
         const ranking = ana.page.locator('#screenGame .ranking-card');
         const online = ana.page.locator('#screenGame .players-online');
         await expect(ranking, 'o card do ranking deveria aparecer a ' + width + ' px').toBeVisible();
