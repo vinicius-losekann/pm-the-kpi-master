@@ -482,8 +482,11 @@ function create(options) {
         if (connected) everConnected = true;
         if (!cameBack) return;
         reconnectedAt = now();
-        if (isHost || isAdmitted) announcePresence();
+        // O jogo primeiro (o guest segura os avisos e pede para entrar), o
+        // sinal depois: com o sinal antes, o host traria o guest de volta
+        // pela presença e os avisos de antes do estado chegariam a ele.
         call('onReconnected');
+        if (isHost || isAdmitted) announcePresence();
     }
 
     function deliverJson(name, snap) {
