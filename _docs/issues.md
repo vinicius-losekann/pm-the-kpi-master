@@ -16,7 +16,38 @@ glossário de `conventions.md` dá o nome atual.
 
 ## Em investigação
 
-Nenhum no momento.
+**BUG-029 — Ranking e lista de jogadores somem em tela estreita.** Com a
+janela da partida abaixo de 1200 px de largura (notebook com a janela
+pela metade, tablet, celular), o card "🏆 Ranking" e o "👥 Jogadores"
+desaparecem: quem joga não vê a classificação nem quem está desconectado
+(📴). Achado em 19/10/2026, ao estreitar a janela no teste M22. Causa:
+`.sidebar-right { display: none; }` no `@media (max-width: 1200px)` de
+`css/style.css`; a coluna esquerda e a área da pergunta se ajustam, a
+direita é escondida. Reproduzir: abrir uma partida e estreitar a janela
+abaixo de 1200 px.
+
+**BUG-030 — Jogador com a página aberta aparece como desconectado para
+o host.** No M22 em casa (19/10/2026, notebook com Chrome e Edge e
+celular nos dados móveis), depois de uma troca de host: (1) na primeira
+tentativa, o guest ficou apagado na lista logo depois que o host antigo
+voltou; (2) na segunda, o host novo (Edge) passou a dar o host antigo
+(Chrome, agora jogador comum) como desconectado ("📴 host desconectou")
+depois de várias rodadas jogadas, e ele continuou desconectado mesmo com
+as duas janelas visíveis lado a lado. O console do Chrome não tinha erro
+e seguia recebendo mensagens (`player-list`): a página estava viva e
+ligada ao banco. No console do Firebase, durante o problema, o
+`lastSeen` dos dois aparelhos em `rooms/<sala>/presence` era atualizado a
+cada 2 s. Causa: o host só trata a presença que **cai**
+(`receivePresence()`, `js/network/roomLink.js`, ignora `online = true`);
+quem foi dado como caído só volta à partida mandando `player-join`, e o
+guest só manda quando a conexão dele com o banco cai e volta, quando o
+host volta ou na troca de host. Se o sinal parou sem a conexão cair (o
+mais provável: janela coberta ou minimizada por mais de 5 min, com o
+navegador rodando o timer do sinal uma vez por minuto —
+`connection-tests.md`, seção 5) e depois voltou, o jogador fica 📴 e fora
+do sorteio até dar F5, mesmo jogando com a página visível. Reproduzir:
+numa partida, cobrir a janela de um jogador do notebook por mais de 5 min
+e depois mostrá-la.
 
 ---
 
@@ -105,5 +136,5 @@ automatizado — os números (T…, E…) são os de `tests/logic` e
 - **Numeração:** BUG-xxx (bug), SEC-xxx (segurança), REGRESSÃO-xxx (algo
   que funcionava e quebrou numa mudança), NOTA-xxx (limpeza ou decisão que
   não é bug). Cada série continua do maior número já usado (próximos:
-  BUG-029, SEC-006, REGRESSÃO-004, NOTA-010). NOTA-003 a NOTA-005 são
+  BUG-031, SEC-006, REGRESSÃO-004, NOTA-010). NOTA-003 a NOTA-005 são
   decisões de arquitetura e ficam em `architecture.md`.
