@@ -125,7 +125,7 @@ test('E37 Ranking e lista de jogadores numa janela de 1000 px e no celular (375 
         });
         if (width === 375) {
             expect(layout.profile.top, 'o perfil deveria ficar abaixo da área da pergunta a 375 px').toBeGreaterThanOrEqual(layout.main.bottom);
-            expect(layout.leave.top, 'o "Sair da Partida" deveria ficar abaixo do perfil a 375 px').toBeGreaterThanOrEqual(layout.profile.bottom);
+            expect(layout.endMatch.top, 'o "Encerrar Partida" deveria ficar abaixo do "Sair da Partida" a 375 px').toBeGreaterThanOrEqual(layout.leave.bottom);
         }
         const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
         for (const [name, card] of [['ranking', layout.ranking], ['jogadores', layout.online]]) {
@@ -137,11 +137,10 @@ test('E37 Ranking e lista de jogadores numa janela de 1000 px e no celular (375 
             if (width === 1000) {
                 expect(card.left, 'o card de ' + name + ' deveria ficar na coluna da pergunta, à direita do perfil, a 1000 px').toBeGreaterThanOrEqual(layout.profile.right);
             } else {
-                // No celular, depois do perfil e dos botões ("Nova Rodada" e
-                // "Sair da Partida" não descem) e antes do "Encerrar Partida".
+                // No celular, depois do perfil e antes dos botões raros
+                // ("Sair da Partida" e "Encerrar Partida").
                 expect(card.top, 'o card de ' + name + ' deveria ficar abaixo do perfil a 375 px').toBeGreaterThanOrEqual(layout.profile.bottom);
-                expect(card.top, 'o card de ' + name + ' deveria ficar abaixo do "Sair da Partida" a 375 px').toBeGreaterThanOrEqual(layout.leave.bottom);
-                expect(layout.endMatch.top, 'o "Encerrar Partida" deveria ficar abaixo do card de ' + name + ' a 375 px').toBeGreaterThanOrEqual(card.bottom);
+                expect(layout.leave.top, 'o "Sair da Partida" deveria ficar abaixo do card de ' + name + ' a 375 px').toBeGreaterThanOrEqual(card.bottom);
             }
         }
     }

@@ -140,8 +140,8 @@
 - **Ranking e jogadores em tela estreita (BUG-029):** com a janela abaixo
   de 1200 px (notebook com meia tela, tablet, celular), o ranking e a
   lista de jogadores sumiam durante a partida. Agora ficam abaixo da
-  pergunta e, no celular, depois do perfil e dos botões "Nova Rodada" e
-  "Sair da Partida"; o "Encerrar Partida" vai para o fim da página.
+  pergunta e, no celular, depois do perfil e do "Nova Rodada"; o "Sair
+  da Partida" e o "Encerrar Partida" vão para o fim da página.
   Cenário E37 no navegador.
 - **Tempo de quem responde durante o apoio (BUG-028):** com a assessoria
   ou a ajuda pendente, o contador na tela continuava descendo e podia
