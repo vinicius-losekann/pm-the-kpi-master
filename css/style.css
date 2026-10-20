@@ -1371,18 +1371,34 @@ body {
     }
 }
 
-/* Celular: uma coluna — pergunta, perfil e botões (o "Nova Rodada" do
-   host não desce), ranking e jogadores. */
+/* Celular: uma coluna — pergunta, perfil, "Nova Rodada" e "Sair da
+   Partida", ranking e jogadores e, por último, "Encerrar Partida" (raro e
+   zera o KPI de todos). A coluna do perfil se desfaz em itens da grade
+   (display: contents) para o "Encerrar Partida" ir para depois do
+   ranking. */
 @media (max-width: 768px) {
     .game-layout {
         grid-template-columns: 1fr;
         grid-template-rows: none;
-        grid-template-areas:
-            "main"
-            "left"
-            "right";
+        grid-template-areas: none;
         gap: 12px;
     }
+
+    .sidebar-left {
+        display: contents;
+    }
+
+    .main-area,
+    .sidebar-right {
+        grid-area: auto;
+    }
+
+    .main-area { order: 1; }
+    .focus-areas-card { order: 2; }
+    #btnNewRound,
+    #btnLeaveMatch { order: 3; }
+    .sidebar-right { order: 4; }
+    .end-match-area { order: 5; }
 
     .alternatives-grid {
         grid-template-columns: 1fr;
