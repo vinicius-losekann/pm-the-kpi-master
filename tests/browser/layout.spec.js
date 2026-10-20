@@ -95,57 +95,70 @@ test('E37 Ranking e lista de jogadores numa janela de 1000 px e no celular (375 
     const beto = await players.add('Beto');
     await startMatch(ana, [beto], roomCode());
 
+    // O host tem "Nova Rodada" e "Encerrar Partida"; o guest, "Sair da
+    // Partida" (setup.js esconde os do outro papel). No celular, o "Nova
+    // Rodada" fica acima do ranking e os outros dois, abaixo.
+    const roles = [
+        { player: ana, who: 'host', rare: '#btnEndMatch', rareName: '"Encerrar Partida"', above: '#btnNewRound', aboveName: '"Nova Rodada"' },
+        { player: beto, who: 'guest', rare: '#btnLeaveMatch', rareName: '"Sair da Partida"', above: null }
+    ];
+
     // 1000 px: duas colunas (perfil à esquerda, ranking e jogadores abaixo
     // da pergunta); 375 px: uma coluna só.
     for (const width of [1000, 375]) {
-        await ana.page.setViewportSize({ width, height: 800 });
-        // Os cards têm `transition: all`: ao estreitar a janela, a posição
-        // na ordem (order) leva 0,3 s para chegar; medir antes pegaria o
-        // perfil ainda acima da pergunta. As animações sem fim (ex.: o ⏳)
-        // não são transição e não contam.
-        await ana.waitFor(() => !document.getAnimations().some(a => a instanceof CSSTransition));
-        const ranking = ana.page.locator('#screenGame .ranking-card');
-        const online = ana.page.locator('#screenGame .players-online');
-        await expect(ranking, 'o card do ranking deveria aparecer a ' + width + ' px').toBeVisible();
-        await expect(online, 'o card dos jogadores deveria aparecer a ' + width + ' px').toBeVisible();
-        await expect(ana.page.locator('#rankingList .rank-item'), 'o ranking deveria mostrar os dois jogadores a ' + width + ' px').toHaveCount(2);
-        await expect(ana.page.locator('#playersOnlineList .online-player'), 'a lista deveria mostrar os dois jogadores a ' + width + ' px').toHaveCount(2);
+        for (const { player, who, rare, rareName, above, aboveName } of roles) {
+            const at = ' a ' + width + ' px (' + who + ')';
+            await player.page.setViewportSize({ width, height: 800 });
+            // Os cards e os botões têm `transition: all`: ao estreitar a
+            // janela, a posição na ordem (order) leva até 0,3 s para chegar;
+            // medir antes pegaria o perfil ainda acima da pergunta. As
+            // animações sem fim (ex.: o ⏳) não são transição e não contam.
+            await player.waitFor(() => !document.getAnimations().some(a => a instanceof CSSTransition));
+            await expect(player.page.locator('#screenGame .ranking-card'), 'o card do ranking deveria aparecer' + at).toBeVisible();
+            await expect(player.page.locator('#screenGame .players-online'), 'o card dos jogadores deveria aparecer' + at).toBeVisible();
+            await expect(player.page.locator('#rankingList .rank-item'), 'o ranking deveria mostrar os dois jogadores' + at).toHaveCount(2);
+            await expect(player.page.locator('#playersOnlineList .online-player'), 'a lista deveria mostrar os dois jogadores' + at).toHaveCount(2);
+            await expect(player.page.locator(rare), 'pré-condição: o ' + rareName + ' aparece para o ' + who).toBeVisible();
+            if (above) await expect(player.page.locator(above), 'pré-condição: o ' + aboveName + ' aparece para o ' + who).toBeVisible();
 
-        const layout = await ana.state(() => {
-            const box = (selector) => {
-                const r = document.querySelector(selector).getBoundingClientRect();
-                return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
-            };
-            return {
-                viewport: document.documentElement.clientWidth,
-                ranking: box('#screenGame .ranking-card'),
-                online: box('#screenGame .players-online'),
-                main: box('#screenGame .main-area'),
-                // No celular a coluna do perfil não tem caixa própria
-                // (display: contents): mede o card e os botões.
-                profile: box('#screenGame .focus-areas-card'),
-                leave: box('#btnLeaveMatch'),
-                endMatch: box('#screenGame .end-match-area')
-            };
-        });
-        if (width === 375) {
-            expect(layout.profile.top, 'o perfil deveria ficar abaixo da área da pergunta a 375 px').toBeGreaterThanOrEqual(layout.main.bottom);
-            expect(layout.endMatch.top, 'o "Encerrar Partida" deveria ficar abaixo do "Sair da Partida" a 375 px').toBeGreaterThanOrEqual(layout.leave.bottom);
-        }
-        const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-        for (const [name, card] of [['ranking', layout.ranking], ['jogadores', layout.online]]) {
-            expect(card.left, 'o card de ' + name + ' começa antes da borda esquerda da tela a ' + width + ' px').toBeGreaterThanOrEqual(0);
-            expect(card.right, 'o card de ' + name + ' passa da borda direita da tela a ' + width + ' px').toBeLessThanOrEqual(layout.viewport);
-            expect(overlaps(card, layout.main), 'o card de ' + name + ' cobre a área da pergunta a ' + width + ' px').toBe(false);
-            expect(overlaps(card, layout.profile), 'o card de ' + name + ' cobre o perfil a ' + width + ' px').toBe(false);
-            expect(card.top, 'o card de ' + name + ' deveria ficar abaixo da área da pergunta a ' + width + ' px').toBeGreaterThanOrEqual(layout.main.bottom);
-            if (width === 1000) {
-                expect(card.left, 'o card de ' + name + ' deveria ficar na coluna da pergunta, à direita do perfil, a 1000 px').toBeGreaterThanOrEqual(layout.profile.right);
-            } else {
-                // No celular, depois do perfil e antes dos botões raros
-                // ("Sair da Partida" e "Encerrar Partida").
-                expect(card.top, 'o card de ' + name + ' deveria ficar abaixo do perfil a 375 px').toBeGreaterThanOrEqual(layout.profile.bottom);
-                expect(layout.leave.top, 'o "Sair da Partida" deveria ficar abaixo do card de ' + name + ' a 375 px').toBeGreaterThanOrEqual(card.bottom);
+            const layout = await player.state(({ rare, above }) => {
+                const box = (selector) => {
+                    const r = document.querySelector(selector).getBoundingClientRect();
+                    return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+                };
+                return {
+                    viewport: document.documentElement.clientWidth,
+                    ranking: box('#screenGame .ranking-card'),
+                    online: box('#screenGame .players-online'),
+                    main: box('#screenGame .main-area'),
+                    // No celular a coluna do perfil não tem caixa própria
+                    // (display: contents): mede o card e os botões.
+                    profile: box('#screenGame .focus-areas-card'),
+                    rare: box(rare),
+                    above: above ? box(above) : null
+                };
+            }, { rare, above });
+            if (width === 375) {
+                expect(layout.profile.top, 'o perfil deveria ficar abaixo da área da pergunta' + at).toBeGreaterThanOrEqual(layout.main.bottom);
+                if (above) {
+                    expect(layout.above.top, 'o ' + aboveName + ' deveria ficar abaixo do perfil' + at).toBeGreaterThanOrEqual(layout.profile.bottom);
+                    expect(layout.ranking.top, 'o ranking deveria ficar abaixo do ' + aboveName + at).toBeGreaterThanOrEqual(layout.above.bottom);
+                }
+            }
+            const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+            for (const [name, card] of [['ranking', layout.ranking], ['jogadores', layout.online]]) {
+                expect(card.left, 'o card de ' + name + ' começa antes da borda esquerda da tela' + at).toBeGreaterThanOrEqual(0);
+                expect(card.right, 'o card de ' + name + ' passa da borda direita da tela' + at).toBeLessThanOrEqual(layout.viewport);
+                expect(overlaps(card, layout.main), 'o card de ' + name + ' cobre a área da pergunta' + at).toBe(false);
+                expect(overlaps(card, layout.profile), 'o card de ' + name + ' cobre o perfil' + at).toBe(false);
+                expect(card.top, 'o card de ' + name + ' deveria ficar abaixo da área da pergunta' + at).toBeGreaterThanOrEqual(layout.main.bottom);
+                if (width === 1000) {
+                    expect(card.left, 'o card de ' + name + ' deveria ficar na coluna da pergunta, à direita do perfil,' + at).toBeGreaterThanOrEqual(layout.profile.right);
+                } else {
+                    // No celular, depois do perfil e antes do botão raro.
+                    expect(card.top, 'o card de ' + name + ' deveria ficar abaixo do perfil' + at).toBeGreaterThanOrEqual(layout.profile.bottom);
+                    expect(layout.rare.top, 'o ' + rareName + ' deveria ficar abaixo do card de ' + name + at).toBeGreaterThanOrEqual(card.bottom);
+                }
             }
         }
     }
