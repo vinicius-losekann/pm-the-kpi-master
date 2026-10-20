@@ -2,8 +2,9 @@
 // PM: The KPI Master - Testes no navegador: layout em telas pequenas
 // ============================================
 // Mede, no jogo de verdade, se o que o jogador precisa ver cabe na tela:
-// card de perfil com a coluna estreita, janela de resposta no celular e
-// ranking final no celular (BUG-025 a BUG-027 em _docs/issues.md).
+// card de perfil com a coluna estreita, janela de resposta no celular,
+// ranking final no celular (BUG-025 a BUG-027 em _docs/issues.md) e
+// ranking e lista de jogadores da partida em tela estreita (BUG-029).
 // ============================================
 
 const { test, expect, roomCode, startMatch, waitForOpenQuestion } = require('./players');
@@ -86,5 +87,44 @@ test('E22 Ranking final no celular (375 px): o detalhe de cada jogador fica abai
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
         expect(row.detailTop, 'o detalhe deveria começar abaixo do nome').toBeGreaterThanOrEqual(row.nameBottom);
+    }
+});
+
+test('E37 Ranking e lista de jogadores numa janela de 1000 px e no celular (375 px): aparecem, cabem na largura e não cobrem a pergunta nem o perfil', async ({ players }) => {
+    const ana = await players.add('Ana');
+    const beto = await players.add('Beto');
+    await startMatch(ana, [beto], roomCode());
+
+    // 1000 px: duas colunas (perfil à esquerda, ranking e jogadores abaixo
+    // da pergunta); 375 px: uma coluna só.
+    for (const width of [1000, 375]) {
+        await ana.page.setViewportSize({ width, height: 800 });
+        const ranking = ana.page.locator('#screenGame .ranking-card');
+        const online = ana.page.locator('#screenGame .players-online');
+        await expect(ranking, 'o card do ranking deveria aparecer a ' + width + ' px').toBeVisible();
+        await expect(online, 'o card dos jogadores deveria aparecer a ' + width + ' px').toBeVisible();
+        await expect(ana.page.locator('#rankingList .rank-item'), 'o ranking deveria mostrar os dois jogadores a ' + width + ' px').toHaveCount(2);
+        await expect(ana.page.locator('#playersOnlineList .online-player'), 'a lista deveria mostrar os dois jogadores a ' + width + ' px').toHaveCount(2);
+
+        const layout = await ana.state(() => {
+            const box = (selector) => {
+                const r = document.querySelector(selector).getBoundingClientRect();
+                return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+            };
+            return {
+                viewport: document.documentElement.clientWidth,
+                ranking: box('#screenGame .ranking-card'),
+                online: box('#screenGame .players-online'),
+                main: box('#screenGame .main-area'),
+                profile: box('#screenGame .sidebar-left')
+            };
+        });
+        const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+        for (const [name, card] of [['ranking', layout.ranking], ['jogadores', layout.online]]) {
+            expect(card.left, 'o card de ' + name + ' começa antes da borda esquerda da tela a ' + width + ' px').toBeGreaterThanOrEqual(0);
+            expect(card.right, 'o card de ' + name + ' passa da borda direita da tela a ' + width + ' px').toBeLessThanOrEqual(layout.viewport);
+            expect(overlaps(card, layout.main), 'o card de ' + name + ' cobre a área da pergunta a ' + width + ' px').toBe(false);
+            expect(overlaps(card, layout.profile), 'o card de ' + name + ' cobre o perfil a ' + width + ' px').toBe(false);
+        }
     }
 });
