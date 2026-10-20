@@ -137,6 +137,13 @@
   host sem dois hosts ao mesmo tempo).
 
 ### Fixed
+- **Jogador desconectado com a página aberta (BUG-030):** quem deixava a
+  janela do jogo escondida por alguns minutos (atrás de outra janela ou
+  minimizada) aparecia como desconectado (📴) e saía do sorteio, e só
+  voltava dando F5, mesmo jogando de novo com a janela visível. Agora o
+  host o traz de volta sozinho, uns 2 a 4 segundos depois de a janela
+  voltar a ficar visível; se a partida estava pausada por falta dele, ela
+  continua. Testes T205–T208 e cenário E38 no navegador.
 - **Ranking e jogadores em tela estreita (BUG-029):** com a janela abaixo
   de 1200 px (notebook com meia tela, tablet, celular), o ranking e a
   lista de jogadores sumiam durante a partida. Agora ficam abaixo da

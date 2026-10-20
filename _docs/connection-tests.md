@@ -91,6 +91,7 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 | Caso | Testes | Manual |
 |---|---|---|
 | Queda vista pela presença, depois da tolerância (sinal de vida parado há mais de 20 s, também com a aba congelada): no lobby, sai da lista; na partida, fica desconectado com a vaga reservada | 🤖 T170, T188, T189 · 🌐 E6, E16, E27 | — |
+| Sinal que volta sem a conexão ter caído (janela escondida e depois visível): o host traz o jogador de volta sozinho, sem F5 — sai do 📴, volta ao sorteio e a partida pausada retoma; só com dois sinais seguidos no ritmo (a aba escondida, com o sinal de minuto em minuto, não fica indo e voltando); quem fechou a aba não volta pela carência da volta da conexão do host (BUG-030) | 🤖 T205–T208 · 🌐 E38 | ⬜ (M18.2) |
 | Espectador cai: fica na lista, fora do sorteio, volta com tudo | 🤖 T4 | — |
 | Quem caiu não pode ser chamado como assessor nem para ajudar (recusa na hora; quem pede chama outro); quem foi chamado e cai antes de responder libera quem responde no fim do prazo (`ADVISORY_TIMEOUT`) | 🤖 T70, T119, T122 | — |
 | Participante da rodada cai: rodada abortada, nova dupla | 🤖 T5 | — |
@@ -186,7 +187,7 @@ e redes de verdade.
 
 - ⚠️ Troca de host: a sala fica ~10–13 s sem host (o `HOST_TIMEOUT` e a recarga de quem assume); a tela de quem assume recarrega uma vez. O contador de quem responde pode chegar a zero nesse intervalo e voltar com o tempo devolvido quando chega o estado do host novo. O host antigo chamado para um apoio deixa o pedido esperar até o fim do prazo (como qualquer assessor que cai). Um F5 do host que demora mais de 10 s (celular, rede ruim) vira troca, e ele volta como jogador comum.
 - ⚠️ Tolerância de 20 s (`PRESENCE_TIMEOUT`): quem fecha a aba sai da lista do lobby, ou do sorteio na partida, só ~20 s depois; quem está na dupla e cai de vez segura a rodada esse tempo.
-- ⚠️ Chrome e Edge espaçam os timers de aba escondida há mais de 5 min (1 por minuto): o sinal de vida de 2 s fica de minuto em minuto, e o jogador sai do sorteio até a aba voltar a ficar visível. Com o host, os outros veriam "Host desconectado" — conferir no M18 com o host.
+- ⚠️ Chrome e Edge espaçam os timers de aba escondida há mais de 5 min (1 por minuto): o sinal de vida de 2 s fica de minuto em minuto, e o jogador sai do sorteio até a aba voltar a ficar visível — aí volta sozinho em 2 a 4 s. Com o host, os outros veriam "Host desconectado" — conferir no M18 com o host. Se houver troca de host com a aba do host antigo escondida (página aberta, sinal de minuto em minuto), o host novo pode dá-lo como presente por até 20 s logo depois de abrir; sorteado nesse tempo, a rodada é abortada quando ele cai.
 - ⚠️ Nomes diferenciam maiúsculas: "vHost" e "Vhost" são jogadores diferentes — durante a partida, a grafia errada é recusada. Melhoria futura (roadmap 8.5).
 - ⚠️ Abas do mesmo navegador compartilham o login (uid): a segunda aba com a mesma sala não entra. Trocar de navegador, usar aba anônima ou limpar os dados no meio da partida perde a identidade (só volta no lobby).
 - ⚠️ As respostas não são secretas: `data/questions.pt-BR.json` é público no site (o `state-sync` não leva mais os baralhos, SEC-005, mas o arquivo continua aberto). Ocultar é melhoria futura (roadmap 4.4); por ora, vale a regra da aula.
@@ -230,6 +231,7 @@ o teste só aponta o Firebase para o emulador.
 | E28 | Um navegador com o relógio 30 s adiantado (`page.clock`) mostra o mesmo tempo do host; o F5 do host ~12 s depois do início continua o relógio do mesmo ponto | — (relógio pela hora do servidor) |
 | E29 | 3 jogadores; um guest pede apoio, quem foi chamado não responde e o host dá F5: o pedido continua pendente (quem pediu segue com os botões travados), quem foi chamado vê a pergunta do apoio de novo e responde, quem pediu recebe a sugestão, responde e a rodada segue | BUG-019 |
 | E30 | Quem responde dá F5 no meio da pergunta: ninguém cai, a mesma pergunta continua (mesma dupla e prazo) e a resposta dele vale | — (tolerância do sinal de vida) |
+| E38 | 3 jogadores; os timers da página de um guest param (`clock.pauseAt` do Playwright: página aberta, conexão de pé) e o host o dá como desconectado; com os timers de volta, o 📴 some sozinho, pelo sinal de vida (sem "Reconectado"), e a rodada vai até o fim com ele | M18.2 (BUG-030) |
 | E31 | 3 jogadores; o host fecha a aba com a pergunta aberta fora da dupla dele: outro assume entre 10 e 20 s depois (medida na coluna "Detalhe"), a mesma pergunta continua, quem ficou vê "Fulano agora é o host", a resposta vale; o F5 do host novo continua host | M3, M5 |
 | E32 | 3 jogadores; quem responde clica logo depois da queda do host, antes de o host novo abrir: a resposta espera, vale uma vez e a partida segue com a próxima dupla | M20 |
 | E33 | Troca com a rodada encerrada: continua encerrada, nada começa sozinho; o host antigo volta pelo link como jogador comum, com KPI e recursos; o "Nova Rodada" do host novo começa a próxima | M4, M19 |

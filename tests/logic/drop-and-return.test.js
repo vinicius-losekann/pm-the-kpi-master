@@ -377,6 +377,8 @@ test('T208 Volta pelo sinal de vida (receivePresence com o sinal de volta, sem p
     check(env.state.currentRound && env.state.currentRound.answerer === 'B' && env.broadcastsOfType('round-start').length === 0,
         'a rodada em andamento não deveria mudar');
     check(env.bank.secret !== null, 'a volta deveria ser salva (saveState)');
+    check(env.record.ui.includes('updatePlayersList') && env.record.ui.includes('syncPlayerViews'),
+        'a tela do host deveria mostrar A conectado de novo (lista de jogadores e ranking), veio: ' + JSON.stringify(env.record.ui));
 
     // De novo, com A já conectado: nada.
     env.clearLog();

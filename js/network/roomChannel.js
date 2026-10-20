@@ -36,6 +36,15 @@
 // offline dele ou com o sinal parado há mais de hostTimeout. Os dois
 // conferem a cada PRESENCE_CHECK_MS e a cada mudança no banco.
 //
+// Volta pelo sinal de vida: quem o host deu como caído só volta com o
+// sinal online e novo de verdade (a carência da volta da conexão não
+// conta), e com dois sinais seguidos no ritmo (até 2 × heartbeatInterval
+// entre eles). A aba escondida há muito tempo, que o navegador deixa com o
+// timer de minuto em minuto, não fica indo e voltando: só volta quando a
+// aba fica visível. Na primeira leitura (ex.: o host abriu a sala agora),
+// quem está offline com o sinal recente (fechou a aba há pouco, ou F5)
+// fica em espera: nem presente, nem caído, até a tolerância decidir.
+//
 // Troca de host: todo aparelho na sala escuta o meta. O guest aceito,
 // conectado (e fora da carência da volta da conexão), que vê o sinal do
 // host parado há mais de hostTimeout tenta, a cada PRESENCE_CHECK_MS e
@@ -110,8 +119,9 @@ function parseJson(text) {
  * @param {Function} [options.onAdmitted] - guest: foi aceito na sala
  * @param {Function} [options.onDismissed] - guest: saiu do roster
  * @param {Function} [options.onPresence] - host: (uid, vivo) a cada
- *   mudança da presença de outro aparelho, já com a tolerância (e a
- *   atual, ao entrar)
+ *   mudança da presença de outro aparelho, já com a tolerância e a volta
+ *   pelo sinal de vida (e a atual, ao entrar; quem está em espera, quando
+ *   a tolerância decidir)
  * @param {Function} [options.onHostPresence] - guest aceito: (online) do
  *   host, a cada mudança
  * @param {Function} [options.onReconnected] - a conexão com o banco voltou
@@ -157,6 +167,9 @@ function create(options) {
     // avisado de cada outro aparelho (uid → vivo).
     let presenceList = {};
     let knownPresence = {};
+    // Host: de quem foi dado como caído, a hora do primeiro sinal novo da
+    // volta (uid → lastSeen), à espera do segundo no ritmo.
+    let returning = {};
     // Guest aceito: a presença do host como está no banco (undefined =
     // ainda não leu; null = não há), e o que já foi avisado (undefined =
     // ainda nada).
@@ -288,18 +301,51 @@ function create(options) {
         return justReconnected || now() - value.lastSeen <= limit;
     }
 
-    // Host: avisa cada mudança dos outros, já com a tolerância. Guest
-    // aceito: avisa cada mudança do host e, com o sinal dele parado há
-    // mais de hostTimeout, tenta assumir a sala. Sem conexão com o banco,
-    // os sinais dos outros param de chegar e pareceriam velhos: nada se
-    // conclui até a conexão voltar.
+    /**
+     * Host: o aparelho que não está presente voltou? Só com o sinal online
+     * e de até presenceTimeout, sem a carência. Para quem foi dado como
+     * caído (`afterDrop`), também o segundo sinal seguido no ritmo: o
+     * primeiro fica guardado em `returning`.
+     */
+    function isBack(who, value, afterDrop) {
+        const fresh = !!value && value.online === true && typeof value.lastSeen === 'number' &&
+            now() - value.lastSeen <= presenceTimeout;
+        if (!fresh) {
+            delete returning[who];
+            return false;
+        }
+        if (!afterDrop) return true;
+        const first = returning[who];
+        if (first === undefined || value.lastSeen - first > 2 * heartbeatInterval) {
+            returning[who] = value.lastSeen;
+            return false;
+        }
+        return value.lastSeen > first;
+    }
+
+    // Host: avisa cada mudança dos outros, já com a tolerância (e a volta
+    // pelo sinal de vida, no topo do arquivo). Guest aceito: avisa cada
+    // mudança do host e, com o sinal dele parado há mais de hostTimeout,
+    // tenta assumir a sala. Sem conexão com o banco, os sinais dos outros
+    // param de chegar e pareceriam velhos: nada se conclui até a conexão
+    // voltar.
     function checkPresence() {
         if (!code || lastConnected === false) return;
         if (isHost) {
             Object.keys(presenceList).forEach(who => {
                 if (who === uid) return;
-                const alive = isRecent(presenceList[who], presenceTimeout);
-                if (knownPresence[who] === alive) return;
+                const value = presenceList[who];
+                const known = knownPresence[who];
+                let alive;
+                if (known === true) {
+                    alive = isRecent(value, presenceTimeout);
+                } else {
+                    alive = isBack(who, value, known === false);
+                    // Primeira leitura, offline com o sinal recente: em espera.
+                    if (!alive && known === undefined && isRecent(value, presenceTimeout)) return;
+                }
+                if (alive) delete returning[who];
+                if (known === alive) return;
                 knownPresence[who] = alive;
                 call('onPresence', who, alive);
             });
@@ -382,6 +428,7 @@ function create(options) {
         stopListening(hostListeners);
         presenceList = {};
         knownPresence = {};
+        returning = {};
         presenceRef().onDisconnect().cancel();
     }
 
@@ -417,6 +464,9 @@ function create(options) {
         presenceList = snap.val() || {};
         Object.keys(knownPresence).forEach(who => {
             if (!(who in presenceList)) delete knownPresence[who];
+        });
+        Object.keys(returning).forEach(who => {
+            if (!(who in presenceList)) delete returning[who];
         });
         checkPresence();
     }
@@ -507,6 +557,7 @@ function create(options) {
         migrating = false;
         presenceList = {};
         knownPresence = {};
+        returning = {};
         lastConnected = undefined;
         everConnected = false;
         reconnectedAt = null;

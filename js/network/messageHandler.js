@@ -429,6 +429,35 @@ function handlePlayerDisconnect(peerId) {
 }
 
 /**
+ * Host: o sinal de vida de um jogador dado como desconectado voltou sem
+ * a conexão ter caído (ex.: janela escondida por muito tempo, com o timer
+ * do sinal espaçado pelo navegador — ver roomChannel.js, "Volta pelo sinal
+ * de vida"). A página dele continuou recebendo os avisos: volta à lista e
+ * ao sorteio sem player-join nem state-sync. Se a partida estava pausada
+ * por falta de jogadores conectados, a volta dele pode ser o que faltava.
+ * Só na partida: no lobby e no fim de jogo, quem cai sai da lista (ver
+ * handlePlayerDisconnect()).
+ */
+function handlePlayerReturn(peerId) {
+    const state = Game.state;
+    const player = state.players.find(p => p.peerId === peerId);
+    if (!player || !player.disconnected || !state.gameStarted || state.gameOver) return;
+
+    player.disconnected = false;
+    console.log('🔙 ' + player.name + ' voltou (sinal de vida de volta).');
+
+    Game.network.broadcastAll({ type: 'player-list', players: state.players });
+    Game.ui.updatePlayersList();
+    Game.ui.syncPlayerViews(null);
+
+    if (state.matchPaused && Game.getActivePlayers().length >= CONFIG.GAME.MIN_PLAYERS) {
+        Game.core.resumePausedMatch();
+    }
+
+    Game.saveState();
+}
+
+/**
  * Remove um jogador da sala (host): sai da lista e do roster, e a rodada
  * é abortada se ele for participante.
  */
@@ -540,6 +569,7 @@ Object.assign(window.Game.network, {
     handleJoinRejected,
     addPlayer,
     handlePlayerDisconnect,
+    handlePlayerReturn,
     removePlayerByPeerId,
     restoreState
 });

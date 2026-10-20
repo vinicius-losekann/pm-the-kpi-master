@@ -20,7 +20,9 @@
 // vida (CONFIG.GAME.PRESENCE_TIMEOUT): só cai quem está com o sinal
 // parado — um F5 rápido não é queda e quem está na dupla continua com a
 // mesma pergunta. Volta da conexão: o guest manda o player-join de novo;
-// quando o host volta (F5 ou queda), também.
+// quando o host volta (F5 ou queda), também. Sinal que volta sem a conexão
+// ter caído (ex.: janela escondida por muito tempo): o host traz o jogador
+// de volta sozinho (handlePlayerReturn(), em messageHandler.js).
 //
 // Troca de host: se o host cai, os outros veem "Host desconectado" e, com o
 // sinal dele parado há mais de CONFIG.GAME.HOST_TIMEOUT, um deles assume a
@@ -253,9 +255,18 @@ function receiveRequest(msg, uid) {
     Game.network.handleMessage(msg, uid);
 }
 
-/** Host: presença de outro aparelho; offline = sinal parado além da tolerância (queda, aba fechada, tela bloqueada). */
+/**
+ * Host: presença de outro aparelho. Offline = sinal parado além da
+ * tolerância (queda, aba fechada, tela bloqueada); online = presente, ou o
+ * sinal de quem tinha caído voltou (ver roomChannel.js, "Volta pelo sinal
+ * de vida").
+ */
 function receivePresence(uid, online) {
-    if (!online) Game.network.handlePlayerDisconnect(uid);
+    if (online) {
+        Game.network.handlePlayerReturn(uid);
+    } else {
+        Game.network.handlePlayerDisconnect(uid);
+    }
 }
 
 /**

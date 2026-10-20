@@ -16,28 +16,7 @@ glossário de `conventions.md` dá o nome atual.
 
 ## Em investigação
 
-**BUG-030 — Jogador com a página aberta aparece como desconectado para
-o host.** No M22 em casa (19/10/2026, notebook com Chrome e Edge e
-celular nos dados móveis), depois de uma troca de host: (1) na primeira
-tentativa, o guest ficou apagado na lista logo depois que o host antigo
-voltou; (2) na segunda, o host novo (Edge) passou a dar o host antigo
-(Chrome, agora jogador comum) como desconectado ("📴 host desconectou")
-depois de várias rodadas jogadas, e ele continuou desconectado mesmo com
-as duas janelas visíveis lado a lado. O console do Chrome não tinha erro
-e seguia recebendo mensagens (`player-list`): a página estava viva e
-ligada ao banco. No console do Firebase, durante o problema, o
-`lastSeen` dos dois aparelhos em `rooms/<sala>/presence` era atualizado a
-cada 2 s. Causa: o host só trata a presença que **cai**
-(`receivePresence()`, `js/network/roomLink.js`, ignora `online = true`);
-quem foi dado como caído só volta à partida mandando `player-join`, e o
-guest só manda quando a conexão dele com o banco cai e volta, quando o
-host volta ou na troca de host. Se o sinal parou sem a conexão cair (o
-mais provável: janela coberta ou minimizada por mais de 5 min, com o
-navegador rodando o timer do sinal uma vez por minuto —
-`connection-tests.md`, seção 5) e depois voltou, o jogador fica 📴 e fora
-do sorteio até dar F5, mesmo jogando com a página visível. Reproduzir:
-numa partida, cobrir a janela de um jogador do notebook por mais de 5 min
-e depois mostrá-la.
+Nenhum.
 
 ---
 
@@ -100,6 +79,7 @@ automatizado — os números (T…, E…) são os de `tests/logic` e
 | BUG-027 | No celular, o detalhe de cada jogador no ranking final dividia a linha com posição, nome e KPI Final: virava uma coluna estreita, e o nome quebrava em três linhas | `.final-rank-item` era flex sem quebra de linha, e o `.final-rank-detail` entrava como quarto item da linha | `.final-rank-item` com `flex-wrap: wrap` e o detalhe com `flex-basis: 100%`: fica numa linha própria, abaixo do nome — E22 |
 | BUG-028 | Com a assessoria ou a ajuda pendente, o contador de quem responde continuava descendo e podia chegar a 0 (relatado na partida de teste da UFSM, 15/10/2026); no fim do apoio, o prazo voltava inteiro | O host parava o prazo (`handleAdvisoryRequest()`, `engine/advisoryEngine.js`) e rearmava o prazo inteiro no fim; `showAdvisoryStarted()` (`ui/modals/advisoryModal.js`) não parava o contador da tela, e `showAdvisoryResult()` não o religava | O host guarda o que faltava (`pauseAnswerTimeout()`, `answerTimeLeft`) e continua dele; o `advisory-started` para o contador e o `advisory-result` o religa do tempo que faltava (protocolo 9) — T134, T135 |
 | BUG-029 | Com a janela da partida abaixo de 1200 px de largura (notebook com a janela pela metade, tablet, celular), o card "🏆 Ranking" e o "👥 Jogadores" desapareciam: quem jogava não via a classificação nem quem estava desconectado (📴) (achado em 19/10/2026, ao estreitar a janela no teste M22) | `.sidebar-right { display: none; }` no `@media (max-width: 1200px)` de `css/style.css`: a coluna esquerda e a área da pergunta se ajustavam, a direita era escondida | Entre 769 e 1200 px, ranking e jogadores ficam abaixo da área da pergunta, lado a lado enquanto couberem, com o perfil na coluna da esquerda; no celular, uma coluna: pergunta, perfil, "Nova Rodada", ranking e jogadores e, no fim, "Sair da Partida" e "Encerrar Partida" (`grid-template-areas` e, no celular, a coluna do perfil em `display: contents` com `order`) — E37 |
+| BUG-030 | Jogador com a página aberta aparecia como desconectado (📴) para o host e ficava fora do sorteio até dar F5, mesmo jogando com a janela visível (achado no M22 em casa, 19/10/2026: depois de uma troca de host, o host antigo, agora jogador comum, ficou 📴 com as duas janelas lado a lado; o `lastSeen` dele em `rooms/<sala>/presence` andava a cada 2 s) | O host só tratava a presença que cai (`receivePresence()`, `network/roomLink.js`, ignorava `online = true`); quem foi dado como caído só voltava mandando `player-join`, e o guest só manda quando a conexão dele cai e volta, quando o host volta ou na troca de host. Com o sinal parado sem a conexão cair (janela escondida por mais de 5 min, com o timer do sinal de minuto em minuto) e depois de volta, nada trazia o jogador de volta | O host traz de volta quem tinha dado como caído quando o sinal volta (`handlePlayerReturn()`, `network/messageHandler.js`: sai do 📴, `player-list` para todos, retoma a partida pausada, salva; sem `state-sync`). No canal (`checkPresence()`, `network/roomChannel.js`), a volta exige o sinal online e novo de verdade (a carência da volta da conexão do host não conta) e dois sinais seguidos no ritmo — a aba escondida não fica indo e voltando; na primeira leitura, quem está offline com o sinal recente fica em espera. Protocolo 12 e estado salvo 9 iguais — T205–T208 (ajustes no T189 e no T190) · E38 |
 
 ## Limpezas concluídas
 
