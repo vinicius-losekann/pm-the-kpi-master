@@ -2,8 +2,8 @@
 // PM: The KPI Master - Testes de lógica: Queda e volta de jogador
 // ============================================
 // Jogador que cai e volta: lugar reservado, rodada abortada, pausa por
-// falta de conexão, saída da página e o que quem volta recebe (relógio,
-// situação da rodada).
+// falta de conexão, saída da página, o que quem volta recebe (relógio,
+// situação da rodada) e a volta pelo sinal de vida.
 // Ambiente simulado e ajudantes: environment.js. Rodar a partir da raiz:
 //     node tests/logic/drop-and-return.test.js
 // ============================================
@@ -353,6 +353,74 @@ test('T52 Retomar a pausa quando todos os conectados já responderam: encerra a 
     env2.join('A', 'peer-a');
     check(env2.state.currentRound && env2.state.currentRound.answerer === 'A' && !env2.state.roundEnded,
         'faltando A, a retomada deveria sortear A');
+});
+
+test('T208 Volta pelo sinal de vida (receivePresence com o sinal de volta, sem player-join): na partida, quem estava desconectado volta à lista e ao sorteio, todos recebem a lista, sem state-sync, a rodada não muda e o estado é salvo; com a partida pausada, retoma com o mesmo evento, sem reexibir o evento; quem não estava desconectado, quem não é jogador, o lobby e o fim de jogo: nada muda (BUG-030)', (use) => {
+    const env = use(createEnvironment());
+    env.createRoomAsHost();
+    env.join('A', 'peer-a');
+    env.join('B', 'peer-b');
+    env.startMatch();
+    env.state.currentRound = { event: { id: 'e1' }, asker: 'Host', answerer: 'B', question: null, answered: false };
+    env.drop('peer-a');
+    check(env.player('A').disconnected === true, 'pré-condição: A desconectado');
+
+    env.clearLog();
+    env.bank.secret = null;
+    env.Game.network.receivePresence('peer-a', true);
+    check(env.player('A').disconnected === false, 'com o sinal de volta, A deveria voltar como conectado, veio: ' + JSON.stringify(env.player('A')));
+    check(env.Game.getActivePlayers().some(p => p.name === 'A'), 'A deveria voltar ao sorteio (entre os ativos)');
+    const lists = env.broadcastsOfType('player-list');
+    check(lists.length === 1 && lists[0].players.find(p => p.name === 'A').disconnected === false,
+        'todos deveriam receber a lista uma vez, com A conectado, veio: ' + JSON.stringify(lists));
+    check(!env.record.sent.some(e => e.msg.type === 'state-sync'), 'a volta pelo sinal não manda state-sync (a página de A continuou recebendo tudo)');
+    check(env.state.currentRound && env.state.currentRound.answerer === 'B' && env.broadcastsOfType('round-start').length === 0,
+        'a rodada em andamento não deveria mudar');
+    check(env.bank.secret !== null, 'a volta deveria ser salva (saveState)');
+
+    // De novo, com A já conectado: nada.
+    env.clearLog();
+    env.Game.network.receivePresence('peer-a', true);
+    env.Game.network.receivePresence('peer-x', true);
+    check(env.record.broadcasts.length === 0 && env.state.players.length === 3,
+        'sinal de quem já está conectado ou de quem não é jogador não deveria mudar nada, veio: ' + JSON.stringify(env.record.broadcasts));
+
+    // Partida pausada: retoma com o mesmo evento.
+    const paused = use(createEnvironment());
+    paused.createRoomAsHost();
+    paused.join('A', 'peer-a');
+    paused.startMatch();
+    paused.drop('peer-a');
+    check(paused.state.matchPaused, 'pré-condição: partida pausada');
+    const pausedEvent = paused.state.matchPaused.event;
+    paused.clearLog();
+    paused.Game.network.receivePresence('peer-a', true);
+    check(!paused.state.matchPaused && paused.state.currentRound && paused.state.currentRound.event === pausedEvent,
+        'com a volta de A pelo sinal, a partida deveria retomar com o mesmo evento');
+    check(paused.broadcastsOfType('round-start').length === 1 && paused.broadcastsOfType('show-event').length === 0,
+        'deveria mandar o round-start uma vez, sem reexibir o evento');
+    check(!paused.record.sent.some(e => e.msg.type === 'state-sync'), 'sem state-sync na retomada pelo sinal');
+
+    // Lobby: nada muda.
+    const lobby = use(createEnvironment());
+    lobby.createRoomAsHost();
+    lobby.join('A', 'peer-a');
+    lobby.clearLog();
+    lobby.Game.network.receivePresence('peer-a', true);
+    check(lobby.record.broadcasts.length === 0 && lobby.player('A') && !lobby.player('A').disconnected,
+        'no lobby, o sinal não deveria mudar nada, veio: ' + JSON.stringify(lobby.record.broadcasts));
+
+    // Fim de jogo: quem ficou desconectado continua assim.
+    const over = use(createEnvironment());
+    over.createRoomAsHost();
+    over.join('A', 'peer-a');
+    over.startMatch();
+    over.player('A').disconnected = true;
+    over.state.gameOver = true;
+    over.clearLog();
+    over.Game.network.receivePresence('peer-a', true);
+    check(over.player('A').disconnected === true && over.record.broadcasts.length === 0,
+        'no fim de jogo, o sinal não deveria mudar nada, veio: ' + JSON.stringify(over.record.broadcasts));
 });
 
 finish('Queda e volta de jogador');

@@ -40,7 +40,9 @@ const copy = (x) => (x === undefined ? undefined : JSON.parse(JSON.stringify(x))
 /**
  * setInterval/clearInterval de uma aba, guardados no relógio do teste:
  * passTime() os roda conforme a hora anda (o sinal de vida, a conferência
- * da tolerância e o relógio da partida). Os da aba fechada não rodam.
+ * da tolerância e o relógio da partida). Os da aba fechada não rodam, nem
+ * os da aba congelada (`device.frozen = true`: janela escondida, com a
+ * conexão de pé e os timers parados).
  */
 function tabTimers(clock, device) {
     clock.timers = clock.timers || [];
@@ -63,6 +65,11 @@ async function passTime(clock, ms) {
         clock.now = Math.min(clock.now + 500, end);
         for (const t of (clock.timers || []).slice()) {
             if (!t.active || t.device.closed) continue;
+            if (t.device.frozen) {
+                // Timer parado não acumula: volta a contar de agora.
+                t.next = Math.max(t.next, clock.now + t.every);
+                continue;
+            }
             while (t.active && t.next <= clock.now) {
                 t.next += t.every;
                 t.fn();
@@ -1293,6 +1300,61 @@ asyncTest('T204 Prazos na troca de host: o tempo sem host não conta — cada pr
     const o4 = await reloadTab(r4.fake, clock4, r4.host);
     check(o4.opened && o4.opened.isHost === true && !o4.opened.takenOver && o4.atOpen.currentRound && o4.atOpen.currentRound.answerEndsAt === before4,
         'no F5 do host, sem troca, o prazo não deveria mudar, veio: ' + JSON.stringify({ opened: o4.opened, diff: o4.atOpen.currentRound && o4.atOpen.currentRound.answerEndsAt - before4 }));
+});
+
+asyncTest('T207 Volta pelo sinal de vida no jogo: na partida, Beto fica com a janela escondida (sinal parado, conexão de pé) e o host o dá como desconectado; com a janela visível, o host o traz de volta sozinho — sai do 📴 para todos e volta ao sorteio, sem player-join nem state-sync, e não cai de novo; com a partida pausada só por falta dele, ela retoma com o mesmo evento (BUG-030)', async () => {
+    const fake = createFakeFirebase();
+    const clock = { now: 1000 };
+    const host = await hostRoom(fake, clock);
+    const beto = await guestJoins(fake, clock, 'uid-beto', 'Beto');
+    const caio = await guestJoins(fake, clock, 'uid-caio', 'Caio');
+    host.env.startMatch();
+    await settle();
+    const G = host.env.CONFIG.GAME;
+    const joinsFrom = (tab, uid) => tab.handled.filter(h => h.type === 'player-join' && h.from === uid).length;
+
+    beto.device.frozen = true;
+    await passTime(clock, G.PRESENCE_TIMEOUT + 2000);
+    check(host.env.player('Beto').disconnected === true, 'pré-condição: com o sinal parado, Beto deveria aparecer desconectado para o host');
+    const joins = joinsFrom(host, 'uid-beto');
+    beto.handled.length = 0;
+
+    beto.device.frozen = false;
+    await passTime(clock, 3 * G.HEARTBEAT_INTERVAL);
+    const b = host.env.player('Beto');
+    check(b && b.disconnected === false, 'com o sinal de volta, o host deveria trazer Beto de volta sozinho, veio: ' + JSON.stringify(b));
+    check(host.env.Game.getActivePlayers().some(p => p.name === 'Beto'), 'Beto deveria voltar ao sorteio');
+    check(joinsFrom(host, 'uid-beto') === joins && !beto.types().includes('state-sync'),
+        'a volta pelo sinal não passa pelo player-join nem pelo state-sync, Beto recebeu: ' + JSON.stringify(beto.types()));
+    const seenByCaio = caio.env.state.players.find(p => p.name === 'Beto');
+    const seenByBeto = beto.env.state.players.find(p => p.name === 'Beto');
+    check(seenByCaio && seenByCaio.disconnected === false && seenByBeto && seenByBeto.disconnected === false,
+        'Caio e o próprio Beto deveriam ver Beto conectado de novo, veio: ' + JSON.stringify({ caio: seenByCaio, beto: seenByBeto }));
+    await passTime(clock, G.PRESENCE_TIMEOUT + 2000);
+    check(host.env.player('Beto').disconnected === false, 'de volta e mandando o sinal, Beto não deveria cair de novo');
+
+    // Partida pausada só por falta de Dani: retoma com o mesmo evento.
+    const fake2 = createFakeFirebase();
+    const clock2 = { now: 1000 };
+    const host2 = await hostRoom(fake2, clock2);
+    const dani = await guestJoins(fake2, clock2, 'uid-dani', 'Dani');
+    host2.env.startMatch();
+    await settle();
+    dani.device.frozen = true;
+    await passTime(clock2, G.PRESENCE_TIMEOUT + 2000);
+    const paused = copy(host2.env.state.matchPaused);
+    check(paused && paused.event && host2.env.player('Dani').disconnected === true, 'pré-condição: partida pausada com Dani desconectada');
+    const joins2 = joinsFrom(host2, 'uid-dani');
+    dani.handled.length = 0;
+
+    dani.device.frozen = false;
+    await passTime(clock2, 3 * G.HEARTBEAT_INTERVAL);
+    const s = host2.env.state;
+    check(!s.matchPaused && s.currentRound && s.currentRound.event && s.currentRound.event.id === paused.event.id &&
+        host2.env.player('Dani').disconnected === false,
+        'com o sinal de Dani de volta, a partida deveria retomar com o mesmo evento, veio: ' + JSON.stringify({ paused: s.matchPaused, event: s.currentRound && s.currentRound.event && s.currentRound.event.id }));
+    check(dani.types().includes('round-start') && !dani.types().includes('state-sync') && joinsFrom(host2, 'uid-dani') === joins2,
+        'Dani deveria receber o round-start da retomada, sem player-join nem state-sync, recebeu: ' + JSON.stringify(dani.types()));
 });
 
 (async () => {

@@ -213,6 +213,34 @@ test('E30 Quem responde dá F5 no meio da pergunta: ninguém cai, a mesma pergun
     await ana.waitFor(() => Game.state.answeredThisRound.includes('Beto'), { timeout: 10000 });
 });
 
+test('E38 Janela escondida: a página de Beto fica congelada (sinal parado, sem fechar) e o host o dá como desconectado; descongelada, o 📴 some sozinho — o host o traz de volta pelo sinal de vida, sem "Reconectado" (BUG-030)', async ({ players }) => {
+    const code = roomCode();
+    const ana = await players.add('Ana');
+    const beto = await players.add('Beto');
+    const caio = await players.add('Caio');
+    await startMatch(ana, [beto, caio], code);
+    const betoInHost = () => ana.state(() => {
+        const p = Game.state.players.find(x => x.name === 'Beto');
+        return p ? p.disconnected : null;
+    });
+
+    // Congelar a página (como o navegador faz com a janela escondida há muito tempo): timers parados, página aberta.
+    const cdp = await beto.context.newCDPSession(beto.page);
+    await cdp.send('Page.setWebLifecycleState', { state: 'frozen' });
+    await expect.poll(betoInHost, { timeout: DROP_WAIT, message: 'com o sinal parado, o host deveria dar Beto como desconectado' }).toBe(true);
+    const logsAtDrop = ana.logs.length;
+
+    await cdp.send('Page.setWebLifecycleState', { state: 'active' });
+    await expect.poll(betoInHost, { timeout: 15000, message: 'com o sinal de volta, o 📴 de Beto deveria sumir sozinho' }).toBe(false);
+    const after = ana.logs.slice(logsAtDrop);
+    expect(after.some(l => l.includes('Beto voltou (sinal de vida de volta)')), 'o host deveria trazer Beto de volta pelo sinal de vida: ' + JSON.stringify(after)).toBe(true);
+    expect(after.some(l => l.includes('Reconectado: Beto')), 'a volta não deveria passar pelo player-join (a conexão não caiu): ' + JSON.stringify(after)).toBe(false);
+    await expect.poll(() => caio.state(() => Game.state.players.find(p => p.name === 'Beto').disconnected), { timeout: 10000, message: 'Caio deveria ver Beto conectado' }).toBe(false);
+
+    // A partida segue com Beto.
+    await answerUntilRoundEnds(ana, [ana, beto, caio]);
+});
+
 test('E19 Pedido de ajuda com 3 jogadores: quem está sem recursos pede ajuda na vez de responder, segue a sugestão certa e quem ajudou ganha a recompensa do patrocinador', async ({ players }) => {
     const code = roomCode();
     const ana = await players.add('Ana');

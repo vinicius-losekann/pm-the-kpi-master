@@ -956,6 +956,8 @@ asyncTest('T189 Tolerância: para o host, quem está offline com o sinal recente
     check(host.got.presence.length === 2, 'a queda deveria ser avisada uma vez só, veio: ' + JSON.stringify(host.got.presence));
     ana.device.goOnline();
     await flush();
+    // Quem caiu volta com dois sinais seguidos no ritmo (T205): espera o segundo.
+    await elapse(clock, TIMING.heartbeatInterval + 500);
     check(same(lastOf(host.got.presence), { uid: 'uid-ana', online: true }) && host.got.presence.length === 3,
         'com o sinal de volta, Ana deveria aparecer presente, veio: ' + JSON.stringify(host.got.presence));
 
@@ -971,6 +973,7 @@ asyncTest('T189 Tolerância: para o host, quem está offline com o sinal recente
     ana.frozen = false;
     ana.document.setVisibility('visible');
     await flush();
+    await elapse(clock, TIMING.heartbeatInterval + 500);
     check(same(lastOf(host.got.presence), { uid: 'uid-ana', online: true }), 'desbloqueada, Ana deveria voltar, veio: ' + JSON.stringify(host.got.presence));
 
     // Quem foi aceito: o host offline aparece na hora.
@@ -1047,6 +1050,7 @@ asyncTest('T190 F5 dentro da tolerância não é queda: quem fecha a página e a
     const third = openDevice(fake, 'uid-ana', clock);
     await third.channel.joinRoom('sala01', { protocolVersion: VERSION });
     await flush();
+    await elapse(clock, TIMING.heartbeatInterval + 500);
     check(host.got.presence.length === 3 && same(lastOf(host.got.presence), { uid: 'uid-ana', online: true }),
         'de volta, Ana deveria aparecer presente, veio: ' + JSON.stringify(host.got.presence));
 });
@@ -1255,6 +1259,106 @@ asyncTest('T195 Troca de host — o host volta antes de hostTimeout (aba congela
     await elapse(clock, 2000);
     check(metaNow().hostUid === 'uid-ana' && metaNow().hostEpoch === 2,
         'com o sinal parado há mais de hostTimeout desde o último, Ana deveria assumir (hostEpoch 2), veio: ' + JSON.stringify(metaNow()));
+});
+
+// ============================================
+// VOLTA PELO SINAL DE VIDA (BUG-030)
+// ============================================
+
+/**
+ * Um sinal só, fora do ritmo, com o aparelho congelado: o timer da aba
+ * escondida há mais de 5 min, que o navegador roda uma vez por minuto.
+ */
+async function loneBeat(d) {
+    d.document.setVisibility('visible');
+    d.document.setVisibility('hidden');
+    await flush();
+}
+
+asyncTest('T205 Volta pelo sinal de vida: quem o host deu como caído com a conexão de pé (aba escondida, sinal parado) só volta com dois sinais online seguidos no ritmo (até 2 × heartbeatInterval entre eles) — o sinal solto da aba escondida há mais de 5 min (um por minuto) não o traz de volta, nem o primeiro sinal da aba visível sozinho; com o segundo, volta uma vez e fica (BUG-030)', async () => {
+    const { clock, host, ana } = await roomWithGuest();
+    await host.channel.admit('uid-ana');
+    await flush();
+    check(same(host.got.presence, [{ uid: 'uid-ana', online: true }]), 'pré-condição: o host vê Ana presente, veio: ' + JSON.stringify(host.got.presence));
+
+    // Aba escondida: o sinal para (a conexão fica) e Ana cai.
+    ana.document.setVisibility('hidden');
+    ana.frozen = true;
+    await elapse(clock, TIMING.presenceTimeout + 2000);
+    check(host.got.presence.length === 2 && same(lastOf(host.got.presence), { uid: 'uid-ana', online: false }),
+        'pré-condição: com o sinal parado, o host deveria ver Ana cair, veio: ' + JSON.stringify(host.got.presence));
+
+    // Escondida há mais de 5 min: um sinal solto por minuto.
+    for (let minute = 1; minute <= 3; minute++) {
+        await elapse(clock, 56000);
+        await loneBeat(ana);
+        await elapse(clock, 4000);
+        check(host.got.presence.length === 2,
+            'um sinal solto (o da aba escondida, um por minuto) não deveria trazer Ana de volta (minuto ' + minute + '), veio: ' + JSON.stringify(host.got.presence));
+    }
+
+    // A aba volta a ficar visível: o primeiro sinal sozinho ainda não basta.
+    await elapse(clock, 10000);
+    ana.frozen = false;
+    ana.document.setVisibility('visible');
+    await flush();
+    check(host.got.presence.length === 2,
+        'o primeiro sinal da aba visível, sozinho, não deveria trazer Ana de volta (falta o segundo, no ritmo), veio: ' + JSON.stringify(host.got.presence));
+    await elapse(clock, TIMING.heartbeatInterval + 500);
+    check(host.got.presence.length === 3 && same(lastOf(host.got.presence), { uid: 'uid-ana', online: true }),
+        'com o segundo sinal no ritmo, o host deveria ver Ana de volta, uma vez, veio: ' + JSON.stringify(host.got.presence));
+    await elapse(clock, TIMING.presenceTimeout * 2);
+    check(host.got.presence.length === 3, 'de volta e mandando o sinal, Ana não deveria cair de novo, veio: ' + JSON.stringify(host.got.presence));
+});
+
+asyncTest('T206 Volta pelo sinal de vida — o que não traz ninguém de volta: a carência da volta da conexão do host não revive quem fechou a aba (online: false) nem quem está com o sinal parado; o host que abre a sala (F5) não dá como presente quem fechou a aba há pouco (online: false dentro da tolerância): espera e, passada a tolerância, avisa a queda uma vez (BUG-030)', async () => {
+    const { fake, clock, host, ana, beto } = await roomWithTwoAdmitted();
+    check(host.got.presence.length === 2 && host.got.presence.every(p => p.online === true),
+        'pré-condição: o host vê Ana e Beto presentes, veio: ' + JSON.stringify(host.got.presence));
+
+    // Ana fecha a aba; Beto fica com a aba escondida (sinal parado, conexão de pé).
+    ana.device.close();
+    beto.document.setVisibility('hidden');
+    beto.frozen = true;
+    await elapse(clock, TIMING.presenceTimeout + 2000);
+    const dropped = host.got.presence.slice(2);
+    check(dropped.length === 2 && dropped.every(p => p.online === false),
+        'pré-condição: o host deveria ver Ana e Beto caírem, veio: ' + JSON.stringify(dropped));
+
+    // A conexão do host cai e volta: a carência não revive ninguém.
+    const before = host.got.presence.length;
+    host.device.goOffline();
+    await elapse(clock, 1000);
+    host.device.goOnline();
+    await flush();
+    await elapse(clock, 1500);
+    check(host.got.presence.length === before,
+        'na carência da volta da conexão do host, ninguém deveria voltar (Ana fechou a aba, Beto está com o sinal parado), veio: ' + JSON.stringify(host.got.presence.slice(before)));
+    await elapse(clock, TIMING.heartbeatInterval * 3);
+    check(host.got.presence.length === before, 'depois da carência, também não, veio: ' + JSON.stringify(host.got.presence.slice(before)));
+
+    // Controle: Beto mostra a aba e volta; Ana continua caída.
+    beto.frozen = false;
+    beto.document.setVisibility('visible');
+    await elapse(clock, TIMING.heartbeatInterval + 500);
+    check(same(host.got.presence.slice(before), [{ uid: 'uid-beto', online: true }]),
+        'Beto, com a aba visível e o sinal no ritmo, deveria voltar (e Ana não), veio: ' + JSON.stringify(host.got.presence.slice(before)));
+
+    // Beto fecha a aba e, 2 s depois, o host dá F5: Beto (offline dentro da tolerância) não aparece presente.
+    beto.device.close();
+    await elapse(clock, 2000);
+    host.device.close();
+    const hostAgain = openDevice(fake, 'uid-host', clock);
+    await hostAgain.channel.joinRoom('sala01', { protocolVersion: VERSION });
+    await flush();
+    const betoSeen = () => hostAgain.got.presence.filter(p => p.uid === 'uid-beto');
+    check(betoSeen().length === 0,
+        'o host de volta do F5 não deveria dar como presente quem fechou a aba há pouco (online: false), veio: ' + JSON.stringify(betoSeen()));
+    await elapse(clock, TIMING.presenceTimeout);
+    check(same(betoSeen(), [{ uid: 'uid-beto', online: false }]),
+        'passada a tolerância, o host deveria avisar a queda de Beto uma vez, veio: ' + JSON.stringify(betoSeen()));
+    check(same(hostAgain.got.presence.filter(p => p.uid === 'uid-ana'), [{ uid: 'uid-ana', online: false }]),
+        'Ana, fora há muito tempo, deveria aparecer caída uma vez, veio: ' + JSON.stringify(hostAgain.got.presence));
 });
 
 (async () => {
