@@ -213,24 +213,28 @@ test('E30 Quem responde dá F5 no meio da pergunta: ninguém cai, a mesma pergun
     await ana.waitFor(() => Game.state.answeredThisRound.includes('Beto'), { timeout: 10000 });
 });
 
-test('E38 Janela escondida: a página de Beto fica congelada (sinal parado, sem fechar) e o host o dá como desconectado; descongelada, o 📴 some sozinho — o host o traz de volta pelo sinal de vida, sem "Reconectado" (BUG-030)', async ({ players }) => {
+test('E38 Janela escondida: os timers da página de Beto param (sinal parado, página aberta e conexão de pé) e o host o dá como desconectado; com os timers de volta, o 📴 some sozinho — o host o traz de volta pelo sinal de vida, sem "Reconectado" (BUG-030)', async ({ players }) => {
     const code = roomCode();
     const ana = await players.add('Ana');
     const beto = await players.add('Beto');
     const caio = await players.add('Caio');
+    // Relógio controlado pelo teste (anda como o de verdade até ser parado).
+    await beto.context.clock.install({ time: Date.now() });
+    await beto.context.clock.resume();
     await startMatch(ana, [beto, caio], code);
     const betoInHost = () => ana.state(() => {
         const p = Game.state.players.find(x => x.name === 'Beto');
         return p ? p.disconnected : null;
     });
 
-    // Congelar a página (como o navegador faz com a janela escondida há muito tempo): timers parados, página aberta.
-    const cdp = await beto.context.newCDPSession(beto.page);
-    await cdp.send('Page.setWebLifecycleState', { state: 'frozen' });
+    // Timers parados, página aberta (como o navegador faz com a janela escondida há muito tempo).
+    await beto.context.clock.pauseAt(Date.now() + 1000);
     await expect.poll(betoInHost, { timeout: DROP_WAIT, message: 'com o sinal parado, o host deveria dar Beto como desconectado' }).toBe(true);
     const logsAtDrop = ana.logs.length;
 
-    await cdp.send('Page.setWebLifecycleState', { state: 'active' });
+    // Os timers voltam (janela visível), com o relógio da página de volta à hora certa.
+    await beto.context.clock.setSystemTime(Date.now());
+    await beto.context.clock.resume();
     await expect.poll(betoInHost, { timeout: 15000, message: 'com o sinal de volta, o 📴 de Beto deveria sumir sozinho' }).toBe(false);
     const after = ana.logs.slice(logsAtDrop);
     expect(after.some(l => l.includes('Beto voltou (sinal de vida de volta)')), 'o host deveria trazer Beto de volta pelo sinal de vida: ' + JSON.stringify(after)).toBe(true);
