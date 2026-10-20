@@ -125,6 +125,13 @@ test('E37 Ranking e lista de jogadores numa janela de 1000 px e no celular (375 
             expect(card.right, 'o card de ' + name + ' passa da borda direita da tela a ' + width + ' px').toBeLessThanOrEqual(layout.viewport);
             expect(overlaps(card, layout.main), 'o card de ' + name + ' cobre a área da pergunta a ' + width + ' px').toBe(false);
             expect(overlaps(card, layout.profile), 'o card de ' + name + ' cobre o perfil a ' + width + ' px').toBe(false);
+            expect(card.top, 'o card de ' + name + ' deveria ficar abaixo da área da pergunta a ' + width + ' px').toBeGreaterThanOrEqual(layout.main.bottom);
+            if (width === 1000) {
+                expect(card.left, 'o card de ' + name + ' deveria ficar na coluna da pergunta, à direita do perfil, a 1000 px').toBeGreaterThanOrEqual(layout.profile.right);
+            } else {
+                // No celular, depois do perfil e dos botões: o "Nova Rodada" do host não desce.
+                expect(card.top, 'o card de ' + name + ' deveria ficar abaixo do perfil a 375 px').toBeGreaterThanOrEqual(layout.profile.bottom);
+            }
         }
     }
 });

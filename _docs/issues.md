@@ -16,16 +16,6 @@ glossário de `conventions.md` dá o nome atual.
 
 ## Em investigação
 
-**BUG-029 — Ranking e lista de jogadores somem em tela estreita.** Com a
-janela da partida abaixo de 1200 px de largura (notebook com a janela
-pela metade, tablet, celular), o card "🏆 Ranking" e o "👥 Jogadores"
-desaparecem: quem joga não vê a classificação nem quem está desconectado
-(📴). Achado em 19/10/2026, ao estreitar a janela no teste M22. Causa:
-`.sidebar-right { display: none; }` no `@media (max-width: 1200px)` de
-`css/style.css`; a coluna esquerda e a área da pergunta se ajustam, a
-direita é escondida. Reproduzir: abrir uma partida e estreitar a janela
-abaixo de 1200 px.
-
 **BUG-030 — Jogador com a página aberta aparece como desconectado para
 o host.** No M22 em casa (19/10/2026, notebook com Chrome e Edge e
 celular nos dados móveis), depois de uma troca de host: (1) na primeira
@@ -109,6 +99,7 @@ automatizado — os números (T…, E…) são os de `tests/logic` e
 | BUG-026 | No celular (e em notebook com pouca altura), a janela "Sua vez de responder!" ficava mais alta que a tela, sem rolagem: topo e fim cortados, e o botão de assessoria ou de ajuda podia ficar fora do alcance | `.modal-card` é `position: fixed` centralizada, sem altura máxima nem rolagem | Toda janela (`.modal-card`) fica no máximo da altura da tela (`100dvh`, com `100vh` para navegador antigo) menos 32 px e rola por dentro — E21 |
 | BUG-027 | No celular, o detalhe de cada jogador no ranking final dividia a linha com posição, nome e KPI Final: virava uma coluna estreita, e o nome quebrava em três linhas | `.final-rank-item` era flex sem quebra de linha, e o `.final-rank-detail` entrava como quarto item da linha | `.final-rank-item` com `flex-wrap: wrap` e o detalhe com `flex-basis: 100%`: fica numa linha própria, abaixo do nome — E22 |
 | BUG-028 | Com a assessoria ou a ajuda pendente, o contador de quem responde continuava descendo e podia chegar a 0 (relatado na partida de teste da UFSM, 15/10/2026); no fim do apoio, o prazo voltava inteiro | O host parava o prazo (`handleAdvisoryRequest()`, `engine/advisoryEngine.js`) e rearmava o prazo inteiro no fim; `showAdvisoryStarted()` (`ui/modals/advisoryModal.js`) não parava o contador da tela, e `showAdvisoryResult()` não o religava | O host guarda o que faltava (`pauseAnswerTimeout()`, `answerTimeLeft`) e continua dele; o `advisory-started` para o contador e o `advisory-result` o religa do tempo que faltava (protocolo 9) — T134, T135 |
+| BUG-029 | Com a janela da partida abaixo de 1200 px de largura (notebook com a janela pela metade, tablet, celular), o card "🏆 Ranking" e o "👥 Jogadores" desapareciam: quem jogava não via a classificação nem quem estava desconectado (📴) (achado em 19/10/2026, ao estreitar a janela no teste M22) | `.sidebar-right { display: none; }` no `@media (max-width: 1200px)` de `css/style.css`: a coluna esquerda e a área da pergunta se ajustavam, a direita era escondida | Entre 769 e 1200 px, ranking e jogadores ficam abaixo da área da pergunta, lado a lado enquanto couberem, com o perfil na coluna da esquerda; no celular, uma coluna: pergunta, perfil e botões, ranking e jogadores (`grid-template-areas`) — E37 |
 
 ## Limpezas concluídas
 

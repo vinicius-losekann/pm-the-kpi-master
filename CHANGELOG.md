@@ -51,7 +51,7 @@
   é decidida pelo banco: só um assume, mesmo que vários tentem juntos. O
   host antigo que volta entra como jogador comum, com KPI e recursos.
   Testes T192–T204 e cenários E26 e E31–E36.
-- São 167 testes de lógica em 15 arquivos e 27 cenários no navegador.
+- São 167 testes de lógica em 15 arquivos e 28 cenários no navegador.
 
 ### Changed
 - **Estouro de orçamento:** o recurso pode ficar negativo. Errar com 0
@@ -137,6 +137,11 @@
   host sem dois hosts ao mesmo tempo).
 
 ### Fixed
+- **Ranking e jogadores em tela estreita (BUG-029):** com a janela abaixo
+  de 1200 px (notebook com meia tela, tablet, celular), o ranking e a
+  lista de jogadores sumiam durante a partida. Agora ficam abaixo da
+  pergunta e, no celular, no fim da página, depois do perfil. Cenário
+  E37 no navegador.
 - **Tempo de quem responde durante o apoio (BUG-028):** com a assessoria
   ou a ajuda pendente, o contador na tela continuava descendo e podia
   chegar a zero, embora o prazo de verdade estivesse parado; no fim do

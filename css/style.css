@@ -1336,29 +1336,52 @@ body {
 /* RESPONSIVIDADE                               */
 /* ============================================ */
 
+/* Ranking e jogadores descem para baixo da pergunta, lado a lado
+   enquanto couberem; o perfil continua na coluna da esquerda, ao lado das
+   duas linhas (BUG-029). A sobra de altura vai para a segunda linha, para
+   a área da pergunta não esticar. */
 @media (max-width: 1200px) {
     .game-layout {
         grid-template-columns: 220px 1fr;
+        grid-template-rows: auto 1fr;
+        grid-template-areas:
+            "left main"
+            "left right";
         gap: 14px;
     }
 
-    .sidebar-right {
-        display: none;
-    }
-}
-
-@media (max-width: 768px) {
-    .game-layout {
-        grid-template-columns: 1fr;
-        gap: 12px;
-    }
-
     .sidebar-left {
-        order: 2;
+        grid-area: left;
     }
 
     .main-area {
-        order: 1;
+        grid-area: main;
+    }
+
+    .sidebar-right {
+        grid-area: right;
+        align-self: start;
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .sidebar-right > * {
+        flex: 1 1 200px;
+        min-width: 0;
+    }
+}
+
+/* Celular: uma coluna — pergunta, perfil e botões (o "Nova Rodada" do
+   host não desce), ranking e jogadores. */
+@media (max-width: 768px) {
+    .game-layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: none;
+        grid-template-areas:
+            "main"
+            "left"
+            "right";
+        gap: 12px;
     }
 
     .alternatives-grid {

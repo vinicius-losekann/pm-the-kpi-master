@@ -221,6 +221,7 @@ o teste só aponta o Firebase para o emulador.
 | E20 | Janela de 1000 px com o card do jogador em estouro (−12): os chips de KPI e de recursos ficam dentro do card | BUG-025 (layout) |
 | E21 | Celular baixo (375×480) com a pergunta aberta: a janela de resposta cabe na tela e rola até a última alternativa | BUG-026 (layout) |
 | E22 | Celular (375 px) no fim de partida: o detalhe de cada jogador no ranking fica abaixo do nome | BUG-027 (layout) |
+| E37 | Partida numa janela de 1000 px e no celular (375 px): o ranking e a lista de jogadores aparecem, com os dois jogadores, dentro da largura da tela e sem cobrir a área da pergunta nem o perfil | BUG-029 (layout) |
 | E23 | Quem responde vê o aviso de quem vai perguntar, sem a janela de resposta; o Perguntador clica em "Fazer a pergunta" e a janela abre com o prazo inteiro | — (etapa "Fazer a pergunta") |
 | E24 | Página de teste de conexão: sala inexistente recusada; criar, entrar, mensagem de teste com eco e tempo; F5 volta sozinho à sala; quem fecha a aba sai da lista | M21 (a parte que não depende da rede real) |
 | E25 | Regras do banco no emulador: sem login não lê; fora da sala, sala de outro, aparelho de outro, mensagem em nome de outro e conteúdo grande demais são recusados; ler a sala e gravar o próprio aparelho e a própria mensagem passam | — (segurança do banco) |
