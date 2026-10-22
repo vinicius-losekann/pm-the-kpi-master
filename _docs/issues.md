@@ -25,6 +25,32 @@ novo apareceu "sala não encontrada". Local: `js/network/connectionCheck.js`
 `firebase-check.html`: o jogo avisa todos com `session-ended`. Reproduzir:
 M21, passo 8, olhando a tela do celular.
 
+**BUG-032 — Troca de dupla por queda sorteia outro evento no meio da
+rodada.** No M7 e no M8 na UFSM (20/10/2026), quando quem estava na dupla
+caiu, a pergunta foi descartada (como deve) e apareceu o aviso de um
+evento, como se fosse uma rodada nova. Causa: as trocas de dupla que não
+vêm da resposta chamam `pickNewPair()` sem o evento da rodada
+(`engine/turnEngine.js`), e sem evento ele sorteia outro, aplica os
+efeitos (`applyDrawnEvent()`) e mostra o aviso a todos. Acontece em
+`abortRoundIfParticipant()` (`engine/sessionEngine.js`, queda ou saída
+de quem está na dupla), em `handleAnswer()` (`engine/answerEngine.js`,
+quem responde sumiu da lista) e na retomada do host sem rodada
+(`resumeMatchAfterReload()`, inclusive depois da troca de host com o host
+antigo na dupla, em que `takeOverMatch()` zera a rodada). Para quem joga:
+uma queda dá à rodada um segundo evento (outro +1 de recurso, outro
+Corte...), e quem caiu fica fora dele. Reproduzir: 3 jogadores, quem
+responde fecha a aba e espera 20 s.
+
+**BUG-033 — Queda curta de rede (10 s) descartou a pergunta.** No M7.1 na
+UFSM (20/10/2026), o celular ficou 10 s em modo avião e voltou à rede em
+menos de 5 s, mas a pergunta dele foi descartada e saiu outra dupla —
+ou seja, o host o deu como caído, o que pela tolerância (20 s de sinal
+parado) não deveria acontecer. Causa ainda não conhecida; hipóteses: a
+conexão do Firebase no celular demora mais a voltar do que a rede (o
+sinal fica parado além dos 20 s), ou o sinal já estava atrasado antes do
+modo avião. Falta repetir com a hora de cada linha do console do host.
+Reproduzir: M7.1.
+
 ---
 
 ## Limpeza pendente (não é bug)
@@ -114,5 +140,5 @@ automatizado — os números (T…, E…) são os de `tests/logic` e
 - **Numeração:** BUG-xxx (bug), SEC-xxx (segurança), REGRESSÃO-xxx (algo
   que funcionava e quebrou numa mudança), NOTA-xxx (limpeza ou decisão que
   não é bug). Cada série continua do maior número já usado (próximos:
-  BUG-032, SEC-006, REGRESSÃO-004, NOTA-010). NOTA-003 a NOTA-005 são
+  BUG-034, SEC-006, REGRESSÃO-004, NOTA-010). NOTA-003 a NOTA-005 são
   decisões de arquitetura e ficam em `architecture.md`.

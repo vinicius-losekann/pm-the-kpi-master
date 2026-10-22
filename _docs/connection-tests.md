@@ -148,6 +148,10 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 
 - BUG-031 (só a página `firebase-check.html`): quem entrou continua
   mostrando a sala depois de o dono sair (M21, passo 8).
+- BUG-032: a troca de dupla por queda sorteia e aplica outro evento no
+  meio da rodada (M7 e M8, 20/10/2026).
+- BUG-033: a queda curta de rede (10 s) descartou a pergunta (M7.1,
+  20/10/2026) — em investigação.
 
 Os bugs encontrados nestes testes e já corrigidos
 (B1–B5 = BUG-014 a BUG-018, e BUG-019 a BUG-023) estão em `issues.md`,
@@ -167,7 +171,7 @@ plano fica mais lenta).
 | M1 | ✅ 🌐 E1 | F5 do host no meio de uma pergunta | Host dá F5 com a pergunta aberta | Guests continuam ligados, sem troca de host; a partida segue |
 | M2 | ✅ 🌐 E9 | F5 do host com "rodada encerrada" | Host dá F5 esperando o "Nova Rodada" | Continua "Rodada encerrada" para todos, esperando o clique |
 | M6 | ✅ 🌐 E6 | Guest cai e volta | Guest dá F5 no meio da própria pergunta; outro guest fecha e volta pela tela inicial | Voltam ao próprio lugar, com KPI; rodada tratada como nos testes T5/T34 |
-| M7 | **P1** ⬜ (20/10/2026: M7.1 falhou, a investigar; M7.2–M7.4 por fazer) | Queda de rede real (não fechar a aba) | Roteiro M7 de `manual-test-scripts.md`: quedas curta e longa de um guest e do host | Queda curta: nada muda. Guest: 📴 ~20 s depois, volta sozinho quando a rede volta. Host: outro assume em ~10–20 s; quando a rede do host volta, a página dele recarrega e ele entra como jogador comum |
+| M7 | **P1** ⬜ (20/10/2026: M7.1 falhou — a pergunta foi descartada, BUG-033; M7.2–M7.4 por fazer) | Queda de rede real (não fechar a aba) | Roteiro M7 de `manual-test-scripts.md`: quedas curta e longa de um guest e do host | Queda curta: nada muda. Guest: 📴 ~20 s depois, volta sozinho quando a rede volta. Host: outro assume em ~10–20 s; quando a rede do host volta, a página dele recarrega e ele entra como jogador comum |
 | M8 | **P1** ⬜ | Celular com tela bloqueada / navegador em segundo plano | Roteiro M8 de `manual-test-scripts.md` (inclusive o celular como host) | Bloqueio curto respondendo: a pergunta continua. Bloqueio longo: fora do sorteio ~20 s depois, volta sozinho ao desbloquear. Celular host: outro assume, e ele volta como jogador comum |
 | M9 | — | Redes diferentes (conexão direta entre navegadores) | Retirado em 18/10/2026 | Sem objeto com o Firebase (não há conexão direta); a rede de cada lugar é conferida pelo M21 |
 | M10 | ✅ 🌐 E8 | Nova partida depois de "saiu da partida" | 2 jogadores; guest sai; host volta ao lobby e inicia outra | Conferido em 30/09/2026 |
