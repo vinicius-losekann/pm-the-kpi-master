@@ -95,7 +95,10 @@ dela, se houver.
    **Esperado:** volta sozinho à sala, "🟢 Conectado"; o computador
    continua vendo os dois.
 6. No celular, modo avião por 30s e depois desligar. **Esperado:** em
-   algum momento o computador mostra só "PC" (pode levar até ~1 min) e,
+   algum momento o computador mostra só "PC" (pode levar até ~3 min: a
+   página depende do servidor do Firebase perceber a queda sem aviso,
+   ~2 min nas medidas de 17/10 e 20/10; o jogo não depende disso, usa o
+   sinal de vida de 20 s) e,
    ao desligar o modo avião, o celular volta sozinho à lista e ao
    "🟢 Conectado". Anotar quanto tempo o computador levou para ver a
    saída e a volta.

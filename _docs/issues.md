@@ -16,7 +16,14 @@ glossário de `conventions.md` dá o nome atual.
 
 ## Em investigação
 
-Nenhum.
+**BUG-031 — Página de teste de conexão: quem entrou continua "na sala"
+depois de o dono sair.** No M21 na UFSM (20/10/2026), o computador
+(dono) clicou em "Sair da sala" e a sala foi apagada, mas o celular
+continuou mostrando "🟢 Conectado" e a sala; só ao sair e tentar entrar de
+novo apareceu "sala não encontrada". Local: `js/network/connectionCheck.js`
+(a página não escuta a sala ser apagada). Só na página
+`firebase-check.html`: o jogo avisa todos com `session-ended`. Reproduzir:
+M21, passo 8, olhando a tela do celular.
 
 ---
 
@@ -107,5 +114,5 @@ automatizado — os números (T…, E…) são os de `tests/logic` e
 - **Numeração:** BUG-xxx (bug), SEC-xxx (segurança), REGRESSÃO-xxx (algo
   que funcionava e quebrou numa mudança), NOTA-xxx (limpeza ou decisão que
   não é bug). Cada série continua do maior número já usado (próximos:
-  BUG-031, SEC-006, REGRESSÃO-004, NOTA-010). NOTA-003 a NOTA-005 são
+  BUG-032, SEC-006, REGRESSÃO-004, NOTA-010). NOTA-003 a NOTA-005 são
   decisões de arquitetura e ficam em `architecture.md`.

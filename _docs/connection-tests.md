@@ -146,7 +146,10 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 
 ## 3. Bugs encontrados, ainda não corrigidos
 
-Nenhum no momento. Os bugs encontrados nestes testes e já corrigidos
+- BUG-031 (só a página `firebase-check.html`): quem entrou continua
+  mostrando a sala depois de o dono sair (M21, passo 8).
+
+Os bugs encontrados nestes testes e já corrigidos
 (B1–B5 = BUG-014 a BUG-018, e BUG-019 a BUG-023) estão em `issues.md`,
 com sintoma, causa e correção.
 
@@ -164,7 +167,7 @@ plano fica mais lenta).
 | M1 | ✅ 🌐 E1 | F5 do host no meio de uma pergunta | Host dá F5 com a pergunta aberta | Guests continuam ligados, sem troca de host; a partida segue |
 | M2 | ✅ 🌐 E9 | F5 do host com "rodada encerrada" | Host dá F5 esperando o "Nova Rodada" | Continua "Rodada encerrada" para todos, esperando o clique |
 | M6 | ✅ 🌐 E6 | Guest cai e volta | Guest dá F5 no meio da própria pergunta; outro guest fecha e volta pela tela inicial | Voltam ao próprio lugar, com KPI; rodada tratada como nos testes T5/T34 |
-| M7 | **P1** ⬜ | Queda de rede real (não fechar a aba) | Roteiro M7 de `manual-test-scripts.md`: quedas curta e longa de um guest e do host | Queda curta: nada muda. Guest: 📴 ~20 s depois, volta sozinho quando a rede volta. Host: outro assume em ~10–20 s; quando a rede do host volta, a página dele recarrega e ele entra como jogador comum |
+| M7 | **P1** ⬜ (20/10/2026: M7.1 falhou, a investigar; M7.2–M7.4 por fazer) | Queda de rede real (não fechar a aba) | Roteiro M7 de `manual-test-scripts.md`: quedas curta e longa de um guest e do host | Queda curta: nada muda. Guest: 📴 ~20 s depois, volta sozinho quando a rede volta. Host: outro assume em ~10–20 s; quando a rede do host volta, a página dele recarrega e ele entra como jogador comum |
 | M8 | **P1** ⬜ | Celular com tela bloqueada / navegador em segundo plano | Roteiro M8 de `manual-test-scripts.md` (inclusive o celular como host) | Bloqueio curto respondendo: a pergunta continua. Bloqueio longo: fora do sorteio ~20 s depois, volta sozinho ao desbloquear. Celular host: outro assume, e ele volta como jogador comum |
 | M9 | — | Redes diferentes (conexão direta entre navegadores) | Retirado em 18/10/2026 | Sem objeto com o Firebase (não há conexão direta); a rede de cada lugar é conferida pelo M21 |
 | M10 | ✅ 🌐 E8 | Nova partida depois de "saiu da partida" | 2 jogadores; guest sai; host volta ao lobby e inicia outra | Conferido em 30/09/2026 |
@@ -174,8 +177,8 @@ plano fica mais lenta).
 | M16 | ✅ 🌐 E17 | Reusar o código depois que todos saem | Todos fecham; o host reabre (em 1 min ou depois de mais tempo) | A partida é restaurada enquanto a sala existir, sem prazo de validade |
 | M17 | P2 | Navegadores | Chrome, Edge (inclusive InPrivate), Firefox, Safari no iPhone | Mesmo comportamento |
 | M18 | **P1** ⬜ (com o host; com um jogador, P2) | Aba em segundo plano por muito tempo | Roteiro M18 de `manual-test-scripts.md`: aba do host escondida 10 min atrás de outra (o professor nos slides); depois, a de um jogador | Ideal: o host continua host. Mede se o Chrome/Edge, espaçando os timers da aba escondida, faz os outros assumirem (seção 5); ao voltar à aba, tudo se recupera |
-| M21 | **P1** (roadmap 2.9) | Teste de conexão pelo Firebase em redes reais | Roteiro M21 de `manual-test-scripts.md` (em casa: computador no Wi-Fi e celular nos dados móveis; na instituição: celular no 5G e computador na rede dela), na página `firebase-check.html` | Cria, entra, troca mensagens (com o tempo de ida e volta), volta sozinho depois do F5 e do modo avião (lógica coberta por 🤖 T143–T153 e 🌐 E24, E25). **Em casa ✅ 👤 (17/10/2026, computador no Wi-Fi e celular no 4G):** todos os passos; ida e volta de 382–434 ms; volta em 1–2 s depois do modo avião e na hora depois da tela bloqueada. O servidor tira da lista quem cai sem aviso em ~2 min (modo avião) e em menos de 1 min (tela bloqueada). **Falta a parte na instituição.** |
-| M22 | **P1** ⬜ | Troca de host em navegadores e redes reais, com a pergunta aberta | Roteiro M22 de `manual-test-scripts.md` (computador no Wi-Fi, outro navegador, celular nos dados móveis); inclui o F5 de um jogador com a sala sem host | Outro assume em ~10–20 s, a mesma pergunta continua e a resposta vale; o host antigo volta como jogador comum; o F5 com a sala sem host volta à partida em até ~20 s (nos automatizados: troca em 10,7 s no E31 e F5 em 9,0 s no E36, 18/10/2026) |
+| M21 | **P1** (roadmap 2.9) | Teste de conexão pelo Firebase em redes reais | Roteiro M21 de `manual-test-scripts.md` (em casa: computador no Wi-Fi e celular nos dados móveis; na instituição: celular no 5G e computador na rede dela), na página `firebase-check.html` | Cria, entra, troca mensagens (com o tempo de ida e volta), volta sozinho depois do F5 e do modo avião (lógica coberta por 🤖 T143–T153 e 🌐 E24, E25). **Em casa ✅ 👤 (17/10/2026, computador no Wi-Fi e celular no 4G):** todos os passos; ida e volta de 382–434 ms; volta em 1–2 s depois do modo avião e na hora depois da tela bloqueada. O servidor tira da lista quem cai sem aviso em ~2 min (modo avião) e em menos de 1 min (tela bloqueada). **Na instituição ✅ 👤 (20/10/2026, computador na rede da UFSM e celular no 5G):** os passos 1–5 e 7 como esperado; modo avião: saída vista em ~1 min 50 s e volta quase na hora (o roteiro dizia "até ~1 min" e foi corrigido para "até ~3 min"; o jogo usa o sinal de vida de 20 s); tela bloqueada: saída em ~20 s; no passo 8 a sala some, mas o celular continua mostrando "Conectado" até sair (BUG-031, só a página de teste). A rede da UFSM não bloqueou o Firebase. |
+| M22 | **P1** ✅ 👤 (20/10/2026, UFSM: Chrome e Edge no notebook, celular no 5G) | Troca de host em navegadores e redes reais, com a pergunta aberta | Roteiro M22 de `manual-test-scripts.md` (computador no Wi-Fi, outro navegador, celular nos dados móveis); inclui o F5 de um jogador com a sala sem host | Outro assume em ~10–20 s, a mesma pergunta continua e a resposta vale; o host antigo volta como jogador comum; o F5 com a sala sem host volta à partida em até ~20 s (nos automatizados: troca em 10,7 s no E31 e F5 em 9,0 s no E36, 18/10/2026) |
 
 Os manuais da troca de host M3, M4, M5, M11, M12, M19 e M20 passaram a
 ser cobertos pelos cenários E31–E35; o M22 confere a troca com aparelhos
