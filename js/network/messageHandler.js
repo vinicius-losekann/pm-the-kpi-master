@@ -93,6 +93,8 @@ function handleMessage(msg, fromPeerId) {
         case 'round-start':
             state.roundEnded = false;
             storeAnsweredThisRound(msg.answeredThisRound);
+            if (typeof msg.roundNumber === 'number') state.roundNumber = msg.roundNumber;
+            console.log('🎯 Rodada ' + msg.roundNumber + ' — ' + msg.asker + ' pergunta para ' + msg.answerer);
             state.currentRound = {
                 event: msg.event,
                 asker: msg.asker,

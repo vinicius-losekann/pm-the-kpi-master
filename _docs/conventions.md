@@ -49,7 +49,7 @@ Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` o
 | `join-rejected` | host → quem tentou entrar (pela caixa de avisos dele) | `reason`: `version-mismatch` (outra versão do jogo — conferida antes de tudo), `device-in-use` (o aparelho já está na sala com outro nome), `room-full`, `room-locked` (partida em andamento, nome novo), `name-taken` (nome de quem está conectado), `identity-mismatch` (nome de quem caiu, vindo de outro aparelho). O aviso de cada motivo fica em `handleJoinRejected()` (`network/messageHandler.js`), que também mostra as recusas da abertura da sala no jogo (`room-not-found`, `tab-in-use`) |
 | `state-sync` | host → quem entra ou volta | `fullState` com os jogadores (`players`), a rodada como quem entra pode vê-la (`currentRound`: `event`, `asker`, `answerer`, `question` — o gabarito só para o Perguntador —, `answered`, `asked` — a pergunta já foi feita; sem o campo, já foi —, as horas de término e o apoio; sem `pendingAnswer`), `endsAt` (hora de término da partida), `roundEnded`, `matchPaused`, `answeredThisRound` (quem já respondeu na rodada), `gameOver` e `finalRanking` (fim de jogo), `feedCursor` (o último aviso para todos que o estado já inclui); sem os baralhos (ficam só com o host) |
 | `game-start` | host → todos | `endsAt` — a partida começou; hora de término dela |
-| `round-start` | host → todos | `event`, `asker`, `answerer`, `answeredThisRound` |
+| `round-start` | host → todos | `event`, `asker`, `answerer`, `answeredThisRound`, `roundNumber` (número da rodada na partida; a troca de dupla dentro da rodada manda o mesmo número) |
 | `question` | host → Perguntador (no início da rodada) e Respondedor (quando a pergunta é feita) | a pergunta; `isAsker` (com o gabarito `correct`) ou `isAnswerer` (sem o gabarito, com `answerEndsAt`, a hora de término do prazo de resposta) |
 | `ask-question` | Perguntador → host | `playerName` — clicou em "Fazer a pergunta" |
 | `question-asked` | host → todos | a pergunta foi feita; `auto` (true quando foi o prazo do Perguntador, `ASK_TIMEOUT`, e não o clique) |
@@ -108,6 +108,7 @@ A regra geral: **nome é em inglês; texto é em português.** Nome é tudo que 
   | sortear / acertou / KPI ganho | draw / isCorrect / kpiGained |
   | partida pausada / rodada encerrada / fim de jogo | paused / round ended / game over |
   | quem já respondeu na rodada (rodízio) | answeredThisRound |
+  | número da rodada / evento da rodada | `roundNumber` / `roundEvent` |
   | relógio / prazo | clock / timeout |
   | fazer a pergunta (etapa do Perguntador) / pergunta feita / prazo do Perguntador | ask (`ask-question`, `askQuestion`) / asked (`question-asked`) / `askTimeout` (`ASK_TIMEOUT`) |
   | tempo que resta para responder / tempo esgotado | answer time left (`answerTimeLeft`) / timed out (`timedOut`) |

@@ -137,6 +137,13 @@
   host sem dois hosts ao mesmo tempo).
 
 ### Fixed
+- **Evento repetido quando alguém da dupla cai (BUG-032):** quando quem
+  perguntava ou respondia caía ou saía da partida, a dupla nova vinha com
+  o aviso de outro evento, e o efeito dele era aplicado de novo (outro
+  recurso a mais, outro corte). Agora a dupla nova continua a mesma
+  rodada, com o mesmo evento; o evento só sai no "Nova Rodada". O console
+  de cada jogador mostra o número da rodada ("🎯 Rodada N") a cada dupla.
+  Testes T209 e T210.
 - **Jogador desconectado com a página aberta (BUG-030):** quem deixava a
   janela do jogo escondida por alguns minutos (atrás de outra janela ou
   minimizada) aparecia como desconectado (📴) e saía do sorteio, e só

@@ -31,6 +31,8 @@ function resetGameState(state, config) {
     state.gameOver = false;
     state.currentRound = null;
     state.answeredThisRound = [];
+    state.roundNumber = 0;
+    state.roundEvent = null;
     state.timer = config.GAME.SESSION_DURATION;
     state.endsAt = null;
     clearInterval(state.timerInterval);

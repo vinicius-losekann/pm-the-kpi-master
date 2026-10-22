@@ -26,6 +26,8 @@ const gameState = {
     finalRanking: null,          // ranking do fim da partida (F5 e volta na tela final)
     questionsData: null,
     answeredThisRound: [],
+    roundNumber: 0,              // número da rodada na partida (sobe no "Nova Rodada"; o guest guarda o do round-start)
+    roundEvent: null,            // host: evento da rodada, para as trocas de dupla dentro dela
     // Campos para timeouts (não persistidos)
     answerTimeout: null,
     advisoryTimeout: null,

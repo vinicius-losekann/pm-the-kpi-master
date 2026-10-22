@@ -426,6 +426,15 @@ test('T209 Troca de dupla no meio da rodada não sorteia evento: quem está na d
     guest.Game.network.handleMessage(JSON.parse(JSON.stringify(second)), 'sala');
     check(guest.state.roundNumber === 2 && guest.record.logs.some(l => /Rodada 2\b/.test(l)),
         'o guest deveria guardar a rodada 2 e mostrar "Rodada 2" no console, veio: ' + JSON.stringify({ n: guest.state.roundNumber, logs: guest.record.logs.slice(-3) }));
+
+    // Partida nova: o número e o evento da rodada não sobram da anterior.
+    env.Game.resetGameState();
+    check(env.state.roundNumber === 0 && env.state.roundEvent === null,
+        'voltar ao lobby deveria zerar o número e o evento da rodada, veio: ' + JSON.stringify({ n: env.state.roundNumber, event: env.state.roundEvent }));
+    env.fakeClock();
+    env.state.roundNumber = 5;
+    env.Game.core.startGame();
+    check(env.state.roundNumber === 1, 'a partida nova deveria começar na rodada 1, veio: ' + env.state.roundNumber);
 });
 
 test('T208 Volta pelo sinal de vida (receivePresence com o sinal de volta, sem player-join): na partida, quem estava desconectado volta à lista e ao sorteio, todos recebem a lista, sem state-sync, a rodada não muda e o estado é salvo; com a partida pausada, retoma com o mesmo evento, sem reexibir o evento; quem não estava desconectado, quem não é jogador, o lobby e o fim de jogo: nada muda (BUG-030)', (use) => {

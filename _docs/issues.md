@@ -25,22 +25,6 @@ novo apareceu "sala não encontrada". Local: `js/network/connectionCheck.js`
 `firebase-check.html`: o jogo avisa todos com `session-ended`. Reproduzir:
 M21, passo 8, olhando a tela do celular.
 
-**BUG-032 — Troca de dupla por queda sorteia outro evento no meio da
-rodada.** No M7 e no M8 na UFSM (20/10/2026), quando quem estava na dupla
-caiu, a pergunta foi descartada (como deve) e apareceu o aviso de um
-evento, como se fosse uma rodada nova. Causa: as trocas de dupla que não
-vêm da resposta chamam `pickNewPair()` sem o evento da rodada
-(`engine/turnEngine.js`), e sem evento ele sorteia outro, aplica os
-efeitos (`applyDrawnEvent()`) e mostra o aviso a todos. Acontece em
-`abortRoundIfParticipant()` (`engine/sessionEngine.js`, queda ou saída
-de quem está na dupla), em `handleAnswer()` (`engine/answerEngine.js`,
-quem responde sumiu da lista) e na retomada do host sem rodada
-(`resumeMatchAfterReload()`, inclusive depois da troca de host com o host
-antigo na dupla, em que `takeOverMatch()` zera a rodada). Para quem joga:
-uma queda dá à rodada um segundo evento (outro +1 de recurso, outro
-Corte...), e quem caiu fica fora dele. Reproduzir: 3 jogadores, quem
-responde fecha a aba e espera 20 s.
-
 **BUG-033 — Queda curta de rede (10 s) descartou a pergunta.** No M7.1 na
 UFSM (20/10/2026), o celular ficou 10 s em modo avião e voltou à rede em
 menos de 5 s, mas a pergunta dele foi descartada e saiu outra dupla —
@@ -113,6 +97,7 @@ automatizado — os números (T…, E…) são os de `tests/logic` e
 | BUG-028 | Com a assessoria ou a ajuda pendente, o contador de quem responde continuava descendo e podia chegar a 0 (relatado na partida de teste da UFSM, 15/10/2026); no fim do apoio, o prazo voltava inteiro | O host parava o prazo (`handleAdvisoryRequest()`, `engine/advisoryEngine.js`) e rearmava o prazo inteiro no fim; `showAdvisoryStarted()` (`ui/modals/advisoryModal.js`) não parava o contador da tela, e `showAdvisoryResult()` não o religava | O host guarda o que faltava (`pauseAnswerTimeout()`, `answerTimeLeft`) e continua dele; o `advisory-started` para o contador e o `advisory-result` o religa do tempo que faltava (protocolo 9) — T134, T135 |
 | BUG-029 | Com a janela da partida abaixo de 1200 px de largura (notebook com a janela pela metade, tablet, celular), o card "🏆 Ranking" e o "👥 Jogadores" desapareciam: quem jogava não via a classificação nem quem estava desconectado (📴) (achado em 19/10/2026, ao estreitar a janela no teste M22) | `.sidebar-right { display: none; }` no `@media (max-width: 1200px)` de `css/style.css`: a coluna esquerda e a área da pergunta se ajustavam, a direita era escondida | Entre 769 e 1200 px, ranking e jogadores ficam abaixo da área da pergunta, lado a lado enquanto couberem, com o perfil na coluna da esquerda; no celular, uma coluna: pergunta, perfil, "Nova Rodada", ranking e jogadores e, no fim, "Sair da Partida" e "Encerrar Partida" (`grid-template-areas` e, no celular, a coluna do perfil em `display: contents` com `order`) — E37 |
 | BUG-030 | Jogador com a página aberta aparecia como desconectado (📴) para o host e ficava fora do sorteio até dar F5, mesmo jogando com a janela visível (achado no M22 em casa, 19/10/2026: depois de uma troca de host, o host antigo, agora jogador comum, ficou 📴 com as duas janelas lado a lado; o `lastSeen` dele em `rooms/<sala>/presence` andava a cada 2 s) | O host só tratava a presença que cai (`receivePresence()`, `network/roomLink.js`, ignorava `online = true`); quem foi dado como caído só voltava mandando `player-join`, e o guest só manda quando a conexão dele cai e volta, quando o host volta ou na troca de host. Com o sinal parado sem a conexão cair (janela escondida por mais de 5 min, com o timer do sinal de minuto em minuto) e depois de volta, nada trazia o jogador de volta | O host traz de volta quem tinha dado como caído quando o sinal volta (`handlePlayerReturn()`, `network/messageHandler.js`: sai do 📴, `player-list` para todos, retoma a partida pausada, salva; sem `state-sync`). No canal (`checkPresence()`, `network/roomChannel.js`), a volta exige o sinal online e novo de verdade (a carência da volta da conexão do host não conta) e dois sinais seguidos no ritmo — a aba escondida não fica indo e voltando; na primeira leitura, quem está offline com o sinal recente fica em espera. Protocolo 12 e estado salvo 9 iguais — T205–T208 (ajustes no T189 e no T190) · E38 |
+| BUG-032 | Quando quem estava na dupla caía, a pergunta era descartada (como deve) e aparecia o aviso de outro evento, como se fosse uma rodada nova: a rodada ganhava um segundo evento (outro +1 de recurso, outro Corte...), e quem caiu ficava fora dele (achado no M7 e no M8 na UFSM, 20/10/2026) | As trocas de dupla que não vêm da resposta chamavam `pickNewPair()` sem o evento da rodada (`engine/turnEngine.js`), e sem evento ele sorteava outro, aplicava os efeitos e mostrava o aviso a todos: em `abortRoundIfParticipant()` (queda ou saída de quem está na dupla), em `handleAnswer()` (quem responde sumiu da lista) e na retomada do host sem dupla (`resumeMatchAfterReload()`, inclusive depois da troca de host com o host antigo na dupla) | O evento só sai no início da rodada (`startNewRound()`), que guarda o evento e o número da rodada no estado do host e no estado salvo (`roundEvent`, `roundNumber`); `pickNewPair()` sem evento continua com o `roundEvent`, sem aviso nem efeito. O número vai no `round-start` e aparece no console de cada aparelho ("🎯 Rodada N"), para conferir que a troca de dupla não começou outra rodada. Protocolo 12 e estado salvo 9 iguais (campos novos opcionais) — T209, T210 (ajuste no T89) |
 
 ## Limpezas concluídas
 

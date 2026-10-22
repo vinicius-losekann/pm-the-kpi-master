@@ -25,6 +25,8 @@ function startGame() {
     state.gameStarted = true;
     state.gameOver = false;
     state.answeredThisRound = [];
+    state.roundNumber = 0;
+    state.roundEvent = null;
 
     Game.resetAllPlayers();
 

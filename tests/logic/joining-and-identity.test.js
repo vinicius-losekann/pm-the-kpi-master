@@ -803,10 +803,15 @@ test('T89 Versão do jogo 5: eventos só com os nomes novos (events, title, desc
     check(saved.stateVersion >= 5 && saved.currentRound && fields(saved.currentRound.event) === fields(byId('e1')),
         'o estado salvo deveria ficar na versão 5 ou mais, com o evento da rodada nos nomes novos, veio: ' + JSON.stringify(saved.currentRound && saved.currentRound.event));
 
-    // Dupla sem evento (pickNewPair sem argumento) também sorteia de questionsData.events.
+    // Dupla sem evento (pickNewPair sem argumento) no meio da rodada não
+    // sorteia (BUG-032); sem o evento da rodada (estado salvo antigo),
+    // começa uma rodada e sorteia de questionsData.events.
+    env.Game.engine.turn.pickNewPair();
+    check(drawnFrom.length === 1, 'a troca de dupla no meio da rodada não deveria sortear evento, sorteou ' + (drawnFrom.length - 1) + ' vez(es)');
+    env.state.roundEvent = null;
     env.Game.engine.turn.pickNewPair();
     check(drawnFrom.length === 2 && drawnFrom[1] === env.state.questionsData.events,
-        'a dupla sem evento deveria sortear de questionsData.events, sorteou de: ' + JSON.stringify(drawnFrom.slice(1)));
+        'sem o evento da rodada, a dupla sem evento deveria sortear de questionsData.events, sorteou de: ' + JSON.stringify(drawnFrom.slice(1)));
 
     // 5) Telas reais: modal do evento e cartão do evento na rodada.
     const screens = guestWithScreens(use, env, 'B', ['js/ui/modals/eventModal.js', 'js/ui/components/questionComponent.js']);

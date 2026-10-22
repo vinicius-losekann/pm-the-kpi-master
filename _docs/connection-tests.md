@@ -148,8 +148,6 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 
 - BUG-031 (só a página `firebase-check.html`): quem entrou continua
   mostrando a sala depois de o dono sair (M21, passo 8).
-- BUG-032: a troca de dupla por queda sorteia e aplica outro evento no
-  meio da rodada (M7 e M8, 20/10/2026).
 - BUG-033: a queda curta de rede (10 s) descartou a pergunta (M7.1,
   20/10/2026) — em investigação.
 

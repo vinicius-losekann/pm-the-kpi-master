@@ -31,6 +31,10 @@ function startNewRound() {
         return;
     }
 
+    // Número e evento da rodada: as trocas de dupla dentro dela
+    // (pickNewPair() sem evento) continuam com os dois (BUG-032).
+    state.roundNumber = (state.roundNumber || 0) + 1;
+    state.roundEvent = event;
     const eventEffect = applyDrawnEvent(event);
     pickNewPair(event, 0, true, eventEffect);
 }
@@ -49,6 +53,12 @@ function applyDrawnEvent(event) {
 /**
  * Escolhe aleatoriamente um Perguntador e um Respondedor entre os
  * jogadores ativos, respeitando o rodízio.
+ *
+ * Sem evento (troca de dupla no meio da rodada: quem estava na dupla caiu
+ * ou saiu, quem responde sumiu, retomada do host sem dupla), continua a
+ * rodada com o evento dela (`state.roundEvent`), sem o aviso e sem aplicar
+ * o efeito de novo — o evento só sai no início da rodada (startNewRound()).
+ * Sem o evento da rodada (estado salvo de antes do campo), começa uma.
  * @param {object} event – o evento da rodada (reaproveitado entre perguntas da mesma rodada)
  * @param {number} depth – profundidade da recursão (previne loops infinitos)
  * @param {boolean} showModal – se true, exibe o modal de evento agora
@@ -67,11 +77,12 @@ function pickNewPair(event = null, depth = 0, showModal = true, eventEffect = nu
         return;
     }
 
-    // Se não foi passado um evento, sorteia um novo
-    if (!event) {
-        event = Game.domain.event.drawEvent(state.questionsData?.events || []);
-        if (!event) return;
-        eventEffect = applyDrawnEvent(event);
+    if (!event && state.roundEvent) {
+        event = state.roundEvent;
+        showModal = false;
+    } else if (!event) {
+        startNewRound();
+        return;
     }
 
     // O modal do evento só aparece no início de uma rodada nova
@@ -151,18 +162,20 @@ function pickNewPair(event = null, depth = 0, showModal = true, eventEffect = nu
         asked: false
     };
 
-    console.log('🎯 Nova dupla:', asker.name, 'pergunta para', answerer.name);
+    console.log('🎯 Rodada ' + state.roundNumber + ' — nova dupla: ' + asker.name + ' pergunta para ' + answerer.name);
     console.log('📋 Evento:', event.title);
 
     // `answeredThisRound` = quem já respondeu nesta rodada (vazio
     // numa rodada nova). Os guests guardam — quem assumir como host
-    // continua o rodízio de onde parou.
+    // continua o rodízio de onde parou. `roundNumber`: para o console de
+    // cada um mostrar em que rodada está.
     Game.network.broadcastAll({
         type: 'round-start',
         event,
         asker: asker.name,
         answerer: answerer.name,
-        answeredThisRound: state.answeredThisRound.slice()
+        answeredThisRound: state.answeredThisRound.slice(),
+        roundNumber: state.roundNumber
     });
 
     // Ordem das telas: para os GUESTS, 'round-start'

@@ -256,6 +256,10 @@ function saveState() {
         endsAt: state.endsAt ?? null,
         gameStarted: state.gameStarted,
         answeredThisRound: state.answeredThisRound,
+        // Número e evento da rodada: a retomada sem dupla continua a
+        // mesma rodada, sem sortear outro evento (BUG-032).
+        roundNumber: state.roundNumber || 0,
+        roundEvent: state.roundEvent || null,
         // Sem estes dois, um F5 do host com a rodada encerrada
         // ou com a partida pausada perdia essa situação (ver
         // resumeMatchAfterReload() em engine/sessionEngine.js).
@@ -311,6 +315,10 @@ function restoreSavedState(saved) {
     // Sem baralhos salvos, ficam os montados pelo loadQuestions() (main.js).
     if (room.decks && Object.keys(room.decks).length > 0) state.decks = room.decks;
     state.answeredThisRound = room.answeredThisRound || [];
+    // Estado salvo antes dos campos: rodada 0 e sem evento (a retomada
+    // sem dupla começa uma rodada, como antes).
+    state.roundNumber = Number.isInteger(room.roundNumber) ? room.roundNumber : 0;
+    state.roundEvent = room.roundEvent || null;
     // Estado salvo por versões anteriores não tem os campos: sem rodada
     // encerrada e sem pausa.
     state.roundEnded = !!room.roundEnded;
