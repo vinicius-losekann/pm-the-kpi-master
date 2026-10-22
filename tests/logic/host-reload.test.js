@@ -168,6 +168,41 @@ test('T55 F5 do host com a partida pausada: continua pausada com o mesmo evento 
     check(draws === 0 && effects === 0, 'a retomada também não sorteia nem reaplica');
 });
 
+test('T210 F5 do host sem dupla no meio da rodada (ex.: a troca de host com o host antigo na dupla zera a dupla): a retomada forma outra dupla com o MESMO evento e o mesmo número de rodada (guardados no estado salvo), sem sortear evento, sem aviso e sem aplicar efeito de novo (BUG-032)', (use) => {
+    const env = use(createEnvironment());
+    roomToReload(env);
+    env.join('A', 'peer-a');
+    env.join('B', 'peer-b');
+    env.startMatch();
+    env.Game.core.startNewRound();
+    const event = env.state.currentRound.event;
+    check(env.state.roundNumber === 2, 'pré-condição: rodada 2, veio: ' + env.state.roundNumber);
+    env.state.currentRound = null;
+    env.Game.saveState();
+    const saved = savedState(env);
+    check(saved && saved.roundNumber === 2 && saved.roundEvent && saved.roundEvent.id === event.id,
+        'o estado salvo deveria guardar o número e o evento da rodada, veio: ' + JSON.stringify(saved && { roundNumber: saved.roundNumber, roundEvent: saved.roundEvent }));
+
+    const reloaded = use(reloadHost(env));
+    const ev = reloaded.Game.domain.event;
+    const originalDraw = ev.drawEvent;
+    const originalApply = ev.applyEventEffects;
+    let draws = 0;
+    let effects = 0;
+    ev.drawEvent = (...a) => { draws++; return originalDraw(...a); };
+    ev.applyEventEffects = (...a) => { effects++; return originalApply(...a); };
+    reloaded.clearLog();
+    reloaded.Game.core.resumeMatchAfterReload();
+    const r = reloaded.state.currentRound;
+    check(r && r.asker && r.answerer && r.event && r.event.id === event.id,
+        'a retomada deveria formar outra dupla com o mesmo evento, veio: ' + JSON.stringify(r && { asker: r.asker, event: r.event }));
+    check(draws === 0 && effects === 0 && reloaded.broadcastsOfType('show-event').length === 0 && !reloaded.record.ui.includes('showEventModal'),
+        'a retomada não pode sortear evento, aplicar efeito nem mostrar o aviso (sorteios: ' + draws + ', efeitos: ' + effects + ')');
+    const start = reloaded.broadcastsOfType('round-start').pop();
+    check(reloaded.state.roundNumber === 2 && start && start.roundNumber === 2,
+        'continua a rodada 2, veio: ' + JSON.stringify({ state: reloaded.state.roundNumber, msg: start && start.roundNumber }));
+});
+
 test('T56 F5 do host com a pergunta aberta e sem rodada: a mesma pergunta; relógio e prazo de resposta continuam de onde estavam', (use) => {
     // Pergunta aberta há 20 s: reexibida; relógio e prazo de resposta seguem pela hora de término.
     const env = use(createEnvironment());

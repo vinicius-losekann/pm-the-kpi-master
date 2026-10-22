@@ -355,6 +355,79 @@ test('T52 Retomar a pausa quando todos os conectados já responderam: encerra a 
         'faltando A, a retomada deveria sortear A');
 });
 
+/** Conta, no ambiente, os sorteios de evento e as aplicações de efeito. */
+function countEvents(env) {
+    const ev = env.Game.domain.event;
+    const originalDraw = ev.drawEvent;
+    const originalApply = ev.applyEventEffects;
+    const counts = { draws: 0, effects: 0 };
+    ev.drawEvent = (...a) => { counts.draws++; return originalDraw(...a); };
+    ev.applyEventEffects = (...a) => { counts.effects++; return originalApply(...a); };
+    return counts;
+}
+
+test('T209 Troca de dupla no meio da rodada não sorteia evento: quem está na dupla cai, sai da partida ou some da lista na hora de responder — a dupla nova continua a mesma rodada (mesmo evento, mesmo número), sem aviso do evento e sem aplicar o efeito de novo; o número da rodada sobe só no "Nova Rodada", vai no round-start e aparece no console do host e do guest (BUG-032)', (use) => {
+    const env = use(createEnvironment());
+    const time = env.fakeTime();
+    env.createRoomAsHost();
+    env.join('A', 'peer-a');
+    env.join('B', 'peer-b');
+    env.join('C', 'peer-c');
+    env.startMatch();
+    check(env.state.roundNumber === 1, 'a primeira rodada da partida deveria ser a 1, veio: ' + env.state.roundNumber);
+    const firstStart = env.broadcastsOfType('round-start').pop();
+    check(firstStart && firstStart.roundNumber === 1, 'o round-start deveria levar o número da rodada (1), veio: ' + JSON.stringify(firstStart && firstStart.roundNumber));
+    check(env.record.logs.some(l => /Rodada 1\b/.test(l)), 'o console do host deveria mostrar "Rodada 1", veio: ' + JSON.stringify(env.record.logs.slice(-5)));
+    const event = env.state.currentRound.event;
+    const counts = countEvents(env);
+
+    // Quem responde cai.
+    env.state.currentRound = { event, asker: 'Host', answerer: 'A', question: null, answered: false };
+    env.clearLog();
+    env.drop('peer-a');
+    const afterDrop = env.state.currentRound;
+    check(afterDrop && afterDrop.answerer !== 'A' && afterDrop.asker !== 'A', 'pré-condição: dupla nova sem A');
+    check(afterDrop.event && afterDrop.event.id === event.id, 'a dupla nova deveria continuar com o MESMO evento, veio: ' + JSON.stringify(afterDrop.event));
+    check(counts.draws === 0 && counts.effects === 0, 'a queda não pode sortear outro evento nem aplicar efeito (sorteios: ' + counts.draws + ', efeitos: ' + counts.effects + ')');
+    check(env.broadcastsOfType('show-event').length === 0 && !env.record.ui.includes('showEventModal'), 'a queda não deveria mostrar aviso de evento');
+    const dropStart = env.broadcastsOfType('round-start').pop();
+    check(env.state.roundNumber === 1 && dropStart && dropStart.roundNumber === 1,
+        'a dupla nova é da mesma rodada (1), veio: ' + JSON.stringify({ state: env.state.roundNumber, msg: dropStart && dropStart.roundNumber }));
+
+    // Quem pergunta sai da partida.
+    env.state.currentRound = { event, asker: 'B', answerer: 'Host', question: null, answered: false };
+    env.clearLog();
+    env.Game.core.handleLeaveMatchRequest({ type: 'leave-match-request', playerName: 'B' });
+    const afterLeave = env.state.currentRound;
+    check(afterLeave && afterLeave.asker !== 'B' && afterLeave.event && afterLeave.event.id === event.id && env.broadcastsOfType('show-event').length === 0,
+        'a saída de quem pergunta também continua a rodada com o mesmo evento, sem aviso, veio: ' + JSON.stringify(afterLeave && afterLeave.event));
+
+    // Quem responde sumiu da lista na hora da resposta.
+    env.state.currentRound = { event, asker: 'Host', answerer: 'Z', question: { question: 'P?', correct: 'A' }, answered: false, asked: true };
+    env.clearLog();
+    env.Game.engine.answer.handleAnswer({ alternative: 'A', playerName: 'Z' });
+    time.advance(1000);
+    const afterMissing = env.state.currentRound;
+    check(afterMissing && afterMissing.answerer !== 'Z' && afterMissing.event && afterMissing.event.id === event.id && env.broadcastsOfType('show-event').length === 0,
+        'sem quem responde, a dupla nova continua com o mesmo evento, sem aviso, veio: ' + JSON.stringify(afterMissing && { answerer: afterMissing.answerer, event: afterMissing.event }));
+    check(counts.draws === 0 && counts.effects === 0 && env.state.roundNumber === 1,
+        'nenhuma troca de dupla deveria sortear evento nem mudar o número da rodada (sorteios: ' + counts.draws + ', rodada: ' + env.state.roundNumber + ')');
+
+    // "Nova Rodada": outro evento, número 2.
+    env.clearLog();
+    env.Game.core.startNewRound();
+    const second = env.broadcastsOfType('round-start').pop();
+    check(env.state.roundNumber === 2 && second && second.roundNumber === 2 && counts.draws === 1 && env.broadcastsOfType('show-event').length === 1,
+        'o "Nova Rodada" sorteia o evento e começa a rodada 2, veio: ' + JSON.stringify({ state: env.state.roundNumber, msg: second && second.roundNumber, draws: counts.draws }));
+
+    // O guest guarda o número e mostra no console.
+    const guest = use(createEnvironment());
+    guest.state.playerName = 'C';
+    guest.Game.network.handleMessage(JSON.parse(JSON.stringify(second)), 'sala');
+    check(guest.state.roundNumber === 2 && guest.record.logs.some(l => /Rodada 2\b/.test(l)),
+        'o guest deveria guardar a rodada 2 e mostrar "Rodada 2" no console, veio: ' + JSON.stringify({ n: guest.state.roundNumber, logs: guest.record.logs.slice(-3) }));
+});
+
 test('T208 Volta pelo sinal de vida (receivePresence com o sinal de volta, sem player-join): na partida, quem estava desconectado volta à lista e ao sorteio, todos recebem a lista, sem state-sync, a rodada não muda e o estado é salvo; com a partida pausada, retoma com o mesmo evento, sem reexibir o evento; quem não estava desconectado, quem não é jogador, o lobby e o fim de jogo: nada muda (BUG-030)', (use) => {
     const env = use(createEnvironment());
     env.createRoomAsHost();
