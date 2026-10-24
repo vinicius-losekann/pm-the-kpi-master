@@ -27,13 +27,33 @@ M21, passo 8, olhando a tela do celular.
 
 **BUG-033 — Queda curta de rede (10 s) descartou a pergunta.** No M7.1 na
 UFSM (20/10/2026), o celular ficou 10 s em modo avião e voltou à rede em
-menos de 5 s, mas a pergunta dele foi descartada e saiu outra dupla —
-ou seja, o host o deu como caído, o que pela tolerância (20 s de sinal
-parado) não deveria acontecer. Causa ainda não conhecida; hipóteses: a
-conexão do Firebase no celular demora mais a voltar do que a rede (o
-sinal fica parado além dos 20 s), ou o sinal já estava atrasado antes do
-modo avião. Falta repetir com a hora de cada linha do console do host.
+menos de 5 s, mas a pergunta dele foi descartada e saiu outra dupla.
+Repetido em casa (24/10/2026, celular nos dados móveis, console do host
+com a hora): **a conexão do celular com o Firebase demora de 18 s a 60 s
+para voltar depois que a rede volta**, e o sinal de vida fica parado
+além dos 20 s de tolerância (`PRESENCE_TIMEOUT`). Numa queda de 10 s, o
+sinal ficou parado ~50 s (de ~10:21:05 até a volta às 10:21:55); numa de
+41 s (10:39:11–10:39:52), a volta só veio às 10:40:52. O host faz o que
+a regra manda — `handlePlayerDisconnect()` → `abortRoundIfParticipant()`
+(`network/messageHandler.js`, `engine/sessionEngine.js`) é o único
+caminho que descarta a pergunta por queda; o `player-join` da volta não
+descarta nada. Falta o desenho da correção (aprovação do titular).
 Reproduzir: M7.1.
+
+**BUG-034 — Resposta mandada sem conexão pode valer para outra
+pergunta.** No M7.1 em casa (24/10/2026), o celular respondeu durante a
+queda; o pedido ficou na fila do Firebase e chegou ao host na volta
+(10:40:52), depois de a rodada acabar, e foi ignorado. Se tivesse chegado
+com o mesmo jogador respondendo outra pergunta, valeria para ela, com a
+alternativa da pergunta antiga: o `answer` leva só `alternative` e
+`playerName` (`ui/components/questionComponent.js`), e o host confere só
+quem responde e se a rodada já foi respondida (`handleMessage()`,
+`network/messageHandler.js`; `handleAnswer()`, `engine/answerEngine.js`).
+O caso é possível: na volta, o 🔙 chega ~0,3 s antes da fila (o sinal de
+vida guardado sai junto), e a volta pode retomar a partida pausada e
+sortear o mesmo jogador (como às 10:21:55). O `ask-question` guardado tem
+o mesmo risco. Reproduzir: ainda sem roteiro (depende do sorteio);
+cabe em teste automático.
 
 ---
 
@@ -125,5 +145,5 @@ automatizado — os números (T…, E…) são os de `tests/logic` e
 - **Numeração:** BUG-xxx (bug), SEC-xxx (segurança), REGRESSÃO-xxx (algo
   que funcionava e quebrou numa mudança), NOTA-xxx (limpeza ou decisão que
   não é bug). Cada série continua do maior número já usado (próximos:
-  BUG-034, SEC-006, REGRESSÃO-004, NOTA-010). NOTA-003 a NOTA-005 são
+  BUG-035, SEC-006, REGRESSÃO-004, NOTA-010). NOTA-003 a NOTA-005 são
   decisões de arquitetura e ficam em `architecture.md`.
