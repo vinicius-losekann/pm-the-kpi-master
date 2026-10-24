@@ -1357,6 +1357,44 @@ asyncTest('T207 Volta pelo sinal de vida no jogo: na partida, Beto fica com a ja
         'Dani deveria receber o round-start da retomada, sem player-join nem state-sync, recebeu: ' + JSON.stringify(dani.types()));
 });
 
+asyncTest('T216 Troca de host com o host antigo na dupla (BUG-033): quem assume guarda a dupla do host antigo (mesmo Perguntador, mesma pergunta com o gabarito) até o fim da rodada, com a hora da queda dele, e a partida segue com outra dupla; quem assume vê "👑 Você agora é o host da partida" (o outro guest não, nem o F5 do host novo)', async () => {
+    const clock = { now: 1000 };
+    const { fake, host, beto, caio } = await roomOfThree(clock, { random: 0 });
+    const round = copy(host.env.state.currentRound);
+    check(round && round.answerer === 'Ana' && round.asker === 'Beto' && round.question && round.question.correct,
+        'pré-condição: Beto pergunta para Ana, veio: ' + JSON.stringify(round && { asker: round.asker, answerer: round.answerer }));
+    const guestScreens = { 'uid-beto': recordScreens(beto.env), 'uid-caio': recordScreens(caio.env) };
+    showTextValues(beto);
+    showTextValues(caio);
+
+    const { winner, others } = await waitForTakeover(fake, clock, host, [beto, caio]);
+    const other = others[0];
+    let screens = null;
+    const { again, opened } = await reloadTab(fake, clock, winner, (t) => { screens = recordScreens(t.env); showTextValues(t); });
+    const s = again.env.state;
+    check(opened && opened.takenOver === true, 'pré-condição: troca de host, veio: ' + JSON.stringify(opened));
+    const held = copy(s.heldPairs);
+    check(Array.isArray(held) && held.length === 1 && held[0].asker === 'Beto' && held[0].answerer === 'Ana' &&
+        held[0].question && held[0].question.question === round.question.question && held[0].question.correct === round.question.correct,
+        'quem assume deveria guardar a dupla de Ana (Beto pergunta, a mesma pergunta com o gabarito), veio: ' + JSON.stringify(held));
+    const ana = again.env.player('Ana');
+    check(ana && ana.disconnected === true && typeof ana.disconnectedAt === 'number' && ana.disconnectedAt <= clock.now,
+        'o host antigo fica desconectado, com a hora da queda, veio: ' + JSON.stringify(ana));
+    const r = s.currentRound;
+    check(r && !r.answered && r.asker !== 'Ana' && r.answerer !== 'Ana' && typeof r.pairId === 'number',
+        'a partida deveria seguir com outra dupla, sem Ana, veio: ' + JSON.stringify(r && { asker: r.asker, answerer: r.answerer, pairId: r.pairId }));
+    check(screens.some(c => c.name === 'showNotice' && c.args[0] === 'notice.youAreNewHost'),
+        'quem assumiu deveria ver "👑 Você agora é o host da partida", viu: ' + JSON.stringify(screens.filter(c => c.name === 'showNotice').map(c => c.args)));
+    check(!guestScreens[other.uid].some(c => c.name === 'showNotice' && c.args[0] === 'notice.youAreNewHost'),
+        other.name + ' não deveria ver o aviso de quem assumiu');
+
+    // F5 do host novo: sem troca, sem o aviso.
+    let screens2 = null;
+    const f5 = await reloadTab(fake, clock, again, (t) => { screens2 = recordScreens(t.env); showTextValues(t); });
+    check(f5.opened && f5.opened.isHost === true && !f5.opened.takenOver && !screens2.some(c => c.name === 'showNotice' && c.args[0] === 'notice.youAreNewHost'),
+        'no F5 do host novo (sem troca), não aparece "Você agora é o host", veio: ' + JSON.stringify({ opened: f5.opened, notices: screens2.filter(c => c.name === 'showNotice').map(c => c.args) }));
+});
+
 (async () => {
     for (const c of cases) {
         let error = null;

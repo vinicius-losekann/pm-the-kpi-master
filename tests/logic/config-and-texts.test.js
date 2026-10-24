@@ -61,7 +61,7 @@ test('T87 CONFIG em inglês: o jogo e os testes só usam chaves que existem no c
     // 1) O config real tem as chaves novas e nenhuma antiga.
     for (const keyPath of ['GAME.MAX_PLAYERS', 'GAME.MIN_PLAYERS', 'GAME.SESSION_DURATION', 'GAME.ACTIVITIES_PER_FOCUS_AREA',
         'GAME.ADVISORY_TIMEOUT', 'GAME.ANSWER_TIMEOUT', 'GAME.ASK_TIMEOUT', 'STARTING_RESOURCES',
-        'GAME.HEARTBEAT_INTERVAL', 'GAME.PRESENCE_TIMEOUT', 'GAME.HOST_TIMEOUT',
+        'GAME.HEARTBEAT_INTERVAL', 'GAME.PRESENCE_TIMEOUT', 'GAME.HOST_TIMEOUT', 'GAME.NOTICE_MS',
         'KPI.CORRECT_ANSWER', 'KPI.FINAL_RESOURCE_VALUE', 'RESOURCES.ADVISORY_FEE', 'RESOURCES.HELP_REWARD', 'RESOURCES.HELP_COVER']) {
         check(typeof valueAt(C, keyPath) === 'number', 'config/game-config.js deveria ter CONFIG.' + keyPath + ' (número)');
     }
@@ -222,7 +222,7 @@ const PEER_CONNECTION_KEYS = ['connection.reconnecting', 'connection.reconnectin
     'connection.searchingForNewHost', 'connection.couldNotReconnect', 'connection.hostTakeoverFailed'];
 const OLD_I18N_KEYS = Object.keys(I18N_RENAMES).concat(REMOVED_I18N_KEYS);
 const OLD_I18N_MARKERS = ['assessor', 'sugestao', 'perguntador', 'respondedor', 'recursos', 'valor', 'kpiRecursos'];
-const I18N_MARKERS = ['advisor', 'amount', 'answerer', 'asker', 'count', 'cover', 'giver', 'helper', 'kpi', 'min', 'name', 'names',
+const I18N_MARKERS = ['advisor', 'amount', 'answerer', 'asker', 'count', 'cover', 'elapsed', 'giver', 'helper', 'kpi', 'min', 'name', 'names',
     'receiver', 'requester', 'resources', 'resourcesKpi', 'reward', 'seconds', 'suggestion', 'value'];
 
 test('T88 Textos da tela em inglês: toda chave pedida existe no pt-BR.js real, toda chave dele é usada e cada chamada passa os marcadores do texto', () => {
@@ -230,7 +230,9 @@ test('T88 Textos da tela em inglês: toda chave pedida existe no pt-BR.js real, 
     const textKeys = keyPaths(dict).filter(p => typeof valueAt(dict, p) === 'string');
 
     // 1) O dicionário tem as chaves e os marcadores novos e nenhum antigo.
-    const missingNew = Object.values(I18N_RENAMES).concat(['lobby.badgeHost', 'advisory.timeout', 'result.kpiZero', 'connection.newHost'])
+    const missingNew = Object.values(I18N_RENAMES).concat(['lobby.badgeHost', 'advisory.timeout', 'result.kpiZero', 'connection.newHost',
+        'notice.answererDropped', 'notice.askerDropped', 'notice.youAreNewHost', 'question.waitingForDropped', 'question.waitingForDroppedHost',
+        'question.droppedFor', 'question.handOverButton', 'host.banner', 'ranking.hostBadge'])
         .filter(k => !PEER_CONNECTION_KEYS.includes(k) && !textKeys.includes(k));
     check(missingNew.length === 0, 'faltam no pt-BR.js as chaves novas: ' + missingNew.join(', '));
     const oldKeys = textKeys.filter(k => OLD_I18N_KEYS.includes(k));

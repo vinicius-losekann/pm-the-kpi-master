@@ -245,6 +245,66 @@ test('E38 Janela escondida: os timers da página de Beto param (sinal parado, p�
     await answerUntilRoundEnds(ana, [ana, beto, caio]);
 });
 
+test('E39 Quem responde fecha a aba no meio da pergunta (BUG-033): todos veem o aviso da queda, a dupla fica guardada e a partida segue sem ele; quando ele volta, a mesma pergunta reabre para ele e a resposta vale; o host vê a faixa 👑 e todos veem o 👑 ao lado do nome dele na lista', async ({ players }) => {
+    const code = roomCode();
+    const ana = await players.add('Ana');
+    const beto = await players.add('Beto');
+    const caio = await players.add('Caio');
+    await startMatch(ana, [beto, caio], code);
+    await expect(ana.page.locator('#hostBanner'), 'o host deveria ver a faixa "Você é o host"').toBeVisible();
+    await expect(ana.page.locator('#hostBanner')).toContainText('Você é o host');
+    await expect(beto.page.locator('#hostBanner'), 'o guest não vê a faixa do host').toBeHidden();
+    await expect(beto.page.locator('#playersOnlineList .online-player', { hasText: 'Ana' }), 'o 👑 deveria estar ao lado do nome do host').toContainText('👑');
+    await expect(beto.page.locator('#playersOnlineList .online-player', { hasText: 'Caio' })).not.toContainText('👑');
+
+    await waitForOpenQuestion(ana, [ana, beto, caio], [beto]);
+    const question = await ana.state(() => Game.state.currentRound.question.question);
+    const betoLink = await beto.closeTab();
+    await ana.waitFor(() => Game.state.players.find(p => p.name === 'Beto').disconnected === true, { timeout: DROP_WAIT });
+    await expect(caio.page.locator('#gameNotice'), 'Caio deveria ver o aviso da queda').toContainText('Beto caiu', { timeout: 10000 });
+    await expect(ana.page.locator('#gameNotice'), 'o host deveria ver o aviso da queda').toContainText('Beto caiu');
+    expect(await ana.state(() => (Game.state.heldPairs || []).map(p => p.answerer + ':' + p.question.question)),
+        'a pergunta de Beto deveria ficar guardada').toEqual(['Beto:' + question]);
+    await ana.waitFor(() => {
+        const r = Game.state.currentRound;
+        return (Game.state.waitingFor || []).length > 0 || (!!r && r.asker !== 'Beto' && r.answerer !== 'Beto');
+    }, { timeout: 15000 });
+
+    // Beto volta: a pergunta guardada reabre para ele (logo, se a rodada já esperava por ele; senão, depois da dupla da vez).
+    await beto.reopen(betoLink);
+    await expect.poll(() => beto.isConnectedToHost(), { timeout: 25000, message: 'Beto deveria voltar ligado ao host' }).toBe(true);
+    await ana.waitFor(() => Game.state.players.find(p => p.name === 'Beto').disconnected === false, { timeout: 25000 });
+    await waitForOpenQuestion(ana, [ana, beto, caio], [beto]);
+    expect(await beto.state(() => Game.state.currentRound.question.question), 'Beto deveria receber a mesma pergunta').toBe(question);
+    await beto.answerIfMyTurn();
+    await ana.waitFor(() => Game.state.answeredThisRound.includes('Beto'), { timeout: 10000 });
+    expect(await ana.state(() => Game.state.answeredThisRound.filter(n => n === 'Beto').length), 'a resposta de Beto conta uma vez').toBe(1);
+});
+
+test('E40 Espera do fim da rodada (BUG-033): quem cai e não volta segura o fim da rodada — o host vê "Esperando Fulano" com há quanto tempo caiu e o "Nova Rodada" liberado, os outros veem a espera; o "Nova Rodada" segue sem ele', async ({ players }) => {
+    const code = roomCode();
+    const ana = await players.add('Ana');
+    const beto = await players.add('Beto');
+    const caio = await players.add('Caio');
+    await startMatch(ana, [beto, caio], code);
+    await caio.closeTab();
+    await ana.waitFor(() => Game.state.players.find(p => p.name === 'Caio').disconnected === true, { timeout: DROP_WAIT });
+
+    await answerUntilRoundEnds(ana, [ana, beto]);
+    expect(await ana.state(() => Game.state.waitingFor), 'a rodada deveria esperar Caio').toEqual(['Caio']);
+    expect(await ana.state(() => Game.state.roundEnded), 'a rodada não fecha sem Caio').toBe(false);
+    await expect(ana.page.locator('#spectatorMessage')).toContainText('Esperando Caio');
+    await expect(ana.page.locator('#spectatorMessage'), 'o host deveria ver há quanto tempo Caio caiu').toContainText('caiu há');
+    await expect(beto.page.locator('#spectatorMessage'), 'Beto deveria ver a espera').toContainText('Esperando Caio voltar', { timeout: 10000 });
+    await expect(ana.page.locator('#btnNewRound'), 'na espera, o "Nova Rodada" fica liberado').toBeEnabled();
+
+    await ana.click('#btnNewRound');
+    await ana.waitFor(() => Game.state.roundNumber === 2 && !!Game.state.currentRound && (Game.state.waitingFor || []).length === 0, { timeout: 10000 });
+    const pair = await ana.state(() => [Game.state.currentRound.asker, Game.state.currentRound.answerer]);
+    expect(pair, 'a rodada nova segue sem Caio').not.toContain('Caio');
+    expect(await ana.state(() => (Game.state.heldPairs || []).length), 'nenhuma pergunta fica guardada para a rodada nova').toBe(0);
+});
+
 test('E19 Pedido de ajuda com 3 jogadores: quem está sem recursos pede ajuda na vez de responder, segue a sugestão certa e quem ajudou ganha a recompensa do patrocinador', async ({ players }) => {
     const code = roomCode();
     const ana = await players.add('Ana');

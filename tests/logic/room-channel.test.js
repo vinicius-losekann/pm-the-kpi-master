@@ -1361,6 +1361,53 @@ asyncTest('T206 Volta pelo sinal de vida — o que não traz ninguém de volta: 
         'Ana, fora há muito tempo, deveria aparecer caída uma vez, veio: ' + JSON.stringify(hostAgain.got.presence));
 });
 
+asyncTest('T218 Diagnóstico no console (BUG-033): o aparelho escreve uma linha quando a própria conexão com o banco cai e outra quando volta, com quanto tempo ficou fora — não no "desconectado" antes da primeira conexão; a queda avisada ao host leva a hora do último sinal de quem caiu (onPresence com lastSeen)', async () => {
+    const clock = { now: 1000 };
+    const fake = fakeWithServerTime(clock);
+    const seen = [];
+    const host = openDevice(fake, 'uid-host', clock, { onPresence: (who, online, lastSeen) => seen.push({ who, online, lastSeen }) });
+    await host.channel.createRoom('sala01', { protocolVersion: VERSION });
+    await flush();
+    clock.now = 2000;
+    const ana = openDevice(fake, 'uid-ana', clock);
+    await ana.channel.joinRoom('sala01', { protocolVersion: VERSION });
+    await host.channel.admit('uid-ana');
+    await flush();
+    const lines = (d, re) => d.logs.filter(l => re.test(l));
+    const fell = /Conexão com o banco caiu/;
+    const back = /Conexão com o banco voltou depois de (\d+) s/;
+
+    // Aparelho aberto já sem conexão: o "desconectado" inicial não é queda.
+    const caio = openDevice(fake, 'uid-caio', clock);
+    caio.device.goOffline();
+    await caio.channel.joinRoom('sala01', { protocolVersion: VERSION });
+    await flush();
+    check(lines(caio, fell).length === 0 && lines(host, fell).length === 0 && lines(ana, fell).length === 0,
+        'sem queda, nenhum aparelho deveria escrever que a conexão caiu, veio: ' + JSON.stringify(caio.logs.concat(ana.logs)));
+
+    // Ana perde a conexão por 7 s e volta.
+    ana.device.goOffline();
+    await flush();
+    check(lines(ana, fell).length === 1, 'Ana deveria escrever uma vez que a conexão caiu, veio: ' + JSON.stringify(ana.logs.slice(-3)));
+    await elapse(clock, 7000);
+    ana.device.goOnline();
+    await flush();
+    const backLine = lines(ana, back);
+    check(backLine.length === 1 && backLine[0].match(back)[1] === '7',
+        'Ana deveria escrever que a conexão voltou depois de 7 s, veio: ' + JSON.stringify(ana.logs.slice(-3)));
+
+    // Ana cai de vez: o host recebe a queda com a hora do último sinal dela.
+    await elapse(clock, 1000);
+    const droppedAt = clock.now;
+    ana.device.goOffline();
+    await flush();
+    await elapse(clock, TIMING.presenceTimeout + 2000);
+    const drop = seen.filter(p => p.who === 'uid-ana' && p.online === false);
+    check(drop.length === 1 && drop[0].lastSeen === droppedAt,
+        'o host deveria receber a queda de Ana com a hora do último sinal dela (' + droppedAt + '), veio: ' + JSON.stringify(drop));
+    check(lines(ana, fell).length === 2, 'cada queda da conexão deveria ter a linha, veio: ' + lines(ana, fell).length);
+});
+
 (async () => {
     for (const c of cases) {
         let error = null;

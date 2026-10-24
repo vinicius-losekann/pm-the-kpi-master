@@ -8,7 +8,7 @@
 // Checklist: _docs/connection-tests.md (M3, M4, M5, M11, M12, M19, M20).
 // ============================================
 
-const { test, expect, roomCode, startMatch, answerUntilRoundEnds, waitForHostBack, waitForNewHost } = require('./players');
+const { test, expect, roomCode, startMatch, answerUntilRoundEnds, waitForHostBack, waitForNewHost, roundStoppedInPage } = require('./players');
 
 /** A pergunta da vez, como a página a vê (função executada na página). */
 function roundInPage() {
@@ -36,7 +36,7 @@ async function waitForPairWithout(host, everyone, name) {
             if (await answerer.hasOpenQuestion()) return answerer;
         } else {
             for (const p of everyone) await p.answerIfMyTurn();
-            if (await host.state(() => Game.state.roundEnded === true)) await host.click('#btnNewRound');
+            if (await host.state(roundStoppedInPage)) await host.click('#btnNewRound');
         }
         await host.page.waitForTimeout(300);
     }
@@ -102,10 +102,11 @@ test('E32 Três jogadores, troca de host no meio da pergunta de um guest: quem r
     await newHost.waitFor((n) => Game.state.answeredThisRound.includes(n), { arg: answerer.name, timeout: 15000 });
     expect(await newHost.state((n) => Game.state.answeredThisRound.filter(x => x === n).length, answerer.name), 'a resposta conta uma vez').toBe(1);
 
-    // A partida segue entre os dois que ficaram.
+    // A partida segue entre os dois que ficaram (ou a rodada espera Ana, que caiu sem responder).
     await newHost.waitFor(() => {
         const r = Game.state.currentRound;
-        return Game.state.roundEnded === true || (!!r && !r.answered && r.asker !== 'Ana' && r.answerer !== 'Ana');
+        return Game.state.roundEnded === true || (Game.state.waitingFor || []).length > 0 ||
+            (!!r && !r.answered && r.asker !== 'Ana' && r.answerer !== 'Ana');
     }, { timeout: 15000 });
     await answerUntilRoundEnds(newHost, [beto, caio]);
 });
@@ -202,7 +203,8 @@ test('E35 Duas trocas de host seguidas (4 jogadores): o host cai, outro assume; 
     expect(dropped, 'os dois hosts que caíram ficam desconectados').toEqual([true, true]);
 
     // A partida continua com os dois que ficaram.
-    await third.waitFor(() => !Game.state.matchPaused && (Game.state.roundEnded === true || Game.state.currentRound !== null), { timeout: 15000 });
+    await third.waitFor(() => !Game.state.matchPaused &&
+        (Game.state.roundEnded === true || (Game.state.waitingFor || []).length > 0 || Game.state.currentRound !== null), { timeout: 15000 });
     await answerUntilRoundEnds(third, [third, last]);
 });
 

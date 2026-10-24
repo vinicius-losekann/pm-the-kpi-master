@@ -69,7 +69,9 @@ var CONFIG = {
         // jogo tem de ler o CONFIG, não um número fixo.
         HEARTBEAT_INTERVAL: 3000,
         PRESENCE_TIMEOUT: 15000,
-        HOST_TIMEOUT: 8000
+        HOST_TIMEOUT: 8000,
+        // Aviso curto no topo da tela (diferente do real, 4000).
+        NOTICE_MS: 3000
     },
     FOCUS_AREAS: [
         { id: 'initiating', name: 'Iniciação', emoji: '🚀' },
@@ -155,6 +157,7 @@ function createEnvironment(options = {}) {
             },
             deck: {
                 drawQuestion: () => ({ id: 'q1', question: 'Pergunta?', alternatives: ['A', 'B', 'C', 'D'], correct: 'A', domain_key: 'd1' }),
+                returnQuestion: () => {},
                 resetAllDecks: () => {}
             },
             ranking: {

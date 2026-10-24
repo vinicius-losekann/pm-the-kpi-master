@@ -283,14 +283,22 @@ async function startMatch(host, guests, code) {
 }
 
 /**
+ * A rodada parou à espera do host (função executada na página): encerrada
+ * ou esperando quem caiu voltar — nos dois casos, só o "Nova Rodada" segue.
+ */
+function roundStoppedInPage() {
+    return Game.state.roundEnded === true || (Game.state.waitingFor || []).length > 0;
+}
+
+/**
  * Faz a pergunta e responde (sempre a alternativa A) a cada vez que
  * alguém do grupo é o Perguntador ou o Respondedor, até o host marcar a
- * rodada como encerrada.
+ * rodada como encerrada (ou esperando quem caiu).
  */
 async function answerUntilRoundEnds(host, everyone) {
     const deadline = Date.now() + 60000;
     while (Date.now() < deadline) {
-        if (await host.state(() => Game.state.roundEnded === true)) return;
+        if (await host.state(roundStoppedInPage)) return;
         for (const p of everyone) await p.askIfMyTurn();
         for (const p of everyone) await p.answerIfMyTurn();
         await host.page.waitForTimeout(500);
@@ -300,9 +308,9 @@ async function answerUntilRoundEnds(host, everyone) {
 
 /**
  * Faz a partida andar (o host clica em "Nova Rodada" quando a rodada
- * acaba, o Perguntador faz a pergunta e quem tiver pergunta aberta fora
- * de `targets` responde) até um dos jogadores de `targets` estar com a
- * pergunta aberta. Devolve esse jogador.
+ * acaba ou espera quem caiu, o Perguntador faz a pergunta e quem tiver
+ * pergunta aberta fora de `targets` responde) até um dos jogadores de
+ * `targets` estar com a pergunta aberta. Devolve esse jogador.
  */
 async function waitForOpenQuestion(host, everyone, targets) {
     const deadline = Date.now() + 60000;
@@ -311,7 +319,7 @@ async function waitForOpenQuestion(host, everyone, targets) {
         for (const p of targets) {
             if (await p.hasOpenQuestion()) return p;
         }
-        if (await host.state(() => Game.state.roundEnded === true)) {
+        if (await host.state(roundStoppedInPage)) {
             await host.click('#btnNewRound');
         }
         for (const p of everyone) {
@@ -352,5 +360,5 @@ async function waitForNewHost(candidates, timeout = 25000) {
 
 module.exports = {
     test, expect, roomCode, startMatch, answerUntilRoundEnds,
-    waitForOpenQuestion, waitForHostBack, waitForNewHost, SITE, DROP_WAIT
+    waitForOpenQuestion, waitForHostBack, waitForNewHost, roundStoppedInPage, SITE, DROP_WAIT
 };

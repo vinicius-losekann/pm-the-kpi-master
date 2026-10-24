@@ -981,4 +981,102 @@ test('T187 Apoio pendente atravessa o F5 do host: o prazo de quem foi chamado co
         'o host chamado deveria ver de novo a pergunta do apoio depois do F5, veio: ' + JSON.stringify(toHost));
 });
 
+/**
+ * Host, A e B na sala de roomToReload(), com tempo controlado, sorteio fixo
+ * (0.99: A pergunta para B) e uma pergunta diferente a cada sorteio.
+ */
+function heldPairMatch(use) {
+    const env = use(createEnvironment());
+    const time = env.fakeTime();
+    roomToReload(env);
+    env.join('A', 'peer-a');
+    env.join('B', 'peer-b');
+    vm.runInContext('Math.random = () => 0.99', env.ctx);
+    let seq = 0;
+    env.Game.domain.deck.drawQuestion = () => {
+        seq++;
+        return { id: 'q' + seq, question: 'Pergunta ' + seq + '?', alternatives: ['A', 'B', 'C', 'D'], correct: 'A', domain_key: 'd1' };
+    };
+    env.startMatch();
+    return { env, time };
+}
+
+/** Quem responde a dupla da vez responde (certo), com o número da dupla. */
+function answerCurrent(env) {
+    const r = env.state.currentRound;
+    const msg = { type: 'answer', alternative: 'A', playerName: r.answerer, pairId: r.pairId };
+    if (r.answerer === env.state.playerName) {
+        env.Game.core.handleAnswer(msg);
+    } else {
+        env.Game.network.handleMessage(msg, 'peer-' + r.answerer.toLowerCase());
+    }
+}
+
+test('T215 Estado salvo 10 com a dupla guardada (BUG-033/034): as duplas guardadas (com o gabarito) e o último número de dupla vão para o estado salvo; no F5 do host, continuam — quem caiu volta e a dupla dele reabre com número maior que os de antes do F5 e o prazo do que faltava; F5 do host na espera do fim da rodada: continua esperando (sem dupla nova nem "rodada encerrada"); migração 9 → 10: a rodada aberta ganha o número 1, sem duplas guardadas', (use) => {
+    const { env, time } = heldPairMatch(use);
+    const P = env.Game.persistence;
+    check(P.STATE_VERSION >= 10, 'o estado salvo deveria estar na versão 10 ou mais (duplas guardadas, número da dupla), veio: ' + P.STATE_VERSION);
+    const first = env.state.currentRound;
+    check(first.asker === 'A' && first.answerer === 'B', 'pré-condição: A pergunta para B');
+    time.advance(10000);
+    env.drop('peer-b');
+    const saved = savedState(env);
+    check(saved && saved.stateVersion === P.STATE_VERSION && Array.isArray(saved.heldPairs) && saved.heldPairs.length === 1 &&
+        saved.heldPairs[0].answerer === 'B' && saved.heldPairs[0].asker === 'A' && saved.heldPairs[0].question.correct === 'A' &&
+        saved.heldPairs[0].answerTimeLeft === 50000,
+        'o estado salvo deveria levar a dupla guardada de B, com o gabarito e o tempo que faltava, veio: ' + JSON.stringify(saved && saved.heldPairs));
+    check(typeof saved.lastPairId === 'number' && saved.currentRound && saved.currentRound.pairId === saved.lastPairId && saved.lastPairId > first.pairId,
+        'o estado salvo deveria levar o último número de dupla (o da dupla da vez), veio: ' + JSON.stringify({ last: saved.lastPairId, round: saved.currentRound && saved.currentRound.pairId }));
+
+    // F5 do host: a dupla guardada continua.
+    const reloaded = use(reloadHost(env));
+    const t2 = reloaded.fakeTime(time.now());
+    vm.runInContext('Math.random = () => 0.99', reloaded.ctx);
+    reloaded.Game.core.resumeMatchAfterReload();
+    const s = reloaded.state;
+    check(Array.isArray(s.heldPairs) && s.heldPairs.length === 1 && s.heldPairs[0].answerer === 'B' && s.lastPairId === saved.lastPairId,
+        'depois do F5, a dupla guardada e o último número deveriam continuar, veio: ' + JSON.stringify({ held: s.heldPairs, last: s.lastPairId }));
+    reloaded.join('B', 'peer-b');
+    answerCurrent(reloaded);
+    reloaded.clearLog();
+    t2.advance(3000);
+    const r = s.currentRound;
+    check(r && r.asker === 'A' && r.answerer === 'B' && r.question.id === 'q1' && r.pairId > saved.lastPairId && r.answerEndsAt === t2.now() + 50000,
+        'com B de volta, a dupla guardada reabre (q1), com número maior que os de antes do F5 e o prazo do que faltava, veio: ' +
+        JSON.stringify(r && { asker: r.asker, answerer: r.answerer, q: r.question && r.question.id, pairId: r.pairId, left: r.answerEndsAt - t2.now() }));
+
+    // F5 do host na espera do fim da rodada.
+    const wait = heldPairMatch(use);
+    wait.env.drop('peer-b');
+    answerCurrent(wait.env);
+    wait.time.advance(3000);
+    answerCurrent(wait.env);
+    wait.time.advance(3000);
+    check(JSON.stringify(wait.env.state.waitingFor) === '["B"]', 'pré-condição: esperando B, veio: ' + JSON.stringify(wait.env.state.waitingFor));
+    const waitReloaded = use(reloadHost(wait.env));
+    waitReloaded.fakeTime(wait.time.now());
+    waitReloaded.clearLog();
+    waitReloaded.Game.core.resumeMatchAfterReload();
+    const again = waitReloaded.broadcastsOfType('round-waiting').pop();
+    check(again && JSON.stringify(again.waitingFor) === '["B"]' && waitReloaded.broadcastsOfType('round-start').length === 0 &&
+        waitReloaded.broadcastsOfType('round-ended').length === 0 && waitReloaded.state.roundEnded === false &&
+        waitReloaded.record.ui.includes('showRoundWaitingMessage'),
+        'depois do F5, o host deveria continuar esperando B, sem dupla nova nem "rodada encerrada", veio: ' + JSON.stringify(waitReloaded.record.broadcasts.map(m => m.type)));
+
+    // Migração 9 → 10.
+    const v9 = JSON.parse(JSON.stringify(saved));
+    v9.stateVersion = 9;
+    delete v9.heldPairs;
+    delete v9.lastPairId;
+    delete v9.currentRound.pairId;
+    const migrated = P.migrateSavedState(v9, null).roomState;
+    check(migrated.stateVersion === P.STATE_VERSION && migrated.currentRound.pairId === 1 && migrated.lastPairId === 1 &&
+        Array.isArray(migrated.heldPairs) && migrated.heldPairs.length === 0,
+        'da versão 9, a rodada aberta deveria ganhar o número 1 (lastPairId 1), sem duplas guardadas, veio: ' +
+        JSON.stringify({ v: migrated.stateVersion, pairId: migrated.currentRound.pairId, last: migrated.lastPairId, held: migrated.heldPairs }));
+    const noRound = P.migrateSavedState({ ...v9, currentRound: null }, null).roomState;
+    check(noRound.lastPairId === 0 && noRound.currentRound === null && noRound.heldPairs.length === 0,
+        'sem rodada aberta, o último número fica 0, veio: ' + JSON.stringify({ last: noRound.lastPairId, round: noRound.currentRound }));
+});
+
 finish('F5 do host');
