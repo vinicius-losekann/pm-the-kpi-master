@@ -33,6 +33,9 @@ function resetGameState(state, config) {
     state.answeredThisRound = [];
     state.roundNumber = 0;
     state.roundEvent = null;
+    state.heldPairs = [];
+    state.lastPairId = 0;
+    state.waitingFor = [];
     state.timer = config.GAME.SESSION_DURATION;
     state.endsAt = null;
     clearInterval(state.timerInterval);

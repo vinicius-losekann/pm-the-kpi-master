@@ -118,10 +118,10 @@ function parseJson(text) {
  * @param {Function} [options.onHand] - guest aceito: o que só ele vê (ou null)
  * @param {Function} [options.onAdmitted] - guest: foi aceito na sala
  * @param {Function} [options.onDismissed] - guest: saiu do roster
- * @param {Function} [options.onPresence] - host: (uid, vivo) a cada
- *   mudança da presença de outro aparelho, já com a tolerância e a volta
- *   pelo sinal de vida (e a atual, ao entrar; quem está em espera, quando
- *   a tolerância decidir)
+ * @param {Function} [options.onPresence] - host: (uid, vivo, lastSeen) a
+ *   cada mudança da presença de outro aparelho, já com a tolerância e a
+ *   volta pelo sinal de vida (e a atual, ao entrar; quem está em espera,
+ *   quando a tolerância decidir); lastSeen = hora do último sinal dele
  * @param {Function} [options.onHostPresence] - guest aceito: (online) do
  *   host, a cada mudança
  * @param {Function} [options.onReconnected] - a conexão com o banco voltou
@@ -184,6 +184,9 @@ function create(options) {
     let everConnected = false;
     // Hora (do servidor) da última volta da conexão; null = nenhuma.
     let reconnectedAt = null;
+    // Hora (do servidor) da última queda da conexão, para o console dizer
+    // quanto tempo ela ficou fora; null = conectado.
+    let disconnectedAt = null;
     // Guest: avisos para todos guardados enquanto segura o feed, e o
     // cursor depois do qual os avisos chegam (null = todos).
     let holding = false;
@@ -347,7 +350,7 @@ function create(options) {
                 if (alive) delete returning[who];
                 if (known === alive) return;
                 knownPresence[who] = alive;
-                call('onPresence', who, alive);
+                call('onPresence', who, alive, value && typeof value.lastSeen === 'number' ? value.lastSeen : undefined);
             });
         } else if (isAdmitted && hostSignal !== undefined) {
             const online = !!hostSignal && hostSignal.online === true && isRecent(hostSignal, hostTimeout);
@@ -473,15 +476,25 @@ function create(options) {
 
     // Volta = conectado depois de ter estado conectado e caído. O
     // Firebase pode avisar "desconectado" antes da primeira conexão: isso
-    // não é volta.
+    // não é volta nem queda. A queda e a volta ficam no console, com o
+    // tempo fora (a conexão do celular pode levar dezenas de segundos para
+    // voltar depois da rede).
     function onConnected(snap) {
         if (!code) return;
         const connected = snap.val() === true;
         const cameBack = connected && lastConnected === false && everConnected;
+        if (!connected && lastConnected === true) {
+            disconnectedAt = now();
+            console.warn('📡 Conexão com o banco caiu.');
+        }
         lastConnected = connected;
         if (connected) everConnected = true;
         if (!cameBack) return;
         reconnectedAt = now();
+        if (disconnectedAt !== null) {
+            console.log('📡 Conexão com o banco voltou depois de ' + Math.round((reconnectedAt - disconnectedAt) / 1000) + ' s.');
+            disconnectedAt = null;
+        }
         // O jogo primeiro (o guest segura os avisos e pede para entrar), o
         // sinal depois: com o sinal antes, o host traria o guest de volta
         // pela presença e os avisos de antes do estado chegariam a ele.
@@ -564,6 +577,7 @@ function create(options) {
         lastConnected = undefined;
         everConnected = false;
         reconnectedAt = null;
+        disconnectedAt = null;
         seen = new Set();
         if (hasDocument()) document.addEventListener('visibilitychange', onVisibilityChange);
         // O meta primeiro: a troca de host vale antes do resto (ex.: o host

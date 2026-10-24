@@ -14,6 +14,9 @@
 // ============================================
 
 let answerCountdownInterval = null;
+// Host, na espera do fim da rodada: conta, a cada segundo, há quanto tempo
+// cada um caiu.
+let waitingCountInterval = null;
 
 /**
  * Inicia (ou reinicia) o contador visível de tempo do Respondedor: a cada
@@ -55,6 +58,7 @@ function stopAnswerCountdown() {
 function displayRoundStart() {
     const round = Game.state.currentRound;
     if (!round) return;
+    stopRoundWaiting();
     document.getElementById('questionArea').style.display = 'block';
     document.getElementById('spectatorArea').style.display = 'none';
     document.getElementById('askerName').textContent = round.asker;
@@ -127,7 +131,7 @@ function handleAskClick() {
     const round = state.currentRound;
     if (!round || round.asked !== false || state.playerName !== round.asker) return;
     document.getElementById('btnAskQuestion').disabled = true;
-    const msg = { type: 'ask-question', playerName: state.playerName };
+    const msg = { type: 'ask-question', playerName: state.playerName, pairId: round.pairId };
     if (state.isHost) {
         Game.core.handleAskQuestion(msg);
     } else {
@@ -262,6 +266,7 @@ function displayQuestion(q) {
  */
 function showRoundEndedMessage() {
     stopAnswerCountdown();
+    stopRoundWaiting();
     document.getElementById('modalAnswerQuestion').style.display = 'none';
     document.getElementById('questionArea').style.display = 'none';
     document.getElementById('spectatorArea').style.display = 'block';
@@ -277,13 +282,76 @@ function showRoundEndedMessage() {
  */
 function showMatchPausedMessage() {
     stopAnswerCountdown();
+    stopRoundWaiting();
     document.getElementById('modalAnswerQuestion').style.display = 'none';
     document.getElementById('questionArea').style.display = 'none';
     document.getElementById('spectatorArea').style.display = 'block';
     document.getElementById('spectatorMessage').textContent = Game.i18n.t('question.matchPaused');
 }
 
+/** Segundos desde `at` (hora do servidor) no formato m:ss. */
+function formatElapsed(at) {
+    const seconds = Math.max(0, Math.floor((Game.network.serverNow() - at) / 1000));
+    return Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
+}
+
+/**
+ * A rodada espera quem caiu (`waitingFor`, nomes) voltar para fechar.
+ * Quem joga vê os nomes; o host vê também há quanto tempo cada um caiu
+ * (pela hora do último sinal, `disconnectedAt`, contando a cada segundo)
+ * e, quando pode (`canHandOver`), o botão "Passar a pergunta pendente
+ * para outra pessoa". O "Nova Rodada" do host segue sem eles.
+ */
+function showRoundWaitingMessage(waitingFor, canHandOver) {
+    stopAnswerCountdown();
+    stopRoundWaiting();
+    document.getElementById('modalAnswerQuestion').style.display = 'none';
+    document.getElementById('questionArea').style.display = 'none';
+    document.getElementById('spectatorArea').style.display = 'block';
+    const message = document.getElementById('spectatorMessage');
+    if (!Game.state.isHost) {
+        message.textContent = Game.i18n.t('question.waitingForDropped', { names: waitingFor.join(', ') });
+        return;
+    }
+
+    const show = () => {
+        const names = waitingFor.map(name => {
+            const player = Game.getPlayerByName(name);
+            if (!player || typeof player.disconnectedAt !== 'number') return name;
+            return Game.i18n.t('question.droppedFor', { name, elapsed: formatElapsed(player.disconnectedAt) });
+        }).join(', ');
+        message.textContent = Game.i18n.t('question.waitingForDroppedHost', { names });
+    };
+    show();
+    waitingCountInterval = setInterval(show, 1000);
+
+    const button = document.getElementById('btnHandOverQuestion');
+    button.textContent = Game.i18n.t('question.handOverButton');
+    button.style.display = canHandOver ? 'block' : 'none';
+}
+
+/** Sai da espera do fim da rodada: para a contagem e esconde o botão de passar a pergunta. */
+function stopRoundWaiting() {
+    clearInterval(waitingCountInterval);
+    waitingCountInterval = null;
+    const button = document.getElementById('btnHandOverQuestion');
+    if (button) button.style.display = 'none';
+}
+
+/**
+ * Aviso curto de que quem estava na dupla caiu ('pair-held'): a pergunta
+ * fica para o fim da rodada.
+ */
+function showPairHeldNotice(msg) {
+    if (msg.droppedName === msg.answerer) {
+        Game.ui.showNotice(Game.i18n.t('notice.answererDropped', { name: msg.droppedName }));
+    } else {
+        Game.ui.showNotice(Game.i18n.t('notice.askerDropped', { name: msg.droppedName, answerer: msg.answerer }));
+    }
+}
+
 function displaySpectatorView(asker, answerer) {
+    stopRoundWaiting();
     document.getElementById('questionArea').style.display = 'none';
     document.getElementById('spectatorArea').style.display = 'block';
     document.getElementById('spectatorMessage').textContent = Game.i18n.t('spectator.waitingForQuestion', { asker, answerer });
@@ -301,10 +369,13 @@ function handleAlternativeClick(alt, btn) {
     btn.classList.add('selected');
     stopAnswerCountdown();
     document.getElementById('modalAnswerQuestion').style.display = 'none';
+    // O número da dupla: o host ignora a resposta se a dupla já mudou
+    // (ex.: mandada sem conexão e entregue depois).
+    const pairId = state.currentRound.pairId;
     if (state.isHost) {
-        Game.core.handleAnswer({ alternative: alt, playerName: state.playerName });
+        Game.core.handleAnswer({ alternative: alt, playerName: state.playerName, pairId });
     } else {
-        Game.network.sendToHost({ type: 'answer', alternative: alt, playerName: state.playerName });
+        Game.network.sendToHost({ type: 'answer', alternative: alt, playerName: state.playerName, pairId });
     }
     state.currentRound.answered = true;
 }
@@ -324,5 +395,7 @@ Object.assign(window.Game.ui, {
     startAnswerCountdown,
     stopAnswerCountdown,
     showRoundEndedMessage,
-    showMatchPausedMessage
+    showMatchPausedMessage,
+    showRoundWaitingMessage,
+    showPairHeldNotice
 });

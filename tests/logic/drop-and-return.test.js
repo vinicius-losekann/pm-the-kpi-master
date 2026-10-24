@@ -672,6 +672,8 @@ test('T212 Espera do fim da rodada (BUG-033): com todos os outros já respondido
     guest.Game.network.handleMessage(copy(waits[0]), 'sala');
     check(JSON.stringify(guest.state.waitingFor) === '["B"]' && guest.state.currentRound === null && guest.record.ui.includes('showRoundWaitingMessage'),
         'o guest deveria guardar a espera e mostrá-la, veio: ' + JSON.stringify({ waitingFor: guest.state.waitingFor, ui: guest.record.ui }));
+    guest.Game.network.handleMessage({ type: 'round-start', event: { id: 'e1' }, asker: 'A', answerer: 'B', answeredThisRound: [], roundNumber: 1, pairId: 9 }, 'sala');
+    check(guest.state.waitingFor.length === 0, 'com a dupla reaberta (round-start), a espera acaba também no guest');
     const again = use(createEnvironment());
     again.receiveSync('A', copy(sync));
     check(again.record.ui.includes('showRoundWaitingMessage') && !again.record.ui.includes('showRoundEndedMessage') &&
@@ -724,10 +726,21 @@ test('T212 Espera do fim da rodada (BUG-033): com todos os outros já respondido
     }
     check(JSON.stringify(out.env.state.waitingFor) === '["A"]' && out.env.state.roundEnded === false,
         'com C, B e o host respondidos, a rodada deveria esperar A (que não respondeu), veio: ' + JSON.stringify({ waitingFor: out.env.state.waitingFor, roundEnded: out.env.state.roundEnded }));
-    out.env.join('A', peerOf('A'));
+    // A volta pelo sinal de vida (sem player-join, ex.: a janela estava escondida).
+    out.env.Game.network.receivePresence('peer-a', true);
     const forA = pairNow(out.env);
     check(forA && forA.answerer === 'A' && !['q1', 'q2', 'q3'].includes(forA.questionId),
-        'a volta de A na espera deveria abrir uma dupla para ele, com pergunta nova, veio: ' + JSON.stringify(forA));
+        'a volta de A na espera (pelo sinal de vida) deveria abrir uma dupla para ele, com pergunta nova, veio: ' + JSON.stringify(forA));
+
+    // Quem tem dupla guardada e sai da partida: a dupla é descartada e a pergunta volta ao baralho.
+    const leave = droppingMatch(use, ['A', 'B', 'C']);
+    const back = [];
+    leave.env.Game.domain.deck.returnQuestion = (decks, q) => { back.push(q && q.id); };
+    leave.env.drop('peer-b');
+    check(leave.env.state.heldPairs.length === 1 && leave.env.state.heldPairs[0].answerer === 'C', 'pré-condição: dupla de B e C guardada');
+    leave.env.Game.network.handleMessage({ type: 'leave-match-request', playerName: 'C' }, 'peer-c');
+    check(leave.env.state.heldPairs.length === 0 && back.includes('q1'),
+        'com C fora da partida, a dupla guardada dele deveria sair e a pergunta voltar ao baralho, veio: ' + JSON.stringify({ held: leave.env.state.heldPairs, back }));
 
     // returnQuestion() real: a pergunta volta a ficar disponível no baralho, uma vez.
     const ctx = vm.createContext({});
@@ -814,6 +827,15 @@ test('T213 Quem pergunta cai (BUG-033): a dupla fica guardada e quem responde a 
     const withButton = bothScreens.filter(s => s.name === 'showRoundWaitingMessage').pop();
     check(update && JSON.stringify(update.waitingFor) === '["B"]' && withButton && withButton.args[1] === true && both.env.broadcastsOfType('round-start').length === 0,
         'com C de volta e B fora, a espera continua só por B, agora com o botão, veio: ' + JSON.stringify({ update, args: withButton && withButton.args }));
+    // C cai de novo durante a espera: a espera volta a ter os dois, sem o botão.
+    both.env.clearLog();
+    bothScreens.length = 0;
+    both.env.drop('peer-c');
+    const again = both.env.broadcastsOfType('round-waiting').pop();
+    const noButtonAgain = bothScreens.filter(s => s.name === 'showRoundWaitingMessage').pop();
+    check(again && JSON.stringify(again.waitingFor.slice().sort()) === '["B","C"]' && noButtonAgain && noButtonAgain.args[1] === false,
+        'a queda durante a espera deveria recalcular a espera (B e C, sem o botão), veio: ' + JSON.stringify({ again, args: noButtonAgain && noButtonAgain.args }));
+    both.env.join('C', peerOf('C'));
     both.env.Game.core.handOverHeldQuestion();
     const byHost = pairNow(both.env);
     check(byHost && byHost.answerer === 'C' && byHost.asker === 'Host' && byHost.questionId === 'q1',

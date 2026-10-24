@@ -161,7 +161,10 @@ console de todos, com a hora do fechamento.
 fechar a aba. O jogo percebe pela falta do sinal de vida, não por um
 aviso de saída: um jogador cai para os outros 20 s depois do último
 sinal; o host, 10 s depois. Quedas mais curtas não tiram ninguém da
-rodada.
+rodada. No celular, a conexão com o Firebase leva de 18 s a 60 s para
+voltar depois que a rede volta: uma queda curta pode durar mais que os
+20 s. Quem cai na dupla não perde a pergunta: ela fica guardada até o fim
+da rodada.
 
 **O que precisa:** 3 aparelhos cuja rede dá para cortar separadamente:
 - **H** (host): computador, Chrome;
@@ -181,15 +184,16 @@ a primeira dupla aparecer.
 
 | Passo | Ação | Esperado |
 |---|---|---|
-| 1 | Cortar a rede de B por 10 s e religar | Nada muda para ninguém: B não ganha 📴 e, se estava na dupla, a pergunta continua. A partida segue |
+| 1 | Com B na dupla (de preferência respondendo), cortar a rede de B por 10 s e religar; no console do B, anotar as linhas "📡 Conexão com o banco caiu" e "voltou depois de N s" | Se a conexão voltar em menos de ~20 s: nada muda, a pergunta continua. Se demorar mais: todos veem por alguns segundos "📴 B caiu — a pergunta dele fica para o fim da rodada", a partida segue com outra dupla e, quando B volta, a dupla dele é a próxima, com a mesma pergunta (quem pergunta clica em "Fazer a pergunta" de novo; B tem o tempo que faltava) |
 
 **M7.2 — Queda longa de B (60 s)**
 
 | Passo | Ação | Esperado |
 |---|---|---|
-| 1 | Cortar a rede de B; no H, cronometrar até B aparecer com 📴 | ~20 s (até ~25 s). Se B estava na dupla, a pergunta dele é descartada e sai outra dupla |
-| 2 | Aos 60 s, religar a rede de B | B volta sozinho em poucos segundos, sem F5 |
-| 3 | Conferir B | De volta ao próprio lugar, com KPI e recursos de antes; o 📴 some no H |
+| 1 | Cortar a rede de B; no H, cronometrar até B aparecer com 📴 | ~20 s (até ~25 s). Se B estava na dupla, aviso "📴 B caiu" e a pergunta dele fica para o fim da rodada; a partida segue sem ele |
+| 2 | Se a rodada terminar antes da volta: conferir as telas | O H vê "Esperando B (caiu há m:ss) voltar" e o "Nova Rodada" liberado; A vê "Esperando B voltar". Se B era quem perguntava, o H também vê "Passar a pergunta pendente para outra pessoa". Não clicar ainda |
+| 3 | Aos 60 s, religar a rede de B (pode levar até ~1 min para a conexão voltar) | B volta sozinho, sem F5; a dupla guardada dele abre com a mesma pergunta |
+| 4 | Conferir B | De volta ao próprio lugar, com KPI e recursos de antes; o 📴 some no H; a resposta dele vale |
 
 **M7.3 — Queda curta do host (5 s)**
 
@@ -201,7 +205,7 @@ a primeira dupla aparecer.
 
 | Passo | Ação | Esperado |
 |---|---|---|
-| 1 | Cortar a rede do H; cronometrar em A e B | Entre ~10 e ~20 s, a tela de A ou de B recarrega e abre como host; o outro vê "Conectado — Fulano agora é o host". A partida continua (a mesma pergunta, se havia uma aberta) |
+| 1 | Cortar a rede do H; cronometrar em A e B | Entre ~10 e ~20 s, a tela de A ou de B recarrega e abre como host, com "👑 Você agora é o host da partida" e a faixa "👑 Você é o host"; o outro vê "Conectado — Fulano agora é o host". A partida continua (a mesma pergunta, se havia uma aberta fora da dupla do H; se o H estava na dupla, a pergunta dele fica para o fim da rodada) |
 | 2 | Observar o H (sem rede) | O H não marca ninguém como caído enquanto está sem rede — normal |
 | 3 | Aos 60 s, religar a rede do H | Em poucos segundos, a página do H **recarrega sozinha** e ele entra como jogador comum, com o KPI de antes; o host novo continua host |
 
@@ -248,8 +252,8 @@ tela do celular desligado durante a preparação.
 | Passo | Ação | Esperado |
 |---|---|---|
 | 1 | Com uma pergunta aberta em que C responde, bloquear | — |
-| 2 | Observar o H | ~20 s depois, C fica com 📴, a pergunta dele é descartada e sai outra dupla |
-| 3 | Aos 60 s, desbloquear | Como no M8.1; C vê a situação atual da rodada, não a pergunta antiga aberta |
+| 2 | Observar o H | ~20 s depois, C fica com 📴, aviso "📴 C caiu — a pergunta dele fica para o fim da rodada" e a partida segue com outra dupla |
+| 3 | Aos 60 s, desbloquear | C volta sozinho; depois da dupla em andamento (ou na hora, se a rodada já esperava por ele), a mesma pergunta abre de novo para C, com o tempo que faltava, e a resposta vale |
 
 **M8.4 — Outro app na frente por 1 min**
 

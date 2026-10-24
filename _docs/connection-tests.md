@@ -94,9 +94,12 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 | Sinal que volta sem a conexão ter caído (janela escondida e depois visível): o host traz o jogador de volta sozinho, sem F5 — sai do 📴, volta ao sorteio e a partida pausada retoma; só com dois sinais seguidos no ritmo (a aba escondida, com o sinal de minuto em minuto, não fica indo e voltando); quem fechou a aba não volta pela carência da volta da conexão do host (BUG-030) | 🤖 T205–T208 · 🌐 E38 | ⬜ (M18.2) |
 | Espectador cai: fica na lista, fora do sorteio, volta com tudo | 🤖 T4 | — |
 | Quem caiu não pode ser chamado como assessor nem para ajudar (recusa na hora; quem pede chama outro); quem foi chamado e cai antes de responder libera quem responde no fim do prazo (`ADVISORY_TIMEOUT`) | 🤖 T70, T119, T122 | — |
-| Participante da rodada cai: rodada abortada, nova dupla | 🤖 T5 | — |
+| Participante da rodada cai (quem responde ou quem pergunta): a dupla fica guardada até o fim da rodada (mesma pergunta, o prazo de resposta que faltava, apoio cancelado sem cobrar), todos veem o aviso da queda e a partida segue com outra dupla; ele volta e a dupla dele é a próxima, com o Perguntador refazendo a pergunta (BUG-033) | 🤖 T5, T211, T213 · 🌐 E39 | ⬜ (M7, M8) |
+| Fim da rodada com quem caiu sem responder: a rodada espera (host com "caiu há m:ss" e o "Nova Rodada" liberado); a volta dele reabre a dupla; o "Nova Rodada" segue sem ele (a pergunta volta ao baralho); com quem pergunta caído, o host pode passar a pergunta a outro Perguntador (BUG-033) | 🤖 T212, T213, T215 · 🌐 E40 | ⬜ (M7, M8) |
+| Resposta ou "Fazer a pergunta" de outra dupla (ex.: mandada sem conexão, chega depois) é ignorada, também na dupla reaberta com a mesma pergunta (BUG-034) | 🤖 T214 | — |
+| Host visível (faixa "👑 Você é o host", 👑 na lista); aviso curto da queda; linhas de conexão no console (queda e volta da conexão, sinal parado do 📴) | 🤖 T217, T218 · 🌐 E39 | ⬜ (M7) |
 | Falta só conexão: partida pausa e retoma com o mesmo evento | 🤖 T6, T33 | — |
-| Ciclo da rodada termina sem esperar o desconectado | 🤖 T8 | — |
+| Seletor do ciclo da rodada: com os conectados respondidos, o ciclo está completo (quem caiu sem responder é esperado no fim, linha acima) | 🤖 T8 | — |
 | Volta da conexão: o guest manda o player-join de novo e retoma o lugar; nenhum aviso de antes do estado chega depois dele | 🤖 T171 | ⬜ (M7) |
 | Quem entra ou volta recebe o estado com o cursor dos avisos: nada de antes dele, os de depois uma vez, na ordem | 🤖 T168, T177 | — |
 | O estado de quem entra ou volta não leva os baralhos nem a resposta que espera o apoio; o gabarito da pergunta da vez só vai para o Perguntador (SEC-005) | 🤖 T79, T80, T186 | — |
@@ -112,7 +115,7 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 | Troca de host no canal: com o sinal do host parado há mais de `HOST_TIMEOUT`, um guest aceito e conectado assume o `meta` por transação (`hostEpoch` + 1, uma só vence); o host que volta antes disso (aba congelada, queda curta, F5) continua host; todos ficam sabendo (`onHostChanged`) e o host antigo deixa de ser host no canal; as regras recusam a troca de fora do roster, com epoch, versão ou criação errados e com o sinal do host de menos de 5 s | 🤖 T192–T195 · 🌐 E26 | — |
 | Troca de host no jogo, com a pergunta aberta: outro assume entre 10 e 20 s depois (não antes de 10); quem assume recarrega e abre como host com o estado da partida; a mesma pergunta continua (dupla, gabarito, quem já respondeu); quem fica passa ao host novo e vê "Fulano agora é o host"; o F5 do host novo continua host | 🤖 T196 · 🌐 E31 | ⬜ (M22) |
 | Troca de host com a rodada encerrada, com a partida pausada, no lobby (ninguém entra de novo) e com a pergunta ainda por fazer: tudo continua como estava, para o host novo e para quem fica | 🤖 T197–T199, T201 · 🌐 E33, E34 | — |
-| Host antigo na dupla: a rodada é a de quem cai (dupla nova entre os que ficaram) | 🤖 T200 | — |
+| Host antigo na dupla: a rodada é a de quem cai (a dupla fica guardada até o fim da rodada; dupla nova entre os que ficaram); quem assume vê "👑 Você agora é o host da partida" | 🤖 T200, T216 | — |
 | Resposta mandada durante a troca espera no banco e vale uma vez; resposta já tratada pelo host antigo não se repete (o rodízio continua) | 🤖 T202 · 🌐 E32 | — |
 | Host antigo volta (pelo link ou da queda de rede, quando a página dele recarrega) como jogador comum, com KPI e recursos | 🤖 T203 · 🌐 E33 | — |
 | Prazos na troca: o tempo sem host não conta (os prazos da rodada que ainda corriam ganham a folga desde o último sinal do host antigo); o que já tinha vencido, o prazo parado pelo apoio e o relógio da partida não mudam; no F5 do host, nada muda | 🤖 T204 | — |
@@ -148,14 +151,8 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 
 - BUG-031 (só a página `firebase-check.html`): quem entrou continua
   mostrando a sala depois de o dono sair (M21, passo 8).
-- BUG-033: a queda curta de rede (10 s) descartou a pergunta (M7.1,
-  20/10 e 24/10/2026) — a conexão do celular com o Firebase leva de 18 s
-  a 60 s para voltar depois da rede; falta o desenho da correção.
-- BUG-034: resposta mandada sem conexão chega ao host na volta e pode
-  valer para outra pergunta do mesmo jogador (achado no M7.1, 24/10/2026).
-
 Os bugs encontrados nestes testes e já corrigidos
-(B1–B5 = BUG-014 a BUG-018, e BUG-019 a BUG-023) estão em `issues.md`,
+(B1–B5 = BUG-014 a BUG-018, BUG-019 a BUG-023, BUG-033 e BUG-034) estão em `issues.md`,
 com sintoma, causa e correção.
 
 ---
@@ -172,7 +169,7 @@ plano fica mais lenta).
 | M1 | ✅ 🌐 E1 | F5 do host no meio de uma pergunta | Host dá F5 com a pergunta aberta | Guests continuam ligados, sem troca de host; a partida segue |
 | M2 | ✅ 🌐 E9 | F5 do host com "rodada encerrada" | Host dá F5 esperando o "Nova Rodada" | Continua "Rodada encerrada" para todos, esperando o clique |
 | M6 | ✅ 🌐 E6 | Guest cai e volta | Guest dá F5 no meio da própria pergunta; outro guest fecha e volta pela tela inicial | Voltam ao próprio lugar, com KPI; rodada tratada como nos testes T5/T34 |
-| M7 | **P1** ⬜ (M7.1 falhou na UFSM em 20/10/2026 e em casa em 24/10/2026 — a pergunta foi descartada, BUG-033; M7.2–M7.4 por fazer) | Queda de rede real (não fechar a aba) | Roteiro M7 de `manual-test-scripts.md`: quedas curta e longa de um guest e do host | Queda curta: nada muda. Guest: 📴 ~20 s depois, volta sozinho quando a rede volta. Host: outro assume em ~10–20 s; quando a rede do host volta, a página dele recarrega e ele entra como jogador comum |
+| M7 | **P1** ⬜ (M7.1 falhou na UFSM em 20/10/2026 e em casa em 24/10/2026 — a pergunta foi descartada, BUG-033, corrigido em 24/10/2026; refazer M7.1–M7.4) | Queda de rede real (não fechar a aba) | Roteiro M7 de `manual-test-scripts.md`: quedas curta e longa de um guest e do host | Queda curta (a conexão do celular pode levar até ~1 min para voltar): se passar de ~20 s, aviso "Fulano caiu" e a pergunta dele fica para o fim da rodada; ele volta para a mesma pergunta. Guest: 📴 ~20 s depois, volta sozinho quando a conexão volta. Host: outro assume em ~10–20 s; quando a rede do host volta, a página dele recarrega e ele entra como jogador comum |
 | M8 | **P1** ⬜ | Celular com tela bloqueada / navegador em segundo plano | Roteiro M8 de `manual-test-scripts.md` (inclusive o celular como host) | Bloqueio curto respondendo: a pergunta continua. Bloqueio longo: fora do sorteio ~20 s depois, volta sozinho ao desbloquear. Celular host: outro assume, e ele volta como jogador comum |
 | M9 | — | Redes diferentes (conexão direta entre navegadores) | Retirado em 18/10/2026 | Sem objeto com o Firebase (não há conexão direta); a rede de cada lugar é conferida pelo M21 |
 | M10 | ✅ 🌐 E8 | Nova partida depois de "saiu da partida" | 2 jogadores; guest sai; host volta ao lobby e inicia outra | Conferido em 30/09/2026 |
@@ -194,8 +191,10 @@ e redes de verdade.
 ## 5. Limitações conhecidas (aceitas por ora)
 
 - ⚠️ Troca de host: a sala fica ~10–13 s sem host (o `HOST_TIMEOUT` e a recarga de quem assume); a tela de quem assume recarrega uma vez. O contador de quem responde pode chegar a zero nesse intervalo e voltar com o tempo devolvido quando chega o estado do host novo. O host antigo chamado para um apoio deixa o pedido esperar até o fim do prazo (como qualquer assessor que cai). Um F5 do host que demora mais de 10 s (celular, rede ruim) vira troca, e ele volta como jogador comum.
-- ⚠️ Tolerância de 20 s (`PRESENCE_TIMEOUT`): quem fecha a aba sai da lista do lobby, ou do sorteio na partida, só ~20 s depois; quem está na dupla e cai de vez segura a rodada esse tempo.
-- ⚠️ Chrome e Edge espaçam os timers de aba escondida há mais de 5 min (1 por minuto): o sinal de vida de 2 s fica de minuto em minuto, e o jogador sai do sorteio até a aba voltar a ficar visível — aí volta sozinho em 2 a 4 s. Com o host, os outros veriam "Host desconectado" — conferir no M18 com o host. Se houver troca de host com a aba do host antigo escondida (página aberta, sinal de minuto em minuto), o host novo pode dá-lo como presente por até 20 s logo depois de abrir; sorteado nesse tempo, a rodada é abortada quando ele cai.
+- ⚠️ Tolerância de 20 s (`PRESENCE_TIMEOUT`): quem fecha a aba sai da lista do lobby, ou do sorteio na partida, só ~20 s depois; quem está na dupla e cai de vez segura a rodada esse tempo (depois, a dupla fica guardada e a partida segue).
+- ⚠️ A conexão do celular com o Firebase leva de 18 s a 60 s para voltar depois que a rede volta (M7.1, 24/10/2026): uma queda de rede de poucos segundos pode virar 📴 e a pergunta de quem caiu fica para o fim da rodada. Quem não volta na rodada segura o fim dela até o host clicar em "Nova Rodada" (perde a vez).
+- ⚠️ Edge no Windows com a janela coberta por inteiro por outra (ex.: o VS Code ou os slides) conta como escondida: o sinal de vida para em bem menos de 5 min (~3 min em 24/10/2026, mesmo na tomada), e o host da vez caiu três vezes. O professor não deve ser host pelo Edge; nos testes manuais no notebook, nenhuma janela do jogo fica coberta por inteiro. Fora dos manuais, porque os alunos jogam pelo celular.
+- ⚠️ Chrome e Edge espaçam os timers de aba escondida há mais de 5 min (1 por minuto): o sinal de vida de 2 s fica de minuto em minuto, e o jogador sai do sorteio até a aba voltar a ficar visível — aí volta sozinho em 2 a 4 s. Com o host, os outros veriam "Host desconectado" — conferir no M18 com o host. Se houver troca de host com a aba do host antigo escondida (página aberta, sinal de minuto em minuto), o host novo pode dá-lo como presente por até 20 s logo depois de abrir; sorteado nesse tempo, a dupla dele fica guardada quando ele cai.
 - ⚠️ Nomes diferenciam maiúsculas: "vHost" e "Vhost" são jogadores diferentes — durante a partida, a grafia errada é recusada. Melhoria futura (roadmap 8.5).
 - ⚠️ Abas do mesmo navegador compartilham o login (uid): a segunda aba com a mesma sala não entra. Trocar de navegador, usar aba anônima ou limpar os dados no meio da partida perde a identidade (só volta no lobby).
 - ⚠️ As respostas não são secretas: `data/questions.pt-BR.json` é público no site (o `state-sync` não leva mais os baralhos, SEC-005, mas o arquivo continua aberto). Ocultar é melhoria futura (roadmap 4.4); por ora, vale a regra da aula.
@@ -240,6 +239,8 @@ o teste só aponta o Firebase para o emulador.
 | E29 | 3 jogadores; um guest pede apoio, quem foi chamado não responde e o host dá F5: o pedido continua pendente (quem pediu segue com os botões travados), quem foi chamado vê a pergunta do apoio de novo e responde, quem pediu recebe a sugestão, responde e a rodada segue | BUG-019 |
 | E30 | Quem responde dá F5 no meio da pergunta: ninguém cai, a mesma pergunta continua (mesma dupla e prazo) e a resposta dele vale | — (tolerância do sinal de vida) |
 | E38 | 3 jogadores; os timers da página de um guest param (`clock.pauseAt` do Playwright: página aberta, conexão de pé) e o host o dá como desconectado; com os timers de volta, o 📴 some sozinho, pelo sinal de vida (sem "Reconectado"), e a rodada vai até o fim com ele | M18.2 (BUG-030) |
+| E39 | 3 jogadores; o host vê a faixa "👑 Você é o host" e todos, o 👑 ao lado dele; quem responde fecha a aba com a pergunta aberta: todos veem "Fulano caiu", a pergunta fica guardada e a partida segue sem ele; ele volta e a mesma pergunta reabre para ele, e a resposta vale uma vez | M7 (BUG-033) |
+| E40 | 3 jogadores; um fecha a aba e não volta: no fim da rodada, o host vê "Esperando Fulano (caiu há m:ss)" e o "Nova Rodada" liberado, o outro vê a espera; o "Nova Rodada" segue sem ele, sem pergunta guardada | M7 (BUG-033) |
 | E31 | 3 jogadores; o host fecha a aba com a pergunta aberta fora da dupla dele: outro assume entre 10 e 20 s depois (medida na coluna "Detalhe"), a mesma pergunta continua, quem ficou vê "Fulano agora é o host", a resposta vale; o F5 do host novo continua host | M3, M5 |
 | E32 | 3 jogadores; quem responde clica logo depois da queda do host, antes de o host novo abrir: a resposta espera, vale uma vez e a partida segue com a próxima dupla | M20 |
 | E33 | Troca com a rodada encerrada: continua encerrada, nada começa sozinho; o host antigo volta pelo link como jogador comum, com KPI e recursos; o "Nova Rodada" do host novo começa a próxima | M4, M19 |

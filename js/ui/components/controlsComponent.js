@@ -31,7 +31,8 @@ function checkStartCondition() {
 
 /**
  * Habilita o botão "Nova Rodada" só quando o ciclo da rodada vigente
- * terminou (todos os jogadores ativos já responderam). Recalcula a
+ * terminou (todos os jogadores ativos já responderam) ou quando a rodada
+ * espera quem caiu (o clique segue sem ele). Recalcula a
  * partir do estado atual — pode ser chamada a qualquer momento (após
  * uma resposta, ao recuperar sessão via F5, ao assumir como host) sem
  * precisar rastrear manualmente "ligado/desligado".
@@ -48,7 +49,8 @@ function refreshNewRoundButton() {
         Game.getActivePlayers(),
         state.answeredThisRound
     );
-    btn.disabled = !isComplete;
+    const isWaiting = (state.waitingFor || []).length > 0;
+    btn.disabled = !(isComplete || isWaiting);
 }
 
 /**
@@ -96,6 +98,12 @@ function bindControls() {
     // (ver ui/components/questionComponent.js) ---
     document.getElementById('btnAskQuestion').addEventListener('click', () => {
         Game.ui.handleAskClick();
+    });
+
+    // --- Passar a pergunta pendente (host, na espera do fim da rodada,
+    // com quem pergunta caído; ver engine/turnEngine.js) ---
+    document.getElementById('btnHandOverQuestion').addEventListener('click', () => {
+        Game.core.handOverHeldQuestion();
     });
 
     controlsBound = true;

@@ -30,6 +30,7 @@ const CONFIG = {
         HEARTBEAT_INTERVAL: 2000,             // Sinal de vida: de quanto em quanto tempo cada aparelho avisa o banco que está na sala (ms)
         PRESENCE_TIMEOUT: 20000,              // Tolerância: o host dá o jogador como caído com o sinal parado há mais que isso (ms) — um F5 rápido não é queda
         HOST_TIMEOUT: 10000,                  // Os jogadores dão o host como caído com o sinal dele parado há mais que isso (ms); não pode ficar abaixo de 5000
+        NOTICE_MS: 4000,                      // Quanto tempo o aviso curto do topo da tela (ex.: "Fulano caiu") fica aparecendo (ms)
     },
 
     FOCUS_AREAS: [

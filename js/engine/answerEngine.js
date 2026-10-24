@@ -26,6 +26,10 @@ function handleAnswer(msg) {
         return;
     }
 
+    // Resposta de outra dupla (ex.: mandada sem conexão, chegou depois de a
+    // dupla mudar, mesmo para a mesma pessoa): não vale para esta.
+    if (Game.engine.turn.isFromOtherPair(msg)) return;
+
     if (state.currentRound.answered) {
         console.warn('⚠️ Rodada já foi respondida!');
         return;

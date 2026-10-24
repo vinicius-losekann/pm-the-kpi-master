@@ -1130,6 +1130,31 @@ body {
     font-size: 1rem;
 }
 
+/* Faixa do host e aviso curto (topo da tela da partida) */
+.host-banner {
+    margin-bottom: 12px;
+    padding: 8px 14px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 215, 0, 0.08);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    color: var(--gold);
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.game-notice {
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 165, 2, 0.1);
+    border: 1px solid rgba(255, 165, 2, 0.35);
+    color: var(--yellow);
+    font-size: 0.95rem;
+    text-align: center;
+    animation: slideIn 0.4s ease;
+}
+
 /* --- Ranking --- */
 .ranking-list {
     display: flex;

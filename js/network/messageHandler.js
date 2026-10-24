@@ -95,13 +95,16 @@ function handleMessage(msg, fromPeerId) {
             storeAnsweredThisRound(msg.answeredThisRound);
             if (typeof msg.roundNumber === 'number') state.roundNumber = msg.roundNumber;
             console.log('🎯 Rodada ' + msg.roundNumber + ' — ' + msg.asker + ' pergunta para ' + msg.answerer);
+            state.waitingFor = [];
             state.currentRound = {
                 event: msg.event,
                 asker: msg.asker,
                 answerer: msg.answerer,
                 question: null,
                 answered: false,
-                asked: false
+                asked: false,
+                // Número da dupla: vai de volta na resposta e no "Fazer a pergunta".
+                pairId: msg.pairId
             };
             if (state.playerName === msg.asker || state.playerName === msg.answerer) {
                 Game.ui.displayRoundStart();
@@ -114,7 +117,22 @@ function handleMessage(msg, fromPeerId) {
             // Guarda também no guest, para a cópia dele do
             // estado bater com a do host (ex: se ele assumir como host).
             state.roundEnded = true;
+            state.waitingFor = [];
             Game.ui.showRoundEndedMessage();
+            break;
+
+        // Quem estava na dupla caiu: a dupla fica guardada até o fim da
+        // rodada (ver sessionEngine.holdRoundIfParticipant()).
+        case 'pair-held':
+            Game.ui.showPairHeldNotice(msg);
+            break;
+
+        // Ninguém mais pode responder e a rodada espera quem caiu
+        // (ver turnEngine.endRoundOrWait()).
+        case 'round-waiting':
+            state.currentRound = null;
+            state.waitingFor = Array.isArray(msg.waitingFor) ? msg.waitingFor.slice() : [];
+            Game.ui.showRoundWaitingMessage(state.waitingFor.slice(), false);
             break;
 
         // Host pausou a partida por falta de jogadores conectados
@@ -122,6 +140,7 @@ function handleMessage(msg, fromPeerId) {
         // 'round-start' quando alguém reconectar.
         case 'match-paused':
             state.currentRound = null;
+            state.waitingFor = [];
             Game.ui.showMatchPausedMessage();
             break;
 
@@ -304,6 +323,7 @@ function addPlayer(msg, fromPeerId) {
             return;
         }
         existingPlayer.disconnected = false;
+        delete existingPlayer.disconnectedAt;
         console.log('🔄 Reconectado:', msg.playerName);
     } else {
         // Depois do fim de jogo a sala não fica travada — quem caiu na
@@ -355,6 +375,9 @@ function addPlayer(msg, fromPeerId) {
             matchPaused: !!state.matchPaused,
             // Quem já respondeu nesta rodada.
             answeredThisRound: state.answeredThisRound.slice(),
+            // Quem a rodada espera voltar (as duplas guardadas, com o
+            // gabarito, ficam só com o host).
+            waitingFor: (state.waitingFor || []).slice(),
             // Fim de jogo — quem volta vê o ranking final.
             gameOver: !!state.gameOver,
             finalRanking: state.finalRanking || null,
@@ -369,6 +392,10 @@ function addPlayer(msg, fromPeerId) {
     if (state.gameStarted && !state.gameOver && state.matchPaused &&
         Game.getActivePlayers().length >= CONFIG.GAME.MIN_PLAYERS) {
         Game.core.resumePausedMatch();
+    } else if (state.gameStarted && !state.gameOver) {
+        // Se a rodada esperava quem caiu, a volta dele reabre a dupla
+        // guardada (ou recalcula a espera). Também depois do state-sync.
+        Game.core.refreshRoundWaiting();
     }
 
     // Quem foi chamado para um apoio ainda pendente recebe a pergunta do
@@ -407,8 +434,13 @@ function roundAsSeenBy(round, playerName) {
  * a vaga fica reservada para a reconexão (a sala está travada para
  * nomes novos, ver addPlayer()). Desconectados ficam fora do sorteio de
  * dupla, dos efeitos de evento e do rodízio (ver getActivePlayers()).
+ * Se ele estava na dupla, a dupla fica guardada até o fim da rodada
+ * (holdRoundIfParticipant()); se a rodada esperava quem caiu, a espera é
+ * recalculada. `lastSeen` (hora do servidor do último sinal de vida dele,
+ * se o canal a tem) vira a hora da queda (`disconnectedAt`, para o "caiu
+ * há m:ss" do host) e o console diz há quanto tempo o sinal estava parado.
  */
-function handlePlayerDisconnect(peerId) {
+function handlePlayerDisconnect(peerId, lastSeen) {
     const state = Game.state;
     const player = state.players.find(p => p.peerId === peerId);
     if (!player) return; // aparelho que não é jogador da sala
@@ -418,14 +450,22 @@ function handlePlayerDisconnect(peerId) {
         return;
     }
 
+    const wasWaiting = (state.waitingFor || []).length > 0;
+    const now = Game.network.serverNow();
+    const stopped = typeof lastSeen === 'number' ? ' (sinal parado há ' + Math.round((now - lastSeen) / 1000) + ' s)' : '';
     player.disconnected = true;
-    console.warn('📴 ' + player.name + ' desconectou — mantido na partida aguardando reconexão.');
+    player.disconnectedAt = typeof lastSeen === 'number' ? lastSeen : now;
+    console.warn('📴 ' + player.name + ' desconectou' + stopped + ' — mantido na partida aguardando reconexão.');
 
     Game.network.broadcastAll({ type: 'player-list', players: state.players });
     Game.ui.updatePlayersList();
     Game.ui.syncPlayerViews(null);
 
-    Game.core.abortRoundIfParticipant(player.name);
+    if (wasWaiting) {
+        Game.core.refreshRoundWaiting();
+    } else {
+        Game.core.holdRoundIfParticipant(player.name);
+    }
 
     Game.saveState();
 }
@@ -446,6 +486,7 @@ function handlePlayerReturn(peerId) {
     if (!player || !player.disconnected || !state.gameStarted || state.gameOver) return;
 
     player.disconnected = false;
+    delete player.disconnectedAt;
     console.log('🔙 ' + player.name + ' voltou (sinal de vida de volta).');
 
     Game.network.broadcastAll({ type: 'player-list', players: state.players });
@@ -454,6 +495,9 @@ function handlePlayerReturn(peerId) {
 
     if (state.matchPaused && Game.getActivePlayers().length >= CONFIG.GAME.MIN_PLAYERS) {
         Game.core.resumePausedMatch();
+    } else {
+        // Se a rodada esperava quem caiu, a volta dele reabre a dupla guardada.
+        Game.core.refreshRoundWaiting();
     }
 
     Game.saveState();
@@ -506,8 +550,8 @@ function storeAnsweredThisRound(answered) {
  * situação: fim de jogo → tela final com o ranking que veio do host, sem
  * relógio; partida pausada → aviso de pausa; ciclo encerrado → "rodada
  * encerrada, aguardando o host"; pergunta já respondida (intervalo até a
- * próxima dupla) → visão de espectador, sem reabrir a pergunta; senão, a
- * rodada em andamento.
+ * próxima dupla) → visão de espectador, sem reabrir a pergunta; rodada
+ * esperando quem caiu → a espera; senão, a rodada em andamento.
  */
 function restoreState(fullState) {
     const state = Game.state;
@@ -517,6 +561,8 @@ function restoreState(fullState) {
     state.currentRound = fullState.currentRound;
     state.gameStarted = fullState.gameStarted;
     state.roundEnded = !!fullState.roundEnded;
+    // Host de versão anterior não manda o campo: sem espera.
+    state.waitingFor = Array.isArray(fullState.waitingFor) ? fullState.waitingFor.slice() : [];
     storeAnsweredThisRound(fullState.answeredThisRound);
     // Host de versão anterior não manda os campos: partida não acabada.
     state.gameOver = !!fullState.gameOver;
@@ -536,6 +582,9 @@ function restoreState(fullState) {
             Game.ui.showMatchPausedMessage();
         } else if (state.roundEnded) {
             Game.ui.showRoundEndedMessage();
+        } else if (state.waitingFor.length > 0) {
+            state.currentRound = null;
+            Game.ui.showRoundWaitingMessage(state.waitingFor.slice(), false);
         } else if (state.currentRound && state.currentRound.answered) {
             Game.ui.displaySpectatorView(state.currentRound.asker, state.currentRound.answerer);
         } else if (state.currentRound) {

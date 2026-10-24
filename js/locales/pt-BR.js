@@ -51,6 +51,12 @@ window.Game.locales['pt-BR'] = {
         roundEndedHost: '🏁 Rodada encerrada! Clique em "Nova Rodada" para continuar.',
         roundEndedGuest: '🏁 Rodada encerrada! Aguardando o host iniciar uma nova rodada.',
         matchPaused: '⏸️ Partida pausada: não há jogadores conectados suficientes. Ela continua sozinha assim que alguém reconectar.',
+        // Espera do fim da rodada: quem caiu sem responder segura o fim da
+        // rodada até voltar (ou o host clicar em "Nova Rodada").
+        waitingForDropped: '⏳ Esperando {{names}} voltar para fechar a rodada.',
+        waitingForDroppedHost: '⏳ Esperando {{names}} voltar. Clique em "Nova Rodada" para seguir sem esperar.',
+        droppedFor: '{{name}} (caiu há {{elapsed}})',
+        handOverButton: '🔁 Passar a pergunta pendente para outra pessoa',
         // Etapa "Fazer a pergunta": o Perguntador lê a pergunta em voz alta
         // e clica; só então quem responde vê as alternativas.
         askButton: '🗣️ Fazer a pergunta',
@@ -130,6 +136,7 @@ window.Game.locales['pt-BR'] = {
         overrun: 'Estouro de orçamento: recurso negativo desconta do KPI Final',
         rankingDetail: 'KPI acumulado (acertos): {{kpi}} | Recursos: {{resources}}📦 × {{value}} = {{resourcesKpi}} KPI',
         disconnected: 'Desconectado, aguardando reconexão',
+        hostBadge: 'Host da partida',
         tiebreakNote: 'Empate no KPI Final: fica à frente quem avançou mais nas áreas foco e, se ainda empatar, quem tem mais KPI acumulado. Empate em tudo divide a posição.',
     },
 
@@ -141,5 +148,17 @@ window.Game.locales['pt-BR'] = {
         hostDisconnected: 'Host desconectado — aguardando a volta dele...',
         // Depois de uma troca de host (ver network/roomLink.js).
         newHost: 'Conectado — {{name}} agora é o host',
+    },
+
+    // Faixa do topo da tela da partida, só no host.
+    host: {
+        banner: '👑 Você é o host',
+    },
+
+    // Aviso curto no topo da tela (ver ui/screenManager.js, showNotice()).
+    notice: {
+        answererDropped: '📴 {{name}} caiu — a pergunta dele fica para o fim da rodada',
+        askerDropped: '📴 {{name}} caiu — a pergunta de {{answerer}} fica para o fim da rodada',
+        youAreNewHost: '👑 Você agora é o host da partida',
     },
 };

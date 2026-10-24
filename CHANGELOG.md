@@ -137,6 +137,24 @@
   host sem dois hosts ao mesmo tempo).
 
 ### Fixed
+- **Queda curta de quem está na dupla perdia a pergunta (BUG-033):** no
+  celular, a conexão com o Firebase leva de 18 a 60 segundos para voltar
+  depois que a rede volta, e quase toda queda curta de quem perguntava ou
+  respondia descartava a pergunta. Agora a dupla fica guardada até o fim da
+  rodada (mesma pergunta, o tempo de resposta que faltava): todos veem por
+  alguns segundos "📴 Fulano caiu — a pergunta dele fica para o fim da
+  rodada", a partida segue com outras duplas e, quando ele volta, a dupla
+  dele é a próxima. Se todos os outros já responderam e ele não voltou, a
+  rodada espera: o host vê "Esperando Fulano voltar (caiu há m:ss)" e pode
+  seguir sem ele no "Nova Rodada" ou, se quem caiu foi quem pergunta,
+  passar a pergunta para outra pessoa. A tela do host mostra "👑 Você é o
+  host", e a lista de jogadores, o 👑 ao lado do host. A versão das
+  mensagens entre os jogadores (protocolo) passou da 12 para a 13 e a do
+  estado salvo, da 9 para a 10. Testes T211–T213, T215–T218 e cenários E39
+  e E40.
+- **Resposta mandada sem conexão podia valer para outra pergunta
+  (BUG-034):** cada dupla tem agora um número, que vai na resposta e no
+  "Fazer a pergunta"; o host ignora o que chega de outra dupla. Teste T214.
 - **Evento repetido quando alguém da dupla cai (BUG-032):** quando quem
   perguntava ou respondia caía ou saía da partida, a dupla nova vinha com
   o aviso de outro evento, e o efeito dele era aplicado de novo (outro
@@ -205,8 +223,10 @@
 - Quem fecha a aba sai da lista do lobby só ~20 segundos depois, e a
   sala fica ~10 segundos sem host numa troca. Com a aba do host escondida
   por mais de 5 minutos, o Chrome e o Edge espaçam o sinal de vida dele, e
-  os outros podem tomar o host (conferir no teste manual M18). Lista
-  completa em `_docs/connection-tests.md`, seção 5.
+  os outros podem tomar o host (conferir no teste manual M18). No Windows,
+  a janela do Edge coberta por inteiro por outra janela conta como
+  escondida: o professor não deve ser o host pelo Edge. Lista completa em
+  `_docs/connection-tests.md`, seção 5.
 
 ---
 

@@ -16,7 +16,7 @@
 // ficava no navegador do host, em duas partes: a da sala (roomState) e a
 // do próprio host (pmKPI_myData). Os passos continuam recebendo e
 // devolvendo as duas; a restauração pelo banco passa myData null.
-const STATE_VERSION = 9;
+const STATE_VERSION = 10;
 
 /**
  * Cópia de `obj` com os campos renomeados conforme `names`
@@ -203,6 +203,23 @@ function timerToEndsAt(roomState, myData) {
     return { roomState: room, myData };
 }
 
+/**
+ * Versão 9 → 10: cada dupla passou a ter um número (pairId), e a dupla de
+ * quem cai fica guardada até o fim da rodada (heldPairs). A rodada aberta
+ * ganha o número 1 (último número dado: 1); sem rodada, o último é 0. Sem
+ * duplas guardadas. O resto, inclusive pmKPI_myData, não muda.
+ */
+function addPairIds(roomState, myData) {
+    const room = { ...roomState, heldPairs: [] };
+    if (room.currentRound) {
+        room.currentRound = { ...room.currentRound, pairId: 1 };
+        room.lastPairId = 1;
+    } else {
+        room.lastPairId = 0;
+    }
+    return { roomState: room, myData };
+}
+
 // Passo N: converte da versão N para N+1. Recebe (roomState, myData) e
 // devolve { roomState, myData }.
 const STATE_MIGRATIONS = {
@@ -213,7 +230,8 @@ const STATE_MIGRATIONS = {
     5: migrateFocusAreaIdsToEnglish,
     6: addSupportKind,
     7: removePeerConnectionFields,
-    8: timerToEndsAt
+    8: timerToEndsAt,
+    9: addPairIds
 };
 
 /**
@@ -260,6 +278,10 @@ function saveState() {
         // mesma rodada, sem sortear outro evento (BUG-032).
         roundNumber: state.roundNumber || 0,
         roundEvent: state.roundEvent || null,
+        // Duplas guardadas de quem caiu (com o gabarito: o secret/state é
+        // só do host) e o último número de dupla dado.
+        heldPairs: state.heldPairs || [],
+        lastPairId: state.lastPairId || 0,
         // Sem estes dois, um F5 do host com a rodada encerrada
         // ou com a partida pausada perdia essa situação (ver
         // resumeMatchAfterReload() em engine/sessionEngine.js).
@@ -319,6 +341,10 @@ function restoreSavedState(saved) {
     // sem dupla começa uma rodada, como antes).
     state.roundNumber = Number.isInteger(room.roundNumber) ? room.roundNumber : 0;
     state.roundEvent = room.roundEvent || null;
+    state.heldPairs = Array.isArray(room.heldPairs) ? room.heldPairs : [];
+    state.lastPairId = Number.isInteger(room.lastPairId) ? room.lastPairId : 0;
+    // A espera do fim da rodada não é salva: a retomada a calcula de novo.
+    state.waitingFor = [];
     // Estado salvo por versões anteriores não tem os campos: sem rodada
     // encerrada e sem pausa.
     state.roundEnded = !!room.roundEnded;

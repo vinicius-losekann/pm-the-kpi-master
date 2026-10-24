@@ -1375,7 +1375,8 @@ asyncTest('T216 Troca de host com o host antigo na dupla (BUG-033): quem assume 
     check(opened && opened.takenOver === true, 'pré-condição: troca de host, veio: ' + JSON.stringify(opened));
     const held = copy(s.heldPairs);
     check(Array.isArray(held) && held.length === 1 && held[0].asker === 'Beto' && held[0].answerer === 'Ana' &&
-        held[0].question && held[0].question.question === round.question.question && held[0].question.correct === round.question.correct,
+        held[0].question && held[0].question.question === round.question.question && held[0].question.correct === round.question.correct &&
+        typeof held[0].answerTimeLeft === 'number' && held[0].answerTimeLeft > 0 && held[0].answerTimeLeft <= again.env.CONFIG.GAME.ANSWER_TIMEOUT,
         'quem assume deveria guardar a dupla de Ana (Beto pergunta, a mesma pergunta com o gabarito), veio: ' + JSON.stringify(held));
     const ana = again.env.player('Ana');
     check(ana && ana.disconnected === true && typeof ana.disconnectedAt === 'number' && ana.disconnectedAt <= clock.now,

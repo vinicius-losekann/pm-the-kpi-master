@@ -40,7 +40,7 @@
 // novo e os outros, o antigo — com nomes de campo diferentes, a partida
 // travaria sem aviso. Aumentar ao mudar o nome ou o formato de um campo
 // de mensagem.
-const PROTOCOL_VERSION = 12;
+const PROTOCOL_VERSION = 13;
 
 // Quanto a aba espera a resposta de outra aba do mesmo navegador que já
 // esteja com a sala aberta (as duas teriam o mesmo uid).
@@ -215,6 +215,8 @@ async function openRoom({ db, uid, code, now, timestamp, onOpen }) {
     console.log('🔗 Sala aberta: ' + code + (result.isHost ? ' (host)' : ''));
     if (result.isHost) Game.ui.updateConnectionStatus('connected', Game.i18n.t('connection.connected'));
     if (onOpen) onOpen(result);
+    // Quem acabou de assumir a sala na troca de host fica sabendo.
+    if (result.takenOver) Game.ui.showNotice(Game.i18n.t('notice.youAreNewHost'));
 
     roomLinkState.isReady = true;
     roomLinkState.waiting.splice(0).forEach(fn => {
@@ -259,13 +261,13 @@ function receiveRequest(msg, uid) {
  * Host: presença de outro aparelho. Offline = sinal parado além da
  * tolerância (queda, aba fechada, tela bloqueada); online = presente, ou o
  * sinal de quem tinha caído voltou (ver roomChannel.js, "Volta pelo sinal
- * de vida").
+ * de vida"). Na queda, `lastSeen` é a hora (do servidor) do último sinal.
  */
-function receivePresence(uid, online) {
+function receivePresence(uid, online, lastSeen) {
     if (online) {
         Game.network.handlePlayerReturn(uid);
     } else {
-        Game.network.handlePlayerDisconnect(uid);
+        Game.network.handlePlayerDisconnect(uid, lastSeen);
     }
 }
 

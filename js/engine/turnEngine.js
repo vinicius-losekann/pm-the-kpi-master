@@ -5,6 +5,13 @@
 // Perguntador/Respondedor, sorteio de pergunta e avanço de turno.
 // Usa as regras puras de js/domain/*.js — não contém regra de
 // negócio, só coordenação entre domain, state, network e ui.
+//
+// Dupla guardada: quando quem está na dupla cai, a dupla fica guardada
+// (state.heldPairs, com a pergunta) até o fim da rodada; quando os dois
+// estão conectados de novo, ela é a próxima dupla. No fim da rodada, quem
+// caiu sem responder segura o fim (espera, state.waitingFor) até voltar ou
+// o host clicar em "Nova Rodada". Cada dupla tem um número (pairId): o
+// host ignora resposta e pedido de pergunta de outra dupla.
 // ============================================
 
 /**
@@ -13,16 +20,19 @@
  *
  * Chamada em 3 situações: (1) início da partida (sessionEngine.startGame),
  * (2) clique do host no botão "Nova Rodada" (a rodada nova nunca começa
- * sozinha), (3) retomada de uma pausa cujo evento se perdeu
- * (resumePausedMatch).
+ * sozinha; na espera do fim da rodada, segue sem quem caiu), (3) retomada
+ * de uma pausa cujo evento se perdeu (resumePausedMatch).
  */
 function startNewRound() {
     const state = Game.state;
 
     // Reset defensivo: toda vez que uma rodada de verdade começa, o
     // rodízio de quem já respondeu precisa estar zerado — independente
-    // de quem chamou esta função.
+    // de quem chamou esta função. Quem tinha dupla guardada perde a vez:
+    // a pergunta volta ao baralho.
     state.answeredThisRound = [];
+    discardHeldPairs(() => true);
+    state.waitingFor = [];
     Game.ui.refreshNewRoundButton();
 
     const event = Game.domain.event.drawEvent(state.questionsData?.events || []);
@@ -36,7 +46,7 @@ function startNewRound() {
     state.roundNumber = (state.roundNumber || 0) + 1;
     state.roundEvent = event;
     const eventEffect = applyDrawnEvent(event);
-    pickNewPair(event, 0, true, eventEffect);
+    pickNewPair(event, true, eventEffect);
 }
 
 /**
@@ -50,9 +60,42 @@ function applyDrawnEvent(event) {
     return effect;
 }
 
+/** O jogador está ativo (na partida e conectado)? */
+function isActive(name) {
+    return Game.getActivePlayers().some(p => p.name === name);
+}
+
 /**
- * Escolhe aleatoriamente um Perguntador e um Respondedor entre os
- * jogadores ativos, respeitando o rodízio.
+ * Tira das duplas guardadas as que `isDiscarded(dupla)` aponta, e a
+ * pergunta de cada uma volta ao baralho.
+ */
+function discardHeldPairs(isDiscarded) {
+    const state = Game.state;
+    state.heldPairs = (state.heldPairs || []).filter(pair => {
+        if (!isDiscarded(pair)) return true;
+        Game.domain.deck.returnQuestion(state.decks, pair.question);
+        console.log('↩️ A pergunta guardada de ' + pair.answerer + ' volta ao baralho.');
+        return false;
+    });
+}
+
+/**
+ * Duplas guardadas que deixaram de valer: quem responde já respondeu na
+ * rodada, ou um dos dois saiu da partida (ou da sala).
+ */
+function discardStaleHeldPairs() {
+    const state = Game.state;
+    const inMatch = (name) => Game.selectors.getMatchPlayers(state.players).some(p => p.name === name);
+    discardHeldPairs(pair => state.answeredThisRound.includes(pair.answerer) || !inMatch(pair.asker) || !inMatch(pair.answerer));
+}
+
+/**
+ * Escolhe a próxima dupla da rodada: primeiro a dupla guardada com os dois
+ * conectados (quem caiu voltou); senão, sorteia um Perguntador e um
+ * Respondedor entre os jogadores ativos, respeitando o rodízio (quem tem
+ * dupla guardada não é sorteado para responder, mas pode perguntar). Se
+ * ninguém mais pode responder, a rodada encerra ou espera quem caiu
+ * (endRoundOrWait()).
  *
  * Sem evento (troca de dupla no meio da rodada: quem estava na dupla caiu
  * ou saiu, quem responde sumiu, retomada do host sem dupla), continua a
@@ -60,7 +103,6 @@ function applyDrawnEvent(event) {
  * o efeito de novo — o evento só sai no início da rodada (startNewRound()).
  * Sem o evento da rodada (estado salvo de antes do campo), começa uma.
  * @param {object} event – o evento da rodada (reaproveitado entre perguntas da mesma rodada)
- * @param {number} depth – profundidade da recursão (previne loops infinitos)
  * @param {boolean} showModal – se true, exibe o modal de evento agora
  *   (só deve ser true no INÍCIO de uma rodada nova — startNewRound() usa
  *   o padrão `true`; continuações dentro da mesma rodada, vindas de
@@ -68,14 +110,8 @@ function applyDrawnEvent(event) {
  * @param {object|null} eventEffect – quem o evento atingiu (applyEventEffects()),
  *   mostrado no aviso do evento
  */
-function pickNewPair(event = null, depth = 0, showModal = true, eventEffect = null) {
+function pickNewPair(event = null, showModal = true, eventEffect = null) {
     const state = Game.state;
-
-    if (depth > CONFIG.GAME.MAX_PLAYERS * 2) {
-        console.error('❌ Não foi possível formar um novo par de jogadores. Encerrando partida.');
-        Game.engine.session.endGame(Game.engine.session.buildRanking());
-        return;
-    }
 
     if (!event && state.roundEvent) {
         event = state.roundEvent;
@@ -99,11 +135,12 @@ function pickNewPair(event = null, depth = 0, showModal = true, eventEffect = nu
         // partida PAUSA em vez de encerrar — retoma sozinha quando
         // alguém reconectar (ver resumePausedMatch() e addPlayer()
         // em network/messageHandler.js). O timer da partida continua
-        // correndo durante a pausa.
+        // correndo durante a pausa. As duplas guardadas continuam.
         const matchPlayers = Game.selectors.getMatchPlayers(state.players);
         if (matchPlayers.length >= CONFIG.GAME.MIN_PLAYERS) {
             console.warn('⏸️ Jogadores conectados insuficientes — partida pausada até alguém reconectar.');
             state.currentRound = null;
+            state.waitingFor = [];
             state.matchPaused = { event };
             Game.network.broadcastAll({ type: 'match-paused' });
             Game.ui.showMatchPausedMessage();
@@ -117,17 +154,26 @@ function pickNewPair(event = null, depth = 0, showModal = true, eventEffect = nu
         return;
     }
 
+    discardStaleHeldPairs();
+    const ready = state.heldPairs.find(pair => isActive(pair.asker) && isActive(pair.answerer));
+    if (ready) {
+        reopenHeldPair(ready, event, ready.asker);
+        return;
+    }
+
     // Recurso não limita quem pode ser Respondedor: qualquer jogador
     // ativo sempre tenta responder, mesmo com 0 recursos, já que só errar
     // gasta recurso (domain/kpiRules.js).
 
     // Seleciona um Respondedor que ainda não tenha respondido nesta rodada
+    // nem tenha dupla guardada.
+    const held = state.heldPairs.map(pair => pair.answerer);
     const available = activePlayers.filter(p =>
-        !state.answeredThisRound.includes(p.name)
+        !state.answeredThisRound.includes(p.name) && !held.includes(p.name)
     );
     if (available.length === 0) {
-        state.answeredThisRound = [];
-        return pickNewPair(event, depth + 1, false);
+        endRoundOrWait();
+        return;
     }
 
     const answerer = available[Math.floor(Math.random() * available.length)];
@@ -147,35 +193,65 @@ function pickNewPair(event = null, depth = 0, showModal = true, eventEffect = nu
     // então o F5 do host e quem volta à partida também veem as etiquetas.
     const domainName = state.questionsData.domains[question.domain_key]?.name || question.domain_key;
     const areaName = Game.getFocusAreaById(answerer.focusArea).name;
+    startPair(event, asker.name, answerer.name, { ...question, domain: domainName, area: areaName });
+}
+
+/**
+ * Reabre uma dupla guardada como a dupla da vez, com outro número, a
+ * mesma pergunta e quem responde com o tempo que faltava; o Perguntador
+ * (`askerName`: o de antes, ou outro, ao passar a pergunta) a faz de novo.
+ */
+function reopenHeldPair(pair, event, askerName) {
+    const state = Game.state;
+    state.heldPairs = state.heldPairs.filter(p => p !== pair);
+    console.log('🔁 Dupla guardada de volta: ' + askerName + ' pergunta para ' + pair.answerer + '.');
+    startPair(event, askerName, pair.answerer, pair.question, pair.answerTimeLeft);
+}
+
+/**
+ * Começa a dupla da vez: número novo, avisa todos ('round-start'), monta
+ * a tela do host e manda a pergunta (com o gabarito) ao Perguntador.
+ * `answerTimeLeft` (ms): o prazo de resposta que faltava, numa dupla
+ * guardada que reabre; sem ele, o prazo inteiro.
+ */
+function startPair(event, askerName, answererName, question, answerTimeLeft) {
+    const state = Game.state;
+    const asker = Game.getPlayerByName(askerName);
 
     state.matchPaused = null;
     state.roundEnded = false;
+    state.waitingFor = [];
+    state.lastPairId = (state.lastPairId || 0) + 1;
     state.currentRound = {
         event,
-        asker: asker.name,
-        answerer: answerer.name,
-        question: { ...question, domain: domainName, area: areaName },
+        asker: askerName,
+        answerer: answererName,
+        question,
         answered: false,
         // A pergunta só vai para o Respondedor quando o Perguntador a faz
         // (ver askQuestion()). Rodada sem o campo (estado salvo ou cópia
         // de uma versão anterior) conta como pergunta já feita.
-        asked: false
+        asked: false,
+        pairId: state.lastPairId
     };
+    if (typeof answerTimeLeft === 'number') state.currentRound.answerTimeLeft = answerTimeLeft;
 
-    console.log('🎯 Rodada ' + state.roundNumber + ' — nova dupla: ' + asker.name + ' pergunta para ' + answerer.name);
-    console.log('📋 Evento:', event.title);
+    console.log('🎯 Rodada ' + state.roundNumber + ' — nova dupla: ' + askerName + ' pergunta para ' + answererName);
+    console.log('📋 Evento:', event ? event.title : '(nenhum)');
 
     // `answeredThisRound` = quem já respondeu nesta rodada (vazio
     // numa rodada nova). Os guests guardam — quem assumir como host
     // continua o rodízio de onde parou. `roundNumber`: para o console de
-    // cada um mostrar em que rodada está.
+    // cada um mostrar em que rodada está. `pairId`: o guest manda de
+    // volta na resposta e no "Fazer a pergunta".
     Game.network.broadcastAll({
         type: 'round-start',
         event,
-        asker: asker.name,
-        answerer: answerer.name,
+        asker: askerName,
+        answerer: answererName,
         answeredThisRound: state.answeredThisRound.slice(),
-        roundNumber: state.roundNumber
+        roundNumber: state.roundNumber,
+        pairId: state.lastPairId
     });
 
     // Ordem das telas: para os GUESTS, 'round-start'
@@ -190,25 +266,26 @@ function pickNewPair(event = null, depth = 0, showModal = true, eventEffect = nu
     // pergunta vazia). Por isso a tela do host é montada ANTES de enviar
     // as mensagens — replicando a ordem que os guests já recebem
     // naturalmente pela rede.
-    if (state.playerName !== asker.name && state.playerName !== answerer.name) {
-        Game.ui.displaySpectatorView(asker.name, answerer.name);
+    if (state.playerName !== askerName && state.playerName !== answererName) {
+        Game.ui.displaySpectatorView(askerName, answererName);
     } else {
         Game.ui.displayRoundStart();
     }
 
-    const questionMsg = {
-        type: 'question',
-        question: question.question,
-        domain: domainName,
-        area: areaName,
-        alternatives: question.alternatives,
-        correct: question.correct,
-        id: question.id
-    };
-
     // Envia a pergunta (com gabarito) para o Perguntador. O Respondedor
     // só a recebe quando o Perguntador a faz (askQuestion()).
-    Game.network.sendToPlayer(asker.peerId, { ...questionMsg, isAsker: true });
+    if (asker) {
+        Game.network.sendToPlayer(asker.peerId, {
+            type: 'question',
+            question: question.question,
+            domain: question.domain,
+            area: question.area,
+            alternatives: question.alternatives,
+            correct: question.correct,
+            id: question.id,
+            isAsker: true
+        });
+    }
 
     if (CONFIG.GAME.ASK_TIMEOUT > 0) {
         armAskTimeout();
@@ -247,20 +324,34 @@ function clearAskTimeout() {
 }
 
 /**
+ * Host: a mensagem é de outra dupla (o número que ela traz não é o da
+ * dupla da vez)? Ex.: a resposta mandada sem conexão, que chega depois de
+ * a dupla ter mudado. Sem o número, vale como antes.
+ */
+function isFromOtherPair(msg) {
+    const round = Game.state.currentRound;
+    if (!round || typeof msg.pairId !== 'number' || msg.pairId === round.pairId) return false;
+    console.warn('⚠️ ' + (msg.type || 'answer') + ' de ' + msg.playerName + ' ignorado: é de outra dupla (número ' + msg.pairId + ', a da vez é ' + round.pairId + ').');
+    return true;
+}
+
+/**
  * Host: o Perguntador clicou em "Fazer a pergunta" (mensagem
- * 'ask-question', ou a própria tela do host). Pedido de outro jogador é
- * ignorado.
+ * 'ask-question', ou a própria tela do host). Pedido de outro jogador, ou
+ * de outra dupla, é ignorado.
  */
 function handleAskQuestion(msg) {
     const round = Game.state.currentRound;
     if (!Game.state.isHost || !round || msg.playerName !== round.asker) return;
+    if (isFromOtherPair(msg)) return;
     askQuestion(false);
 }
 
 /**
  * Host: a pergunta foi feita (clique ou prazo do Perguntador). Avisa
  * todos ('question-asked'), manda a pergunta, sem o gabarito, ao
- * Respondedor e liga o prazo de resposta. Só vale uma vez por pergunta.
+ * Respondedor e liga o prazo de resposta (inteiro, ou o que faltava numa
+ * dupla guardada que reabriu). Só vale uma vez por pergunta.
  * @param {boolean} auto - true quando foi o prazo, não o clique
  */
 function askQuestion(auto) {
@@ -278,7 +369,9 @@ function askQuestion(auto) {
 
     // O prazo de resposta é armado antes do envio: a pergunta leva a hora
     // de término dele, pela qual conta o contador de quem responde.
-    armAnswerTimeout(round.answerer);
+    const left = typeof round.answerTimeLeft === 'number' ? round.answerTimeLeft : undefined;
+    round.answerTimeLeft = null;
+    armAnswerTimeout(round.answerer, left);
 
     const answerer = Game.getPlayerByName(round.answerer);
     const q = round.question;
@@ -344,7 +437,8 @@ function pauseAnswerTimeout() {
  * jogo PARA e aguarda: é o host quem clica em "Nova Rodada"
  * (Game.core.startNewRound(), ligado em controlsComponent.js) para
  * sortear o próximo evento e mostrar o modal — a rodada nova nunca
- * começa sozinha.
+ * começa sozinha. Se alguém caiu sem responder, a rodada espera por ele
+ * (endRoundOrWait()).
  *
  * O fim do ciclo fica registrado em `state.roundEnded`
  * (zerado quando a próxima dupla é formada). Sem isso, quem reconecta
@@ -355,29 +449,108 @@ function pauseAnswerTimeout() {
 function nextTurn() {
     const state = Game.state;
     if (endRoundIfCycleComplete()) return;
-    pickNewPair(state.currentRound?.event, 0, false);
+    pickNewPair(state.currentRound?.event, false);
 }
 
 /**
  * Se todos os jogadores ativos já responderam nesta rodada, encerra a
- * rodada: marca `state.roundEnded`, libera o "Nova Rodada", avisa
- * os guests ('round-ended') e mostra o aviso. A próxima rodada só começa
- * com o clique do host.
+ * rodada ou a deixa esperando quem caiu (endRoundOrWait()).
  *
  * Usada também ao retomar uma partida pausada (resumePausedMatch()).
- * @returns {boolean} true se encerrou a rodada
+ * @returns {boolean} true se encerrou a rodada ou ela ficou esperando
  */
 function endRoundIfCycleComplete() {
     const state = Game.state;
     if (!Game.selectors.isCycleComplete(Game.getActivePlayers(), state.answeredThisRound)) return false;
-
-    console.log('✅ Todos os jogadores ativos já responderam nesta rodada. Aguardando o host clicar em "Nova Rodada".');
-    state.roundEnded = true;
-    Game.ui.refreshNewRoundButton();
-    Game.network.broadcastAll({ type: 'round-ended' });
-    Game.ui.showRoundEndedMessage();
-    Game.saveState();
+    endRoundOrWait();
     return true;
+}
+
+/**
+ * Quem a rodada espera para fechar: os desconectados de cada dupla
+ * guardada e quem caiu sem ter respondido nesta rodada.
+ */
+function namesToWaitFor() {
+    const state = Game.state;
+    const match = Game.selectors.getMatchPlayers(state.players);
+    const isOut = (name) => match.some(p => p.name === name && p.disconnected);
+    const names = [];
+    const add = (name) => { if (isOut(name) && !names.includes(name)) names.push(name); };
+    state.heldPairs.forEach(pair => { add(pair.asker); add(pair.answerer); });
+    match.filter(p => !state.answeredThisRound.includes(p.name)).forEach(p => add(p.name));
+    return names;
+}
+
+/**
+ * A dupla guardada que o host pode passar a outro Perguntador: quem
+ * responde conectado e quem pergunta fora, com mais alguém para perguntar.
+ */
+function handOverCandidate() {
+    const state = Game.state;
+    const pair = state.heldPairs.find(p => isActive(p.answerer) && !isActive(p.asker));
+    if (!pair || !Game.getActivePlayers().some(p => p.name !== pair.answerer)) return null;
+    return pair;
+}
+
+/**
+ * Ninguém mais pode responder nesta rodada. Sem ninguém para esperar, a
+ * rodada encerra: marca `state.roundEnded`, libera o "Nova Rodada", avisa
+ * os guests ('round-ended') e mostra o aviso. Com alguém caído sem ter
+ * respondido, a rodada espera por ele ('round-waiting' com os nomes): a
+ * volta dele reabre a dupla (refreshRoundWaiting()), e o host pode seguir
+ * sem ele ("Nova Rodada") ou passar a pergunta pendente a outro
+ * Perguntador (handOverHeldQuestion()).
+ */
+function endRoundOrWait() {
+    const state = Game.state;
+    discardStaleHeldPairs();
+    const waitingFor = namesToWaitFor();
+    if (waitingFor.length === 0) {
+        console.log('✅ Todos os jogadores ativos já responderam nesta rodada. Aguardando o host clicar em "Nova Rodada".');
+        state.roundEnded = true;
+        state.waitingFor = [];
+        Game.ui.refreshNewRoundButton();
+        Game.network.broadcastAll({ type: 'round-ended' });
+        Game.ui.showRoundEndedMessage();
+        Game.saveState();
+        return;
+    }
+
+    console.log('⏳ A rodada espera ' + waitingFor.join(', ') + ' voltar (ou o host clicar em "Nova Rodada").');
+    state.currentRound = null;
+    state.roundEnded = false;
+    state.waitingFor = waitingFor;
+    Game.network.broadcastAll({ type: 'round-waiting', waitingFor: waitingFor.slice() });
+    Game.ui.showRoundWaitingMessage(waitingFor.slice(), !!handOverCandidate());
+    Game.ui.refreshNewRoundButton();
+    Game.saveState();
+}
+
+/**
+ * Host: com a rodada esperando quem caiu, alguém voltou ou caiu — a dupla
+ * guardada de quem voltou reabre, ou a espera é recalculada.
+ */
+function refreshRoundWaiting() {
+    const state = Game.state;
+    if (!state.isHost || !(state.waitingFor || []).length || state.currentRound || state.matchPaused) return;
+    pickNewPair();
+}
+
+/**
+ * Host, na espera do fim da rodada (botão "Passar a pergunta pendente
+ * para outra pessoa"): a dupla guardada com quem responde conectado e
+ * quem pergunta fora reabre com outro Perguntador, sorteado entre os
+ * conectados, menos quem responde.
+ */
+function handOverHeldQuestion() {
+    const state = Game.state;
+    if (!state.isHost || !(state.waitingFor || []).length) return;
+    const pair = handOverCandidate();
+    if (!pair) return;
+    const askers = Game.getActivePlayers().filter(p => p.name !== pair.answerer);
+    const asker = askers[Math.floor(Math.random() * askers.length)];
+    console.log('🔁 A pergunta pendente de ' + pair.answerer + ' passa de ' + pair.asker + ' para ' + asker.name + '.');
+    reopenHeldPair(pair, state.roundEvent, asker.name);
 }
 
 /**
@@ -400,7 +573,7 @@ function resumePausedMatch() {
     if (pause.event && endRoundIfCycleComplete()) return;
 
     if (pause.event) {
-        pickNewPair(pause.event, 0, false);
+        pickNewPair(pause.event, false);
     } else {
         startNewRound();
     }
@@ -416,12 +589,15 @@ window.Game.engine.turn = {
     pickNewPair,
     armAskTimeout,
     clearAskTimeout,
+    isFromOtherPair,
     handleAskQuestion,
     askQuestion,
     armAnswerTimeout,
     pauseAnswerTimeout,
     nextTurn,
     endRoundIfCycleComplete,
+    refreshRoundWaiting,
+    handOverHeldQuestion,
     resumePausedMatch
 };
 

@@ -305,6 +305,7 @@ Localmente, com Node.js: `node tests/simulation/run.js`.
 | 🚪 Sair/Encerrar | ✅ |
 | 👑 Troca de host (se o host cair, outro jogador assume em ~10 s e a pergunta continua) | ✅ |
 | 🔌 Reconexão no meio da partida (com identidade por navegador) e F5 sem perder a partida | ✅ |
+| 📴 Quem cai na sua vez não perde a pergunta: ela fica para o fim da rodada, que espera a volta dele (ou o host segue sem ele no "Nova Rodada") | ✅ |
 | 🧪 Testes automatizados (lógica e ponta a ponta) | ✅ |
 
 ---

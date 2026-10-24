@@ -2,7 +2,7 @@
 // PM: The KPI Master - UI: Screen Manager
 // ============================================
 // Navegação entre telas (lobby, jogo, fim de jogo), fechamento de
-// modais e status de conexão.
+// modais, aviso curto no topo e status de conexão.
 // ============================================
 
 const SCREENS = {
@@ -35,6 +35,24 @@ function closeAllModals() {
     });
 }
 
+let noticeTimeout = null;
+
+/**
+ * Aviso curto no topo da tela da partida (ex.: "Fulano caiu"), sem botão:
+ * some sozinho depois de CONFIG.GAME.NOTICE_MS. Um aviso novo troca o
+ * anterior e conta o tempo de novo.
+ */
+function showNotice(text) {
+    const el = document.getElementById('gameNotice');
+    if (!el) return;
+    el.textContent = text;
+    el.style.display = 'block';
+    clearTimeout(noticeTimeout);
+    noticeTimeout = setTimeout(() => {
+        el.style.display = 'none';
+    }, CONFIG.GAME.NOTICE_MS);
+}
+
 function updateConnectionStatus(status, text) {
     const dot = document.querySelector('.status-dot');
     const textEl = document.getElementById('statusText');
@@ -53,5 +71,6 @@ window.Game.ui = window.Game.ui || {};
 Object.assign(window.Game.ui, {
     showScreen,
     closeAllModals,
+    showNotice,
     updateConnectionStatus
 });

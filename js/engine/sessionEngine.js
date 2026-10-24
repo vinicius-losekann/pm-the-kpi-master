@@ -27,6 +27,9 @@ function startGame() {
     state.answeredThisRound = [];
     state.roundNumber = 0;
     state.roundEvent = null;
+    state.heldPairs = [];
+    state.lastPairId = 0;
+    state.waitingFor = [];
 
     Game.resetAllPlayers();
 
@@ -216,9 +219,12 @@ function resumePendingAdvisory(advisory) {
  *     cai no lobby); na partida e no fim de jogo, fica desconectado, com
  *     KPI e recursos guardados — volta como jogador comum;
  *   - este jogador vira o host, conectado (o host antigo pode tê-lo dado
- *     como caído);
+ *     como caído); o host antigo fica com a hora do último sinal como a
+ *     da queda;
  *   - com o host antigo na dupla e a pergunta sem resposta, a rodada é a
- *     de quem cai: fica sem rodada e a retomada sorteia outra dupla;
+ *     de quem cai: a dupla fica guardada até o fim da rodada (com o prazo
+ *     de resposta que faltava no último sinal dele) e a retomada sorteia
+ *     outra dupla;
  *   - senão, o tempo sem host não conta: cada prazo da rodada que ainda
  *     corria no último sinal do host antigo (`slackMs` atrás) ganha
  *     `slackMs` — o do Perguntador, o de resposta e o de quem foi chamado
@@ -240,16 +246,18 @@ function takeOverMatch({ fromUid, toUid, slackMs }) {
         state.players = state.players.filter(p => p !== previous);
         return;
     }
+    const lastSeen = Game.network.serverNow() - slackMs;
     previous.disconnected = true;
+    previous.disconnectedAt = lastSeen;
 
     const round = state.currentRound;
     if (!round || state.gameOver) return;
     if (!round.answered && (round.asker === previous.name || round.answerer === previous.name)) {
-        console.warn('⚠️ O host antigo estava na dupla — a retomada sorteia outra.');
+        console.warn('⚠️ O host antigo estava na dupla — a dupla fica guardada até o fim da rodada e a retomada sorteia outra.');
+        holdPair(round, answerTimeLeftAt(round, lastSeen));
         state.currentRound = null;
         return;
     }
-    const lastSeen = Game.network.serverNow() - slackMs;
     const extended = (endsAt) => typeof endsAt === 'number' && endsAt > lastSeen;
     if (extended(round.askEndsAt)) round.askEndsAt += slackMs;
     if (extended(round.answerEndsAt)) round.answerEndsAt += slackMs;
@@ -292,7 +300,7 @@ function endGame(ranking) {
  * Cancela os prazos da pergunta em andamento: o do Perguntador, o de
  * resposta do Respondedor e o de quem foi chamado (assessoria ou ajuda).
  * Usada no fim de jogo, ao encerrar a partida e quando a dupla é trocada
- * (abortRoundIfParticipant()).
+ * (abortRoundIfParticipant(), holdRoundIfParticipant()).
  */
 function cancelRoundTimeouts() {
     const state = Game.state;
@@ -477,7 +485,55 @@ function handleLeaveMatchRequest(msg) {
 }
 
 /**
- * Aborta a rodada atual se o jogador mencionado for o Perguntador ou Respondedor.
+ * O prazo de resposta que faltava à rodada na hora `at` (hora do
+ * servidor), para a dupla guardada continuar dele: com a pergunta ainda
+ * por fazer ou o apoio pendente, o que já estava guardado (undefined =
+ * prazo inteiro); senão, até a hora de término dele.
+ */
+function answerTimeLeftAt(round, at) {
+    const paused = round.asked === false || (!!round.advisory && round.advisory.status === 'pending');
+    if (paused) return typeof round.answerTimeLeft === 'number' ? round.answerTimeLeft : undefined;
+    return typeof round.answerEndsAt === 'number' ? Math.max(0, round.answerEndsAt - at) : undefined;
+}
+
+/**
+ * Guarda a dupla da rodada até o fim dela (state.heldPairs): mesmo
+ * Perguntador, mesma pergunta (com o gabarito: fica só no host) e o prazo
+ * de resposta que faltava. O apoio não vai junto: na volta, quem responde
+ * pode pedir de novo. Devolve a dupla guardada.
+ */
+function holdPair(round, answerTimeLeft) {
+    const state = Game.state;
+    const pair = { asker: round.asker, answerer: round.answerer, question: round.question };
+    if (typeof answerTimeLeft === 'number') pair.answerTimeLeft = answerTimeLeft;
+    state.heldPairs = (state.heldPairs || []).concat(pair);
+    return pair;
+}
+
+/**
+ * Host: quem caiu estava na dupla da vez (pergunta ainda sem resposta)?
+ * A dupla fica guardada até o fim da rodada (o apoio pendente é cancelado
+ * sem cobrar), todos são avisados ('pair-held') e a partida segue com
+ * outra dupla. Ele volta para a mesma pergunta (Game.engine.turn.pickNewPair()).
+ */
+function holdRoundIfParticipant(playerName) {
+    const state = Game.state;
+    const round = state.currentRound;
+    if (!state.isHost || !round || round.answered || (round.asker !== playerName && round.answerer !== playerName)) return;
+
+    const pair = holdPair(round, answerTimeLeftAt(round, Game.network.serverNow()));
+    cancelRoundTimeouts();
+    state.currentRound = null;
+    console.warn('📴 ' + playerName + ' caiu na dupla — ' + pair.asker + ' e ' + pair.answerer + ' ficam guardados até o fim da rodada.');
+    const msg = { type: 'pair-held', droppedName: playerName, asker: pair.asker, answerer: pair.answerer };
+    Game.network.broadcastAll(msg);
+    Game.ui.showPairHeldNotice(msg);
+    Game.engine.turn.pickNewPair();
+}
+
+/**
+ * Aborta a rodada atual se o jogador mencionado for o Perguntador ou
+ * Respondedor (saída da partida ou da sala: a pergunta é descartada).
  */
 function abortRoundIfParticipant(playerName) {
     const state = Game.state;
@@ -528,6 +584,7 @@ window.Game.engine.session = {
     endSession,
     leaveMatch,
     handleLeaveMatchRequest,
+    holdRoundIfParticipant,
     abortRoundIfParticipant,
     leaveSession
 };

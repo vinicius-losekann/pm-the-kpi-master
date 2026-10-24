@@ -55,6 +55,22 @@ function drawQuestion(decks, questionsData, focusAreaId) {
 }
 
 /**
+ * Devolve ao baralho uma pergunta sorteada que não chegou a ser respondida
+ * (ex.: a dupla guardada de quem caiu e não voltou na rodada): ela volta a
+ * ficar disponível. Pergunta que já está disponível, que não existe no
+ * baralho ou sem domínio: nada muda.
+ * @param {object} decks - Game.state.decks (mutado in-place)
+ * @param {object} question - a pergunta da rodada (com id e domain_key)
+ */
+function returnQuestion(decks, question) {
+    const deck = question && decks[question.domain_key];
+    const card = deck && deck.questions.find(p => p.id === question.id);
+    if (!card || !card.used) return;
+    card.used = false;
+    deck.available++;
+}
+
+/**
  * Reinicia o baralho de um domínio, marcando todas as perguntas como não usadas.
  */
 function resetDeck(decks, domainKey) {
@@ -79,6 +95,7 @@ window.Game = window.Game || {};
 window.Game.domain = window.Game.domain || {};
 window.Game.domain.deck = {
     drawQuestion,
+    returnQuestion,
     resetDeck,
     resetAllDecks
 };

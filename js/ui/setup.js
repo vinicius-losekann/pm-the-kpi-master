@@ -19,6 +19,11 @@ let commonListenersBound = false;
 function setupUI() {
     const state = Game.state;
 
+    // Faixa "👑 Você é o host" no topo da tela da partida, só no host.
+    const hostBanner = document.getElementById('hostBanner');
+    hostBanner.textContent = Game.i18n.t('host.banner');
+    hostBanner.style.display = state.isHost ? 'block' : 'none';
+
     if (state.isHost) {
         document.getElementById('hostControls').style.display = 'block';
         document.getElementById('playerWaiting').style.display = 'none';

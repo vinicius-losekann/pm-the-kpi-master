@@ -28,6 +28,9 @@ const gameState = {
     answeredThisRound: [],
     roundNumber: 0,              // número da rodada na partida (sobe no "Nova Rodada"; o guest guarda o do round-start)
     roundEvent: null,            // host: evento da rodada, para as trocas de dupla dentro dela
+    heldPairs: [],               // host: duplas guardadas até o fim da rodada (quem estava nela caiu), com a pergunta e o gabarito
+    lastPairId: 0,               // host: último número de dupla dado (pairId, contra resposta atrasada)
+    waitingFor: [],              // quem a rodada espera voltar para fechar (host e guest; vazio = sem espera)
     // Campos para timeouts (não persistidos)
     answerTimeout: null,
     advisoryTimeout: null,

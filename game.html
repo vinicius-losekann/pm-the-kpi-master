@@ -153,6 +153,10 @@
             <!-- Área Principal -->
             <main class="main-area">
 
+                <!-- Faixa do host (só na tela do host) e aviso curto (ex.: quem caiu) -->
+                <div class="host-banner" id="hostBanner" style="display:none;">👑 Você é o host</div>
+                <div class="game-notice" id="gameNotice" style="display:none;"></div>
+
                 <!-- Barra Superior (Timer + Evento) -->
                 <div class="top-bar">
                     <div class="timer-card glass-card" id="timerCard">
@@ -205,6 +209,8 @@
                     <div class="spectator-content">
                         <span class="spectator-icon">⏳</span>
                         <p id="spectatorMessage">Aguardando início da rodada...</p>
+                        <!-- Host, na espera do fim da rodada, com quem pergunta caído -->
+                        <button class="btn btn-glass" id="btnHandOverQuestion" style="display:none; margin:16px auto 0;">🔁 Passar a pergunta pendente para outra pessoa</button>
                     </div>
                 </div>
 
