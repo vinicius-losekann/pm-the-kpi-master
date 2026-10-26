@@ -137,6 +137,12 @@
   host sem dois hosts ao mesmo tempo).
 
 ### Fixed
+- **Perguntador que volta à sala ficava sem a pergunta (BUG-035):** quem
+  voltava (por exemplo, o host antigo depois de uma troca de host) e caía
+  direto como Perguntador numa dupla reaberta podia receber a pergunta
+  antes do aviso da dupla; a tela dele ficava sem a pergunta e ela "ia
+  sozinha" pelo prazo. Agora a pergunta leva o número da dupla e espera o
+  aviso dela. Testes T219 e T220.
 - **Queda curta de quem está na dupla perdia a pergunta (BUG-033):** no
   celular, a conexão com o Firebase leva de 18 a 60 segundos para voltar
   depois que a rede volta, e quase toda queda curta de quem perguntava ou

@@ -273,7 +273,8 @@ function startPair(event, askerName, answererName, question, answerTimeLeft) {
     }
 
     // Envia a pergunta (com gabarito) para o Perguntador. O Respondedor
-    // só a recebe quando o Perguntador a faz (askQuestion()).
+    // só a recebe quando o Perguntador a faz (askQuestion()). O número da
+    // dupla vai junto: a pergunta pode chegar antes do 'round-start' (BUG-035).
     if (asker) {
         Game.network.sendToPlayer(asker.peerId, {
             type: 'question',
@@ -283,7 +284,8 @@ function startPair(event, askerName, answererName, question, answerTimeLeft) {
             alternatives: question.alternatives,
             correct: question.correct,
             id: question.id,
-            isAsker: true
+            isAsker: true,
+            pairId: state.lastPairId
         });
     }
 
@@ -384,7 +386,8 @@ function askQuestion(auto) {
             alternatives: q.alternatives,
             id: q.id,
             isAnswerer: true,
-            answerEndsAt: round.answerEndsAt
+            answerEndsAt: round.answerEndsAt,
+            pairId: round.pairId
         });
     }
 

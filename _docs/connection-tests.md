@@ -152,10 +152,8 @@ Cor: **azul** = automatizado (os manuais sobre o Firebase estão na seção 4).
 
 - BUG-031 (só a página `firebase-check.html`): quem entrou continua
   mostrando a sala depois de o dono sair (M21, passo 8).
-- BUG-035: quem volta e cai como Perguntador numa dupla reaberta fica sem
-  a pergunta (M18.1, 26/10/2026).
 Os bugs encontrados nestes testes e já corrigidos
-(B1–B5 = BUG-014 a BUG-018, BUG-019 a BUG-023, BUG-033 e BUG-034) estão em `issues.md`,
+(B1–B5 = BUG-014 a BUG-018, BUG-019 a BUG-023, BUG-033 a BUG-035) estão em `issues.md`,
 com sintoma, causa e correção.
 
 ---

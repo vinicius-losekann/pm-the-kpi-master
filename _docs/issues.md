@@ -25,25 +25,6 @@ novo apareceu "sala não encontrada". Local: `js/network/connectionCheck.js`
 `firebase-check.html`: o jogo avisa todos com `session-ended`. Reproduzir:
 M21, passo 8, olhando a tela do celular.
 
-**BUG-035 — Quem volta e cai como Perguntador numa dupla reaberta fica
-sem a pergunta.** No M18.1 em casa (26/10/2026), o Chrome voltou à sala
-como jogador comum depois de uma troca de host e era o Perguntador da
-dupla guardada que reabriu: o console dele mostrou "❌ Erro ao tratar
-onMessage do canal da sala: TypeError: Cannot set properties of null
-(setting 'question')" às 16:05:37 e às 16:23:59, e a pergunta "foi
-sozinha" pelo prazo do Perguntador. Local: o `case 'question'` de
-`handleMessage()` (`network/messageHandler.js`) grava a pergunta em
-`state.currentRound` sem conferir se a rodada existe. Causa: o host manda
-o `round-start` pela fila de todos e a pergunta (com o gabarito) pela
-caixa do Perguntador (`startPair()`, `engine/turnEngine.js`); quem acabou
-de entrar começa a ler a fila a partir do cursor do `state-sync`, e a
-caixa chega antes — às 16:05:37 a pergunta chegou antes do `round-start`
-(o `state-sync` era o da espera, sem rodada); às 16:23:59 o host reabriu
-a dupla pelo sinal de vida, antes do `player-join`, e a pergunta chegou
-antes do `state-sync`. Para quem joga: o Perguntador fica sem a pergunta
-na tela e não consegue fazê-la. Reproduzir: M18.1 com o host na dupla
-(troca de host com a dupla guardada que reabre para o host antigo).
-
 ---
 
 ## Limpeza pendente (não é bug)
@@ -126,6 +107,7 @@ automatizado — os números (T…, E…) são os de `tests/logic` e
 | BUG-032 | Quando quem estava na dupla caía, a pergunta era descartada (como deve) e aparecia o aviso de outro evento, como se fosse uma rodada nova: a rodada ganhava um segundo evento (outro +1 de recurso, outro Corte...), e quem caiu ficava fora dele (achado no M7 e no M8 na UFSM, 20/10/2026) | As trocas de dupla que não vêm da resposta chamavam `pickNewPair()` sem o evento da rodada (`engine/turnEngine.js`), e sem evento ele sorteava outro, aplicava os efeitos e mostrava o aviso a todos: em `abortRoundIfParticipant()` (queda ou saída de quem está na dupla), em `handleAnswer()` (quem responde sumiu da lista) e na retomada do host sem dupla (`resumeMatchAfterReload()`, inclusive depois da troca de host com o host antigo na dupla) | O evento só sai no início da rodada (`startNewRound()`), que guarda o evento e o número da rodada no estado do host e no estado salvo (`roundEvent`, `roundNumber`); `pickNewPair()` sem evento continua com o `roundEvent`, sem aviso nem efeito. O número vai no `round-start` e aparece no console de cada aparelho ("🎯 Rodada N"), para conferir que a troca de dupla não começou outra rodada. Protocolo 12 e estado salvo 9 iguais (campos novos opcionais) — T209, T210 (ajuste no T89) |
 | BUG-033 | Uma queda curta de rede de quem estava na dupla descartava a pergunta e saía outra dupla (M7.1 na UFSM, 20/10/2026, celular 10 s em modo avião; repetido em casa em 24/10/2026) | A conexão do celular com o Firebase leva de 18 s a 60 s para voltar depois que a rede volta, e o sinal de vida fica parado além dos 20 s de tolerância (`PRESENCE_TIMEOUT`); o host, ao dar o jogador como caído, descartava a pergunta (`handlePlayerDisconnect()` → `abortRoundIfParticipant()`) | A dupla fica guardada até o fim da rodada (`holdRoundIfParticipant()`, `state.heldPairs`, com a pergunta e o prazo de resposta que faltava; aviso `pair-held` para todos); quando os dois estão conectados de novo, ela é a próxima dupla, com o Perguntador refazendo a pergunta. No fim da rodada, quem caiu sem responder segura o fim (`round-waiting`, `state.waitingFor`): a volta dele reabre a dupla, o "Nova Rodada" segue sem ele (a pergunta volta ao baralho) e, com quem pergunta caído, o host pode passar a pergunta a outro Perguntador. Também na troca de host com o host antigo na dupla (`takeOverMatch()`). Host visível (faixa "👑 Você é o host", 👑 na lista) e linhas de conexão no console. Protocolo 13, estado salvo 10 — T211–T213, T215–T218, E39, E40 (ajustes nos ajudantes do navegador e no E32 e E35) |
 | BUG-034 | Uma resposta mandada sem conexão chegava ao host na volta da conexão; se o mesmo jogador estivesse respondendo outra pergunta, valeria para ela (M7.1 em casa, 24/10/2026) | O `answer` (e o `ask-question`) não dizia de qual vez era: o host conferia só quem responde e se a rodada já tinha resposta | Cada dupla tem um número (`pairId`, sequência do host, também no estado salvo), que vai no `round-start`, na resposta e no "Fazer a pergunta"; o host ignora o que traz o número de outra dupla (`isFromOtherPair()`), inclusive na dupla reaberta com a mesma pergunta — T214 |
+| BUG-035 | Quem voltava à sala e caía como Perguntador numa dupla reaberta ficava sem a pergunta: o console mostrava "TypeError: Cannot set properties of null (setting 'question')" e a pergunta "ia sozinha" pelo prazo (M18.1 em casa, 26/10/2026, às 16:05:37 e 16:23:59, com o host antigo voltando como jogador comum) | O host manda o `round-start` pela fila de todos e a pergunta pela caixa do aparelho (`startPair()`, `engine/turnEngine.js`); quem acabou de entrar lê a fila a partir do cursor do `state-sync`, e a caixa chega antes — a pergunta chegou antes do `round-start` (o `state-sync` era o da espera) ou antes do `state-sync` (o host reabriu a dupla pelo sinal de vida, antes do `player-join`); o `case 'question'` de `handleMessage()` (`network/messageHandler.js`) gravava a pergunta numa rodada que não existia | A `question` leva o `pairId`; o guest guarda a pergunta que chega sem rodada ou com o número de outra dupla (`earlyQuestion`) e a abre com o `round-start` ou o `state-sync` da mesma dupla, se ela ainda não foi respondida; a de uma dupla anterior é descartada. Protocolo 13 e estado salvo 10 iguais (campo novo opcional) — T219, T220 |
 
 ## Limpezas concluídas
 

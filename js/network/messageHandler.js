@@ -111,6 +111,7 @@ function handleMessage(msg, fromPeerId) {
             } else {
                 Game.ui.displaySpectatorView(msg.asker, msg.answerer);
             }
+            openEarlyQuestion();
             break;
 
         case 'round-ended':
@@ -145,13 +146,11 @@ function handleMessage(msg, fromPeerId) {
             break;
 
         case 'question':
-            if (!state.isHost) {
-                state.currentRound.question = msg;
+            if (!state.isHost && isQuestionEarly(msg)) {
+                earlyQuestion = msg;
+                break;
             }
-            state.currentRound.answered = false;
-            // Quem responde só recebe a pergunta depois de ela ser feita.
-            if (msg.isAnswerer) state.currentRound.asked = true;
-            Game.ui.displayQuestion(msg);
+            openQuestion(msg);
             break;
 
         // O Perguntador clicou em "Fazer a pergunta" (ver turnEngine.askQuestion()).
@@ -221,6 +220,60 @@ function handleMessage(msg, fromPeerId) {
         case 'advisory-result':
             Game.ui.showAdvisoryResult(msg);
             break;
+    }
+}
+
+// ============================================
+// PERGUNTA QUE CHEGA ANTES DA DUPLA (GUEST)
+// ============================================
+
+// A pergunta vem pela caixa do aparelho e o 'round-start' pela fila de
+// todos, que quem acabou de entrar só lê depois do 'state-sync': a
+// pergunta pode chegar antes da dupla dela (BUG-035). Fica guardada aqui
+// até o 'round-start' ou o 'state-sync' da mesma dupla.
+let earlyQuestion = null;
+
+/**
+ * A pergunta é de uma dupla que este aparelho ainda não conhece? Sem
+ * rodada, ou com o número de outra dupla. Sem o campo (host de versão
+ * anterior), só quando não há rodada.
+ */
+function isQuestionEarly(msg) {
+    const round = Game.state.currentRound;
+    if (!round) return true;
+    return typeof msg.pairId === 'number' && msg.pairId !== round.pairId;
+}
+
+/** Guarda a pergunta na rodada e a mostra. */
+function openQuestion(msg) {
+    const state = Game.state;
+    if (!state.isHost) {
+        state.currentRound.question = msg;
+    }
+    state.currentRound.answered = false;
+    // Quem responde só recebe a pergunta depois de ela ser feita.
+    if (msg.isAnswerer) state.currentRound.asked = true;
+    Game.ui.displayQuestion(msg);
+}
+
+/**
+ * Com a dupla em dia ('round-start' ou 'state-sync'), abre a pergunta que
+ * chegou antes, se for desta dupla e ela ainda não foi respondida; a de
+ * uma dupla anterior é descartada. Sem rodada (ex.: o estado é o da
+ * espera), ela continua guardada.
+ */
+function openEarlyQuestion() {
+    const round = Game.state.currentRound;
+    const msg = earlyQuestion;
+    if (!msg || !round) return;
+    const sameRound = typeof msg.pairId === 'number' ? msg.pairId === round.pairId : true;
+    if (sameRound && round.answered) {
+        earlyQuestion = null;
+    } else if (sameRound) {
+        earlyQuestion = null;
+        openQuestion(msg);
+    } else if (msg.pairId < round.pairId) {
+        earlyQuestion = null;
     }
 }
 
@@ -600,6 +653,7 @@ function restoreState(fullState) {
                 Game.ui.displaySpectatorView(state.currentRound.asker, state.currentRound.answerer);
             }
         }
+        openEarlyQuestion();
     } else {
         Game.ui.showScreen('lobby');
         Game.ui.showLobbyNormal();

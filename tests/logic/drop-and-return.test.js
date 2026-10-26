@@ -1047,6 +1047,9 @@ test('T219 Pergunta que chega antes do aviso da dupla ou do estado (BUG-035): qu
     check(rback && rback.pairId === r.pairId && rback.question && rback.question.id === r.question.id && rback.question.correct === 'A',
         'depois do state-sync, quem volta deveria estar na dupla com a pergunta e o gabarito, veio: ' + JSON.stringify(rback));
     check(back.record.ui.includes('displayQuestion'), 'quem volta deveria ver a pergunta, telas: ' + JSON.stringify(back.record.ui));
+    back.record.ui.length = 0;
+    deliverTo(back, start);
+    check(!back.record.ui.includes('displayQuestion'), 'a pergunta guardada já foi usada pelo state-sync e não pode abrir de novo, telas: ' + JSON.stringify(back.record.ui));
 
     // 4. A dupla anterior ainda na tela: a pergunta da nova não entra nela e abre com o round-start da nova.
     const late = guestWithScreens(use, env, 'A', []).guest;
@@ -1069,6 +1072,25 @@ test('T219 Pergunta que chega antes do aviso da dupla ou do estado (BUG-035): qu
     check(!other.record.ui.includes('displayQuestion'), 'a pergunta de outra dupla não deveria aparecer, telas: ' + JSON.stringify(other.record.ui));
     deliverTo(other, start);
     check(!other.state.currentRound.question, 'a pergunta descartada não deveria voltar numa dupla seguinte, veio: ' + JSON.stringify(other.state.currentRound));
+
+    // 6. O state-sync diz que a dupla já respondeu: a pergunta guardada não reabre.
+    const done = guestWithScreens(use, env, 'A', []).guest;
+    deliverTo(done, toAsker.msg);
+    const answered = copy(syncTo(env, peerOf('A')));
+    answered.currentRound.answered = true;
+    deliverTo(done, { type: 'state-sync', fullState: answered });
+    check(done.state.currentRound && done.state.currentRound.answered === true && !done.record.ui.includes('displayQuestion'),
+        'a pergunta guardada não pode reabrir a dupla que já respondeu, veio: ' + JSON.stringify({ round: done.state.currentRound, ui: done.record.ui }));
+
+    // 7. Pergunta sem o número da dupla (host de versão anterior), antes do round-start: abre com ele.
+    const old = guestWithScreens(use, env, 'A', []).guest;
+    const noPair = copy(toAsker.msg);
+    delete noPair.pairId;
+    error = deliverTo(old, noPair);
+    check(!error, 'a pergunta sem o número da dupla, antes do round-start, não pode dar erro, veio: ' + (error && error.message));
+    deliverTo(old, start);
+    check(old.state.currentRound && old.state.currentRound.question && old.state.currentRound.question.id === r.question.id,
+        'sem o número da dupla, a pergunta guardada abre com o round-start seguinte, veio: ' + JSON.stringify(old.state.currentRound));
 });
 
 test('T220 A pergunta leva o número da dupla (BUG-035): a do Perguntador (com o gabarito) e a de quem responde, na dupla nova e na dupla guardada que reabre, com o número da dupla da vez', (use) => {

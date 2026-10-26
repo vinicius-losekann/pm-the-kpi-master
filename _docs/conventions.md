@@ -52,7 +52,7 @@ Padrão de nomenclatura de mensagens: `<coisa>-request` (pedido) → `<coisa>` o
 | `round-start` | host → todos | `event`, `asker`, `answerer`, `answeredThisRound`, `roundNumber` (número da rodada na partida; a troca de dupla dentro da rodada manda o mesmo número), `pairId` (número da dupla, sequência do host; a dupla guardada que reabre ganha outro) |
 | `pair-held` | host → todos | `droppedName` (quem caiu), `asker`, `answerer` — quem estava na dupla caiu e a dupla fica guardada até o fim da rodada (aviso curto na tela) |
 | `round-waiting` | host → todos | `waitingFor` (nomes) — ninguém mais pode responder e a rodada espera quem caiu voltar; o "Nova Rodada" do host segue sem eles |
-| `question` | host → Perguntador (no início da rodada) e Respondedor (quando a pergunta é feita) | a pergunta; `isAsker` (com o gabarito `correct`) ou `isAnswerer` (sem o gabarito, com `answerEndsAt`, a hora de término do prazo de resposta) |
+| `question` | host → Perguntador (no início da rodada) e Respondedor (quando a pergunta é feita) | a pergunta; `isAsker` (com o gabarito `correct`) ou `isAnswerer` (sem o gabarito, com `answerEndsAt`, a hora de término do prazo de resposta); `pairId` (o da dupla: a pergunta que chega antes do `round-start` espera por ele) |
 | `ask-question` | Perguntador → host | `playerName`, `pairId` (o da dupla que ele viu; o de outra dupla é ignorado, sem o campo vale) — clicou em "Fazer a pergunta" |
 | `question-asked` | host → todos | a pergunta foi feita; `auto` (true quando foi o prazo do Perguntador, `ASK_TIMEOUT`, e não o clique) |
 | `answer` | Respondedor → host | `alternative`, `playerName`, `pairId` (o da dupla que ele viu; o de outra dupla é ignorado, sem o campo vale) |
@@ -112,6 +112,7 @@ A regra geral: **nome é em inglês; texto é em português.** Nome é tudo que 
   | quem já respondeu na rodada (rodízio) | answeredThisRound |
   | número da rodada / evento da rodada | `roundNumber` / `roundEvent` |
   | dupla guardada até o fim da rodada (quem estava nela caiu) / número da dupla / último número dado | held pair (`heldPairs`, `pair-held`, `holdRoundIfParticipant`) / `pairId` / `lastPairId` |
+  | pergunta que chegou antes da dupla dela (guest) | early question (`earlyQuestion`, `isQuestionEarly`, `openEarlyQuestion`) |
   | espera do fim da rodada (quem caiu sem responder) / passar a pergunta pendente a outro Perguntador | round waiting (`round-waiting`, `waitingFor`) / hand over (`handOverHeldQuestion`) |
   | hora da queda (último sinal de quem caiu) / aviso curto no topo da tela / faixa do host | `disconnectedAt` / notice (`showNotice`, `NOTICE_MS`) / host banner (`hostBanner`) |
   | relógio / prazo | clock / timeout |
