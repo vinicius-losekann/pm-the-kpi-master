@@ -25,6 +25,25 @@ novo apareceu "sala não encontrada". Local: `js/network/connectionCheck.js`
 `firebase-check.html`: o jogo avisa todos com `session-ended`. Reproduzir:
 M21, passo 8, olhando a tela do celular.
 
+**BUG-035 — Quem volta e cai como Perguntador numa dupla reaberta fica
+sem a pergunta.** No M18.1 em casa (26/10/2026), o Chrome voltou à sala
+como jogador comum depois de uma troca de host e era o Perguntador da
+dupla guardada que reabriu: o console dele mostrou "❌ Erro ao tratar
+onMessage do canal da sala: TypeError: Cannot set properties of null
+(setting 'question')" às 16:05:37 e às 16:23:59, e a pergunta "foi
+sozinha" pelo prazo do Perguntador. Local: o `case 'question'` de
+`handleMessage()` (`network/messageHandler.js`) grava a pergunta em
+`state.currentRound` sem conferir se a rodada existe. Causa: o host manda
+o `round-start` pela fila de todos e a pergunta (com o gabarito) pela
+caixa do Perguntador (`startPair()`, `engine/turnEngine.js`); quem acabou
+de entrar começa a ler a fila a partir do cursor do `state-sync`, e a
+caixa chega antes — às 16:05:37 a pergunta chegou antes do `round-start`
+(o `state-sync` era o da espera, sem rodada); às 16:23:59 o host reabriu
+a dupla pelo sinal de vida, antes do `player-join`, e a pergunta chegou
+antes do `state-sync`. Para quem joga: o Perguntador fica sem a pergunta
+na tela e não consegue fazê-la. Reproduzir: M18.1 com o host na dupla
+(troca de host com a dupla guardada que reabre para o host antigo).
+
 ---
 
 ## Limpeza pendente (não é bug)
@@ -49,6 +68,23 @@ Actions:
   dizem "no meio da question" em vez de "no meio da pergunta".
 - Os textos que aparecem na tela do Actions (`name:` e `description:`)
   continuam em português.
+
+**NOTA-010 — pedido de entrada repetido na volta da conexão.** No M7.1 em
+casa (24/10/2026), a volta do celular depois do modo avião mandou o
+`player-join` duas ou três vezes em poucos segundos (console do host:
+"🔄 Reconectado: Celular" às 16:18:15, 16:18:15 e 16:18:21). O guest pede
+para entrar de novo por dois caminhos na mesma volta: a própria conexão
+voltou (`onReconnected`) e ele vê o host "voltar" (`showHostPresence()`,
+`network/roomLink.js`), porque sem conexão o sinal do host pareceu
+parado. Cada pedido só manda o estado de novo (`state-sync`); para quem
+joga, nada muda. Frente própria: mandar um pedido só por volta.
+O mesmo aparece sem queda nenhuma: "🔄 Reconectado: edge" no console do
+host com o Edge conectado (24/10/2026, 16:04, 16:06 e 16:26); o celular
+e o Edge juntos, 5 s depois de um pedido de assessoria (26/10/2026,
+15:51:01–02); o Edge recebendo o estado de novo às 16:22:44 (26/10); e,
+na troca de host, o Chrome pedindo para entrar três vezes seguidas no host
+novo (26/10, 16:52:51). Investigar junto: o que faz o guest pedir para
+entrar com a conexão de pé.
 
 ---
 
@@ -117,5 +153,5 @@ automatizado — os números (T…, E…) são os de `tests/logic` e
 - **Numeração:** BUG-xxx (bug), SEC-xxx (segurança), REGRESSÃO-xxx (algo
   que funcionava e quebrou numa mudança), NOTA-xxx (limpeza ou decisão que
   não é bug). Cada série continua do maior número já usado (próximos:
-  BUG-035, SEC-006, REGRESSÃO-004, NOTA-010). NOTA-003 a NOTA-005 são
+  BUG-036, SEC-006, REGRESSÃO-004, NOTA-011). NOTA-003 a NOTA-005 são
   decisões de arquitetura e ficam em `architecture.md`.

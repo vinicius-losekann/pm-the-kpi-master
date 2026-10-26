@@ -197,6 +197,10 @@ a primeira dupla aparecer.
 
 **M7.3 — Queda curta do host (5 s)**
 
+Com o H no computador. Com o celular como host, a conexão dele leva de
+18 s a 60 s para voltar e a queda curta vira troca de host, como no M7.4
+(`connection-tests.md`, seção 5).
+
 | Passo | Ação | Esperado |
 |---|---|---|
 | 1 | Cortar a rede do H por 5 s e religar | Ninguém assume. A e B não veem nada, ou "Host desconectado" por poucos segundos. A partida segue com o H |
@@ -208,6 +212,15 @@ a primeira dupla aparecer.
 | 1 | Cortar a rede do H; cronometrar em A e B | Entre ~10 e ~20 s, a tela de A ou de B recarrega e abre como host, com "👑 Você agora é o host da partida" e a faixa "👑 Você é o host"; o outro vê "Conectado — Fulano agora é o host". A partida continua (a mesma pergunta, se havia uma aberta fora da dupla do H; se o H estava na dupla, a pergunta dele fica para o fim da rodada) |
 | 2 | Observar o H (sem rede) | O H não marca ninguém como caído enquanto está sem rede — normal |
 | 3 | Aos 60 s, religar a rede do H | Em poucos segundos, a página do H **recarrega sozinha** e ele entra como jogador comum, com o KPI de antes; o host novo continua host |
+
+**M7.5 — Quem pergunta cai e o host passa a pergunta**
+
+| Passo | Ação | Esperado |
+|---|---|---|
+| 1 | Com B **perguntando** (antes ou depois de clicar em "Fazer a pergunta"), cortar a rede de B e deixar cortada | ~20 s depois, aviso "📴 B caiu" e a pergunta fica para o fim da rodada; a partida segue com outra dupla |
+| 2 | Jogar até a rodada chegar ao fim | O H vê "Esperando B (caiu há m:ss) voltar", o "Nova Rodada" liberado e o botão "Passar a pergunta pendente para outra pessoa" |
+| 3 | No H, clicar em "Passar a pergunta pendente para outra pessoa" | Outro jogador conectado (não quem responde) passa a ser o Perguntador da mesma pergunta; ele clica em "Fazer a pergunta" e a resposta vale |
+| 4 | Religar a rede de B | B volta sozinho, sem F5, como jogador; a rodada não espera mais por ele |
 
 **O que anotar:** tempo do corte até o 📴 (M7.2), do corte até alguém
 assumir (M7.4) e da religação até cada um voltar; se cada volta foi
@@ -287,10 +300,11 @@ se for pedido: no Android, ligando o celular por USB e abrindo
 
 **O que testa:** o caso da aula em que o professor é o host e deixa a
 aba do jogo atrás de outra (slides, outro site) por vários minutos. Com a
-aba escondida há mais de 5 min, o Chrome e o Edge passam a rodar os
-timers da página só uma vez por minuto: o sinal de vida do host, de 2 em
-2 s, fica de minuto em minuto, e os outros podem dá-lo como caído e
-assumir. Este roteiro mede o que acontece de fato.
+aba escondida, o Chrome e o Edge espaçam os timers da página: o sinal de
+vida do host, de 2 em 2 s, para, e os outros podem dá-lo como caído e
+assumir. Na medida de 26/10/2026, isso aconteceu em menos de 1 min
+(`connection-tests.md`, seção 5). Este roteiro mede o que acontece de
+fato.
 
 **O que precisa:** H no computador (Chrome), **A** em outro navegador ou
 computador, **B** no celular. Todos visíveis, menos a aba do H.
@@ -300,7 +314,7 @@ computador, **B** no celular. Todos visíveis, menos a aba do H.
 | Passo | Ação | Esperado |
 |---|---|---|
 | 1 | H cria a sala; A e B entram; iniciar e jogar uma pergunta | — |
-| 2 | No H, abrir outra aba na mesma janela (ex.: os slides) e deixar a do jogo escondida por 10 min, sem minimizar a janela. Em A, anotar a hora de qualquer mudança na linha de status ou na lista | Ideal: H continua host até o fim. Se a partir de ~5 min alguém assumir, é o risco descrito acima: anotar a hora, quem assumiu e se a partida continuou |
+| 2 | No H, abrir outra aba na mesma janela (ex.: os slides) e deixar a do jogo escondida por 10 min, sem minimizar a janela. Não voltar ao H para jogar: as vezes dele vão sozinhas pelos prazos, e o "Nova Rodada" espera ele voltar. Em A, anotar a hora de qualquer mudança na linha de status ou na lista | Ideal: H continua host até o fim. Se alguém assumir, é o risco descrito acima: anotar a hora, quem assumiu e se a partida continuou |
 | 3 | Aos 10 min, voltar à aba do jogo no H | Se ninguém assumiu: tudo continua. Se alguém assumiu: a página do H recarrega e ele volta como jogador comum |
 
 **M18.2 — Aba de um jogador escondida por 10 min**
