@@ -990,4 +990,113 @@ test('T217 Telas da queda e do host: faixa "👑 Você é o host" só no host; �
     check(handlers.length === 1 && called === 1, 'o clique no botão deveria chamar Game.core.handOverHeldQuestion(), chamadas: ' + called);
 });
 
+// ============================================
+// PERGUNTA QUE CHEGA ANTES DA DUPLA (BUG-035)
+// ============================================
+
+/** Entrega a mensagem ao guest; devolve o erro, se ela der erro. */
+function deliverTo(guest, msg) {
+    try {
+        guest.Game.network.handleMessage(copy(msg), 'sala');
+        return null;
+    } catch (e) {
+        return e;
+    }
+}
+
+test('T219 Pergunta que chega antes do aviso da dupla ou do estado (BUG-035): quem acabou de entrar lê o round-start pela fila de todos e a pergunta pela própria caixa, que pode chegar antes — sem erro, a pergunta fica guardada e abre com o round-start ou o state-sync da mesma dupla (Perguntador com o gabarito, quem responde com a pergunta feita), depois da tela da dupla; com a dupla anterior ainda na tela, a pergunta da nova não entra nela; pergunta de outra dupla não abre', (use) => {
+    const { env } = droppingMatch(use, ['A', 'B']);
+    const r = env.state.currentRound;
+    check(r.asker === 'A' && r.answerer === 'B' && r.asked === true, 'pré-condição: A pergunta para B, pergunta feita, veio: ' + JSON.stringify(pairNow(env)));
+    const start = env.broadcastsOfType('round-start').pop();
+    const toAsker = env.record.sent.filter(e => e.to === peerOf('A') && e.msg.type === 'question').pop();
+    const toAnswerer = env.record.sent.filter(e => e.to === peerOf('B') && e.msg.type === 'question').pop();
+    check(start && toAsker && toAnswerer, 'pré-condição: round-start e as duas perguntas enviadas');
+
+    // 1. Perguntador com a rodada esperando (state-sync da espera): a pergunta chega antes do round-start.
+    const a = guestWithScreens(use, env, 'A', []).guest;
+    a.state.currentRound = null;
+    let error = deliverTo(a, toAsker.msg);
+    check(!error, 'a pergunta antes do round-start não pode dar erro, veio: ' + (error && error.message));
+    check(!a.record.ui.includes('displayQuestion'), 'sem a dupla, a pergunta ainda não deveria aparecer, telas: ' + JSON.stringify(a.record.ui));
+    deliverTo(a, start);
+    const ra = a.state.currentRound;
+    check(ra && ra.question && ra.question.id === r.question.id && ra.question.correct === 'A',
+        'com o round-start, o Perguntador deveria ficar com a pergunta (e o gabarito) que chegou antes, veio: ' + JSON.stringify(ra));
+    check(a.record.ui.lastIndexOf('displayQuestion') > a.record.ui.lastIndexOf('displayRoundStart'),
+        'a pergunta deveria aparecer depois da tela da dupla, telas: ' + JSON.stringify(a.record.ui));
+
+    // 2. Quem responde: a pergunta (já feita) chega antes do round-start.
+    const b = guestWithScreens(use, env, 'B', []).guest;
+    error = deliverTo(b, toAnswerer.msg);
+    check(!error, 'a pergunta de quem responde antes do round-start não pode dar erro, veio: ' + (error && error.message));
+    deliverTo(b, start);
+    const rb = b.state.currentRound;
+    check(rb && rb.question && rb.question.id === r.question.id && rb.asked === true && rb.answered === false,
+        'com o round-start, quem responde deveria ficar com a pergunta feita, veio: ' + JSON.stringify(rb));
+    check(b.record.ui.lastIndexOf('displayQuestion') > b.record.ui.lastIndexOf('displayRoundStart'),
+        'a pergunta de quem responde deveria aparecer depois da tela da dupla, telas: ' + JSON.stringify(b.record.ui));
+
+    // 3. Quem volta: o host reabriu a dupla antes do player-join; a pergunta chega antes do state-sync.
+    const back = guestWithScreens(use, env, 'A', []).guest;
+    error = deliverTo(back, toAsker.msg);
+    check(!error, 'a pergunta antes do state-sync não pode dar erro, veio: ' + (error && error.message));
+    env.join('A', peerOf('A'));
+    deliverTo(back, { type: 'state-sync', fullState: syncTo(env, peerOf('A')) });
+    const rback = back.state.currentRound;
+    check(rback && rback.pairId === r.pairId && rback.question && rback.question.id === r.question.id && rback.question.correct === 'A',
+        'depois do state-sync, quem volta deveria estar na dupla com a pergunta e o gabarito, veio: ' + JSON.stringify(rback));
+    check(back.record.ui.includes('displayQuestion'), 'quem volta deveria ver a pergunta, telas: ' + JSON.stringify(back.record.ui));
+
+    // 4. A dupla anterior ainda na tela: a pergunta da nova não entra nela e abre com o round-start da nova.
+    const late = guestWithScreens(use, env, 'A', []).guest;
+    deliverTo(late, { ...start, asker: 'B', answerer: 'A', pairId: r.pairId - 1 });
+    late.record.ui.length = 0;
+    deliverTo(late, toAsker.msg);
+    check(late.state.currentRound.pairId === r.pairId - 1 && !late.state.currentRound.question,
+        'a pergunta da dupla nova não pode entrar na dupla anterior, veio: ' + JSON.stringify(late.state.currentRound));
+    check(!late.record.ui.includes('displayQuestion'), 'a pergunta da dupla nova não deveria aparecer na tela da anterior, telas: ' + JSON.stringify(late.record.ui));
+    deliverTo(late, start);
+    check(late.state.currentRound.pairId === r.pairId && late.state.currentRound.question && late.state.currentRound.question.id === r.question.id,
+        'com o round-start da dupla nova, a pergunta guardada deveria abrir, veio: ' + JSON.stringify(late.state.currentRound));
+
+    // 5. Pergunta guardada de outra dupla não abre na dupla que chega.
+    const other = guestWithScreens(use, env, 'A', []).guest;
+    deliverTo(other, toAsker.msg);
+    deliverTo(other, { ...start, pairId: r.pairId + 1 });
+    check(other.state.currentRound && other.state.currentRound.pairId === r.pairId + 1 && !other.state.currentRound.question,
+        'a pergunta guardada de outra dupla não pode abrir, veio: ' + JSON.stringify(other.state.currentRound));
+    check(!other.record.ui.includes('displayQuestion'), 'a pergunta de outra dupla não deveria aparecer, telas: ' + JSON.stringify(other.record.ui));
+    deliverTo(other, start);
+    check(!other.state.currentRound.question, 'a pergunta descartada não deveria voltar numa dupla seguinte, veio: ' + JSON.stringify(other.state.currentRound));
+});
+
+test('T220 A pergunta leva o número da dupla (BUG-035): a do Perguntador (com o gabarito) e a de quem responde, na dupla nova e na dupla guardada que reabre, com o número da dupla da vez', (use) => {
+    const { env, time } = droppingMatch(use, ['A', 'B', 'C']);
+    const questionsTo = (name) => env.record.sent.filter(e => e.to === peerOf(name) && e.msg.type === 'question').map(e => e.msg);
+    const r1 = env.state.currentRound;
+    check(r1.asker === 'B' && r1.answerer === 'C', 'pré-condição: B pergunta para C, veio: ' + JSON.stringify(pairNow(env)));
+    const ask1 = questionsTo('B').pop();
+    const answer1 = questionsTo('C').pop();
+    check(ask1 && ask1.isAsker === true && ask1.pairId === r1.pairId,
+        'a pergunta do Perguntador deveria levar o número da dupla, veio: ' + JSON.stringify(ask1 && { pairId: ask1.pairId, isAsker: ask1.isAsker }) + ' (dupla ' + r1.pairId + ')');
+    check(answer1 && answer1.isAnswerer === true && answer1.pairId === r1.pairId,
+        'a pergunta de quem responde deveria levar o número da dupla, veio: ' + JSON.stringify(answer1 && { pairId: answer1.pairId, isAnswerer: answer1.isAnswerer }) + ' (dupla ' + r1.pairId + ')');
+
+    // C cai: a dupla fica guardada; ele volta, a dupla reabre com outro número.
+    env.drop(peerOf('C'));
+    const r2 = env.state.currentRound;
+    check(r2 && r2.pairId > r1.pairId && r2.answerer !== 'C', 'pré-condição: outra dupla sem C, veio: ' + JSON.stringify(pairNow(env)));
+    env.join('C', peerOf('C'));
+    answerNow(env);
+    time.advance(3000);
+    const r3 = env.state.currentRound;
+    check(r3 && r3.answerer === 'C' && r3.question.id === r1.question.id && r3.pairId > r2.pairId,
+        'pré-condição: a dupla guardada de C reabre com a mesma pergunta e outro número, veio: ' + JSON.stringify(pairNow(env)));
+    const ask3 = questionsTo(r3.asker).pop();
+    const answer3 = questionsTo('C').pop();
+    check(ask3 && ask3.pairId === r3.pairId, 'na dupla reaberta, a pergunta do Perguntador deveria levar o número novo, veio: ' + JSON.stringify(ask3 && ask3.pairId) + ' (dupla ' + r3.pairId + ')');
+    check(answer3 && answer3.pairId === r3.pairId, 'na dupla reaberta, a pergunta de quem responde deveria levar o número novo, veio: ' + JSON.stringify(answer3 && answer3.pairId) + ' (dupla ' + r3.pairId + ')');
+});
+
 finish('Queda e volta de jogador');
