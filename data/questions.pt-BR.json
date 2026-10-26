@@ -78,12 +78,12 @@
         },
         {
           "id": "gov_8",
-          "question": "O que é um indicador 'leading' (antecedente) em gerenciamento de desempenho de projetos?",
+          "question": "Qual documento registra o que deu certo, o que deu errado e o que pode ser melhorado, para uso no próprio projeto e em projetos futuros?",
           "alternatives": [
-            "a) Mede eventos que já ocorreram",
-            "b) É sempre financeiro",
-            "c) Sinaliza tendências futuras, permitindo ação corretiva antes que o desvio ocorra",
-            "d) É calculado apenas no encerramento"
+            "a) Registro de riscos",
+            "b) Termo de abertura do projeto",
+            "c) Registro de lições aprendidas",
+            "d) Linha de base do cronograma"
           ],
           "correct": "c"
         },
@@ -164,12 +164,12 @@
       "questions": [
         {
           "id": "esc_1",
-          "question": "O que é a Estrutura Analítica de Valor (Value Breakdown Structure - VBS), conceito do domínio de Escopo na 8ª edição?",
+          "question": "O que é a Estrutura Analítica do Projeto (EAP)?",
           "alternatives": [
-            "a) Ela substitui totalmente a EAP",
-            "b) É usada apenas em projetos preditivos",
-            "c) Ela conecta o escopo do projeto e seu valor pretendido ao escopo do produto, atribuindo estimativas de valor a cada entrega",
-            "d) Elimina a necessidade de requisitos"
+            "a) A lista de partes interessadas do projeto",
+            "b) O cronograma com as datas de cada atividade",
+            "c) A decomposição hierárquica de todo o trabalho que a equipe precisa executar para criar as entregas",
+            "d) O organograma da empresa"
           ],
           "correct": "c"
         },
@@ -219,12 +219,12 @@
         },
         {
           "id": "esc_6",
-          "question": "O que é a 'definição de pronto' (Definition of Done - DoD)?",
+          "question": "No domínio de Escopo, o que é um requisito?",
           "alternatives": [
-            "a) O termo de abertura do projeto",
-            "b) Um tipo de contrato",
-            "c) A data final do cronograma",
-            "d) Uma lista de critérios que devem ser atendidos para que uma entrega seja considerada pronta para uso do cliente"
+            "a) Uma tarefa do cronograma",
+            "b) Um tipo de reserva financeira",
+            "c) Um membro da equipe do projeto",
+            "d) Uma condição ou capacidade que o produto ou resultado precisa ter para atender a uma necessidade"
           ],
           "correct": "d"
         },
@@ -263,12 +263,12 @@
         },
         {
           "id": "esc_10",
-          "question": "Qual destas afirmações sobre 'scope creep' está correta?",
+          "question": "O que é um pacote de trabalho (work package)?",
           "alternatives": [
-            "a) É a expansão descontrolada do escopo sem ajustes correspondentes de prazo, custo e recursos",
-            "b) É um processo formal de mudança de escopo",
-            "c) É sinônimo de tailoring",
-            "d) Ocorre apenas em projetos adaptativos"
+            "a) O nível mais baixo da EAP, para o qual custo e duração podem ser estimados e gerenciados",
+            "b) O conjunto de todos os contratos do projeto",
+            "c) O primeiro nível da EAP, logo abaixo do nome do projeto",
+            "d) Um pacote de softwares usado pela equipe"
           ],
           "correct": "a"
         }
@@ -371,12 +371,12 @@
         },
         {
           "id": "cro_9",
-          "question": "Uma dependência 'mandatória' (hard logic) entre atividades é caracterizada por:",
+          "question": "O que é um gráfico de Gantt?",
           "alternatives": [
-            "a) Ser inerente à natureza do trabalho ou exigida contratual/legalmente",
-            "b) Ser uma preferência da equipe que pode ser alterada livremente",
-            "c) Ser aplicável somente a projetos adaptativos",
-            "d) Nunca poder ser documentada"
+            "a) Um gráfico de barras que mostra as atividades ao longo do tempo, com início, duração e término",
+            "b) Um gráfico de pizza com a divisão dos custos",
+            "c) Uma matriz de responsabilidades da equipe",
+            "d) Um diagrama de causa e efeito"
           ],
           "correct": "a"
         },
@@ -424,12 +424,12 @@
         },
         {
           "id": "fin_5",
-          "question": "O método ROACE (Return on Average Capital Employed), mencionado na 8ª edição, é usado para:",
+          "question": "O que o ROI (retorno sobre o investimento) indica?",
           "alternatives": [
-            "a) Calcular apenas o cronograma do projeto",
-            "b) Medir a lucratividade da organização em relação ao capital investido",
-            "c) Substituir o VPL em todos os projetos",
-            "d) Determinar o escopo do projeto"
+            "a) O prazo total do projeto",
+            "b) Quanto o projeto ganha ou economiza em relação ao valor investido nele",
+            "c) O número de pessoas da equipe",
+            "d) O total de riscos identificados"
           ],
           "correct": "b"
         },
@@ -556,12 +556,12 @@
         },
         {
           "id": "par_6",
-          "question": "Quais são os cinco níveis de engajamento de partes interessadas descritos no guia?",
+          "question": "O que é o registro das partes interessadas (stakeholder register)?",
           "alternatives": [
-            "a) Desinformado, resistente, neutro, apoiador, líder",
-            "b) Alto, médio, baixo, crítico, nulo",
-            "c) Iniciante, intermediário, avançado, especialista, mestre",
-            "d) Interno, externo, misto, temporário, permanente"
+            "a) O documento com a identificação, as informações e a avaliação de cada parte interessada do projeto",
+            "b) A lista de fornecedores que já receberam pagamento",
+            "c) A ata da reunião de abertura",
+            "d) O cronograma de entregas do projeto"
           ],
           "correct": "a"
         },
@@ -578,12 +578,12 @@
         },
         {
           "id": "par_8",
-          "question": "Qual é a principal diferença entre comunicação 'push' e 'pull'?",
+          "question": "Para que serve a matriz poder/interesse?",
           "alternatives": [
-            "a) Não há diferença prática",
-            "b) Push é sempre verbal; pull é sempre escrita",
-            "c) Push envia a informação diretamente aos destinatários; pull disponibiliza a informação para acesso sob demanda",
-            "d) Pull é usada apenas em crises"
+            "a) Para calcular o orçamento de cada parte interessada",
+            "b) Para definir a ordem das atividades do cronograma",
+            "c) Para agrupar as partes interessadas pelo nível de autoridade e de interesse no projeto e decidir como engajar cada grupo",
+            "d) Para escolher os membros da equipe do projeto"
           ],
           "correct": "c"
         },
@@ -621,12 +621,12 @@
       "questions": [
         {
           "id": "rec_1",
-          "question": "Qual é a diferença entre o papel do gerente de projetos e o gerente de recursos (resource manager) no domínio de Recursos?",
+          "question": "O que mostra uma matriz RACI?",
           "alternatives": [
-            "a) São a mesma função",
-            "b) O gerente de projetos lidera a formação e operação da equipe; o gerente de recursos tem autoridade sobre um ou mais recursos, interno ou externo à organização",
-            "c) O gerente de recursos sempre reporta ao gerente de projetos",
-            "d) O gerente de recursos só existe em estruturas matriciais fracas"
+            "a) Os custos de cada recurso por mês",
+            "b) Quem é Responsável, quem Aprova, quem é Consultado e quem é Informado em cada atividade",
+            "c) A ordem das atividades no cronograma",
+            "d) A probabilidade e o impacto de cada risco"
           ],
           "correct": "b"
         },
@@ -643,12 +643,12 @@
         },
         {
           "id": "rec_3",
-          "question": "Segundo os estágios de Tuckman, qual é a ordem correta de desenvolvimento de uma equipe?",
+          "question": "O que é o termo de abertura da equipe (team charter)?",
           "alternatives": [
-            "a) Storming, Forming, Performing, Norming, Adjourning",
-            "b) Performing, Forming, Norming, Storming, Adjourning",
-            "c) Adjourning, Forming, Storming, Norming, Performing",
-            "d) Forming, Storming, Norming, Performing, Adjourning"
+            "a) O contrato de trabalho de cada membro",
+            "b) O documento que autoriza o início do projeto",
+            "c) A lista de equipamentos da equipe",
+            "d) O documento com os valores, acordos e regras de convivência e de trabalho da equipe"
           ],
           "correct": "d"
         },
@@ -676,12 +676,12 @@
         },
         {
           "id": "rec_6",
-          "question": "O que é 'green human resource management', mencionado no domínio de Recursos?",
+          "question": "O que é uma equipe virtual?",
           "alternatives": [
-            "a) Uma técnica de recrutamento exclusiva para startups",
-            "b) Um sinônimo de nivelamento de recursos",
-            "c) Uma ferramenta de estimativa de custos",
-            "d) Práticas de gestão de pessoas focadas no uso sustentável de recursos e preservação ambiental"
+            "a) Uma equipe formada apenas por robôs e sistemas",
+            "b) Uma equipe que existe só no papel e não trabalha de fato",
+            "c) Uma equipe que trabalha somente fora do horário comercial",
+            "d) Pessoas com um objetivo comum que trabalham em locais diferentes e se comunicam principalmente por meios eletrônicos"
           ],
           "correct": "d"
         },
@@ -741,12 +741,12 @@
       "questions": [
         {
           "id": "ris_1",
-          "question": "Qual é a diferença entre um 'risco' e uma 'questão' (issue) segundo a 8ª edição?",
+          "question": "O que é o registro de riscos (risk register)?",
           "alternatives": [
-            "a) São sinônimos",
-            "b) Questão é sempre positiva; risco é sempre negativo",
-            "c) Risco é um evento incerto que ainda pode ou não ocorrer; questão (issue) já ocorreu ou está ocorrendo e requer atenção imediata",
-            "d) Risco só existe em projetos adaptativos"
+            "a) O contrato de seguro do projeto",
+            "b) A lista de problemas que já aconteceram no projeto",
+            "c) O documento com os riscos identificados, sua análise, seus responsáveis e as respostas planejadas",
+            "d) O relatório final do projeto"
           ],
           "correct": "c"
         },
@@ -763,23 +763,23 @@
         },
         {
           "id": "ris_3",
-          "question": "Qual é a diferença entre apetite ao risco (risk appetite) e limite de risco (risk threshold)?",
+          "question": "Quem é o 'proprietário do risco' (risk owner)?",
           "alternatives": [
-            "a) São a mesma coisa",
-            "b) Limite de risco só se aplica a riscos positivos",
-            "c) Apetite ao risco é definido apenas pelo gerente de projetos",
-            "d) Apetite é o grau de incerteza que a organização está disposta a aceitar; limite é a medida quantificável de variação aceitável em torno de um objetivo"
+            "a) O cliente que contratou o projeto",
+            "b) A pessoa que identificou o risco primeiro",
+            "c) A seguradora do projeto",
+            "d) A pessoa responsável por acompanhar o risco e garantir que a resposta combinada seja executada"
           ],
           "correct": "d"
         },
         {
           "id": "ris_4",
-          "question": "Como o guia classifica os riscos em quatro quadrantes com base em conhecimento e previsibilidade?",
+          "question": "Na análise qualitativa, quais são as duas dimensões mais usadas para priorizar os riscos?",
           "alternatives": [
-            "a) Alto, médio, baixo e crítico",
-            "b) Conhecido-conhecido (fato), conhecido-desconhecido (risco clássico), desconhecido-conhecido (fato oculto) e desconhecido-desconhecido (risco emergente)",
-            "c) Interno, externo, misto e neutro",
-            "d) Financeiro, técnico, comercial e ambiental apenas"
+            "a) Custo e prazo do projeto",
+            "b) Probabilidade de ocorrência e impacto nos objetivos",
+            "c) Data de identificação e nome de quem identificou",
+            "d) Tamanho da equipe e duração do projeto"
           ],
           "correct": "b"
         },
@@ -807,23 +807,23 @@
         },
         {
           "id": "ris_7",
-          "question": "O que é 'resiliência do projeto' (project resilience)?",
+          "question": "Como se chama um risco que, se acontecer, traz benefício ao projeto?",
           "alternatives": [
-            "a) A capacidade de absorver impactos e se recuperar rapidamente de contratempos ou falhas, incluindo eventos de alto impacto e baixa probabilidade",
-            "b) Um sinônimo de reserva gerencial",
-            "c) Aplica-se apenas a projetos preditivos",
-            "d) A eliminação total de riscos do projeto"
+            "a) Oportunidade",
+            "b) Ameaça",
+            "c) Questão (issue)",
+            "d) Restrição"
           ],
           "correct": "a"
         },
         {
           "id": "ris_8",
-          "question": "Qual é a diferença entre ambiguidade e incerteza no domínio de Riscos?",
+          "question": "O que significa 'transferir' uma ameaça?",
           "alternatives": [
-            "a) São sinônimos",
-            "b) Ambiguidade só ocorre em projetos ágeis",
-            "c) Incerteza é sempre negativa; ambiguidade é sempre positiva",
-            "d) Ambiguidade é a falta de clareza sobre como interpretar uma situação; incerteza é a falta de compreensão sobre probabilidades de resultados alternativos"
+            "a) Ignorar a ameaça até que ela aconteça",
+            "b) Mudar o plano para eliminar a ameaça por completo",
+            "c) Adiar a ameaça para a próxima fase do projeto",
+            "d) Passar para um terceiro a responsabilidade e o impacto da ameaça, como ao contratar um seguro"
           ],
           "correct": "d"
         },
