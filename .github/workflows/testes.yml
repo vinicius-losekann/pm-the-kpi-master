@@ -24,7 +24,7 @@ on:
 
 jobs:
   testes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Baixar o código
@@ -61,7 +61,9 @@ jobs:
           retention-days: 30
 
   ponta-a-ponta:
-    runs-on: ubuntu-latest
+    # 24.04 fixo: o Playwright 1.56 não instala o Chromium no Ubuntu 26.04,
+    # que virou o ubuntu-latest em out/2026.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:
