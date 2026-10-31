@@ -1,8 +1,8 @@
 // ============================================
 // PM: The KPI Master - Testes de lógica: Canal da sala pelo Firebase
 // ============================================
-// Confere js/network/roomChannel.js, o canal por onde o jogo vai
-// conversar pelo Firebase Realtime Database (roadmap 2.9): criar sala,
+// Confere js/network/roomChannel.js, o canal por onde o jogo
+// conversa pelo Firebase Realtime Database: criar sala,
 // reaproveitar sala parada, entrar, versão do jogo, F5, aceitar e tirar
 // da sala (roster), pedidos ao host (requests), avisos do host para todos
 // (feed) e para um jogador (inbox), publicar e ler o estado (público,
@@ -589,7 +589,7 @@ async function stopHostSignal(host) {
 }
 
 // ============================================
-// PRESENÇA, CURSOR DOS AVISOS E VOLTA DA CONEXÃO (etapa 1b-α)
+// PRESENÇA, CURSOR DOS AVISOS E VOLTA DA CONEXÃO
 // ============================================
 
 asyncTest('T163 Presença: o host grava a própria ao entrar; quem é aceito grava a sua (quem só entrou, não), sempre { online, lastSeen } com a hora do servidor; o servidor grava offline com a hora da queda quando o aparelho cai; o host é avisado de cada mudança dos outros (não da própria; ao voltar de um F5, da situação atual; a queda, só depois da tolerância) e quem foi aceito, da do host; tirar da sala apaga a presença e o aparelho tirado não grava mais nada ao cair; o host que encerra a sala não a recria ao cair', async () => {
@@ -855,7 +855,7 @@ asyncTest('T166 Regras do banco para a presença (rooms/$code/presence): cada um
 });
 
 // ============================================
-// SINAL DE VIDA E TOLERÂNCIA (etapa 3a)
+// SINAL DE VIDA E TOLERÂNCIA
 // ============================================
 
 const lastOf = (list) => list[list.length - 1];
@@ -1056,7 +1056,7 @@ asyncTest('T190 F5 dentro da tolerância não é queda: quem fecha a página e a
 });
 
 // ============================================
-// TROCA DE HOST (etapa 3b)
+// TROCA DE HOST
 // ============================================
 
 asyncTest('T192 Troca de host — quem tenta: com o host vivo, ninguém; com o sinal do host parado, o guest aceito tenta por transação no meta só depois de hostTimeout (a opção, não um número fixo), com hostUid = ele, hostEpoch + 1 e o resto igual; a tentativa recusada se repete no segundo seguinte; não tenta quem não foi aceito, quem está sem conexão nem quem acabou de voltar dela; as regras têm o piso de 5 s e o HOST_TIMEOUT do config não fica abaixo dele', async () => {

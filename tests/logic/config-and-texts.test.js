@@ -388,7 +388,7 @@ function dataAttributeOf(datasetName) {
 test('T91 HTML e CSS em inglês: IDs, classes e atributos data-* com os nomes novos; o jogo e os testes no navegador só pedem IDs e classes que existem', (use) => {
     const gameHtml = readRepoFile('game.html');
     const indexHtml = readRepoFile('index.html');
-    // Página de teste de conexão (roadmap 2.9): HTML e script próprios.
+    // Página de teste de conexão: HTML e script próprios.
     const checkHtml = readRepoFile('firebase-check.html');
     const css = readRepoFile('css/style.css');
     const gameIds = htmlIds(gameHtml);

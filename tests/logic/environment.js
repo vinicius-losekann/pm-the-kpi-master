@@ -91,10 +91,9 @@ var CONFIG = {
 /**
  * Cria um "navegador" novo e isolado, carrega os arquivos reais do
  * jogo nele e devolve atalhos para simular jogadores entrando/saindo.
- * D3f: `options.storage` reaproveita o localStorage de outro
- * ambiente (o mesmo navegador). Etapa 2b: `options.bank` reaproveita o
- * banco simulado de outro ambiente — a mesma sala depois de um F5 do
- * host (ver reloadHost()).
+ * `options.storage` reaproveita o localStorage de outro ambiente (o
+ * mesmo navegador); `options.bank` reaproveita o banco simulado de outro
+ * ambiente — a mesma sala depois de um F5 do host (ver reloadHost()).
  * `options.realLink` mantém o envio real do roomLink.js (pelo canal da
  * sala), para o room-link.test.js ligar o aparelho a um banco simulado.
  */
@@ -116,8 +115,8 @@ function createEnvironment(options = {}) {
         silentConsole[level] = (...args) => record.logs.push(level + ': ' + args.join(' '));
     });
 
-    // localStorage em memória. Desde a etapa 2b, o estado da partida não
-    // vai mais para ele (o T57 confere que fica vazio).
+    // localStorage em memória. O estado da partida não vai para ele (o T57
+    // confere que fica vazio).
     const storage = options.storage || {};
     // Banco simulado da sala: `secret` é o texto JSON que o host grava em
     // secret/state pelo saveState() (Game.network.saveRoomState).
@@ -144,7 +143,7 @@ function createEnvironment(options = {}) {
     });
     vm.runInContext('var window = this;' + TEST_CONFIG, ctx);
 
-    // Game.saveState / Game.persistence vêm do persistence.js real (D3f).
+    // Game.saveState / Game.persistence vêm do persistence.js real.
     ctx.Game = {
         ui: new Proxy({}, {
             get: (_, name) => (...args) => { record.ui.push(String(name)); }
@@ -209,7 +208,7 @@ function createEnvironment(options = {}) {
     state.questionsData = { domains: { d1: { name: 'Domínio de teste' } }, events: [] };
 
     const env = {
-        ctx, Game, state, record, storage, fakeLocalStorage, bank, CONFIG: vm.runInContext('CONFIG', ctx),
+        ctx, Game, state, record, storage, bank, CONFIG: vm.runInContext('CONFIG', ctx),
 
         /** Host sozinho no lobby. */
         createRoomAsHost() {
@@ -270,7 +269,7 @@ function createEnvironment(options = {}) {
         },
 
         /**
-         * D2b: troca setInterval/clearInterval por um relógio controlado
+         * Troca setInterval/clearInterval por um relógio controlado
          * pelo teste. tick(n) avança n segundos em todas as contagens
          * ligadas; activeCount() diz quantas estão ligadas.
          */
@@ -286,7 +285,7 @@ function createEnvironment(options = {}) {
             };
         },
 
-        /** D2b: este ambiente vira um guest e recebe um state-sync do host. */
+        /** Este ambiente vira um guest e recebe um state-sync do host. */
         receiveSync(name, fullState) {
             state.isHost = false;
             state.playerName = name;
@@ -294,7 +293,7 @@ function createEnvironment(options = {}) {
         },
 
         /**
-         * D3b: troca setTimeout/clearTimeout e Date.now() por um tempo
+         * Troca setTimeout/clearTimeout e Date.now() por um tempo
          * controlado pelo teste. advance(ms) anda o relógio e roda, na
          * ordem, os timers que vencerem (inclusive os agendados durante
          * o avanço). `start` é a hora inicial — no F5 do host, a hora em
@@ -326,7 +325,7 @@ function createEnvironment(options = {}) {
             };
         },
 
-        /** D3b: URL da página e history.replaceState simulados. */
+        /** URL da página e history.replaceState simulados. */
         fakeUrl(href) {
             const replacements = [];
             ctx.URL = URL;
@@ -474,7 +473,7 @@ function reloadHost(env) {
 
 /**
  * Como reloadHost(), mas sem exigir que o estado seja restaurado
- * (roadmap 3.1: versão desconhecida ou inválida não restaura).
+ * (versão desconhecida ou inválida não restaura).
  * `prepare(reloaded)` roda antes da restauração (ex.: trocar a migração).
  */
 function tryReloadHost(env, prepare) {

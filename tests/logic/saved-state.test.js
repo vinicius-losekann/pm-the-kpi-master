@@ -2,7 +2,7 @@
 // PM: The KPI Master - Testes de lógica: Estado salvo
 // ============================================
 // O que vai no estado salvo (o secret/state que o host grava no banco), a
-// versão do formato e a migração entre versões (roadmap 3.1).
+// versão do formato e a migração entre versões.
 // Ambiente simulado e ajudantes: environment.js. Rodar a partir da raiz:
 //     node tests/logic/saved-state.test.js
 // ============================================

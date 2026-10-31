@@ -31,10 +31,9 @@ M21, passo 8, olhando a tela do celular.
 
 **NOTA-009 — nomes em português que sobraram no código.** A regra é nome
 em inglês e texto em português (`conventions.md`, "Nomenclatura"), mas
-sobraram nomes em português fora do `js/`, e uma troca automática da
-Fase E alcançou um texto. Achado em 06/10/2026, na reorganização dos
-documentos. Para quem joga, nada muda; é frente própria, porque mexe no
-Actions:
+sobraram nomes em português fora do `js/`. Achado em 06/10/2026, na
+reorganização dos documentos. Para quem joga, nada muda; é frente
+própria, porque mexe no Actions:
 - **Workflows:** os arquivos `testes.yml` e `simulacao.yml`; os IDs dos
   jobs (`testes`, `ponta-a-ponta`, `simulacao`); os artefatos
   (`resultado-testes`, `relatorio-ponta-a-ponta`, `simulacao`); os IDs dos
@@ -45,8 +44,6 @@ Actions:
   (`tests/simulation/run.js`), a lista de campos lida do ambiente e as
   colunas do CSV (`partida`, `jogador`, `ajudas_pedidas`...; as novas,
   como `rewards_received`, já entram em inglês) em `toCsv()`.
-- **Títulos de teste:** E1 e E4 (`tests/browser/connection.spec.js`)
-  dizem "no meio da question" em vez de "no meio da pergunta".
 - Os textos que aparecem na tela do Actions (`name:` e `description:`)
   continuam em português.
 

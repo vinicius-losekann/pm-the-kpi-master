@@ -2,7 +2,7 @@
 // PM: The KPI Master - Testes de lógica: Teste de conexão pelo Firebase
 // ============================================
 // Confere js/network/connectionCheck.js, a lógica da página de teste de
-// conexão (firebase-check.html, roadmap 2.9): criar sala, entrar,
+// conexão (firebase-check.html): criar sala, entrar,
 // presença (quem caiu sai da lista e volta sozinho), F5, mensagem de
 // teste com eco e tempo de ida e volta, mensagem como texto JSON, sair;
 // e as regras do banco (database.rules.json) sem segredo nos arquivos.

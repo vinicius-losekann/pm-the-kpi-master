@@ -1,7 +1,7 @@
 // ============================================
 // PM: The KPI Master - Testes no navegador: teste de conexão pelo Firebase
 // ============================================
-// A página firebase-check.html (roadmap 2.9) com o emulador do Firebase
+// A página firebase-check.html com o emulador do Firebase
 // (login anônimo e banco, com as regras de database.rules.json): criar
 // sala, entrar, mensagem de teste com eco, F5, saída de quem fecha a aba
 // e o que as regras do banco recusam — as da página e as das salas do

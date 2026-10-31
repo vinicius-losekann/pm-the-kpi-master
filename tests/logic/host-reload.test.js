@@ -2,8 +2,8 @@
 // PM: The KPI Master - Testes de lógica: F5 do host
 // ============================================
 // F5 do host em cada momento da partida: faz o que aconteceria sem o F5
-// (D3f, BUG-019, BUG-020). O host volta pelo estado que gravou no banco
-// (secret/state; etapa 2b).
+// (BUG-019, BUG-020). O host volta pelo estado que gravou no banco
+// (secret/state).
 // Ambiente simulado e ajudantes: environment.js. Rodar a partir da raiz:
 //     node tests/logic/host-reload.test.js
 // ============================================

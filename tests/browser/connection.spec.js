@@ -9,7 +9,7 @@ const {
     waitForOpenQuestion, waitForHostBack, DROP_WAIT
 } = require('./players');
 
-test('E1 F5 do host no meio da question: o outro reconecta ao mesmo host, sem troca, e a partida segue; o log mostra quanto o F5 do host demora', async ({ players }) => {
+test('E1 F5 do host no meio da pergunta: o outro reconecta ao mesmo host, sem troca, e a partida segue; o log mostra quanto o F5 do host demora', async ({ players }) => {
     const code = roomCode();
     const ana = await players.add('Ana');
     const beto = await players.add('Beto');

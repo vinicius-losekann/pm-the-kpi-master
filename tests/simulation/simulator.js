@@ -3,7 +3,7 @@
 // ============================================
 // Roda partidas inteiras, sem rede e sem tela, para medir quantas
 // rodadas uma partida leva, como os recursos variam e se a economia e
-// os eventos estão justos (roadmap 7.9). Usa as regras REAIS: carrega
+// os eventos estão justos. Usa as regras REAIS: carrega
 // num contexto `vm` do Node o config/game-config.js, os arquivos de
 // js/state/, js/domain/, js/engine/ e o js/main.js (que monta os
 // baralhos a partir de data/), como os testes de tests/logic fazem.

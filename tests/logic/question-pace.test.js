@@ -440,7 +440,7 @@ test('T142 Prazos do config real: 90s para responder, 60s para a assessoria e a 
 });
 
 // ============================================
-// PRAZOS EM HORA DO SERVIDOR (roadmap 2.9, etapa 2a)
+// PRAZOS EM HORA DO SERVIDOR
 // ============================================
 
 test('T181 Prazo do Perguntador em hora do servidor (askEndsAt): gravado na rodada ao armar; vencido durante o F5 do host, a pergunta vai na hora; rodada salva sem askEndsAt ganha o prazo inteiro', (use) => {

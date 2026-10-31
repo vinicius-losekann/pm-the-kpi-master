@@ -849,7 +849,7 @@ asyncTest('T191 F5 de quem responde: dentro da tolerância, ninguém cai — a m
 });
 
 // ============================================
-// TROCA DE HOST NO JOGO (etapa 3c)
+// TROCA DE HOST NO JOGO
 // ============================================
 
 /**
