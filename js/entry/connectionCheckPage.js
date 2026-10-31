@@ -7,7 +7,7 @@
 // teste com o tempo de ida e volta e o tráfego. Depois de um F5, entra
 // de novo sozinha na última sala (guardada neste navegador).
 //
-// Não faz parte do jogo (roadmap 2.9). Como a tela inicial
+// Não faz parte do jogo. Como a tela inicial
 // (roomEntry.js), os textos ficam aqui, sem o i18n do jogo.
 // Os avisos dizem em que ponto a conexão falhou (arquivos do Firebase,
 // login ou banco), para o teste em redes diferentes.

@@ -762,8 +762,8 @@ body {
     gap: 16px;
 }
 
-/* Card do Jogador + Fases num só card (avatar/KPI/recursos + lista de
-   fases), para reduzir o que é preciso rolar no celular. */
+/* Card do jogador e das áreas foco num só card (avatar/KPI/recursos +
+   lista de áreas foco), para reduzir o que é preciso rolar no celular. */
 .player-summary {
     display: flex;
     align-items: center;
@@ -793,7 +793,7 @@ body {
 }
 
 /* Quebra de linha: com a coluna estreita (769–1200 px) e o rótulo
-   "Estouro", os dois chips não cabem lado a lado (BUG-025). */
+   "Estouro", os dois chips não cabem lado a lado. */
 .stats-row {
     display: flex;
     flex-wrap: wrap;
@@ -842,7 +842,7 @@ body {
     color: var(--red);
 }
 
-/* Phases Card */
+/* Títulos dos cards laterais */
 .focus-areas-card h4,
 .ranking-card h4,
 .players-online h4 {
@@ -1246,7 +1246,8 @@ body {
 }
 
 /* O detalhe (KPI acumulado e recursos) vai para uma linha própria,
-   abaixo de posição, nome e KPI Final (BUG-027). */
+   abaixo de posição, nome e KPI Final (no celular, dividindo a linha,
+   o nome quebrava em várias linhas). */
 .final-rank-item {
     display: flex;
     flex-wrap: wrap;
@@ -1330,7 +1331,7 @@ body {
     text-align: center;
     padding: 40px;
     /* Nunca maior que a tela: no celular, a janela rola por dentro até
-       a última alternativa e o botão de apoio (BUG-026). O dvh desconta
+       a última alternativa e o botão de apoio. O dvh desconta
        as barras do navegador do celular; o vh fica para quem não tem. */
     max-height: calc(100vh - 32px);
     max-height: calc(100dvh - 32px);
@@ -1363,7 +1364,8 @@ body {
 
 /* Ranking e jogadores descem para baixo da pergunta, lado a lado
    enquanto couberem; o perfil continua na coluna da esquerda, ao lado das
-   duas linhas (BUG-029). A sobra de altura vai para a segunda linha, para
+   duas linhas (escondê-los deixava quem joga sem a classificação e sem
+   ver quem caiu). A sobra de altura vai para a segunda linha, para
    a área da pergunta não esticar. */
 @media (max-width: 1200px) {
     .game-layout {

@@ -50,11 +50,10 @@ function showAdvisorySelectModal() {
         </button>
     `).join('');
 
-    // 🔴 Correção de segurança: nome do jogador vinha interpolado direto
-    // em onclick="Game.ui.chooseAdvisor('${p.name}')". Escapar HTML
-    // (&#39; etc.) NÃO protege esse caso — o navegador decodifica as
-    // entidades antes de rodar o JS do onclick, reintroduzindo a aspas.
-    // Por isso trocamos para data-attribute + addEventListener.
+    // O nome vai num data-attribute, com o clique ligado aqui, e não num
+    // onclick="...('nome')": escapar o HTML (&#39; etc.) não protege o
+    // onclick — o navegador decodifica as entidades antes de rodar o JS,
+    // e um nome com aspas executaria código na tela dos outros.
     document.querySelectorAll('#advisoryPlayersList .advisor-select-btn').forEach(btn => {
         btn.addEventListener('click', () => chooseAdvisor(btn.dataset.advisorName));
     });

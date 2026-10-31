@@ -229,7 +229,7 @@ function handleMessage(msg, fromPeerId) {
 
 // A pergunta vem pela caixa do aparelho e o 'round-start' pela fila de
 // todos, que quem acabou de entrar só lê depois do 'state-sync': a
-// pergunta pode chegar antes da dupla dela (BUG-035). Fica guardada aqui
+// pergunta pode chegar antes da dupla dela. Fica guardada aqui
 // até o 'round-start' ou o 'state-sync' da mesma dupla.
 let earlyQuestion = null;
 
@@ -415,7 +415,8 @@ function addPlayer(msg, fromPeerId) {
     // pausada — para não reabrir uma pergunta que já acabou. O cursor
     // vai depois da lista de jogadores acima: os avisos para todos até
     // ele já estão neste estado. Os baralhos (com o gabarito de todas as
-    // perguntas) não vão: ficam só com o host (SEC-005).
+    // perguntas) não vão: ficam só com o host, senão quem entra leria as
+    // respostas pelo console.
     Game.network.sendToPlayer(fromPeerId, {
         type: 'state-sync',
         fullState: {
@@ -483,7 +484,7 @@ function roundAsSeenBy(round, playerName) {
  *
  * Fora de partida (lobby ou fim de jogo), remove o jogador como
  * sempre. Com a partida em andamento, mantém o jogador na lista marcado
- * como `disconnected: true` — KPI, recursos e fase ficam preservados e
+ * como `disconnected: true` — KPI, recursos e área foco ficam preservados e
  * a vaga fica reservada para a reconexão (a sala está travada para
  * nomes novos, ver addPlayer()). Desconectados ficam fora do sorteio de
  * dupla, dos efeitos de evento e do rodízio (ver getActivePlayers()).

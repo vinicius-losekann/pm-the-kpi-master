@@ -42,7 +42,7 @@ function startNewRound() {
     }
 
     // Número e evento da rodada: as trocas de dupla dentro dela
-    // (pickNewPair() sem evento) continuam com os dois (BUG-032).
+    // (pickNewPair() sem evento) continuam com os dois, sem sortear outro.
     state.roundNumber = (state.roundNumber || 0) + 1;
     state.roundEvent = event;
     const eventEffect = applyDrawnEvent(event);
@@ -274,7 +274,7 @@ function startPair(event, askerName, answererName, question, answerTimeLeft) {
 
     // Envia a pergunta (com gabarito) para o Perguntador. O Respondedor
     // só a recebe quando o Perguntador a faz (askQuestion()). O número da
-    // dupla vai junto: a pergunta pode chegar antes do 'round-start' (BUG-035).
+    // dupla vai junto: a pergunta pode chegar antes do 'round-start'.
     if (asker) {
         Game.network.sendToPlayer(asker.peerId, {
             type: 'question',

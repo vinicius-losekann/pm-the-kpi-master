@@ -52,8 +52,7 @@ async function loadQuestions() {
         };
         console.log('✅ questions.pt-BR.json e events.json carregados!');
     } catch (err) {
-        console.warn('⚠️ Fetch falhou:', err.message);
-        console.error('❌ Nenhuma fonte de perguntas!');
+        console.error('❌ Não foi possível carregar as perguntas:', err.message);
         state.questionsData = { domains: {}, events: [] };
     }
 
@@ -169,15 +168,14 @@ async function init() {
     document.getElementById('lobbyRoomName').textContent = state.roomName;
     document.getElementById('myName').textContent = state.playerName;
     document.getElementById('myAvatar').textContent = state.playerName.charAt(0).toUpperCase();
-    // A lista de fases é desenhada por Game.ui.renderProfileCard(), com
-    // o status de cada fase, toda vez que o estado do jogador muda (via
-    // syncPlayerViews()).
+    // A lista de áreas foco é desenhada por Game.ui.renderProfileCard(),
+    // com o status de cada área, toda vez que o estado do jogador muda
+    // (via syncPlayerViews()).
 
     await loadQuestions();
     await connectToRoom();
 
     console.log('✅ Jogo inicializado!');
-    console.log('💡 Debug: Game.debug está disponível no console (F12)');
 }
 
 // ============================================

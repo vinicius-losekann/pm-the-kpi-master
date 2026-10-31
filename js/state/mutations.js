@@ -7,7 +7,7 @@
 
 /**
  * Reseta todos os jogadores para o início de uma partida
- * (KPI zero, fase inicial, recursos iniciais, sai do estado "aguardando no lobby").
+ * (KPI zero, primeira área foco, recursos iniciais, sai do estado "aguardando no lobby").
  * @param {Array} players - Game.state.players (mutado in-place)
  * @param {object} config - CONFIG (usa config.FOCUS_AREAS, config.STARTING_RESOURCES)
  */

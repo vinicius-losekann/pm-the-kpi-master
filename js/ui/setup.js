@@ -61,8 +61,8 @@ function setupUI() {
         document.getElementById('btnLeaveMatch').style.display = 'block';
     }
 
-    // Botões de ação (assessoria ou ajuda, sessão, partida, nova rodada)
-    // agora são responsabilidade de controlsComponent.js.
+    // Botões de ação (assessoria ou ajuda, sessão, partida, nova rodada):
+    // ficam em controlsComponent.js.
     Game.ui.bindControls();
 
     // Recalcula o estado real do botão "Nova Rodada" (ciclo completo ou

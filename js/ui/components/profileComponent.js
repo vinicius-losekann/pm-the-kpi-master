@@ -2,7 +2,7 @@
 // PM: The KPI Master - UI Component: Perfil
 // ============================================
 // Renderiza o card de perfil do jogador local: avatar/nome, KPI,
-// recursos, e a lista de fases com status individual por fase
+// recursos, e a lista de áreas foco com o status de cada uma
 // (completa / em andamento / não iniciada).
 //
 // Game.ui.syncPlayerViews() é o ponto único de "atualizar card de
@@ -36,7 +36,7 @@ function renderProfileCard(player) {
             : Game.i18n.t('profile.resourcesLabel');
     }
 
-    // fase/atividades também são opcionais nalguns payloads, mesmo
+    // área foco/atividades também são opcionais nalguns payloads, mesmo
     // padrão do bloco de recursos acima.
     if (player.focusArea !== undefined && player.activities !== undefined) {
         renderFocusAreasList(player);
@@ -44,10 +44,10 @@ function renderProfileCard(player) {
 }
 
 /**
- * Desenha a lista de fases com o status de cada uma: completa (fase já
- * ultrapassada), em andamento (fase atual, mostra X de N atividades) ou
+ * Desenha a lista de áreas foco com o status de cada uma: completa (área
+ * já ultrapassada), em andamento (área atual, mostra X de N atividades) ou
  * não iniciada. Como a progressão é sempre linear, dá pra derivar o
- * status de TODAS as fases só com a fase atual + atividades.
+ * status de TODAS as áreas só com a área atual + atividades.
  */
 function renderFocusAreasList(player) {
     const currentIdx = Game.getFocusAreaIndex(player.focusArea);

@@ -105,12 +105,11 @@
 
             <!-- Sidebar Esquerda -->
             <aside class="sidebar sidebar-left">
-                <!-- Card do Jogador + Fases (consolidado:
-                     9.4: reduz a quantidade de cards pra rolar no celular,
-                     onde a sidebar aparece abaixo da pergunta). KPI e
-                     recursos agora ficam no cabeçalho, e cada fase mostra
-                     seu próprio status (completo / X de N / não iniciado)
-                     — tudo desenhado por Game.ui.renderProfileCard(). -->
+                <!-- Card do jogador e das áreas foco num só card, para
+                     reduzir o que é preciso rolar no celular: KPI e
+                     recursos no cabeçalho e o status de cada área foco
+                     (completa / X de N / não iniciada) — tudo desenhado
+                     por Game.ui.renderProfileCard(). -->
                 <div class="focus-areas-card glass-card">
                     <div class="player-summary">
                         <div class="player-avatar-header" id="myAvatar">?</div>
@@ -124,7 +123,7 @@
                         </div>
                         <div class="stat-chip">
                             <span class="stat-icon">📦</span>
-                            <span class="stat-value" id="myResources">20</span>
+                            <span class="stat-value" id="myResources">10</span>
                             <span class="stat-label" id="myResourcesLabel">Recursos</span>
                         </div>
                     </div>
@@ -353,42 +352,42 @@
     <!-- 2. Configuração -->
     <script src="config/game-config.js"></script>
 
-    <!-- 2.6. i18n (textos da tela) -->
+    <!-- 3. i18n (textos da tela) -->
     <script src="js/utils/i18n.js"></script>
     <script src="js/locales/pt-BR.js"></script>
 
-    <!-- 2.7. Logger e persistência -->
+    <!-- 4. Logger e persistência -->
     <script src="js/utils/logger.js"></script>
     <script src="js/utils/persistence.js"></script>
 
-    <!-- 2.8. Sanitização (nomes de jogador em innerHTML) -->
+    <!-- 5. Sanitização (nomes de jogador em innerHTML) -->
     <script src="js/utils/sanitize.js"></script>
 
-    <!-- 3. Módulos do jogo -->
+    <!-- 6. Estado -->
     <script src="js/state/selectors.js"></script>
     <script src="js/state/mutations.js"></script>
     <script src="js/state/store.js"></script>
 
-    <!-- 3.6. Rede -->
+    <!-- 7. Rede -->
     <script src="js/network/firebaseLogin.js"></script>
     <script src="js/network/roomChannel.js"></script>
     <script src="js/network/roomLink.js"></script>
     <script src="js/network/messageHandler.js"></script>
 
-    <!-- 3.5. Regras puras de domínio (precisam vir antes de engine/) -->
+    <!-- 8. Regras puras de domínio (precisam vir antes de engine/) -->
     <script src="js/domain/kpiRules.js"></script>
     <script src="js/domain/eventRules.js"></script>
     <script src="js/domain/deckRules.js"></script>
     <script src="js/domain/rankingRules.js"></script>
     <script src="js/domain/advisoryRules.js"></script>
 
-    <!-- 3.7. Orquestração -->
+    <!-- 9. Orquestração -->
     <script src="js/engine/sessionEngine.js"></script>
     <script src="js/engine/turnEngine.js"></script>
     <script src="js/engine/answerEngine.js"></script>
     <script src="js/engine/advisoryEngine.js"></script>
 
-    <!-- 3.8. Interface de usuário -->
+    <!-- 10. Interface de usuário -->
     <script src="js/ui/screenManager.js"></script>
     <script src="js/ui/components/lobbyComponent.js"></script>
     <script src="js/ui/components/questionComponent.js"></script>
@@ -401,7 +400,7 @@
     <script src="js/ui/modals/advisoryModal.js"></script>
     <script src="js/ui/setup.js"></script>
 
-    <!-- 4. Orquestrador (sempre por último) -->
+    <!-- 11. Orquestrador (sempre por último) -->
     <script src="js/main.js"></script>
 
 </body>

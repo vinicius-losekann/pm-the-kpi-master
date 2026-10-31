@@ -1,8 +1,8 @@
 // ============================================
 // PM: The KPI Master - Network: Canal da sala pelo Firebase
 // ============================================
-// Por onde o jogo conversa pelo Firebase Realtime Database (roadmap
-// 2.9): criar e entrar na sala, pedidos dos jogadores ao host, avisos do
+// Por onde o jogo conversa pelo Firebase Realtime Database: criar e
+// entrar na sala, pedidos dos jogadores ao host, avisos do
 // host para todos e para um jogador, e o estado da partida guardado no
 // banco. Não conhece as regras do jogo: só leva e traz.
 //

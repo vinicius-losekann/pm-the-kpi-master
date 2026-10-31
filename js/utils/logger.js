@@ -4,11 +4,9 @@
 // Logs com níveis (debug/info/warn/error), permitindo silenciar
 // ruído em produção sem apagar os console.log espalhados pelo código.
 //
-// ⚠️ FASE 7 — APENAS INFRAESTRUTURA:
-// este arquivo existe e funciona isoladamente (Game.logger.info(...)
-// já funciona se chamado), mas NENHUM arquivo do projeto foi religado
-// para usar Game.logger.* no lugar de console.log/warn/error direto.
-// Religar o código ao logger ainda não foi feito.
+// Ainda sem uso: funciona isoladamente (Game.logger.info(...)), mas o
+// jogo continua chamando console.log/warn/error direto. Religar o código
+// a ele é o item 2.3 do roadmap (ver NOTA-004 em _docs/architecture.md).
 // ============================================
 
 const LEVELS = { debug: 0, info: 1, warn: 2, error: 3, silent: 4 };

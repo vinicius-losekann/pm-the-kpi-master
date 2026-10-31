@@ -1,12 +1,11 @@
 // ============================================
 // PM: The KPI Master - Network: Teste de conexão pelo Firebase
 // ============================================
-// Lógica da página firebase-check.html (roadmap 2.9): prova que criar
-// sala, entrar e trocar mensagens funciona pelo Firebase Realtime
-// Database na rede de quem joga (ex.: celular no 5G, rede da UFSM),
-// antes de trocar a camada network/ do jogo.
+// Lógica da página firebase-check.html: prova que criar sala, entrar e
+// trocar mensagens funciona pelo Firebase Realtime Database na rede de
+// quem joga (ex.: celular no 5G, rede da instituição).
 //
-// Não usa o jogo nem o PeerJS. Recebe o banco já pronto (db, da API
+// Não usa o código do jogo. Recebe o banco já pronto (db, da API
 // "compat" do Firebase), o uid do login anônimo, o nome e o relógio — por
 // isso os testes trocam o banco por um simulado
 // (tests/logic/fakeFirebase.js). A tela fica em

@@ -5,14 +5,14 @@
 // (secret/state, ver saveRoomState() em network/roomLink.js) e, ao abrir
 // a sala de novo (F5, ou depois de todos saírem), restaura a partida dali
 // (openRoom(), em roomLink.js). Vale enquanto a sala existir.
-// Roadmap 3.1: o estado salvo tem versão e passa pela migração antes de
-// ser restaurado (ver STATE_VERSION e STATE_MIGRATIONS abaixo).
+// O estado salvo tem versão e passa pela migração antes de ser
+// restaurado (ver STATE_VERSION e STATE_MIGRATIONS abaixo).
 // ============================================
 
-// Roadmap 3.1: versão do formato do estado salvo (campo stateVersion). Ao mudar
-// o formato (ex.: renomear um campo), aumentar a versão e acrescentar
-// em STATE_MIGRATIONS o passo que converte da versão anterior. Estado
-// salvo sem versão (antes do 3.1) é a versão 1. Até a versão 9 o estado
+// Versão do formato do estado salvo (campo stateVersion). Ao mudar o
+// formato (ex.: renomear um campo), aumentar a versão e acrescentar em
+// STATE_MIGRATIONS o passo que converte da versão anterior. Estado salvo
+// sem versão é a versão 1. Até a versão 9 o estado
 // ficava no navegador do host, em duas partes: a da sala (roomState) e a
 // do próprio host (pmKPI_myData). Os passos continuam recebendo e
 // devolvendo as duas; a restauração pelo banco passa myData null.
@@ -275,7 +275,7 @@ function saveState() {
         gameStarted: state.gameStarted,
         answeredThisRound: state.answeredThisRound,
         // Número e evento da rodada: a retomada sem dupla continua a
-        // mesma rodada, sem sortear outro evento (BUG-032).
+        // mesma rodada, sem sortear outro evento.
         roundNumber: state.roundNumber || 0,
         roundEvent: state.roundEvent || null,
         // Duplas guardadas de quem caiu (com o gabarito: o secret/state é
@@ -366,6 +366,5 @@ window.Game.persistence = {
     STATE_VERSION
 };
 
-// Compatibilidade: Game.saveState() é chamado diretamente em vários
-// engines e em network/messageHandler.js — mantemos o atalho.
+// Atalho usado em todo o jogo (engines e network/messageHandler.js).
 window.Game.saveState = saveState;

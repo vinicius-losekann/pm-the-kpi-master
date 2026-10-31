@@ -4,8 +4,10 @@
 // Resolve chaves de tradução a partir dos dicionários em js/locales/*.js.
 //
 // A tela (js/ui/*.js) usa Game.i18n.t('chave') para os textos; só
-// existe o dicionário pt-BR por enquanto. Faltam en-US e es-ES e o
-// seletor de idioma.
+// existe o dicionário pt-BR por enquanto. setLocale(), getLocale() e
+// SUPPORTED_LOCALES ainda não são chamados: ficam para o seletor de
+// idioma, com os dicionários en-US e es-ES (item 8.4 do roadmap, ver
+// NOTA-003 em _docs/architecture.md).
 // ============================================
 
 const SUPPORTED_LOCALES = ['pt-BR']; // en-US e es-ES entram com os dicionários deles

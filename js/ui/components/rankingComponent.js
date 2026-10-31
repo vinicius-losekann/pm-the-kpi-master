@@ -1,7 +1,7 @@
 // ============================================
 // PM: The KPI Master - UI Component: Ranking
 // ============================================
-// Lista de jogadores ativos (com recursos/fase), ranking parcial
+// Lista de jogadores ativos (com recursos/área foco), ranking parcial
 // durante o jogo e ranking final ao término da partida.
 // ============================================
 
