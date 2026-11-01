@@ -12,7 +12,7 @@
 - **Namespace global único**: `window.Game`, subdividido em `Game.domain`, `Game.state` (com `Game.selectors` e `Game.mutations`), `Game.engine`, `Game.core` (a API entre camadas, ver `architecture.md`), `Game.network`, `Game.ui` e os utilitários (`Game.i18n`, `Game.persistence`, `Game.sanitize`, `Game.logger`). Todo arquivo exporta pra dentro desse namespace no final (bloco `// EXPORTAÇÃO`).
 - **Firebase** (plano gratuito) para a conexão — login anônimo e Realtime Database, pela API "compat" carregada de `www.gstatic.com`, sem servidor próprio: o navegador do host continua rodando as regras e todos conversam pelo banco (`network/roomChannel.js`, ligado ao jogo por `network/roomLink.js`). A configuração web fica em `CONFIG.FIREBASE` (`config/game-config.js`) e o que cada um pode ler e gravar, nas regras do banco (`database.rules.json`).
 - **CSS puro**, sem pré-processador, tema único "dark + glassmorphism" definido via custom properties em `:root` (`css/style.css`).
-- **Testes automatizados no GitHub Actions** (desde a Fase D) — ver "Testes" abaixo. O que depende de rede real, celular ou outros navegadores continua manual (`connection-tests.md`).
+- **Testes automatizados no GitHub Actions** — ver "Testes" abaixo. O que depende de rede real, celular ou outros navegadores continua manual (`connection-tests.md`).
 
 ## Padrão de arquitetura: camadas
 
@@ -71,25 +71,25 @@ Os campos `endsAt`, `askEndsAt` e `answerEndsAt` (nas mensagens, na rodada e no 
 
 Mensagem que chega sem um campo novo (de uma versão anterior do jogo) mantém o comportamento antigo (ex.: `advisory-request` sem `kind` é assessoria), salvo quando o campo veio com uma versão nova do protocolo e o host precisa dele: aí o host exige o campo.
 
-**Versão do protocolo:** ao mudar o nome ou o formato de um campo de mensagem, aumentar `PROTOCOL_VERSION` (`network/roomLink.js`; vai também no meta da sala, conferido pela tela inicial e ao abrir o jogo). O host recusa quem entra com outra versão (`version-mismatch`), em vez de a partida travar quando, logo depois de um deploy, uns jogadores rodam o código novo e outros o antigo. Se o mesmo campo também é salvo no `localStorage`, aumentar junto o `STATE_VERSION`, com o passo de migração (`utils/persistence.js`).
+**Versão do protocolo:** ao mudar o nome ou o formato de um campo de mensagem, aumentar `PROTOCOL_VERSION` (`network/roomLink.js`; vai também no meta da sala, conferido pela tela inicial e ao abrir o jogo). O host recusa quem entra com outra versão (`version-mismatch`), em vez de a partida travar quando, logo depois de um deploy, uns jogadores rodam o código novo e outros o antigo. Se o mesmo campo também vai no estado salvo (`secret/state`, no banco), aumentar junto o `STATE_VERSION`, com o passo de migração (`utils/persistence.js`).
 
 ## Testes
 
 Como os testes funcionam (ambiente simulado, Playwright, Actions) está em `architecture.md`, seção "Testes automatizados". Aqui, as regras para escrever:
 
-- Teste de lógica entra em `tests/logic/<assunto>.test.js` (entrada e identidade, queda e volta, troca de host, F5 do host, estado salvo, fim de partida, pedido de ajuda e assessoria, ritmo da pergunta, banco de perguntas, configuração e textos da tela, simulador), com o próximo número da sequência (T1, T2...); cenário no navegador entra em `tests/browser/*.spec.js`, com o próximo número E. Os números não mudam nem são reaproveitados.
+- Teste de lógica entra em `tests/logic/<assunto>.test.js` (entrada e identidade, queda e volta, troca de host, F5 do host, estado salvo, fim de partida, pedido de ajuda e assessoria, economia, ritmo da pergunta, banco de perguntas, configuração e textos da tela, simulador, canal da sala, ligação do jogo ao canal, teste de conexão), com o próximo número da sequência (T1, T2...); cenário no navegador entra em `tests/browser/*.spec.js`, com o próximo número E. Os números não mudam nem são reaproveitados.
 - Nomes de arquivos, funções e variáveis dos testes em inglês; comentários e títulos em português, com o número (T…, E…, BUG-…) no título.
 - Toda mudança de lógica vem com teste. A frente vai em dois commits: primeiro só os testes (os novos devem falhar no Actions), depois o código (tudo passa). Isso confirma que os testes novos de fato pegam o problema. Antes do segundo commit, o código novo é revisado à procura de mudanças que os testes não pegariam (teste de mutação), e os testes são reforçados se aparecer alguma.
 - Código novo de lógica fica onde o teste alcança (`engine/`, `network/`, `state/`, `utils/`); `main.js` só orquestra a inicialização.
 
 ## Nomenclatura
 
-A regra geral: **nome é em inglês; texto é em português.** Nome é tudo que o código, o Git ou o Actions usam para achar alguma coisa (arquivo, pasta, função, campo, chave, ID, job, artefato, variável de ambiente); texto é o que uma pessoa lê (comentário, tela, log, documento, título de teste, `name:`/`description:` dos workflows, descrição do commit). Os identificadores do código estão em inglês desde a Fase E do roadmap (concluída em 05/10/2026); os nomes em português que sobraram fora do `js/` estão na NOTA-009 (`issues.md`).
+A regra geral: **nome é em inglês; texto é em português.** Nome é tudo que o código, o Git ou o Actions usam para achar alguma coisa (arquivo, pasta, função, campo, chave, ID, job, artefato, variável de ambiente); texto é o que uma pessoa lê (comentário, tela, log, documento, título de teste, `name:`/`description:` dos workflows, descrição do commit). Os nomes em português que sobraram fora do `js/` estão na NOTA-009 (`issues.md`).
 
 - **Nomes de arquivos e pastas** (documentos, workflows, pastas e arquivos gerados): em inglês, kebab-case minúsculo (`connection-tests.md`, `manual-test-scripts.md`). Exceções: os nomes padrão que as ferramentas reconhecem em maiúsculas (`README.md`, `CHANGELOG.md`, `LICENSE`) e os códigos de idioma (`pt-BR`). Arquivos `.js`: ver abaixo.
 - **Workflows do GitHub Actions:** nome do arquivo, IDs dos jobs, IDs dos campos do formulário, variáveis de ambiente e nomes de artefato em inglês; o `name:` e as `description:` (o que aparece na tela do Actions) em português.
 
-- **Chaves de schema de dados** (`data/questions.*.json` e os campos que viajam com uma pergunta pela rede): já estão em inglês desde a Fase 8 (`domains`, `name`, `focusAreas`, `questions`, `question`, `alternatives`, `correct`, `domain_key`); os IDs das áreas foco (valores de `focusAreas`, de `CONFIG.FOCUS_AREAS` e do `focusArea` do jogador), desde a E3d (`initiating`, `planning`, `executing`, `monitoringControlling`, `closing`). Motivo: precisam ser estáveis entre arquivos de idiomas diferentes (`questions.en-US.json` reusa as mesmas chaves, só traduz os valores).
+- **Chaves de schema de dados** (`data/questions.*.json` e os campos que viajam com uma pergunta pela rede): em inglês (`domains`, `name`, `focusAreas`, `questions`, `question`, `alternatives`, `correct`, `domain_key`), assim como os IDs das áreas foco (valores de `focusAreas`, de `CONFIG.FOCUS_AREAS` e do `focusArea` do jogador: `initiating`, `planning`, `executing`, `monitoringControlling`, `closing`). Motivo: precisam ser estáveis entre arquivos de idiomas diferentes (`questions.en-US.json` reusa as mesmas chaves, só traduz os valores).
 - **Identificadores do código** (funções, variáveis, parâmetros, campos do estado e das mensagens, chaves do CONFIG e dos textos da tela, campos dos eventos, IDs e classes do HTML/CSS): em inglês, inclusive nos testes. **Código novo usa inglês e o glossário abaixo.**
 - **Glossário** (português → inglês), para todo o código usar os mesmos nomes:
 
@@ -149,7 +149,7 @@ A regra geral: **nome é em inglês; texto é em português.** Nome é tudo que 
   - `send`/`broadcast`/`connect`: rede;
   - `show` (abre uma tela ou janela), `render` (monta o HTML de uma parte), `update` (atualiza uma parte já na tela): `ui/`. Código novo usa `show`, não `display`, que aparece em funções antigas.
   - `get`: leitura sem efeito (`getActivePlayers`).
-- **Unidade no nome** de constante nova de tempo ou tamanho (`SEARCH_TIMEOUT_MS`, `RESTORE_WINDOW_MS`). As chaves antigas do CONFIG não têm a unidade no nome (o comentário de cada uma diz qual é; `SESSION_DURATION` está em segundos, os prazos em ms); renomear seria uma frente própria, com migração.
+- **Unidade no nome** de constante nova de tempo ou tamanho (`TAB_CHECK_MS`, `ROOM_IDLE_MS`). As chaves antigas do CONFIG não têm a unidade no nome (o comentário de cada uma diz qual é; `SESSION_DURATION` está em segundos, os prazos em ms); renomear seria uma frente própria, com migração.
 - **Nome descreve o significado**, não o tipo nem a implementação (`answeredThisRound`, não `list2`); sem abreviações além das consagradas (`id`, `kpi`, `msg`, `conn`).
 
 ## Código limpo

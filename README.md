@@ -1,7 +1,7 @@
-# 🎯 PM: The KPI Master — v1.0
+# 🎯 PM: The KPI Master
 
 > **Quiz multiplayer no navegador sobre os Domínios de Desempenho do PMBOK (8ª Edição)**
->
+
 ---
 
 ## 🎮 Como Jogar
@@ -25,9 +25,8 @@
 5. **Acertar** = +10 KPI + 1 atividade, sem gastar recurso
 6. **Errar** = 0 KPI + 0 atividade + **-1 recurso** (protegido pelo evento 🛡️ Reserva de Contingência). **Tempo esgotado** conta como erro (a tela mostra "⌛ Tempo esgotado!")
 7. Sem recursos não impede de tentar: errar com 0 recursos deixa o recurso **negativo** (estouro de orçamento), que desconta no KPI Final
-8. **Pedir Ajuda**: na vez de responder, quem está com 0 recursos ou menos chama um colega com recurso, que vira fiador da resposta (veja abaixo)
-9. O jogo termina quando o primeiro jogador completa o **Encerramento**
-10. Vence quem tiver o **maior KPI Final**. Empate: fica à frente quem avançou mais nas áreas foco e, se ainda empatar, quem tem mais KPI acumulado; empate em tudo divide a posição (🥇 🥇 🥉)
+8. O jogo termina quando o primeiro jogador completa o **Encerramento**
+9. Vence quem tiver o **maior KPI Final**. Empate: fica à frente quem avançou mais nas áreas foco e, se ainda empatar, quem tem mais KPI acumulado; empate em tudo divide a posição (🥇 🥇 🥉)
 
 ---
 
@@ -159,7 +158,7 @@ enviou o pedido.
 | Perguntador da rodada | ❌ Não (já sabe a resposta correta) |
 | Respondedor da rodada | — (é quem está pedindo ajuda) |
 | Qualquer outro jogador ativo | ✅ Sim |
-| Jogador aguardando no lobby (`waitingInLobby`) | ❌ Não |
+| Jogador que entrou com a partida em andamento e aguarda a próxima rodada | ❌ Não |
 | Jogador desconectado (caiu e ainda não voltou) | ❌ Não (o pedido é recusado na hora) |
 
 ### Recusa de Assessoria
@@ -168,8 +167,8 @@ O jogador convidado a assessorar não é obrigado a ajudar. Ele pode recusar o p
 explicitamente (botão **❌ Recusar**) ou simplesmente deixar o tempo esgotar sem enviar
 sugestão — ambos os casos têm o mesmo efeito.
 
-- A recusa **consome o pedido de Assessoria da rodada**. O Respondedor não pode chamar outro
-  jogador na mesma rodada; ele responde sozinho a partir daí.
+- A recusa **consome o pedido de Assessoria da pergunta**. O Respondedor não pode chamar outro
+  jogador na mesma pergunta; ele responde sozinho a partir daí.
 - Recusar não gera penalidade nem honorário para o Assessor.
 - Não há limite de quantas vezes um jogador pode recusar ao longo da partida.
 
@@ -182,18 +181,14 @@ sugestão — ambos os casos têm o mesmo efeito.
 | Pediu assessoria, mas **ignorou** a sugestão recebida | Resultado normal, sem honorário | nada |
 | Assessor **recusou** ou não respondeu a tempo | Resultado normal, sem honorário | — |
 
-**Notas importantes:**
-- Pedir assessoria **não custa nada no pedido**. O custo de responder continua sendo o
-  já existente (0📦 se acertar, -1📦 se errar, exceto com 🛡️ Reserva de Contingência), mais o
-  honorário quando a sugestão seguida acerta.
+**Observações:**
 - O assessor só recebe o honorário se sua sugestão **coincidir com a alternativa final escolhida
   pelo Respondedor** e essa alternativa estiver correta. Se ele sair da sala antes da resposta,
   ninguém paga; se só tiver caído (continua na partida), recebe normalmente.
 - Vale a pena pedir quando o colega chamado tem uma chance de acerto bem maior que a sua.
-- Limite de **1 pedido de assessoria por Respondedor por rodada** — não é possível consultar
-  mais de um jogador na mesma pergunta, mesmo em caso de recusa.
-- Um mesmo jogador pode ser chamado como assessor em rodadas diferentes sem limite de
-  quantas vezes na partida.
+- Limite de **1 pedido de assessoria por pergunta** — não é possível consultar mais de um
+  jogador na mesma pergunta, mesmo em caso de recusa.
+- Um mesmo jogador pode ser chamado como assessor sem limite de vezes na partida.
 
 ### Fluxo resumido
 
@@ -250,7 +245,7 @@ Respondedor recebe pergunta
 | O que está planejado | `_docs/roadmap.md` |
 | Bugs em aberto e corrigidos | `_docs/issues.md` |
 | Testes de conexão: o que está coberto e os roteiros manuais | `_docs/connection-tests.md` e `_docs/manual-test-scripts.md` |
-| O que mudou em cada fase | `CHANGELOG.md` |
+| O que mudou em cada versão | `CHANGELOG.md` |
 
 ---
 

@@ -321,7 +321,7 @@ computador, **B** no celular. Todos visíveis, menos a aba do H.
 
 | Passo | Ação | Esperado |
 |---|---|---|
-| 1 | Repetir o passo 2 com a aba do A escondida | A pode ganhar 📴 e sair do sorteio a partir de ~5 min; ao voltar à aba, o 📴 some sozinho em poucos segundos, sem F5, e A volta ao sorteio. Se continuar 📴 depois de 10 s com a aba visível, anotar e pedir o console (F12) do host |
+| 1 | Repetir o passo 2 com a aba do A escondida | A pode ganhar 📴 e sair do sorteio em poucos minutos (~2,5 a 4 min na medida de 26/10/2026); ao voltar à aba, o 📴 some sozinho em poucos segundos, sem F5, e A volta ao sorteio. Se continuar 📴 depois de 10 s com a aba visível, anotar e pedir o console (F12) do host |
 
 **O que anotar:** hora em que a aba foi escondida e de cada mudança vista
 nos outros aparelhos.
