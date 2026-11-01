@@ -1,6 +1,6 @@
 {
   "name": "pm-the-kpi-master",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "PM: The KPI Master. As dependências abaixo são só para os testes no navegador (tests/browser); o jogo publicado não usa nada daqui.",
   "scripts": {

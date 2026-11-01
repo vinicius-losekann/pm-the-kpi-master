@@ -1,7 +1,8 @@
 # Changelog
 
-> **Contém:** as mudanças notáveis do projeto, em blocos por fase (o mais
-> novo primeiro; o do topo fica aberto até a fase fechar), com as seções
+> **Contém:** as mudanças notáveis do projeto, em blocos por versão (até a
+> 1.0.0, por fase; o mais novo primeiro; o do topo fica aberto até a
+> versão sair), com as seções
 > do [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/):
 > `Added`, `Changed`, `Removed`, `Fixed`, `Security`, `Known issues`.
 > **Não contém:** passo a passo técnico (→ `_docs/architecture.md`) nem a
@@ -12,7 +13,40 @@
 
 ---
 
-## [Sem versão] — Em andamento (depois da Fase E)
+## [1.0.1] - 2026-11-01
+
+Revisão de código, testes e documentação, sem mudar o jogo: as regras, as
+mensagens entre os jogadores (protocolo 13) e o estado salvo (versão 10)
+são os da 1.0.0. São os mesmos 183 testes de lógica e 31 cenários no
+navegador.
+
+### Changed
+- Comentários do código e dos testes explicam o que o código faz e por
+  quê, sem número de fase, etapa ou item do roadmap e sem o histórico do
+  "antes era assim" (fica neste arquivo, em `_docs/issues.md` e no Git);
+  os que ainda falavam em "fase" passaram a "área foco".
+- README: o limite da assessoria aparece como é no jogo, um pedido por
+  pergunta (o texto dizia "por rodada"); saem o item repetido do pedido
+  de ajuda no fluxo do jogo, a nota que repetia a seção do honorário e o
+  nome interno de um campo.
+- Documentação com os valores de hoje: o prazo de quem é chamado para um
+  apoio (60 segundos), o resultado do teste manual da aba escondida
+  (M18) e as convenções sem citar o `localStorage` como lugar do estado
+  salvo. Sai a seção vazia de pendências da Fase D do roadmap.
+- `npm test` roda os 15 arquivos de testes de lógica (faltavam 5); o
+  título do cenário E1 passou a dizer "pergunta" em vez de "question".
+
+### Removed
+- Duas linhas do console ao abrir o jogo: uma apontava para uma
+  ferramenta de depuração que não existe mais, e a falha ao carregar as
+  perguntas aparecia em duas mensagens, agora uma.
+
+### Known issues
+- Os mesmos da 1.0.0 (abaixo).
+
+---
+
+## [1.0.0] - 2026-10-27
 
 ### Added
 - **Desempate do ranking:** com o mesmo KPI Final, fica à frente quem
@@ -51,7 +85,7 @@
   é decidida pelo banco: só um assume, mesmo que vários tentem juntos. O
   host antigo que volta entra como jogador comum, com KPI e recursos.
   Testes T192–T204 e cenários E26 e E31–E36.
-- São 167 testes de lógica em 15 arquivos e 28 cenários no navegador.
+- São 183 testes de lógica em 15 arquivos e 31 cenários no navegador.
 
 ### Changed
 - **Estouro de orçamento:** o recurso pode ficar negativo. Errar com 0
@@ -227,11 +261,14 @@
 
 ### Known issues
 - Quem fecha a aba sai da lista do lobby só ~20 segundos depois, e a
-  sala fica ~10 segundos sem host numa troca. Com a aba do host escondida
-  por mais de 5 minutos, o Chrome e o Edge espaçam o sinal de vida dele, e
-  os outros podem tomar o host (conferir no teste manual M18). No Windows,
-  a janela do Edge coberta por inteiro por outra janela conta como
-  escondida: o professor não deve ser o host pelo Edge. Lista completa em
+  sala fica ~10 segundos sem host numa troca.
+- **Aba do host escondida:** com a aba do jogo atrás de outra, a janela
+  minimizada ou coberta por inteiro por outra janela, o Chrome e o Edge
+  no Windows param o sinal de vida em menos de 1 minuto (teste manual
+  M18, 26/10/2026), e outro jogador assume como host; a partida continua,
+  e o host antigo volta como jogador comum, sem o "Nova Rodada" nem o
+  "Encerrar Partida". Por ora, o professor que for host deixa o jogo numa
+  janela à vista (os slides em outra, ao lado). Lista completa em
   `_docs/connection-tests.md`, seção 5.
 
 ---
